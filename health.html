@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系統健康監控</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f8fafc; color: #1a202c; padding: 20px; overscroll-behavior-x: none; }
+  h1 { font-size: 1.4rem; color: #1e3a5f; margin-bottom: 20px; }
+  h2 { font-size: 1.1rem; color: #334155; margin: 24px 0 12px; }
+  .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .metric { padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
+  .metric .label { font-size: .82rem; color: #64748b; }
+  .metric .value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; }
+  .metric .pct { font-size: .85rem; color: #94a3b8; }
+  .ok { border-left: 4px solid #22c55e; }
+  .warn { border-left: 4px solid #f59e0b; }
+  .err { border-left: 4px solid #ef4444; }
+  .unknown { border-left: 4px solid #94a3b8; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  th { background: #f1f5f9; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .78rem; font-weight: 600; }
+  .badge-ok { background: #dcfce7; color: #166534; }
+  .badge-warning { background: #fef3c7; color: #92400e; }
+  .badge-error { background: #fee2e2; color: #991b1b; }
+  .badge-unknown { background: #f1f5f9; color: #64748b; }
+  .tier { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: .72rem; font-weight: 700; }
+  .tier-1 { background: #dbeafe; color: #1d4ed8; }
+  .tier-2 { background: #fef3c7; color: #92400e; }
+  .tier-3 { background: #f1f5f9; color: #64748b; }
+  .breaker-closed { color: #166534; background: #dcfce7; }
+  .breaker-open { color: #991b1b; background: #fee2e2; }
+  .breaker-half { color: #92400e; background: #fef3c7; }
+  .reset-btn { padding: 3px 10px; border: 1px solid #94a3b8; border-radius: 4px; background: #fff; cursor: pointer; font-size: .78rem; }
+  .reset-btn:hover { background: #f1f5f9; }
+  .accept-btn { padding: 3px 8px; border: 1px solid #22c55e; border-radius: 4px; background: #dcfce7; color: #166534; cursor: pointer; font-size: .75rem; margin-right: 4px; }
+  .reject-btn { padding: 3px 8px; border: 1px solid #ef4444; border-radius: 4px; background: #fee2e2; color: #991b1b; cursor: pointer; font-size: .75rem; }
+  .fp-metric { padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }
+  .fp-metric .src { font-size: .82rem; color: #64748b; word-break: break-all; }
+  .fp-metric .changed { font-size: .78rem; color: #3b82f6; margin-top: 4px; }
+  .fp-metric .counts { font-size: .82rem; color: #94a3b8; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .top-alert { padding: 14px 20px; border-radius: 10px; margin-bottom: 16px; font-weight: 700; font-size: .95rem; animation: pulse 1.5s infinite; }
+  .top-alert-red { background: #fee2e2; color: #991b1b; border: 2px solid #ef4444; }
+  .top-alert-orange { background: #fff7ed; color: #9a3412; border: 2px solid #f97316; }
+  a { color: #2563eb; text-decoration: none; }
+  .back { margin-bottom: 16px; font-size: .9rem; }
+  .refresh-btn { padding: 6px 16px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="back"><a href="/">< 回總表</a></div>
+<div id="topAlerts"></div>
+<h1>系統健康監控 <button class="refresh-btn" onclick="loadAll()">重新整理</button></h1>
+<script>
+{const d=new Date(),day=d.getDay();if(day===0||day===6)document.write('<div style="padding:10px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;margin-bottom:12px;color:#0369a1;font-size:.85rem">今天是週末，股市休市，資料不更新為正常現象</div>')}
+</script>
+
+<h2>資料斷層地圖</h2>
+<div class="card">
+  <div id="coverageMap" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+</div>
+
+<h2>資料完成度</h2>
+<div class="card">
+  <div class="grid" id="completeness"></div>
+</div>
+
+<h2>資料來源備援架構</h2>
+<div class="card">
+  <table id="providerTable">
+    <thead><tr><th>資料類型</th><th>來源</th><th>Tier</th><th>限制</th><th>狀態</th><th>上次成功</th><th>筆數</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<h2>熔斷器狀態</h2>
+<div class="card">
+  <table id="breakerTable">
+    <thead><tr><th>來源</th><th>狀態</th><th>異常率</th><th>觸發次數</th><th>觸發時間</th><th>冷卻(分)</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<h2>異常資料隔離區</h2>
+<div class="card">
+  <table id="quarantineTable">
+    <thead><tr><th>時間</th><th>代碼</th><th>欄位</th><th>舊值</th><th>新值</th><th>原因</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<h2>指紋去重統計</h2>
+<div class="card">
+  <div class="grid" id="fingerprintStats"></div>
+</div>
+
+<h2>資料鮮度與警示</h2>
+<div class="card" id="stalenessAlerts"></div>
+
+<h2>FinMind 額度追蹤</h2>
+<div class="card" id="finmindQuota"></div>
+
+<h2>來源信賴度評分</h2>
+<div class="card">
+  <div class="grid" id="reliabilityScores"></div>
+</div>
+
+<h2>API 健康記錄</h2>
+<div class="card">
+  <table id="healthTable">
+    <thead><tr><th>來源</th><th>說明</th><th>狀態</th><th>上次成功</th><th>連續失敗</th><th>筆數</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<h2>資料庫健康</h2>
+<div class="card" id="dbStatus"></div>
+
+<h2>備份狀態</h2>
+<div class="card" id="backupInfo"></div>
+
+<h2>關鍵欄位異動日誌（近 50 筆）</h2>
+<div class="card">
+  <table id="auditTable">
+    <thead><tr><th>時間</th><th>代碼</th><th>欄位</th><th>舊值</th><th>新值</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+const LABELS = {
+  revenue: '營收', eps_latest: '最新EPS', eps_annual: '年度EPS',
+  eps_quarterly: '季度EPS', dividend: '股利', contract_liability: '合約負債',
+  price: '股價', financial_grade: '財務等級'
+};
+
+async function resetBreaker(source) {
+  await fetch(`/api/breakers/${encodeURIComponent(source)}/reset`, {method: 'POST'});
+  loadAll();
+}
+
+async function handleQuarantine(id, action) {
+  await fetch(`/api/quarantine/${id}/${action}`, {method: 'POST'});
+  loadAll();
+}
+
+async function loadAll() {
+  try {
+  const safe = url => fetch(url).then(r => r.json()).catch(() => null);
+  const [health, providers, breakers, quarantine, fingerprints, coverage, audit, dbStatus] = await Promise.all([
+    safe('/api/health'),
+    safe('/api/providers'),
+    safe('/api/breakers'),
+    safe('/api/quarantine'),
+    safe('/api/fingerprints'),
+    safe('/api/coverage'),
+    safe('/api/audit?limit=50'),
+    safe('/api/db-status'),
+  ]);
+  if (!health) { document.body.innerHTML += '<div style="text-align:center;padding:40px;color:#ef4444">API 載入失敗，請確認系統已啟動</div>'; return; }
+  const _breakers = breakers || {};
+  const _quarantine = quarantine || [];
+  const _fingerprints = fingerprints || [];
+  const _audit = audit || [];
+
+  // 置頂警報（閃爍紅燈）
+  const topEl = document.getElementById('topAlerts');
+  const alerts = [];
+  // 鮮度警告
+  const staleness = health.staleness_alerts || [];
+  for (const a of staleness) {
+    if (a.severity === 'warning') {
+      alerts.push({cls: 'top-alert-red', msg: `${a.data}：${a.message}`});
+    }
+  }
+  // DB 異常
+  if (dbStatus && dbStatus.alert) alerts.push({cls: 'top-alert-red', msg: '資料庫完整性異常！請立即檢查'});
+  // iCloud 斷線
+  if (dbStatus && !dbStatus.icloud) alerts.push({cls: 'top-alert-orange', msg: 'iCloud 同步已關閉！資料未備份到雲端'});
+  // 熔斷中
+  for (const [src, b] of Object.entries(_breakers)) {
+    if (b.state === 'OPEN') alerts.push({cls: 'top-alert-red', msg: `熔斷中：${src}（異常率 ${(b.rate*100).toFixed(1)}%）`});
+  }
+  // FinMind 額度
+  const fq = health.finmind_quota || {};
+  if (fq.pct_used >= 90) alerts.push({cls: 'top-alert-orange', msg: `FinMind 額度已用 ${fq.pct_used}%（${fq.used_today}/${fq.daily_limit}）`});
+  // 斷層
+  for (const c of (coverage.coverage || [])) {
+    if (c.pct < 30) alerts.push({cls: 'top-alert-orange', msg: `資料斷層：${c.item} 僅 ${c.pct}%（${c.have}/${c.total}）`});
+  }
+  topEl.innerHTML = alerts.map(a => `<div class="top-alert ${a.cls}">${a.msg}</div>`).join('');
+
+  // 斷層地圖
+  const cvEl = document.getElementById('coverageMap');
+  const cvItems = (coverage && coverage.coverage) || [];
+  cvEl.innerHTML = cvItems.map(c => {
+    const color = c.pct >= 90 ? '#22c55e' : c.pct >= 60 ? '#f59e0b' : '#ef4444';
+    const bg = c.pct >= 90 ? '#f0fdf4' : c.pct >= 60 ? '#fffbeb' : '#fef2f2';
+    return `<div style="flex:1;min-width:160px;padding:12px;border-radius:8px;background:${bg};border-left:4px solid ${color}">
+      <div style="font-size:.82rem;color:#64748b">${c.item}</div>
+      <div style="font-size:1.4rem;font-weight:700;color:${color}">${c.pct}%</div>
+      <div style="font-size:.78rem;color:#94a3b8">${c.have} / ${c.total}</div>
+    </div>`;
+  }).join('');
+
+  // 完成度
+  const cEl = document.getElementById('completeness');
+  cEl.innerHTML = Object.entries(health.data_completeness).map(([label, d]) => {
+    const cls = d.pct >= 90 ? 'ok' : d.pct >= 50 ? 'warn' : 'err';
+    return `<div class="metric ${cls}">
+      <div class="label">${label}</div>
+      <div class="value">${d.pct}%</div>
+      <div class="pct">${d.count} / ${d.total}</div>
+    </div>`;
+  }).join('');
+
+  // Provider 架構
+  const pTbody = document.querySelector('#providerTable tbody');
+  let pHtml = '';
+  for (const [type, tiers] of Object.entries(providers)) {
+    tiers.forEach((t, i) => {
+      const statusCls = t.status === 'ok' ? 'badge-ok' : t.status === 'error' ? 'badge-error' : t.status === 'warning' ? 'badge-warning' : 'badge-unknown';
+      pHtml += `<tr>
+        ${i === 0 ? `<td rowspan="${tiers.length}" style="font-weight:600">${LABELS[type] || type}</td>` : ''}
+        <td>${t.name}</td>
+        <td><span class="tier tier-${t.tier}">Tier ${t.tier}</span></td>
+        <td>${t.limited ? '有限制' : '無限制'}</td>
+        <td><span class="badge ${statusCls}">${t.status}</span></td>
+        <td style="font-size:.8rem">${t.last_success || '-'}</td>
+        <td>${t.last_record_count || '-'}</td>
+      </tr>`;
+    });
+  }
+  pTbody.innerHTML = pHtml;
+
+  // 熔斷器
+  const bTbody = document.querySelector('#breakerTable tbody');
+  const bEntries = Object.entries(_breakers);
+  if (bEntries.length === 0) {
+    bTbody.innerHTML = '<tr><td colspan="7" style="color:#22c55e;text-align:center">無熔斷記錄（系統正常）</td></tr>';
+  } else {
+    bTbody.innerHTML = bEntries.map(([src, b]) => {
+      const cls = b.state === 'CLOSED' ? 'breaker-closed' : b.state === 'OPEN' ? 'breaker-open' : 'breaker-half';
+      const rate = b.total_count > 0 ? (b.rate * 100).toFixed(1) + '%' : '-';
+      return `<tr>
+        <td style="font-weight:600">${src}</td>
+        <td><span class="badge ${cls}">${b.state}</span></td>
+        <td>${rate} (${b.fail_count}/${b.total_count})</td>
+        <td>${b.trip_count}</td>
+        <td style="font-size:.8rem">${b.tripped_at || '-'}</td>
+        <td>${b.cooldown_minutes}</td>
+        <td>${b.state !== 'CLOSED' ? `<button class="reset-btn" onclick="resetBreaker('${src}')">重置</button>` : '-'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // 隔離區
+  const qTbody = document.querySelector('#quarantineTable tbody');
+  if (_quarantine.length === 0) {
+    qTbody.innerHTML = '<tr><td colspan="7" style="color:#22c55e;text-align:center">無異常資料（系統正常）</td></tr>';
+  } else {
+    qTbody.innerHTML = _quarantine.map(q => `<tr>
+      <td style="font-size:.78rem">${q.quarantined_at}</td>
+      <td style="font-weight:600">${q.code}</td>
+      <td>${q.field}</td>
+      <td>${q.old_value}</td>
+      <td style="color:#ef4444;font-weight:600">${q.new_value}</td>
+      <td style="font-size:.82rem">${q.reason}</td>
+      <td>
+        <button class="accept-btn" onclick="handleQuarantine(${q.id},'accept')">接受</button>
+        <button class="reject-btn" onclick="handleQuarantine(${q.id},'reject')">丟棄</button>
+      </td>
+    </tr>`).join('');
+  }
+
+  // 指紋統計
+  const fpEl = document.getElementById('fingerprintStats');
+  if (_fingerprints.length === 0) {
+    fpEl.innerHTML = '<div style="color:#94a3b8">尚無指紋記錄</div>';
+  } else {
+    fpEl.innerHTML = _fingerprints.map(f => {
+      const skipRate = f.check_count > 0 ? Math.round(f.skip_count / f.check_count * 100) : 0;
+      return `<div class="fp-metric">
+        <div class="src">${f.source}</div>
+        <div class="changed">上次變更: ${f.last_changed || '-'}</div>
+        <div class="counts">檢查 ${f.check_count} 次 / 跳過 ${f.skip_count} 次 (${skipRate}% 節省)</div>
+      </div>`;
+    }).join('');
+  }
+
+  // API 健康
+  const hTbody = document.querySelector('#healthTable tbody');
+  hTbody.innerHTML = Object.entries(health.api_health).map(([src, h]) => {
+    const cls = h.status === 'ok' ? 'badge-ok' : h.status === 'error' ? 'badge-error' : 'badge-warning';
+    return `<tr>
+      <td style="font-weight:600">${src}</td>
+      <td>${h.description || '-'}</td>
+      <td><span class="badge ${cls}">${h.status}</span></td>
+      <td style="font-size:.8rem">${h.last_success || '-'}</td>
+      <td>${h.fail_count}</td>
+      <td>${h.last_record_count}</td>
+    </tr>`;
+  }).join('');
+
+  // 資料鮮度警示
+  const sEl = document.getElementById('stalenessAlerts');
+  if (staleness.length === 0) {
+    sEl.innerHTML = '<div style="color:#22c55e;font-weight:600">所有資料鮮度正常</div>';
+  } else {
+    sEl.innerHTML = staleness.map(a => {
+      const color = a.severity === 'warning' ? '#f59e0b' : a.severity === 'info' ? '#3b82f6' : '#ef4444';
+      return `<div style="padding:8px 12px;border-left:4px solid ${color};margin-bottom:8px;background:#fafbfd;border-radius:4px">
+        <strong style="color:${color}">${a.data}</strong>：${a.message}
+        ${a.last_update ? `<span style="font-size:.8rem;color:#94a3b8">（上次：${a.last_update}）</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // FinMind 額度
+  const fEl = document.getElementById('finmindQuota');
+  const q = health.finmind_quota || {};
+  const qPct = q.pct_used || 0;
+  const qColor = qPct < 50 ? '#22c55e' : qPct < 80 ? '#f59e0b' : '#ef4444';
+  fEl.innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+      <div>
+        <div style="font-size:.82rem;color:#64748b">今日已用</div>
+        <div style="font-size:1.5rem;font-weight:700;color:${qColor}">${q.used_today || 0} / ${q.daily_limit || 2000}</div>
+        <div style="width:200px;height:8px;background:#e2e8f0;border-radius:4px;margin-top:4px">
+          <div style="width:${Math.min(qPct, 100)}%;height:100%;background:${qColor};border-radius:4px"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:.82rem;color:#64748b">待補資料</div>
+        <div>季度EPS：<strong>${q.stocks_need_eps || 0}</strong> 支</div>
+        <div>合約負債：<strong>${q.stocks_need_contract || 0}</strong> 支</div>
+      </div>
+      <div>
+        <div style="font-size:.82rem;color:#64748b">預估完成</div>
+        <div style="font-size:1.2rem;font-weight:700">${q.est_days_to_complete || '?'} 天</div>
+      </div>
+    </div>`;
+
+  // 來源信賴度
+  const rEl = document.getElementById('reliabilityScores');
+  const scores = health.reliability_scores || {};
+  rEl.innerHTML = Object.entries(scores).map(([src, score]) => {
+    const cls = score >= 80 ? 'ok' : score >= 50 ? 'warn' : 'err';
+    return `<div class="metric ${cls}">
+      <div class="label">${src}</div>
+      <div class="value">${score}</div>
+      <div class="pct">/ 100</div>
+    </div>`;
+  }).join('');
+
+  // 備份
+  // DB 健康
+  const dbEl = document.getElementById('dbStatus');
+  const db = dbStatus || {};
+  const dbColor = db.alert ? '#ef4444' : '#22c55e';
+  const dbIcon = db.alert ? '資料庫異常！' : '正常';
+  const icColor = db.icloud ? '#22c55e' : '#ef4444';
+  const icText = db.icloud ? '同步中' : '未同步！請至系統設定開啟';
+  dbEl.innerHTML = `
+    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:1.2rem;font-weight:700;color:${dbColor}">${dbIcon}</div>
+      <div>大小：<strong>${db.size_mb || '?'} MB</strong></div>
+      <div>每日備份：db_backups/（保留 7 天）</div>
+      <div>iCloud：<strong style="color:${icColor}">${icText}</strong></div>
+      <div style="font-size:.8rem;color:#94a3b8">${db.last_check || '尚未執行過檢查'}</div>
+    </div>`;
+
+  const bEl = document.getElementById('backupInfo');
+  const b = health.backup_status || {};
+  bEl.innerHTML = `備份大小：${b.total_size_mb || 0} MB / 保留天數：${b.days || 0} 天 / 保留 30 天自動清理`;
+
+  // 異動日誌
+  const aTbody = document.querySelector('#auditTable tbody');
+  if (_audit.length === 0) {
+    aTbody.innerHTML = '<tr><td colspan="5" style="color:#94a3b8;text-align:center">尚無異動記錄</td></tr>';
+  } else {
+    aTbody.innerHTML = _audit.map(a => `<tr>
+      <td style="font-size:.78rem">${a.changed_at}</td>
+      <td style="font-weight:600">${a.code}</td>
+      <td>${a.field_label}</td>
+      <td style="color:#94a3b8">${a.old_value}</td>
+      <td style="font-weight:600">${a.new_value}</td>
+    </tr>`).join('');
+  }
+  } catch(e) {
+    document.body.innerHTML += `<div style="text-align:center;padding:40px;color:#ef4444;font-size:1.1rem">渲染錯誤：${e.message}<br><pre style="text-align:left;max-width:600px;margin:12px auto;font-size:.8rem;background:#fef2f2;padding:12px;border-radius:8px">${e.stack}</pre></div>`;
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>

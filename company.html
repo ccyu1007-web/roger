@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>載入中...</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; overscroll-behavior-x: none; }
+
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header .back-link {
+    color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem;
+  }
+  header .back-link:hover { color: #fff; }
+
+  .container { max-width: 1300px; margin: 0 auto; padding: 0 16px 32px; }
+
+  /* ── 分頁標籤 ── */
+  .tabs {
+    display: flex; gap: 0; background: #fff;
+    border-bottom: 2px solid #e2e8f0;
+    border-radius: 10px 10px 0 0;
+    margin-top: 20px;
+    box-shadow: 0 -1px 6px rgba(0,0,0,.04);
+  }
+  .tab {
+    padding: 14px 28px; font-size: .95rem; font-weight: 600;
+    color: #64748b; cursor: pointer; border: none; background: none;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: all .15s;
+  }
+  .tab:hover { color: #2563eb; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+
+  /* ── 內容區 ── */
+  .panel {
+    background: #fff; border-radius: 0 0 10px 10px;
+    box-shadow: 0 1px 8px rgba(0,0,0,.08);
+    overflow-x: auto;
+  }
+
+  /* ── Loading ── */
+  .loading { text-align: center; padding: 60px; color: #94a3b8; font-size: .95rem; }
+  .spinner {
+    display: inline-block; width: 28px; height: 28px;
+    border: 3px solid #e2e8f0; border-top-color: #2563eb;
+    border-radius: 50%; animation: spin .7s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 年度財報表格 ── */
+  .fs-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .fs-table th, .fs-table td {
+    padding: 9px 20px; white-space: nowrap; text-align: right;
+    border-bottom: 1px solid #e8ecf1;
+    font-variant-numeric: tabular-nums;
+    border-left: 1px solid #e8ecf1;
+  }
+  .fs-table th:first-child, .fs-table td:first-child { border-left: none; }
+  .fs-table .col-label {
+    text-align: left; position: sticky; left: 0; z-index: 1;
+    background: #fff; font-weight: 500; color: #334155;
+    min-width: 190px; padding-left: 20px;
+  }
+  .fs-table thead th {
+    background: #1e3a5f; color: #fff; font-weight: 700;
+    font-size: .9rem; padding: 12px 20px; letter-spacing: .5px;
+    position: sticky; top: 0; z-index: 2;
+    border-left-color: rgba(255,255,255,.15);
+  }
+  .fs-table thead th:first-child {
+    z-index: 3; background: #1e3a5f; text-align: left; padding-left: 20px;
+    border-left: none;
+  }
+  .fs-table .sec-row td {
+    background: #f0f4ff; font-weight: 700; color: #3730a3; font-size: .82rem;
+    padding: 8px 20px 8px 14px; text-align: left;
+    border-bottom: 2px solid #c7d2fe; border-left: none;
+  }
+  .fs-table .row-hl .col-label { font-weight: 700; color: #1e3a5f; background: #f4f7fb; }
+  .fs-table .row-hl td { background: #f4f7fb; font-weight: 600; }
+  .fs-table tbody tr:nth-child(even):not(.sec-row):not(.row-hl) td { background: #fafbfd; }
+  .fs-table tbody tr:nth-child(even):not(.sec-row):not(.row-hl) .col-label { background: #fafbfd; }
+  .fs-table tbody tr:not(.sec-row):hover td { background: #eef4ff; }
+  .fs-table tbody tr:not(.sec-row):hover .col-label { background: #eef4ff; }
+  .fs-table .v-neg { color: #dc2626; font-weight: 500; }
+  .fs-table .v-pos { color: #059669; font-weight: 500; }
+  .fs-table .v-neutral { color: #334155; }
+  .fs-table .v-empty { color: #d1d5db; text-align: center; }
+  .fs-table .fin-grade-row td {
+    background: #fefce8; font-weight: 700; font-size: .88rem;
+    text-align: center; border-bottom: 2px solid #eab308;
+  }
+  .fs-table .fin-grade-row td:first-child {
+    background: #fefce8; text-align: left; color: #92400e; font-size: .82rem;
+  }
+  .fg-aa  { color: #991b1b; }
+  .fg-a   { color: #dc2626; }
+  .fg-b   { color: #2563eb; }
+  .fg-c   { color: #6b7280; }
+  .fg-d   { color: #94a3b8; }
+  .fs-footer {
+    padding: 10px 20px; color: #94a3b8; font-size: .78rem;
+    border-top: 1px solid #e2e8f0; background: #fafbfd;
+  }
+
+  /* ── 估算計算器 ── */
+  .est-wrap {
+    border-top: 3px solid #2563eb; background: #fff; padding: 24px 28px;
+    border-radius: 0 0 10px 10px;
+  }
+  .est-title {
+    font-size: 1rem; font-weight: 700; color: #1e3a5f;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .est-save {
+    padding: 5px 16px; border-radius: 6px; border: 1px solid #2563eb;
+    background: #2563eb; color: #fff; font-size: .82rem; font-weight: 600;
+    cursor: pointer; transition: background .15s;
+  }
+  .est-save:hover { background: #1d4ed8; }
+  .est-date { font-size: .82rem; color: #94a3b8; font-weight: 400; margin-left: auto; }
+  .est-grid {
+    display: grid; grid-template-columns: 180px 1fr; gap: 0;
+    font-size: .88rem; max-width: 520px;
+  }
+  .est-grid .lbl {
+    padding: 8px 0; color: #475569; font-weight: 500;
+    display: flex; align-items: center;
+  }
+  .est-grid .val {
+    padding: 8px 0; display: flex; align-items: center;
+  }
+  .est-grid input {
+    width: 180px; padding: 6px 12px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-size: .88rem; outline: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .est-grid input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .est-grid .computed {
+    font-weight: 600; color: #1e3a5f; font-variant-numeric: tabular-nums;
+    min-height: 28px; display: flex; align-items: center;
+  }
+  .est-grid .sep {
+    grid-column: 1 / -1; border-top: 1px solid #e2e8f0; margin: 6px 0;
+  }
+  .est-grid .result-label { font-weight: 600; color: #334155; }
+  .est-grid .result-val { font-weight: 700; color: #1e3a5f; font-size: .95rem; }
+  .est-grid .result-highlight { color: #2563eb; font-size: 1.05rem; }
+
+  /* ── 質性研究筆記 ── */
+  .notes-wrap {
+    border-top: 3px solid #059669; background: #fff; padding: 20px 28px;
+    border-radius: 0 0 10px 10px;
+  }
+  .notes-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+  }
+  .notes-title { font-size: 1rem; font-weight: 700; color: #059669; }
+  .notes-status { font-size: .78rem; color: #94a3b8; }
+  .notes-area {
+    width: 100%; min-height: 200px; padding: 14px 16px;
+    border: 1px solid #d1d5db; border-radius: 8px;
+    font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+    font-size: .9rem; line-height: 1.7; color: #1a202c;
+    resize: vertical; outline: none;
+  }
+  .notes-area:focus { border-color: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,.1); }
+  .notes-area::placeholder { color: #cbd5e1; }
+
+  /* ── 年度彙總 & 估值 ── */
+  .est-annual {
+    border-top: 2px solid #e2e8f0; margin-top: 20px; padding-top: 20px;
+  }
+  .est-annual-title { font-size: .92rem; font-weight: 700; color: #1e3a5f; margin-bottom: 12px; }
+  .est-q-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .est-q-item { display: flex; align-items: center; gap: 6px; }
+  .est-q-item label { font-size: .85rem; color: #475569; font-weight: 600; white-space: nowrap; }
+  .est-q-item input {
+    width: 100px; padding: 5px 10px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-size: .85rem; outline: none; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .est-q-item input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .est-annual-eps {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .95rem; font-weight: 700; color: #2563eb;
+    background: #eef2ff; padding: 4px 14px; border-radius: 6px;
+  }
+  .est-val-grid {
+    display: grid; grid-template-columns: 180px 1fr; gap: 0;
+    font-size: .88rem; max-width: 520px; margin-top: 14px;
+  }
+  .est-val-grid .lbl { padding: 7px 0; color: #475569; font-weight: 500; display: flex; align-items: center; }
+  .est-val-grid .val { padding: 7px 0; display: flex; align-items: center; }
+  .est-val-grid input {
+    width: 140px; padding: 5px 10px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-size: .88rem; outline: none; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .est-val-grid input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .est-val-grid .computed { font-weight: 600; color: #1e3a5f; font-variant-numeric: tabular-nums; }
+  .est-val-grid .sep { grid-column: 1 / -1; border-top: 1px solid #e2e8f0; margin: 4px 0; }
+  .est-price-box {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff;
+    padding: 6px 18px; border-radius: 8px; font-weight: 700; font-size: 1rem;
+  }
+
+  /* ── 價值評估矩陣 ── */
+  .matrix-wrap {
+    border-top: 2px solid #e2e8f0; margin-top: 20px; padding-top: 20px;
+  }
+  .matrix-title {
+    font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .matrix-floor {
+    display: flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 400; color: #475569;
+  }
+  .matrix-floor input {
+    width: 60px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 5px;
+    font-size: .85rem; text-align: right; outline: none;
+  }
+  .matrix-floor input:focus { border-color: #2563eb; }
+  .vm-table {
+    border-collapse: collapse; font-size: .82rem; margin-top: 10px; width: auto;
+  }
+  .vm-table th, .vm-table td {
+    border: 1px solid #cbd5e1; padding: 8px 14px; text-align: center;
+    min-width: 72px; white-space: nowrap;
+  }
+  .vm-table thead th { background: #1e3a5f; color: #fff; font-weight: 600; }
+  .vm-table tbody th { background: #f1f5f9; font-weight: 600; color: #334155; text-align: left; }
+  .vm-table .g-aa  { background: #dc2626; color: #fff; font-weight: 700; }
+  .vm-table .g-a   { background: #ef4444; color: #fff; font-weight: 700; }
+  .vm-table .g-ba  { background: #f59e0b; color: #fff; font-weight: 700; }
+  .vm-table .g-b   { background: #d97706; color: #fff; font-weight: 600; }
+  .vm-table .g-watch { background: #3b82f6; color: #fff; font-weight: 600; }
+  .vm-table .g-crit  { background: #a16207; color: #fff; font-weight: 600; }
+  .vm-table .g-x     { background: #e2e8f0; color: #94a3b8; }
+  .vm-table .g-cur   { outline: 3px solid #000; outline-offset: -2px; }
+  .grade-badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 20px; border-radius: 8px; font-size: 1.05rem; font-weight: 700;
+  }
+  .grade-badge .grade-label { font-size: .88rem; font-weight: 500; color: #475569; }
+  .grade-badge.gb-aa  { background: #dc2626; color: #fff; }
+  .grade-badge.gb-a   { background: #ef4444; color: #fff; }
+  .grade-badge.gb-ba  { background: #f59e0b; color: #fff; }
+  .grade-badge.gb-b   { background: #d97706; color: #fff; }
+  .grade-badge.gb-watch { background: #3b82f6; color: #fff; }
+  .grade-badge.gb-crit  { background: #a16207; color: #fff; }
+  .grade-badge.gb-x     { background: #94a3b8; color: #fff; }
+  .grade-badge.gb-na    { background: #e2e8f0; color: #94a3b8; }
+
+  /* ── 歷史本益比 ── */
+  .pe-hist-table { border-collapse: collapse; font-size: .85rem; margin-top: 8px; }
+  .pe-hist-table th, .pe-hist-table td {
+    padding: 7px 16px; border: 1px solid #e2e8f0; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .pe-hist-table thead th { background: #1e3a5f; color: #fff; font-weight: 600; }
+  .pe-hist-table tbody tr:nth-child(even) { background: #fafbfd; }
+  .pe-hist-table tbody tr:hover td { background: #eef4ff; }
+  .pe-hist-table .pe-high { color: #dc2626; font-weight: 600; }
+  .pe-hist-table .pe-low  { color: #16a34a; font-weight: 600; }
+  .est-row {
+    display: flex; gap: 6px; flex-wrap: nowrap; align-items: center;
+    margin-top: 8px; font-size: .82rem;
+  }
+  .est-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; transition: all .15s;
+  }
+  .est-chip:hover { background: #dbeafe; border-color: #93c5fd; }
+  .est-chip-label { color: #6366f1; font-weight: 600; }
+  .est-chip .pe-high { color: #dc2626; font-weight: 700; }
+  .est-chip .pe-low  { color: #16a34a; font-weight: 700; }
+  .est-chip .arrow { color: #94a3b8; font-size: .7rem; }
+
+  /* ── 逍遙評價法 ── */
+  .val-method {
+    border-top: 3px solid #7c3aed; background: #fff; padding: 24px 28px;
+    border-radius: 0 0 10px 10px; margin-top: 0;
+  }
+  .val-method-title { font-size: 1.05rem; font-weight: 700; color: #7c3aed; margin-bottom: 14px; }
+  .val-inputs {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .val-inp-group {
+    display: flex; align-items: center; gap: 6px; font-size: .85rem;
+  }
+  .val-inp-group label {
+    background: #f0ecff; color: #6d28d9; padding: 4px 10px; border-radius: 5px;
+    font-weight: 600; font-size: .8rem; white-space: nowrap;
+  }
+  .val-inp-group input {
+    width: 100px; padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .85rem; text-align: right; outline: none;
+  }
+  .val-inp-group input:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
+  .val-inp-group .auto-val {
+    font-weight: 600; color: #6d28d9; min-width: 50px;
+  }
+  .val-result-table { border-collapse: collapse; font-size: .85rem; width: 100%; margin-top: 8px; }
+  .val-result-table th, .val-result-table td {
+    padding: 10px 16px; border: 1px solid #e2e8f0; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .val-result-table thead th {
+    background: #7c3aed; color: #fff; font-weight: 600;
+  }
+  .val-result-table tbody td { font-weight: 600; color: #334155; }
+  .val-result-table .price-cell { background: #f8fafc; }
+  .val-result-table .grade-a { background: #fef2f2; color: #dc2626; font-weight: 700; }
+  .val-result-table .grade-aa { background: #fef2f2; color: #991b1b; font-weight: 700; }
+  .val-result-table .grade-long { background: #f0fdf4; color: #166534; font-weight: 600; }
+  .val-global-note { font-size: .76rem; color: #94a3b8; margin-top: 4px; }
+
+  /* ── 月營收表格 ── */
+  .rev-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .rev-table th, .rev-table td {
+    padding: 10px 16px; white-space: nowrap; text-align: right;
+    border-bottom: 1px solid #e8ecf1;
+  }
+  .rev-table .col-month {
+    text-align: center; font-weight: 700; color: #1e3a5f;
+    background: #f8fafc; width: 52px; min-width: 52px;
+    position: sticky; left: 0; z-index: 1;
+    border-right: 2px solid #cbd5e1;
+  }
+  .rev-table .year-band {
+    text-align: center; font-weight: 700; font-size: .95rem;
+    padding: 10px 14px; letter-spacing: 1px;
+  }
+  .rev-table .year-band.y0 { background: #1e3a5f; color: #fff; }
+  .rev-table .year-band.y1 { background: #2563eb; color: #fff; }
+  .rev-table .year-band.y2 { background: #7c3aed; color: #fff; }
+  .rev-table .sub-hdr {
+    background: #f1f5f9; color: #475569; font-weight: 600;
+    font-size: .8rem; padding: 7px 16px; text-align: right;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  .rev-table .grp-end { border-right: 2px solid #cbd5e1; }
+  .rev-table tbody tr:nth-child(even) { background: #fafbfd; }
+  .rev-table tbody tr:hover td { background: #eef4ff; }
+  .rev-table tbody tr:hover .col-month { background: #dbeafe; }
+  .rev-table .rev-val { color: #1e293b; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .rev-table .rate-pos { color: #dc2626; font-weight: 500; }
+  .rev-table .rate-neg { color: #16a34a; font-weight: 500; }
+  .rev-table .rate-zero { color: #94a3b8; }
+  .rev-table .empty { color: #d1d5db; text-align: center; }
+  .rev-footer {
+    padding: 10px 20px; color: #94a3b8; font-size: .78rem;
+    border-top: 1px solid #e2e8f0; background: #fafbfd;
+    border-radius: 0 0 10px 10px;
+  }
+
+  /* ── 同業比較 ── */
+  .ind-header {
+    padding: 20px 24px 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .ind-badge {
+    background: #1e3a5f; color: #fff; padding: 6px 16px; border-radius: 20px;
+    font-size: .88rem; font-weight: 600;
+  }
+  .ind-count { color: #64748b; font-size: .85rem; }
+
+  .ind-summary {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px; padding: 16px 24px;
+  }
+  .ind-card {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 14px; text-align: center;
+  }
+  .ind-card .label { font-size: .75rem; color: #64748b; margin-bottom: 6px; }
+  .ind-card .rank { font-size: 1.15rem; font-weight: 700; color: #1e3a5f; }
+  .ind-card .rank small { font-size: .75rem; font-weight: 400; color: #94a3b8; }
+  .ind-card .bar-wrap {
+    height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 8px; overflow: hidden;
+  }
+  .ind-card .bar-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .ind-card .pct { font-size: .72rem; color: #94a3b8; margin-top: 4px; }
+
+  .ind-table-wrap { padding: 0 24px 20px; overflow-x: auto; }
+  .ind-table {
+    width: 100%; border-collapse: collapse; font-size: .82rem; margin-top: 4px;
+  }
+  .ind-table th, .ind-table td {
+    padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: right;
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .ind-table th {
+    background: #1e3a5f; color: #fff; font-weight: 600;
+    position: sticky; top: 0; cursor: pointer; user-select: none;
+  }
+  .ind-table th:hover { background: #2563eb; }
+  .ind-table th:first-child, .ind-table td:first-child { text-align: left; position: sticky; left: 0; z-index: 1; background: inherit; }
+  .ind-table td:first-child { background: #fff; }
+  .ind-table tbody tr:nth-child(even) td { background: #fafbfd; }
+  .ind-table tbody tr:nth-child(even) td:first-child { background: #fafbfd; }
+  .ind-table tbody tr:hover td { background: #eef4ff; }
+  .ind-table tbody tr:hover td:first-child { background: #eef4ff; }
+  .ind-table .row-target td { background: #dbeafe !important; font-weight: 600; }
+  .ind-table .row-target td:first-child { background: #dbeafe !important; }
+  .ind-table .v-pos { color: #dc2626; }
+  .ind-table .v-neg { color: #16a34a; }
+  .ind-filter {
+    padding: 12px 24px 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .ind-filter input {
+    padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .85rem; outline: none; width: 180px;
+  }
+  .ind-filter input:focus { border-color: #2563eb; }
+  .ind-filter select {
+    padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .85rem; outline: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="pageTitle">載入中...</h1>
+  <div style="display:flex;align-items:center;gap:12px">
+    <input type="text" id="jumpInput" placeholder="輸入代碼跳轉"
+      style="width:130px;padding:5px 10px;border:none;border-radius:6px;font-size:.85rem;outline:none"
+      onkeydown="if(event.key==='Enter'){const v=this.value.trim();if(v)location.href='/company.html?code='+v;}">
+    <a href="/" class="back-link">< 回總表</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" id="tabFinancial" onclick="switchTab('financial')">年度財報</button>
+    <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
+    <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
+    <button class="tab" id="tabIndustry" onclick="switchTab('industry')">同業比較</button>
+  </div>
+  <div class="panel" id="panel">
+    <div class="loading"><div class="spinner"></div><div>載入資料中...</div></div>
+  </div>
+  <div id="importantNews" style="margin-top:16px"></div>
+</div>
+
+<script>
+const CODE = new URLSearchParams(location.search).get('code');
+if (!CODE) { document.getElementById('panel').innerHTML = '<div class="loading">缺少股票代碼</div>'; }
+
+let currentTab = 'financial';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabFinancial').classList.toggle('active', tab === 'financial');
+  document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
+  document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
+  document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
+  if (tab === 'financial') loadFinancial();
+  else if (tab === 'quarterly') loadQuarterly();
+  else if (tab === 'revenue') loadRevenue();
+  else loadIndustry();
+}
+
+// ── 載入年度財報 ──
+async function loadFinancial() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入財報資料中...</div></div>';
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/financials`);
+    const json = await res.json();
+    updateTitle(json);
+    if (!json.data || !json.data.length) { panel.innerHTML = '<div class="loading">無財報資料</div>'; return; }
+    renderFinTable(json.data);
+  } catch(e) { panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗</div>'; }
+}
+
+// ── 載入季度估計表 ──
+async function loadQuarterly() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入季度資料中...</div></div>';
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/quarterly`);
+    const json = await res.json();
+    updateTitle(json);
+    if (!json.data || !json.data.length) { panel.innerHTML = '<div class="loading">無季度資料（FinMind 額度可能不足，請稍後再試）</div>'; return; }
+    renderQuarterlyTable(json.data);
+  } catch(e) { panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗</div>'; }
+}
+
+// ── 載入月營收 ──
+async function loadRevenue() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入月營收資料中...</div></div>';
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/monthly-revenue`);
+    const json = await res.json();
+    updateTitle(json);
+    if (!json.data || !json.years || !json.years.length) { panel.innerHTML = '<div class="loading">無月營收資料</div>'; return; }
+    renderRevenueTable(json);
+  } catch(e) { panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗</div>'; }
+}
+
+function updateTitle(json) {
+  const name = json.name || CODE;
+  document.title = `${CODE} ${name}`;
+  document.getElementById('pageTitle').textContent = `${CODE} ${name}`;
+}
+
+// ── 年度財報渲染 ──
+function calcFinGrade(d) {
+  const roe = d.roe;
+  const opm = d.operating_margin;
+  const rev = d.revenue;
+  const fcf = d.fcf;
+  if (roe == null || rev == null || rev === 0 || fcf == null) return null;
+
+  const fcfRatio = fcf / rev * 100;  // FCF/營收 (%)
+
+  // 基礎等級：ROE (Y軸) × FCF/營收 (X軸)
+  let base;
+  if (roe >= 15) {
+    base = fcfRatio < 0 ? 'B1A' : fcfRatio < 5 ? 'A1' : 'AA';
+  } else if (roe >= 10) {
+    base = fcfRatio < 0 ? 'B1' : fcfRatio < 5 ? 'A' : 'A2';
+  } else if (roe >= 7) {
+    base = fcfRatio < 0 ? 'C' : fcfRatio < 5 ? 'B2' : 'B2A';
+  } else {
+    base = fcfRatio < 0 ? 'D' : 'C';
+  }
+
+  // 營益率加減號
+  let suffix = '';
+  if (opm != null) {
+    if (opm >= 10) suffix = '+';
+    else if (opm < 5) suffix = '-';
+  }
+
+  return base + suffix;
+}
+
+function renderFinTable(data) {
+  const years = data.map(d => d.year_label + '年');
+
+  const fmtM = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const m = v / 1000000;
+    const cls = m < 0 ? 'v-neg' : 'v-neutral';
+    return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
+  };
+  const fmtP = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const cls = v < 0 ? 'v-neg' : v > 0 ? 'v-pos' : 'v-neutral';
+    const sign = v > 0 ? '+' : '';
+    return `<td class="${cls}">${sign}${v.toFixed(2)}%</td>`;
+  };
+  const fmt2 = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const cls = v < 0 ? 'v-neg' : 'v-neutral';
+    return `<td class="${cls}">${v.toFixed(2)}</td>`;
+  };
+  const fmtFcfM = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const m = v / 1000000;
+    const cls = m < 0 ? 'v-neg' : 'v-pos';
+    return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
+  };
+
+  const highlightRows = new Set([
+    '毛利', '營業利益', '稅後淨利', '歸屬母公司業主淨利',
+    'ROE', '每股盈餘 (EPS)', '自由現金流（百萬元）',
+  ]);
+
+  const sections = [
+    { title: '損益表', unit: '百萬元', rows: [
+      ['營業收入淨額',       d => d.revenue,           fmtM],
+      ['營業成本',           d => d.cost,              fmtM],
+      ['毛利',               d => d.gross_profit,      fmtM],
+      ['營業費用',           d => d.operating_expense, fmtM],
+      ['營業利益',           d => d.operating_income,  fmtM],
+      ['業外收入及支出',     d => d.non_operating,     fmtM],
+      ['稅前淨利',           d => d.pretax_income,     fmtM],
+      ['稅',                 d => d.tax,               fmtM],
+      ['稅後淨利',           d => d.net_income,        fmtM],
+      ['歸屬母公司業主淨利', d => d.net_income_parent, fmtM],
+    ]},
+    { title: '資產負債表', unit: '百萬元', rows: [
+      ['資產總額',   d => d.total_assets, fmtM],
+      ['權益總額',   d => d.total_equity, fmtM],
+      ['普通股股本', d => d.common_stock, fmtM],
+    ]},
+    { title: '現金流量表', unit: '百萬元', rows: [
+      ['營業活動現金流',     d => d.operating_cf, fmtM],
+      ['購置不動產廠房設備', d => d.capex,        fmtM],
+    ]},
+    { title: '獲利能力', unit: null, rows: [
+      ['毛利率',     d => d.gross_margin,    fmtP],
+      ['營業利益率', d => d.operating_margin, fmtP],
+      ['稅前淨利率', d => d.pretax_margin,    fmtP],
+      ['稅後淨利率', d => d.net_margin,       fmtP],
+      ['ROA',        d => d.roa,              fmtP],
+      ['ROE',        d => d.roe,              fmtP],
+      ['盈餘品質率', d => d.earnings_quality, fmtP],
+    ]},
+    { title: '每股數據與股利', unit: null, rows: [
+      ['自由現金流（百萬元）', d => d.fcf,            fmtFcfM],
+      ['每股自由現金流',       d => d.fcf_per_share,  fmt2],
+      ['每股盈餘 (EPS)',       d => d.eps,            fmt2],
+      ['現金股利',             d => d.cash_dividend,  fmt2],
+      ['股票股利',             d => d.stock_dividend, fmt2],
+      ['配息率',               d => d.payout_ratio,   fmtP],
+    ]},
+  ];
+
+  let html = '<table class="fs-table"><thead><tr><th>項目</th>';
+  years.forEach(y => html += `<th>${y}</th>`);
+  html += '</tr></thead><tbody>';
+
+  // 財務等級列
+  html += '<tr class="fin-grade-row"><td>財務體質等級</td>';
+  for (const d of data) {
+    const grade = calcFinGrade(d);
+    if (grade) {
+      const base = grade.replace(/[+-]$/, '');
+      const cls = base.startsWith('AA') ? 'fg-aa'
+        : ['A','A1','A2','B1A','B2A'].some(p => base.startsWith(p)) ? 'fg-a'
+        : base.startsWith('B') ? 'fg-b' : base.startsWith('D') ? 'fg-d' : 'fg-c';
+      html += `<td class="${cls}">${grade}</td>`;
+    } else {
+      html += '<td style="color:#d1d5db">-</td>';
+    }
+  }
+  html += '</tr>';
+
+  for (const sec of sections) {
+    const unitTag = sec.unit ? `<span style="font-weight:400;color:#6366f1;margin-left:6px;font-size:.76rem">${sec.unit}</span>` : '';
+    html += `<tr class="sec-row"><td colspan="${years.length + 1}">${sec.title}${unitTag}</td></tr>`;
+    for (const [label, getter, formatter] of sec.rows) {
+      const isHL = highlightRows.has(label);
+      html += `<tr${isHL ? ' class="row-hl"' : ''}>`;
+      html += `<td class="col-label">${label}</td>`;
+      for (const d of data) { html += formatter(getter(d)); }
+      html += '</tr>';
+    }
+  }
+  html += '</tbody></table>';
+  html += '<div class="fs-footer">金額單位：百萬元（除每股數據外）</div>';
+  document.getElementById('panel').innerHTML = html;
+}
+
+// ── 月營收渲染 ──
+function renderRevenueTable(json) {
+  const years = json.years;
+  const data  = json.data;
+
+  const fmtRev = v => {
+    if (v == null) return '<td class="empty">-</td>';
+    return `<td class="rev-val">${Math.round(v / 1000).toLocaleString('zh-TW')}</td>`;
+  };
+  const fmtRate = (v, isLast) => {
+    if (v == null) return `<td class="empty${isLast ? ' grp-end' : ''}">-</td>`;
+    const cls = v > 0 ? 'rate-pos' : v < 0 ? 'rate-neg' : 'rate-zero';
+    const sign = v > 0 ? '+' : '';
+    return `<td class="${cls}${isLast ? ' grp-end' : ''}">${sign}${v.toFixed(2)}%</td>`;
+  };
+
+  let html = '<table class="rev-table"><thead>';
+  html += '<tr><th rowspan="2" class="col-month" style="border-bottom:2px solid #cbd5e1">月</th>';
+  for (let i = 0; i < years.length; i++) {
+    html += `<th colspan="4" class="year-band y${i} grp-end">${years[i]}</th>`;
+  }
+  html += '</tr><tr>';
+  for (let i = 0; i < years.length; i++) {
+    html += '<th class="sub-hdr">營收</th>';
+    html += '<th class="sub-hdr">月增率</th>';
+    html += '<th class="sub-hdr">年增率</th>';
+    html += '<th class="sub-hdr grp-end">累積年增率</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const row of data) {
+    html += `<tr><td class="col-month">${row.month}</td>`;
+    for (let i = 0; i < years.length; i++) {
+      const d = row[String(years[i])] || {};
+      html += fmtRev(d.revenue);
+      html += fmtRate(d.mom, false);
+      html += fmtRate(d.yoy, false);
+      html += fmtRate(d.cum_yoy, true);
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  html += '<div class="rev-footer">單位：仟元</div>';
+  document.getElementById('panel').innerHTML = html;
+}
+
+// ── 季度估計表渲染 ──
+function renderQuarterlyTable(data) {
+  const quarters = data.map(d => d.quarter);
+
+  const fmtM = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const m = v / 1000000;
+    const cls = m < 0 ? 'v-neg' : 'v-neutral';
+    return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
+  };
+  const fmtP = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const cls = v < 0 ? 'v-neg' : v > 0 ? 'v-pos' : 'v-neutral';
+    return `<td class="${cls}">${v.toFixed(2)}%</td>`;
+  };
+  const fmt2 = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const cls = v < 0 ? 'v-neg' : 'v-neutral';
+    return `<td class="${cls}">${v.toFixed(2)}</td>`;
+  };
+  const fmtShares = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    return `<td class="v-neutral">${Math.round(v).toLocaleString('zh-TW')}</td>`;
+  };
+  const fmtCL = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const m = v / 1000000;
+    const cls = m > 0 ? 'v-pos' : 'v-neutral';
+    return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
+  };
+
+  // 醒目列
+  const hlRows = new Set(['毛利率', '營業費用', '歸屬母公司淨利', '每股盈餘']);
+
+  const rows = [
+    { title: '損益表', unit: '百萬元', items: [
+      ['營業收入淨額',       d => d.revenue,           fmtM],
+      ['營業成本',           d => d.cost,              fmtM],
+      ['毛利',               d => d.gross_profit,      fmtM],
+      ['毛利率',             d => d.gross_margin,      fmtP],
+      ['營業費用',           d => d.operating_expense, fmtM],
+      ['營業費用占營收比率', d => d.opex_ratio,        fmtP],
+      ['營業利益',           d => d.operating_income,  fmtM],
+      ['業外收入與支出',     d => d.non_operating,     fmtM],
+      ['稅前淨利',           d => d.pretax_income,     fmtM],
+      ['稅',                 d => d.tax,               fmtM],
+      ['稅率',               d => d.tax_rate,          fmtP],
+      ['繼續營業單位損益',   d => d.continuing_income, fmtM],
+      ['歸屬母公司淨利',     d => d.net_income_parent, fmtM],
+      ['歸屬母公司權重',     d => d.parent_weight,     fmtP],
+    ]},
+    { title: '每股數據', unit: null, items: [
+      ['加權平均股數（千股）', d => d.weighted_shares, fmtShares],
+      ['每股盈餘',             d => d.eps,             fmt2],
+      ['每股盈餘-本業',        d => d.eps_core,        fmt2],
+      ['每股盈餘-業外',        d => d.eps_nonop,       fmt2],
+    ]},
+    { title: '其他', unit: '百萬元', items: [
+      ['合約負債', d => d.contract_liability, fmtCL],
+    ]},
+  ];
+
+  let html = '<table class="fs-table"><thead><tr><th>項目</th>';
+  quarters.forEach(q => html += `<th>${q}</th>`);
+  html += '</tr></thead><tbody>';
+
+  for (const sec of rows) {
+    const unitTag = sec.unit ? `<span style="font-weight:400;color:#6366f1;margin-left:6px;font-size:.76rem">${sec.unit}</span>` : '';
+    html += `<tr class="sec-row"><td colspan="${quarters.length + 1}">${sec.title}${unitTag}</td></tr>`;
+    for (const [label, getter, formatter] of sec.items) {
+      const isHL = hlRows.has(label);
+      html += `<tr${isHL ? ' class="row-hl"' : ''}>`;
+      html += `<td class="col-label">${label}</td>`;
+      for (const d of data) { html += formatter(getter(d)); }
+      html += '</tr>';
+    }
+  }
+  html += '</tbody></table>';
+  html += '<div class="fs-footer">金額單位：百萬元（除每股數據與加權股數外）</div>';
+
+  // 取得最新一季的加權股數（千股→百萬股）
+  const latestShares = data.find(d => d.weighted_shares)?.weighted_shares;
+  const sharesMillion = latestShares ? (latestShares / 1000) : null;
+
+  html += buildEstimator(sharesMillion);
+
+  document.getElementById('panel').innerHTML = html;
+  initEstimator(sharesMillion);
+}
+
+// ── EPS 估算計算器 ──
+function buildEstimator(sharesMillion) {
+  const sharesDisplay = sharesMillion ? sharesMillion.toFixed(2) : '-';
+  return `
+  <div class="est-wrap">
+    <div class="est-title">
+      <span>EPS 估算</span>
+      <button class="est-save" onclick="saveEstimate()">儲存</button>
+      <span class="est-date" id="estDate"></span>
+    </div>
+    <div class="est-grid">
+      <div class="lbl">自訂營收（仟元）</div>
+      <div class="val"><input id="estRev1" type="text" placeholder="月營收 1" oninput="calcEstimate()"></div>
+      <div class="lbl">自訂營收（仟元）</div>
+      <div class="val"><input id="estRev2" type="text" placeholder="月營收 2" oninput="calcEstimate()"></div>
+      <div class="lbl">自訂營收（仟元）</div>
+      <div class="val"><input id="estRev3" type="text" placeholder="月營收 3" oninput="calcEstimate()"></div>
+      <div class="lbl">累計營收（仟元）</div>
+      <div class="val"><div class="computed" id="estCumRevK">-</div></div>
+      <div class="lbl">累計營收（百萬）</div>
+      <div class="val"><div class="computed" id="estCumRevM">-</div></div>
+
+      <div class="sep"></div>
+
+      <div class="lbl">毛利率（%）</div>
+      <div class="val"><input id="estGM" type="text" placeholder="%" oninput="calcEstimate()"></div>
+      <div class="lbl">費用（百萬）</div>
+      <div class="val"><input id="estOpex" type="text" placeholder="營業費用" oninput="calcEstimate()"></div>
+      <div class="lbl">業外（百萬）</div>
+      <div class="val"><input id="estNonOp" type="text" placeholder="業外收支" oninput="calcEstimate()"></div>
+      <div class="lbl">稅率（%）</div>
+      <div class="val"><input id="estTax" type="text" placeholder="%" oninput="calcEstimate()"></div>
+      <div class="lbl">歸屬權重（%）</div>
+      <div class="val"><input id="estPW" type="text" placeholder="%" oninput="calcEstimate()"></div>
+
+      <div class="sep"></div>
+
+      <div class="lbl result-label">營業利益（百萬）</div>
+      <div class="val"><div class="computed result-val" id="estOI">-</div></div>
+      <div class="lbl result-label">營益率（%）</div>
+      <div class="val"><div class="computed result-val" id="estOIR">-</div></div>
+      <div class="lbl result-label">稅前淨利（百萬）</div>
+      <div class="val"><div class="computed result-val" id="estPTI">-</div></div>
+      <div class="lbl result-label">稅前淨利率（%）</div>
+      <div class="val"><div class="computed result-val" id="estPTIR">-</div></div>
+      <div class="lbl result-label">稅後淨利率（%）</div>
+      <div class="val"><div class="computed result-val" id="estNIR">-</div></div>
+      <div class="lbl result-label">歸屬母公司淨利（百萬）</div>
+      <div class="val"><div class="computed result-val" id="estNIP">-</div></div>
+      <div class="lbl result-label">股數（百萬）</div>
+      <div class="val"><div class="computed result-val" id="estShares">${sharesDisplay}</div></div>
+
+      <div class="sep"></div>
+
+      <div class="lbl result-label">估計 EPS</div>
+      <div class="val"><div class="computed result-highlight" id="estEPS">-</div></div>
+    </div>
+
+    <!-- 年度 EPS 彙總 -->
+    <div class="est-annual">
+      <div class="est-annual-title">${_estYear} 年度預估 EPS</div>
+      <div class="est-q-row">
+        <div class="est-q-item"><label>${_estYear}Q1</label><input id="estQ1" type="text" oninput="calcAnnual()"></div>
+        <div class="est-q-item"><label>${_estYear}Q2</label><input id="estQ2" type="text" oninput="calcAnnual()"></div>
+        <div class="est-q-item"><label>${_estYear}Q3</label><input id="estQ3" type="text" oninput="calcAnnual()"></div>
+        <div class="est-q-item"><label>${_estYear}Q4</label><input id="estQ4" type="text" oninput="calcAnnual()"></div>
+        <div class="est-annual-eps">${_estYear} 預估 EPS = <span id="annEPS">-</span></div>
+      </div>
+
+      <div class="est-val-grid">
+        <div class="lbl">配息率（%）</div>
+        <div class="val"><input id="annPR" type="text" placeholder="%" oninput="calcFromPR()"></div>
+        <div class="lbl">預估現金股利</div>
+        <div class="val"><input id="annDiv" type="text" placeholder="元" oninput="calcFromDiv()"></div>
+
+        <div class="sep"></div>
+
+        <div class="lbl" style="font-weight:600;color:#334155">目前股價</div>
+        <div class="val"><div class="est-price-box" id="annPrice">-</div></div>
+        <div class="lbl" style="font-weight:600;color:#334155">預估本益比</div>
+        <div class="val"><div class="computed" id="annPE" style="font-weight:700;font-size:.95rem">-</div></div>
+        <div class="lbl" style="font-weight:600;color:#334155">預估殖利率</div>
+        <div class="val"><div class="computed" id="annYield" style="font-weight:700;color:#059669;font-size:.95rem">-</div></div>
+      </div>
+
+      <!-- 本益比設定 + 歷史參考（左右並排） -->
+      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
+        <div class="est-val-grid" style="min-width:280px;flex-shrink:0">
+          <div class="lbl">最高本益比</div>
+          <div class="val"><input id="peHigh" type="text" placeholder="倍" oninput="calcPERange()"></div>
+          <div class="lbl">最低本益比</div>
+          <div class="val"><input id="peLow" type="text" placeholder="倍" oninput="calcPERange()"></div>
+          <div class="sep"></div>
+          <div class="lbl result-label">偏高本益比</div>
+          <div class="val"><div class="computed result-val" id="peAbove">-</div></div>
+          <div class="lbl result-label">合理本益比</div>
+          <div class="val"><div class="computed result-val" id="peFair" style="color:#2563eb">-</div></div>
+          <div class="lbl result-label">偏低本益比</div>
+          <div class="val"><div class="computed result-val" id="peBelow">-</div></div>
+          <div class="sep"></div>
+          <div class="lbl result-label">偏高價格</div>
+          <div class="val"><div class="computed result-val" id="priceAbove">-</div></div>
+          <div class="lbl result-label">合理價格</div>
+          <div class="val"><div class="computed result-val" id="priceFair" style="color:#2563eb">-</div></div>
+          <div class="lbl result-label">偏低價格</div>
+          <div class="val"><div class="computed result-val" id="priceBelow">-</div></div>
+        </div>
+        <div id="peHistoryContainer" style="flex:1;min-width:300px"><div class="loading" style="padding:12px"><div class="spinner"></div></div></div>
+      </div>
+
+      <!-- 殖利率設定 -->
+      <div class="est-val-grid" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
+        <div class="lbl">偏高殖利率（%）</div>
+        <div class="val"><input id="yldHigh" type="text" placeholder="%" oninput="calcYldRange()"></div>
+        <div class="lbl">最高殖利率（%）</div>
+        <div class="val"><input id="yldMax" type="text" placeholder="%" oninput="calcYldRange()"></div>
+        <div class="sep"></div>
+        <div class="lbl result-label">合理殖利率</div>
+        <div class="val"><div class="computed result-val" id="yldFair" style="color:#2563eb">-</div></div>
+        <div class="lbl result-label">偏高殖利率價格</div>
+        <div class="val"><div class="computed result-val" id="yldPriceHigh">-</div></div>
+        <div class="lbl result-label">合理殖利率價格</div>
+        <div class="val"><div class="computed result-val" id="yldPriceFair" style="color:#2563eb">-</div></div>
+        <div class="lbl result-label">最高殖利率價格</div>
+        <div class="val"><div class="computed result-val" id="yldPriceMax">-</div></div>
+      </div>
+    </div>
+
+    <!-- 價值評估矩陣 -->
+    <div class="matrix-wrap">
+      <div class="matrix-title">
+        <span>價值評估矩陣</span>
+        <div class="matrix-floor">
+          殖利率下限（%）<input id="yldFloor" type="text" value="${_yldFloor}" oninput="onYldFloorChange()">
+          <button onclick="resetYldFloor()" style="padding:3px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer;font-size:.78rem;color:#64748b">恢復預設(5%)</button>
+          <span style="font-size:.76rem;color:#94a3b8">此設定套用全部公司</span>
+        </div>
+      </div>
+      <div id="matrixGrade" style="margin-bottom:10px"></div>
+      <div id="matrixContainer"></div>
+      <div style="margin-top:6px;font-size:.78rem;color:#94a3b8">目前股價位置以粗框標示</div>
+    </div>
+
+    <!-- 逍遙價值投資評價法 -->
+    <div class="val-method">
+      <div class="val-method-title">逍遙價值投資評價法</div>
+      <div class="val-inputs">
+        <div class="val-inp-group"><label>評價之預估EPS</label><input id="vmEps" type="text" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>評價之預估現金股利</label><input id="vmDiv" type="text" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>偏高殖利率</label><span class="auto-val" id="vmYldHigh">-</span></div>
+        <div class="val-inp-group"><label>最高殖利率</label><span class="auto-val" id="vmYldMax">-</span></div>
+      </div>
+      <div class="val-inputs">
+        <div class="val-inp-group"><label>長期現金股利水準</label><input id="vmLtDiv" type="text" placeholder="權重法" oninput="calcValMethod()"></div>
+        <div class="val-inp-group">
+          <label>長期殖利率設定</label><input id="vmLtYld" type="text" value="${_ltYld}" oninput="onLtYldChange()" style="width:60px">
+          <span class="val-global-note">%（全部公司）</span>
+          <button onclick="resetLtYld()" style="padding:2px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;font-size:.75rem;color:#64748b">預設6%</button>
+        </div>
+      </div>
+      <div id="vmResultContainer"></div>
+    </div>
+
+    <!-- 質性研究筆記 -->
+    <div class="notes-wrap">
+      <div class="notes-header">
+        <span class="notes-title">質性研究筆記</span>
+        <span class="notes-status" id="notesStatus"></span>
+      </div>
+      <textarea class="notes-area" id="notesArea" oninput="onNotesInput()"
+        placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點..."></textarea>
+    </div>
+
+  </div>`;
+}
+
+let _estSharesMillion = null;
+let _estPrice = null;
+const _estYear = new Date().getFullYear() - 1911;  // 115
+let _yldFloor = parseFloat(localStorage.getItem('global_yld_floor') || '5');
+let _ltYld = parseFloat(localStorage.getItem('global_lt_yld') || '6');
+
+function onLtYldChange() {
+  const v = parseFloat(document.getElementById('vmLtYld').value);
+  if (!isNaN(v)) { _ltYld = v; localStorage.setItem('global_lt_yld', String(v)); }
+  calcValMethod();
+}
+function resetLtYld() {
+  _ltYld = 6;
+  localStorage.setItem('global_lt_yld', '6');
+  document.getElementById('vmLtYld').value = '6';
+  calcValMethod();
+}
+
+function onYldFloorChange() {
+  const v = parseFloat(document.getElementById('yldFloor').value);
+  if (!isNaN(v)) { _yldFloor = v; localStorage.setItem('global_yld_floor', String(v)); }
+  renderMatrix();
+}
+
+function resetYldFloor() {
+  _yldFloor = 5;
+  localStorage.setItem('global_yld_floor', '5');
+  document.getElementById('yldFloor').value = '5';
+  renderMatrix();
+}
+
+async function initEstimator(sharesMillion) {
+  _estSharesMillion = sharesMillion;
+
+  // 取得目前股價
+  try {
+    const res = await fetch(`/api/stocks?q=${CODE}`);
+    const json = await res.json();
+    const stock = json.data.find(s => s.code === CODE);
+    if (stock && stock.close) {
+      _estPrice = stock.close;
+      const el = document.getElementById('annPrice');
+      if (el) el.textContent = _estPrice.toFixed(2);
+    }
+  } catch(e) {}
+
+  // 從 localStorage 載入
+  const saved = localStorage.getItem('estimate_' + CODE);
+  if (saved) {
+    try {
+      const d = JSON.parse(saved);
+      if (d.rev1) document.getElementById('estRev1').value = d.rev1;
+      if (d.rev2) document.getElementById('estRev2').value = d.rev2;
+      if (d.rev3) document.getElementById('estRev3').value = d.rev3;
+      if (d.gm) document.getElementById('estGM').value = d.gm;
+      if (d.opex) document.getElementById('estOpex').value = d.opex;
+      if (d.nonop) document.getElementById('estNonOp').value = d.nonop;
+      if (d.tax) document.getElementById('estTax').value = d.tax;
+      if (d.pw) document.getElementById('estPW').value = d.pw;
+      if (d.q1) document.getElementById('estQ1').value = d.q1;
+      if (d.q2) document.getElementById('estQ2').value = d.q2;
+      if (d.q3) document.getElementById('estQ3').value = d.q3;
+      if (d.q4) document.getElementById('estQ4').value = d.q4;
+      if (d.pr) document.getElementById('annPR').value = d.pr;
+      if (d.div) document.getElementById('annDiv').value = d.div;
+      if (d.peHigh) document.getElementById('peHigh').value = d.peHigh;
+      if (d.peLow) document.getElementById('peLow').value = d.peLow;
+      if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
+      if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
+      if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
+      if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
+      if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+      if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
+      calcEstimate();
+      calcAnnual();
+      calcPERange();
+      calcYldRange();
+      calcValMethod();
+      loadPEHistory();
+    } catch(e) {}
+  }
+  loadPEHistory();
+  calcValMethod();
+
+  // 載入筆記
+  const savedNotes = localStorage.getItem('notes_' + CODE);
+  if (savedNotes) {
+    const notesArea = document.getElementById('notesArea');
+    if (notesArea) notesArea.value = savedNotes;
+  }
+}
+
+let _notesTimer = null;
+function onNotesInput() {
+  const statusEl = document.getElementById('notesStatus');
+  if (statusEl) statusEl.textContent = '編輯中...';
+  clearTimeout(_notesTimer);
+  _notesTimer = setTimeout(() => {
+    const text = document.getElementById('notesArea').value;
+    if (text.trim()) {
+      localStorage.setItem('notes_' + CODE, text);
+    } else {
+      localStorage.removeItem('notes_' + CODE);
+    }
+    if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
+  }, 800);
+}
+
+function parseNum(id) {
+  const v = document.getElementById(id).value.replace(/,/g, '').trim();
+  return v === '' ? null : parseFloat(v);
+}
+
+function fmtNum(v, dec) {
+  if (v == null || isNaN(v)) return '-';
+  return v.toLocaleString('zh-TW', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+
+function calcEstimate() {
+  const r1 = parseNum('estRev1');
+  const r2 = parseNum('estRev2');
+  const r3 = parseNum('estRev3');
+  const gm = parseNum('estGM');
+  const opex = parseNum('estOpex');
+  const nonop = parseNum('estNonOp');
+  const taxRate = parseNum('estTax');
+  const pw = parseNum('estPW');
+
+  // 累計營收
+  const parts = [r1, r2, r3].filter(v => v != null);
+  const cumK = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+  const cumM = cumK != null ? cumK / 1000 : null;
+  document.getElementById('estCumRevK').textContent = fmtNum(cumK, 0);
+  document.getElementById('estCumRevM').textContent = fmtNum(cumM, 2);
+
+  // 營業利益 = 累計營收(百萬) * 毛利率% - 費用(百萬)
+  const oi = (cumM != null && gm != null && opex != null) ? cumM * gm / 100 - opex : null;
+  document.getElementById('estOI').textContent = fmtNum(oi, 2);
+
+  // 營益率
+  const oir = (oi != null && cumM && cumM !== 0) ? oi / cumM * 100 : null;
+  document.getElementById('estOIR').textContent = fmtNum(oir, 2);
+
+  // 稅前淨利
+  const pti = (oi != null && nonop != null) ? oi + nonop : null;
+  document.getElementById('estPTI').textContent = fmtNum(pti, 2);
+
+  // 稅前淨利率
+  const ptir = (pti != null && cumM && cumM !== 0) ? pti / cumM * 100 : null;
+  document.getElementById('estPTIR').textContent = fmtNum(ptir, 2);
+
+  // 稅後淨利
+  const ni = (pti != null && taxRate != null) ? pti * (1 - taxRate / 100) : null;
+
+  // 稅後淨利率
+  const nir = (ni != null && cumM && cumM !== 0) ? ni / cumM * 100 : null;
+  document.getElementById('estNIR').textContent = fmtNum(nir, 2);
+
+  // 歸屬母公司淨利
+  const nip = (ni != null && pw != null) ? ni * pw / 100 : null;
+  document.getElementById('estNIP').textContent = fmtNum(nip, 2);
+
+  // 估計 EPS
+  const eps = (nip != null && _estSharesMillion && _estSharesMillion !== 0) ? nip / _estSharesMillion : null;
+  document.getElementById('estEPS').textContent = fmtNum(eps, 2);
+}
+
+// ── 年度 EPS 彙總 ──
+function calcAnnual() {
+  const q1 = parseNum('estQ1');
+  const q2 = parseNum('estQ2');
+  const q3 = parseNum('estQ3');
+  const q4 = parseNum('estQ4');
+  const parts = [q1, q2, q3, q4].filter(v => v != null);
+  const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+  document.getElementById('annEPS').textContent = fmtNum(annEps, 2);
+  calcValuation(annEps);
+}
+
+function calcFromPR() {
+  const q1 = parseNum('estQ1'), q2 = parseNum('estQ2'), q3 = parseNum('estQ3'), q4 = parseNum('estQ4');
+  const parts = [q1, q2, q3, q4].filter(v => v != null);
+  const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+  const pr = parseNum('annPR');
+  if (annEps != null && pr != null) {
+    document.getElementById('annDiv').value = (annEps * pr / 100).toFixed(2);
+  }
+  calcValuation(annEps);
+  calcYldRange();
+}
+
+function calcFromDiv() {
+  const q1 = parseNum('estQ1'), q2 = parseNum('estQ2'), q3 = parseNum('estQ3'), q4 = parseNum('estQ4');
+  const parts = [q1, q2, q3, q4].filter(v => v != null);
+  const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+  const div = parseNum('annDiv');
+  if (annEps != null && annEps !== 0 && div != null) {
+    document.getElementById('annPR').value = (div / annEps * 100).toFixed(2);
+  }
+  calcValuation(annEps);
+  calcYldRange();
+}
+
+function calcValuation(annEps) {
+  const div = parseNum('annDiv');
+  // 本益比
+  const pe = (annEps && annEps !== 0 && _estPrice) ? _estPrice / annEps : null;
+  document.getElementById('annPE').textContent = pe != null ? pe.toFixed(2) : '-';
+  // 殖利率
+  const yld = (div && _estPrice && _estPrice !== 0) ? div / _estPrice * 100 : null;
+  document.getElementById('annYield').textContent = yld != null ? yld.toFixed(2) + '%' : '-';
+  renderMatrix();
+}
+
+function calcPERange() {
+  const hi = parseNum('peHigh');
+  const lo = parseNum('peLow');
+  const fair  = (hi != null && lo != null) ? (hi + lo) / 2 : null;
+  const above = (hi != null && fair != null) ? (hi + fair) / 2 : null;
+  const below = (fair != null && lo != null) ? (fair + lo) / 2 : null;
+
+  document.getElementById('peAbove').textContent = fmtNum(above, 2);
+  document.getElementById('peFair').textContent  = fmtNum(fair, 2);
+  document.getElementById('peBelow').textContent = fmtNum(below, 2);
+
+  // 搭配預估 EPS 計算對應價格
+  const q1 = parseNum('estQ1'), q2 = parseNum('estQ2'), q3 = parseNum('estQ3'), q4 = parseNum('estQ4');
+  const parts = [q1, q2, q3, q4].filter(v => v != null);
+  const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+
+  document.getElementById('priceAbove').textContent = (above != null && annEps) ? fmtNum(above * annEps, 2) : '-';
+  document.getElementById('priceFair').textContent  = (fair != null && annEps)  ? fmtNum(fair * annEps, 2) : '-';
+  document.getElementById('priceBelow').textContent = (below != null && annEps) ? fmtNum(below * annEps, 2) : '-';
+  renderMatrix();
+}
+
+function calcYldRange() {
+  const yHigh = parseNum('yldHigh');
+  const yMax  = parseNum('yldMax');
+  const yFair = (yHigh != null && yMax != null) ? (yHigh + yMax) / 2 : null;
+  document.getElementById('yldFair').textContent = yFair != null ? yFair.toFixed(2) + '%' : '-';
+
+  const div = parseNum('annDiv');
+  document.getElementById('yldPriceHigh').textContent = (div && yHigh) ? fmtNum(div / yHigh * 100, 2) : '-';
+  document.getElementById('yldPriceFair').textContent = (div && yFair) ? fmtNum(div / yFair * 100, 2) : '-';
+  document.getElementById('yldPriceMax').textContent  = (div && yMax)  ? fmtNum(div / yMax * 100, 2) : '-';
+  renderMatrix();
+}
+
+function renderMatrix() {
+  const el = document.getElementById('matrixContainer');
+  if (!el) return;
+
+  const peHi = parseNum('peHigh');
+  const peLo = parseNum('peLow');
+  const yHigh = parseNum('yldHigh');
+  const yMax  = parseNum('yldMax');
+
+  if (peHi == null || peLo == null || yHigh == null || yMax == null) {
+    el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入本益比與殖利率參數</div>';
+    return;
+  }
+
+  const peFair  = (peHi + peLo) / 2;
+  const peAbove = (peHi + peFair) / 2;
+  const peBelow = (peFair + peLo) / 2;
+  const yFloor  = _yldFloor;
+
+  // PE 區間（左→右，由小到大）
+  const peCols = [
+    { label: `< ${peLo.toFixed(1)}`, lo: -Infinity, hi: peLo },
+    { label: `${peLo.toFixed(1)}~${peBelow.toFixed(1)}`, lo: peLo, hi: peBelow },
+    { label: `${peBelow.toFixed(1)}~${peFair.toFixed(1)}`, lo: peBelow, hi: peFair },
+    { label: `${peFair.toFixed(1)}~${peAbove.toFixed(1)}`, lo: peFair, hi: peAbove },
+    { label: `${peAbove.toFixed(1)}~${peHi.toFixed(1)}`, lo: peAbove, hi: peHi },
+    { label: `> ${peHi.toFixed(1)}`, lo: peHi, hi: Infinity },
+  ];
+
+  // 殖利率區間（上→下，由高到低）
+  const yRows = [
+    { label: `> ${yMax}%（最高）`, lo: yMax, hi: Infinity },
+    { label: `${yHigh}%~${yMax}%（偏高~最高）`, lo: yHigh, hi: yMax },
+    { label: `${yFloor}%~${yHigh}%（下限~偏高）`, lo: yFloor, hi: yHigh },
+    { label: `< ${yFloor}%（低於下限）`, lo: -Infinity, hi: yFloor },
+  ];
+
+  // 矩陣評級（行=殖利率由高到低，列=本益比由低到高）
+  const grades = [
+    ['AA','A2','BA2','觀察','臨界點','X'],
+    ['A1','A','B2','臨界點','X','X'],
+    ['BA1','B1','臨界點','X','X','X'],
+    ['觀察','臨界點','X','X','X','X'],
+  ];
+  const gradeClass = g => {
+    if (g === 'AA') return 'g-aa';
+    if (g === 'A' || g === 'A1' || g === 'A2') return 'g-a';
+    if (g === 'BA1' || g === 'BA2') return 'g-ba';
+    if (g === 'B1' || g === 'B2') return 'g-b';
+    if (g === '觀察') return 'g-watch';
+    if (g === '臨界點') return 'g-crit';
+    return 'g-x';
+  };
+
+  // 計算目前位置
+  const q1 = parseNum('estQ1'), q2 = parseNum('estQ2'), q3 = parseNum('estQ3'), q4 = parseNum('estQ4');
+  const parts = [q1, q2, q3, q4].filter(v => v != null);
+  const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+  const curPE  = (annEps && annEps > 0 && _estPrice) ? _estPrice / annEps : null;
+  const curDiv = parseNum('annDiv');
+  const curYld = (curDiv && _estPrice && _estPrice > 0) ? curDiv / _estPrice * 100 : null;
+
+  let curRow = -1, curCol = -1;
+  if (curPE != null) { curCol = peCols.findIndex(c => curPE >= c.lo && curPE < c.hi); }
+  if (curYld != null) { curRow = yRows.findIndex(r => curYld >= r.lo && curYld < r.hi); }
+
+  // 等級 badge
+  const gradeEl = document.getElementById('matrixGrade');
+  if (curRow >= 0 && curCol >= 0) {
+    const g = grades[curRow][curCol];
+    const badgeCls = g === 'AA' ? 'gb-aa' : (g==='A'||g==='A1'||g==='A2') ? 'gb-a'
+      : (g==='BA1'||g==='BA2') ? 'gb-ba' : (g==='B1'||g==='B2') ? 'gb-b'
+      : g==='觀察' ? 'gb-watch' : g==='臨界點' ? 'gb-crit' : 'gb-x';
+    const peStr = curPE != null ? curPE.toFixed(2) : '-';
+    const yldStr = curYld != null ? curYld.toFixed(2) + '%' : '-';
+    gradeEl.innerHTML = `<div class="grade-badge ${badgeCls}"><span class="grade-label">價值評估矩陣等級：</span>${g}</div>`
+      + `<div style="margin-top:4px;font-size:.82rem;color:#64748b">本益比 ${peStr} / 殖利率 ${yldStr}</div>`;
+  } else {
+    gradeEl.innerHTML = '<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>';
+  }
+
+  // 渲染表格
+  let html = '<table class="vm-table"><thead><tr><th>殖利率 \\ 本益比</th>';
+  peCols.forEach(c => html += `<th>${c.label}</th>`);
+  html += '</tr></thead><tbody>';
+
+  for (let ri = 0; ri < yRows.length; ri++) {
+    html += `<tr><th>${yRows[ri].label}</th>`;
+    for (let ci = 0; ci < peCols.length; ci++) {
+      const g = grades[ri][ci];
+      const isCur = (ri === curRow && ci === curCol);
+      html += `<td class="${gradeClass(g)}${isCur ? ' g-cur' : ''}">${g}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+async function loadPEHistory() {
+  const el = document.getElementById('peHistoryContainer');
+  if (!el) return;
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/pe-history`);
+    const json = await res.json();
+    if (!json.data || !json.data.length) {
+      el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">無歷史本益比資料（FinMind 額度不足時請稍後再試）</div>';
+      return;
+    }
+    renderPEHistory(json.data, json.estimate);
+  } catch(e) {
+    el.innerHTML = '<div style="color:#ef4444;font-size:.85rem">載入失敗</div>';
+  }
+}
+
+function renderPEHistory(data, est) {
+  const el = document.getElementById('peHistoryContainer');
+
+  let html = '<div style="font-size:.88rem;font-weight:700;color:#1e3a5f;margin-bottom:4px">歷史本益比（近 8 年）</div>';
+  html += '<table class="pe-hist-table"><thead><tr><th>年度</th>';
+  data.forEach(d => html += `<th>${d.year - 1911}</th>`);
+  html += '</tr></thead><tbody>';
+  html += '<tr><td style="font-weight:600">最高</td>';
+  data.forEach(d => html += `<td class="pe-high">${d.pe_high.toFixed(1)}</td>`);
+  html += '</tr><tr><td style="font-weight:600">最低</td>';
+  data.forEach(d => html += `<td class="pe-low">${d.pe_low.toFixed(1)}</td>`);
+  html += '</tr></tbody></table>';
+
+  // 推估：用可點擊的 chip 一行排列
+  if (est && est.avg_high) {
+    html += '<div class="est-row"><span style="color:#64748b">點擊套用：</span>';
+    html += `<div class="est-chip" onclick="applyPE(${est.avg_high},${est.avg_low})">
+      <span class="est-chip-label">平均</span><span class="pe-high">${est.avg_high}</span><span class="arrow">/</span><span class="pe-low">${est.avg_low}</span></div>`;
+    html += `<div class="est-chip" onclick="applyPE(${est.median_high},${est.median_low})">
+      <span class="est-chip-label">中位數</span><span class="pe-high">${est.median_high}</span><span class="arrow">/</span><span class="pe-low">${est.median_low}</span></div>`;
+    if (est.trimmed_avg_high) {
+      html += `<div class="est-chip" onclick="applyPE(${est.trimmed_avg_high},${est.trimmed_avg_low})">
+        <span class="est-chip-label">去極值</span><span class="pe-high">${est.trimmed_avg_high}</span><span class="arrow">/</span><span class="pe-low">${est.trimmed_avg_low}</span></div>`;
+    }
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function applyPE(high, low) {
+  document.getElementById('peHigh').value = high;
+  document.getElementById('peLow').value = low;
+  calcPERange();
+}
+
+function calcValMethod() {
+  const el = document.getElementById('vmResultContainer');
+  if (!el) return;
+
+  // 讀取參數
+  const eps   = parseNum('vmEps');
+  const div   = parseNum('vmDiv');
+  const ltDiv = parseNum('vmLtDiv');
+  const yHigh = parseNum('yldHigh');
+  const yMax  = parseNum('yldMax');
+  const peHi  = parseNum('peHigh');
+  const peLo  = parseNum('peLow');
+
+  // 顯示自動帶入的殖利率
+  const vmYH = document.getElementById('vmYldHigh');
+  const vmYM = document.getElementById('vmYldMax');
+  if (vmYH) vmYH.textContent = yHigh != null ? yHigh + '%' : '-';
+  if (vmYM) vmYM.textContent = yMax != null ? yMax + '%' : '-';
+
+  if (!eps || !div || !yHigh || !yMax || !peHi || !peLo) {
+    el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入所有參數</div>';
+    return;
+  }
+
+  const peFair  = (peHi + peLo) / 2;
+  const peAbove = (peHi + peFair) / 2;
+  const peBelow = (peFair + peLo) / 2;
+
+  const yHighR = yHigh / 100;
+  const yMaxR  = yMax / 100;
+
+  // 第三項：長期股利/偏高殖利率 + 預估股利
+  const ltYldR = _ltYld / 100;
+  const ltTerm = (ltDiv != null && ltYldR > 0) ? (ltDiv / ltYldR + div) : null;
+
+  // 各等級公式
+  const gradeA  = Math.min(eps * peBelow, div / yHighR, ...(ltTerm != null ? [ltTerm] : []));
+  const gradeA1 = Math.min(eps * peLo,    div / yHighR, ...(ltTerm != null ? [ltTerm] : []));
+  const gradeA2 = Math.min(eps * peBelow, div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
+  const gradeAA = Math.min(eps * peLo,    div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
+
+  // 長期殖利率價格
+  const lt5 = ltDiv != null ? ltDiv / 0.05 : null;
+  const lt6 = ltDiv != null ? ltDiv / 0.06 : null;
+  const lt7 = ltDiv != null ? ltDiv / 0.07 : null;
+
+  const f = v => v != null && isFinite(v) ? v.toFixed(2) : '-';
+
+  let html = '<table class="val-result-table"><thead><tr>';
+  html += '<th>股價</th><th>A級評價</th><th>A1級評價</th><th>A2級評價</th><th>AA級評價</th>';
+  html += '<th>長期5%</th><th>長期6%</th><th>長期7%</th>';
+  html += '</tr></thead><tbody><tr>';
+  html += `<td class="price-cell">${_estPrice ? _estPrice.toFixed(2) : '-'}</td>`;
+  html += `<td class="grade-a">${f(gradeA)}</td>`;
+  html += `<td class="grade-a">${f(gradeA1)}</td>`;
+  html += `<td class="grade-a">${f(gradeA2)}</td>`;
+  html += `<td class="grade-aa">${f(gradeAA)}</td>`;
+  html += `<td class="grade-long">${f(lt5)}</td>`;
+  html += `<td class="grade-long">${f(lt6)}</td>`;
+  html += `<td class="grade-long">${f(lt7)}</td>`;
+  html += '</tr></tbody></table>';
+
+  el.innerHTML = html;
+}
+
+function saveEstimate() {
+  const now = new Date().toLocaleString('zh-TW');
+  const d = {
+    rev1: document.getElementById('estRev1').value,
+    rev2: document.getElementById('estRev2').value,
+    rev3: document.getElementById('estRev3').value,
+    gm: document.getElementById('estGM').value,
+    opex: document.getElementById('estOpex').value,
+    nonop: document.getElementById('estNonOp').value,
+    tax: document.getElementById('estTax').value,
+    pw: document.getElementById('estPW').value,
+    q1: document.getElementById('estQ1').value,
+    q2: document.getElementById('estQ2').value,
+    q3: document.getElementById('estQ3').value,
+    q4: document.getElementById('estQ4').value,
+    pr: document.getElementById('annPR').value,
+    div: document.getElementById('annDiv').value,
+    peHigh: document.getElementById('peHigh').value,
+    peLow: document.getElementById('peLow').value,
+    yldHigh: document.getElementById('yldHigh').value,
+    yldMax: document.getElementById('yldMax').value,
+    vmEps: document.getElementById('vmEps').value,
+    vmDiv: document.getElementById('vmDiv').value,
+    vmLtDiv: document.getElementById('vmLtDiv').value,
+    date: now,
+  };
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(d));
+  document.getElementById('estDate').textContent = '已儲存：' + now;
+}
+
+function applyPE(hi, lo) {
+  // 寫入 localStorage，讓估值計算器和總表都能讀到
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  saved.peHigh = hi;
+  saved.peLow = lo;
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+
+  // 如果當前是財報 tab 的估值區域有 PE 輸入框，同步更新
+  const elHi = document.getElementById('peHigh');
+  const elLo = document.getElementById('peLow');
+  if (elHi) elHi.value = hi;
+  if (elLo) elLo.value = lo;
+
+  alert(`已套用 PE 範圍：${lo} ~ ${hi}\n\n切到「年度財報」tab 可看到估值計算器已更新`);
+}
+
+// ── 存入筆記 ──
+function saveToNotes(date, subject) {
+  const key = 'company_notes_' + CODE;
+  const existing = localStorage.getItem(key) || '';
+  const line = `[${date}] ${subject}`;
+  // 避免重複存
+  if (existing.includes(line)) {
+    alert('這則已經存過了');
+    return;
+  }
+  const updated = existing ? existing + '\n' + line : line;
+  localStorage.setItem(key, updated);
+  // 如果筆記區正在顯示，同步更新
+  const textarea = document.getElementById('notesArea');
+  if (textarea) textarea.value = updated;
+  alert('已存入筆記');
+}
+
+// ── 重要新聞 ──
+async function loadImportantNews() {
+  try {
+    const res = await fetch(`/api/news?code=${CODE}&important=1&limit=5`);
+    const news = await res.json();
+    const el = document.getElementById('importantNews');
+    if (!news || !news.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 8px rgba(0,0,0,.08);overflow:hidden;border-top:3px solid #f59e0b">
+        <div style="padding:14px 20px;font-weight:700;color:#92400e;font-size:.95rem;background:#fffbeb;border-bottom:1px solid #fcd34d">
+          重要新聞（${news.length} 則）
+        </div>
+        <div style="padding:12px 20px">
+          ${news.map(n => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px">
+            <span style="font-size:.78rem;color:#94a3b8;white-space:nowrap">${n.date || ''}</span>
+            <span style="font-size:.82rem;color:#92400e;background:#fef3c7;padding:1px 8px;border-radius:3px;font-weight:600;white-space:nowrap">${n.matched_rule}</span>
+            <span style="font-size:.85rem;flex:1">${(n.subject||'').replace(/\\r?\\n/g,' ').substring(0, 80)}</span>
+            ${n.link ? `<a href="${n.link}" target="_blank" style="font-size:.78rem;color:#2563eb;white-space:nowrap">查看</a>` : ''}
+            <button onclick="saveToNotes('${n.date || ''}','${(n.subject||'').replace(/'/g,"\\'").replace(/\r?\n/g,' ').substring(0,60)}')" style="padding:2px 8px;border:1px solid #059669;border-radius:3px;background:#dcfce7;color:#166534;cursor:pointer;font-size:.72rem;white-space:nowrap">存入筆記</button>
+          </div>`).join('')}
+        </div>
+      </div>`;
+  } catch(e) {}
+}
+
+// ── 同業比較 ──
+let indData = null;
+let indSort = { key: 'pe', asc: true };
+
+async function loadIndustry() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入同業資料中...</div></div>';
+  try {
+    const res = await fetch(`/api/industry-compare/${CODE}`);
+    if (!res.ok) { panel.innerHTML = '<div class="loading">無產業分類資料</div>'; return; }
+    indData = await res.json();
+    updateTitle({ name: indData.name });
+    renderIndustry();
+  } catch(e) { panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗</div>'; }
+}
+
+const IND_METRICS = [
+  { key: 'pe',              label: '本益比',       unit: 'x',  fmt: v => v != null ? v.toFixed(1)+'x' : '-' },
+  { key: 'eps_y1',          label: 'EPS',          unit: '元', fmt: v => v != null ? v.toFixed(2) : '-' },
+  { key: 'eps_growth',      label: 'EPS成長',      unit: '%',  fmt: v => v != null ? v.toFixed(1)+'%' : '-' },
+  { key: 'revenue_yoy',     label: '營收YoY',      unit: '%',  fmt: v => v != null ? v.toFixed(1)+'%' : '-' },
+  { key: 'revenue_cum_yoy', label: '累計營收YoY',  unit: '%',  fmt: v => v != null ? v.toFixed(1)+'%' : '-' },
+  { key: 'yield_pct',       label: '殖利率',       unit: '%',  fmt: v => v != null ? v.toFixed(2)+'%' : '-' },
+  { key: 'change_240d',     label: '240日漲跌',    unit: '%',  fmt: v => v != null ? v.toFixed(1)+'%' : '-' },
+];
+
+function barColor(pct) {
+  if (pct >= 75) return '#059669';
+  if (pct >= 50) return '#2563eb';
+  if (pct >= 25) return '#f59e0b';
+  return '#94a3b8';
+}
+
+function renderIndustry() {
+  const d = indData;
+  const panel = document.getElementById('panel');
+
+  // 排名摘要卡片
+  let summaryHtml = '';
+  for (const m of IND_METRICS) {
+    const s = d.summary[m.key];
+    if (!s) {
+      summaryHtml += `<div class="ind-card"><div class="label">${m.label}</div><div class="rank">-</div></div>`;
+      continue;
+    }
+    summaryHtml += `
+      <div class="ind-card">
+        <div class="label">${m.label}</div>
+        <div class="rank">${s.rank}<small> / ${s.total}</small></div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${s.percentile}%;background:${barColor(s.percentile)}"></div></div>
+        <div class="pct">勝過 ${s.percentile}% 同業</div>
+      </div>`;
+  }
+
+  // 表格
+  let tableHtml = `
+    <div class="ind-filter">
+      <input type="text" id="indSearch" placeholder="搜尋代碼或名稱..." oninput="filterIndTable()">
+      <select id="indMarket" onchange="filterIndTable()">
+        <option value="">全部</option><option value="上市">上市</option><option value="上櫃">上櫃</option>
+      </select>
+      <span class="ind-count">共 ${d.peer_count} 家</span>
+    </div>
+    <div class="ind-table-wrap">
+    <table class="ind-table">
+      <thead><tr>
+        <th onclick="sortInd('name')">公司</th>
+        <th onclick="sortInd('close')">股價</th>`;
+  for (const m of IND_METRICS) {
+    tableHtml += `<th onclick="sortInd('${m.key}')">${m.label}</th>`;
+  }
+  tableHtml += '</tr></thead><tbody id="indBody">';
+  tableHtml += '</tbody></table></div>';
+
+  panel.innerHTML = `
+    <div class="ind-header">
+      <span class="ind-badge">${d.industry}</span>
+      <span class="ind-count">${d.name} 在 ${d.peer_count} 家同業中的排名</span>
+    </div>
+    <div class="ind-summary">${summaryHtml}</div>
+    ${tableHtml}`;
+
+  renderIndRows();
+}
+
+function renderIndRows() {
+  const d = indData;
+  let peers = [...d.peers];
+  const q = document.getElementById('indSearch')?.value.trim().toLowerCase() || '';
+  const mkt = document.getElementById('indMarket')?.value || '';
+
+  if (q) peers = peers.filter(p => p.code.toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q));
+  if (mkt) peers = peers.filter(p => p.market === mkt);
+
+  // 排序
+  const sk = indSort.key;
+  peers.sort((a, b) => {
+    let va = sk === 'name' ? (a.name||'') : (a[sk] ?? null);
+    let vb = sk === 'name' ? (b.name||'') : (b[sk] ?? null);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    if (typeof va === 'string') return indSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return indSort.asc ? va - vb : vb - va;
+  });
+
+  const body = document.getElementById('indBody');
+  if (!body) return;
+  let html = '';
+  for (const p of peers) {
+    const isTarget = p.code === CODE;
+    const cls = isTarget ? ' class="row-target"' : '';
+    html += `<tr${cls}>`;
+    html += `<td><a href="/company.html?code=${p.code}" style="color:#2563eb;text-decoration:none;font-weight:${isTarget?700:500}">${p.code} ${p.name||''}</a></td>`;
+    html += `<td>${p.close != null ? p.close.toFixed(1) : '-'}</td>`;
+    for (const m of IND_METRICS) {
+      const v = p[m.key];
+      let cls2 = '';
+      if (m.key !== 'pe' && v != null) cls2 = v > 0 ? ' class="v-pos"' : v < 0 ? ' class="v-neg"' : '';
+      html += `<td${cls2}>${m.fmt(v)}</td>`;
+    }
+    html += '</tr>';
+  }
+  body.innerHTML = html;
+}
+
+function sortInd(key) {
+  if (indSort.key === key) indSort.asc = !indSort.asc;
+  else { indSort.key = key; indSort.asc = key === 'pe'; }
+  renderIndRows();
+}
+
+function filterIndTable() { renderIndRows(); }
+
+// ── 啟動 ──
+if (CODE) {
+  loadFinancial();
+  loadImportantNews();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日報告</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; overscroll-behavior-x: none; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  .container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+  .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
+  .section-header { padding: 14px 20px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
+  .section-body { padding: 0 20px 16px; }
+  .red-header { background: #fef2f2; color: #991b1b; border-bottom: 2px solid #fca5a5; }
+  .blue-header { background: #eff6ff; color: #1d4ed8; border-bottom: 2px solid #93c5fd; }
+  .yellow-header { background: #fffbeb; color: #92400e; border-bottom: 2px solid #fcd34d; }
+  .gray-header { background: #f8fafc; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .stock-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9; flex-wrap: wrap;
+  }
+  .stock-row:last-child { border-bottom: none; }
+  .stock-code { font-weight: 700; color: #2563eb; text-decoration: none; min-width: 50px; }
+  .stock-code:hover { text-decoration: underline; }
+  .stock-name { color: #334155; min-width: 80px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: .78rem; font-weight: 700; }
+  .tag-super { background: #7f1d1d; color: #fff; }
+  .tag-cheap { background: #dc2626; color: #fff; }
+  .tag-low { background: #f59e0b; color: #fff; }
+  .tag-fair { background: #3b82f6; color: #fff; }
+  .tag-high { background: #94a3b8; color: #fff; }
+  .tag-down { background: #fee2e2; color: #991b1b; }
+  .metric { font-size: .84rem; color: #64748b; }
+  .metric b { color: #334155; }
+  .change-label { font-size: .82rem; color: #6b7280; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; }
+  .empty-msg { padding: 16px 0; color: #94a3b8; font-size: .9rem; }
+  .summary-bar {
+    display: flex; gap: 16px; flex-wrap: wrap; padding: 14px 20px; font-size: .85rem; color: #475569;
+  }
+  .summary-bar b { color: #1e3a5f; }
+  .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>每日報告</h1>
+    <span class="date-label" id="dateLabel"></span>
+  </div>
+  <div style="display:flex;gap:16px">
+    <a href="/">回總表</a>
+    <a href="/health.html">系統監控</a>
+  </div>
+</header>
+
+<div class="container">
+  <div id="content">
+    <div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div>
+  </div>
+</div>
+
+<script>
+const POS_TAGS = {
+  1: ['超便宜', 'tag-super'],
+  2: ['便宜', 'tag-cheap'],
+  3: ['偏低', 'tag-low'],
+  4: ['合理', 'tag-fair'],
+  5: ['偏高', 'tag-high'],
+};
+
+async function load() {
+  try {
+    const [briefRes, newsRes] = await Promise.all([
+      fetch('/api/daily-briefing'),
+      fetch('/api/news?tier=0&limit=500'),
+    ]);
+    const d = await briefRes.json();
+    const news = await newsRes.json();
+    render(d, news);
+  } catch(e) {
+    document.getElementById('content').innerHTML =
+      '<div style="text-align:center;padding:60px;color:#ef4444">無法載入，請確認系統已啟動<br><br>如果是第一次使用，請先執行一次快速更新：<br><code>python3 scraper.py --quick</code></div>';
+  }
+}
+
+function render(d, news) {
+  if (d.data_date) {
+    document.getElementById('dateLabel').textContent = `資料日期：${d.data_date}`;
+  }
+
+  let html = '';
+
+  // ── 紅色警示區 ──
+  html += `<div class="section">
+    <div class="section-header red-header">持倉 / 觀察警示</div>
+    <div class="section-body">`;
+  if (d.alerts.length === 0) {
+    html += '<div class="empty-msg">今日無警示</div>';
+  } else {
+    d.alerts.forEach(a => {
+      html += `<div class="stock-row">
+        <a class="stock-code" href="/company.html?code=${a.code}" target="_blank">${a.code}</a>
+        <span class="stock-name">${a.name}</span>
+        <span class="tag tag-down">${a.old_grade} → ${a.new_grade}</span>
+        <span class="metric">收盤 <b>${a.price}</b></span>
+      </div>`;
+    });
+  }
+  html += '</div></div>';
+
+  // ── 機會區（只展開今天新進入的，持續便宜收合）──
+  const isNew = o => o.change !== '持續便宜' && o.change !== '首次記錄';
+  const superCheapNew = d.opportunities.filter(o => o.price_pos === 1 && isNew(o));
+  const cheapNew = d.opportunities.filter(o => o.price_pos === 2 && isNew(o));
+  const newlyChanged = d.opportunities.filter(o => o.price_pos > 2 && isNew(o));
+  const stayingCheap = d.opportunities.filter(o => !isNew(o));
+
+  html += `<div class="section">
+    <div class="section-header blue-header">機會區 <span style="font-weight:400;font-size:.82rem;margin-left:8px">今日新進 ${superCheapNew.length + cheapNew.length} 支 / 持續便宜 ${stayingCheap.length} 支</span></div>
+    <div class="section-body">`;
+
+  if (superCheapNew.length === 0 && cheapNew.length === 0 && newlyChanged.length === 0 && d.near_cheap.length === 0 && stayingCheap.length === 0) {
+    html += '<div class="empty-msg">觀察清單今日無價位變化</div>';
+  } else {
+    if (superCheapNew.length) {
+      html += '<div style="margin:12px 0 6px;font-weight:700;color:#7f1d1d;font-size:.88rem">今日新進 — 深度便宜</div>';
+      superCheapNew.forEach(o => html += stockRow(o));
+    }
+    if (cheapNew.length) {
+      html += '<div style="margin:12px 0 6px;font-weight:700;color:#dc2626;font-size:.88rem">今日新進 — 便宜區</div>';
+      cheapNew.forEach(o => html += stockRow(o));
+    }
+    if (newlyChanged.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.85rem;color:#3b82f6;font-weight:600">偏低區（${newlyChanged.length} 支）</summary><div style="margin-top:4px">`;
+      newlyChanged.forEach(o => html += stockRow(o));
+      html += '</div></details>';
+    }
+    if (stayingCheap.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.85rem;color:#64748b;font-weight:600">持續便宜（${stayingCheap.length} 支，無變化）</summary><div style="margin-top:4px">`;
+      stayingCheap.forEach(o => html += stockRow(o));
+      html += '</div></details>';
+    }
+    if (d.near_cheap.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.85rem;color:#92400e;font-weight:600">接近便宜區（${d.near_cheap.length} 支）</summary><div style="margin-top:4px">`;
+      d.near_cheap.forEach(n => {
+        html += `<div class="stock-row">
+          <a class="stock-code" href="/company.html?code=${n.code}" target="_blank">${n.code}</a>
+          <span class="stock-name">${n.name}</span>
+          <span class="metric">收盤 <b>${n.price}</b></span>
+          <span class="metric">便宜線 <b>${n.fair_low}</b></span>
+          <span class="change-label">距離 ${n.dist_pct}%</span>
+        </div>`;
+      });
+      html += '</div></details>';
+    }
+  }
+  html += '</div></div>';
+
+  // ── 新聞分「今日」和「歷史」──
+  const todayStr = new Date().toLocaleDateString('zh-TW', {month:'2-digit', day:'2-digit'}).replace('/','/');
+  const todayMMDD = (new Date().getMonth()+1).toString().padStart(2,'0') + '/' + new Date().getDate().toString().padStart(2,'0');
+  const isToday = n => (n.date || '').includes(todayMMDD) || (n.created_at || '').startsWith(new Date().toISOString().slice(0,10));
+
+  const tier2 = news.filter(n => n.tier === 2);
+  const tier1 = news.filter(n => n.tier === 1);
+
+  const t2today = tier2.filter(n => isToday(n) && !n.cooled);
+  const t2hist = tier2.filter(n => !isToday(n) && !n.cooled);
+  const t2cooled = tier2.filter(n => n.cooled);
+  const t1today = tier1.filter(n => isToday(n));
+  const t1hist = tier1.filter(n => !isToday(n));
+
+  // ── 今日重大訊息 ──
+  function renderT2Group(items, label) {
+    const alarm = items.filter(n => n.direction === 'alarm');
+    const neg = items.filter(n => !['positive','alarm'].includes(n.direction));
+    const pos = items.filter(n => n.direction === 'positive');
+    let h = '';
+    if (alarm.length) {
+      h += '<div style="margin:10px 0 6px;font-weight:700;color:#7f1d1d;font-size:.95rem">警鈴</div>';
+      alarm.forEach(n => h += newsRow(n, '#fecaca', '#7f1d1d'));
+    }
+    if (neg.length) {
+      h += '<div style="margin:10px 0 6px;font-weight:700;color:#991b1b;font-size:.88rem">負向 / 風險</div>';
+      neg.forEach(n => h += newsRow(n, '#fee2e2', '#991b1b'));
+    }
+    if (pos.length) {
+      h += '<div style="margin:10px 0 6px;font-weight:700;color:#059669;font-size:.88rem">正向催化劑</div>';
+      pos.forEach(n => h += newsRow(n, '#dcfce7', '#166534'));
+    }
+    return h;
+  }
+
+  if (t2today.length) {
+    const t2tPending = t2today.filter(n => !n.status);
+    const t2tDone = t2today.filter(n => n.status);
+    html += `<div class="section">
+      <div class="section-header yellow-header">今日重大訊息（未處理 ${t2tPending.length} / 已處理 ${t2tDone.length}）</div>
+      <div class="section-body">${renderT2Group(t2tPending)}`;
+    if (t2tDone.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${t2tDone.length} 則）</summary>
+      <div style="margin-top:4px;opacity:.5">${renderT2Group(t2tDone)}</div></details>`;
+    }
+    html += '</div></div>';
+  }
+
+  // 歷史重大訊息（收合）
+  if (t2hist.length) {
+    const t2hPending = t2hist.filter(n => !n.status);
+    const t2hDone = t2hist.filter(n => n.status);
+    html += `<div class="section">
+      <div class="section-header" style="background:#fffbeb;color:#b45309;border-bottom:1px solid #fcd34d">
+        歷史重大訊息（未處理 ${t2hPending.length} / 已處理 ${t2hDone.length}）
+      </div>
+      <div class="section-body">
+      <details><summary style="cursor:pointer;font-size:.85rem;color:#92400e;font-weight:600">點擊展開</summary>
+      <div style="margin-top:6px">${renderT2Group(t2hPending)}`;
+    if (t2hDone.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${t2hDone.length} 則）</summary>
+      <div style="margin-top:4px;opacity:.5">${renderT2Group(t2hDone)}</div></details>`;
+    }
+    html += '</div></details></div></div>';
+  }
+
+  // 冷卻中
+  if (t2cooled.length) {
+    html += `<div class="section"><div class="section-body">
+      <details><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">同公司重複訊息（${t2cooled.length} 則）</summary><div style="margin-top:4px">`;
+    t2cooled.forEach(n => html += newsRow(n, '#f8fafc', '#94a3b8'));
+    html += '</div></details></div></div>';
+  }
+
+  // ── 一般訊息：今日 vs 歷史 ──
+  function renderT1List(items, showButtons) {
+    if (typeof showButtons === 'undefined') showButtons = true;
+    let h = '';
+    items.forEach(n => {
+      const lnk = n.link ? `<a href="${n.link}" target="_blank" style="font-size:.74rem;color:#2563eb;text-decoration:none">查看</a>` : '';
+      const statusTag = n.status ? `<span style="font-size:.7rem;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:3px">${n.status === 'important' ? '已標重要' : '已略過'}</span>` : '';
+      const buttons = showButtons && !n.status ? `
+        <button onclick="markNews(${n.id},'important',this)" style="padding:1px 6px;border:1px solid #059669;border-radius:3px;background:#dcfce7;color:#166534;cursor:pointer;font-size:.7rem">重要</button>
+        <button onclick="markNews(${n.id},'dismissed',this)" style="padding:1px 6px;border:1px solid #94a3b8;border-radius:3px;background:#f1f5f9;color:#64748b;cursor:pointer;font-size:.7rem">略</button>` : statusTag;
+      h += `<div class="stock-row" style="padding:6px 0">
+        <a class="stock-code" href="/company.html?code=${n.code}" target="_blank" style="font-size:.82rem">${n.code}</a>
+        <span class="stock-name" style="font-size:.82rem">${n.name}</span>
+        <span style="font-size:.78rem;color:#94a3b8">${n.matched_rule}</span>
+        <span class="metric" style="flex:1;font-size:.8rem">${(n.subject||'').replace(/\\r?\\n/g,' ').substring(0, 60)}</span>
+        ${lnk}
+        ${buttons}
+      </div>`;
+    });
+    return h;
+  }
+
+  if (t1today.length) {
+    const t1tPending = t1today.filter(n => !n.status);
+    const t1tDone = t1today.filter(n => n.status);
+    html += `<div class="section">
+      <div class="section-header gray-header">今日一般訊息（未處理 ${t1tPending.length} / 已處理 ${t1tDone.length}）</div>
+      <div class="section-body">
+      <details><summary style="cursor:pointer;font-size:.85rem;color:#64748b;font-weight:600">點擊展開</summary>
+      <div style="margin-top:6px">${renderT1List(t1tPending)}</div>`;
+    if (t1tDone.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${t1tDone.length} 則）</summary>
+      <div style="margin-top:4px;opacity:.5">${renderT1List(t1tDone, false)}</div></details>`;
+    }
+    html += '</details></div></div>';
+  }
+  if (t1hist.length) {
+    const t1hPending = t1hist.filter(n => !n.status);
+    const t1hDone = t1hist.filter(n => n.status);
+    html += `<div class="section">
+      <div class="section-header" style="background:#f8fafc;color:#94a3b8;border-bottom:1px solid #e2e8f0">
+        歷史一般訊息（未處理 ${t1hPending.length} / 已處理 ${t1hDone.length}）
+      </div>
+      <div class="section-body">
+      <details><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">點擊展開</summary>
+      <div style="margin-top:6px">${renderT1List(t1hPending)}`;
+    if (t1hDone.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${t1hDone.length} 則）</summary>
+      <div style="margin-top:4px;opacity:.5">${renderT1List(t1hDone, false)}</div></details>`;
+    }
+    html += '</div></details></div></div>';
+  }
+
+  // ── 被過濾訊息（Tier 0，收合，可升級）──
+  const tier0all = news.filter(n => n.tier === 0);
+  const t0today = tier0all.filter(n => isToday(n));
+  const t0hist = tier0all.filter(n => !isToday(n));
+
+  function renderT0List(items) {
+    let h = '';
+    items.forEach(n => {
+      const isDone = n.status === 'dismissed';
+      const statusTag = isDone ? `<span style="font-size:.7rem;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:3px">已略過</span>` : '';
+      const buttons = isDone ? statusTag : `
+        <button onclick="upgradeNews(${n.id},this)" style="padding:1px 8px;border:1px solid #f59e0b;border-radius:3px;background:#fffbeb;color:#92400e;cursor:pointer;font-size:.7rem">升級</button>
+        <button onclick="markNews(${n.id},'dismissed',this)" style="padding:1px 6px;border:1px solid #e2e8f0;border-radius:3px;background:#fff;color:#cbd5e1;cursor:pointer;font-size:.7rem">略</button>`;
+      h += `<div class="stock-row" style="padding:5px 0;opacity:.7">
+        <a class="stock-code" href="/company.html?code=${n.code}" target="_blank" style="font-size:.8rem">${n.code}</a>
+        <span class="stock-name" style="font-size:.8rem">${n.name}</span>
+        <span style="font-size:.72rem;color:#cbd5e1;background:#f1f5f9;padding:1px 6px;border-radius:3px">${n.matched_rule}</span>
+        <span class="metric" style="flex:1;font-size:.78rem">${(n.subject||'').replace(/\r?\n/g,' ').substring(0, 60)}</span>
+        ${buttons}
+      </div>`;
+    });
+    return h;
+  }
+
+  if (t0today.length) {
+    const t0tPending = t0today.filter(n => !n.status);
+    const t0tDone = t0today.filter(n => n.status);
+    html += `<div class="section">
+      <div class="section-header" style="background:#f8fafc;color:#94a3b8;border-bottom:1px solid #e2e8f0">
+        今日被過濾訊息（未處理 ${t0tPending.length} / 已處理 ${t0tDone.length}）
+      </div>
+      <div class="section-body">
+      <details><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">點擊查看 — 覺得重要的按「升級」，系統會學習</summary><div style="margin-top:6px">
+      ${renderT0List(t0tPending)}`;
+    if (t0tDone.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${t0tDone.length} 則）</summary>
+      <div style="margin-top:4px;opacity:.5">${renderT0List(t0tDone)}</div></details>`;
+    }
+    html += '</div></details></div></div>';
+  }
+  if (t0hist.length) {
+    const t0hPending = t0hist.filter(n => !n.status);
+    const t0hDone = t0hist.filter(n => n.status);
+    html += `<div class="section">
+      <div class="section-header" style="background:#f8fafc;color:#94a3b8;border-bottom:1px solid #e2e8f0">
+        歷史被過濾訊息（未處理 ${t0hPending.length} / 已處理 ${t0hDone.length}）
+      </div>
+      <div class="section-body">
+      <details><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">點擊查看</summary><div style="margin-top:6px">
+      ${renderT0List(t0hPending)}`;
+    if (t0hDone.length) {
+      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${t0hDone.length} 則）</summary>
+      <div style="margin-top:4px;opacity:.5">${renderT0List(t0hDone)}</div></details>`;
+    }
+    html += '</div></details></div></div>';
+  }
+
+  // ── 底部總覽 ──
+  html += `<div class="section">
+    <div class="section-header gray-header">狀態總覽</div>
+    <div class="summary-bar">
+      <span>追蹤股數：<b>${d.summary.total}</b></span>
+      <span>往便宜移動：<b>${d.summary.to_cheap}</b></span>
+      <span>往昂貴移動：<b>${d.summary.to_expensive}</b></span>
+      <span>等級變動：<b>${d.summary.grade_change}</b></span>
+      <span>無變化：<b>${d.summary.no_change}</b></span>
+    </div>
+  </div>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+async function upgradeNews(id, el) {
+  await fetch(`/api/news/${id}/upgrade`, {method:'POST'});
+  el.closest('.stock-row').style.opacity = '1';
+  el.closest('.stock-row').innerHTML = '<span style="color:#059669;font-size:.82rem">已升級到一般訊息</span>';
+}
+
+async function markNews(id, status, el) {
+  await fetch(`/api/news/${id}/status`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+  el.closest('.stock-row').style.opacity = '0.3';
+  el.closest('.stock-row').style.pointerEvents = 'none';
+}
+
+function newsRow(n, bg, color) {
+  const linkHtml = n.link ? `<a href="${n.link}" target="_blank" style="font-size:.76rem;color:#2563eb;text-decoration:none;white-space:nowrap">查看</a>` : '';
+  const isDone = n.status === 'important' || n.status === 'dismissed';
+  const statusTag = isDone ? `<span style="font-size:.7rem;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:3px">${n.status === 'important' ? '已標重要' : '已略過'}</span>` : '';
+  const buttons = isDone ? statusTag : `
+    <button onclick="markNews(${n.id},'important',this)" style="padding:2px 8px;border:1px solid #059669;border-radius:4px;background:#dcfce7;color:#166534;cursor:pointer;font-size:.72rem">重要</button>
+    <button onclick="markNews(${n.id},'dismissed',this)" style="padding:2px 8px;border:1px solid #94a3b8;border-radius:4px;background:#f1f5f9;color:#64748b;cursor:pointer;font-size:.72rem">略過</button>`;
+  return `<div class="stock-row" style="background:${bg};border-radius:6px;padding:8px 12px;margin:4px 0">
+    <a class="stock-code" href="/company.html?code=${n.code}" target="_blank">${n.code}</a>
+    <span class="stock-name">${n.name}</span>
+    <span class="tag" style="background:${color};color:#fff">${n.matched_rule}</span>
+    <span class="metric" style="flex:1;font-size:.82rem">${(n.subject||'').replace(/\r?\n/g,' ').substring(0, 80)}</span>
+    ${linkHtml}
+    <span class="metric" style="font-size:.76rem;color:#94a3b8">${n.date}</span>
+    ${buttons}
+  </div>`;
+}
+
+function stockRow(o) {
+  const [label, cls] = POS_TAGS[o.price_pos] || ['?', 'tag-high'];
+  return `<div class="stock-row">
+    <a class="stock-code" href="/company.html?code=${o.code}" target="_blank">${o.code}</a>
+    <span class="stock-name">${o.name}</span>
+    <span class="tag ${cls}">${label}</span>
+    <span class="metric">收盤 <b>${o.price}</b></span>
+    ${o.shen_pe ? `<span class="metric">PE <b>${o.shen_pe}</b></span>` : ''}
+    ${o.shen_yld ? `<span class="metric">殖利率 <b>${o.shen_yld}%</b></span>` : ''}
+    <span class="change-label">${o.change}</span>
+    ${o.fair_low ? `<span class="metric" style="font-size:.78rem;color:#94a3b8">合理價 ${o.fair_low}~${o.fair_high}</span>` : ''}
+  </div>`;
+}
+
+load();
+</script>
+</body>
+</html>
