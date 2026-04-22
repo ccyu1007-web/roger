@@ -150,16 +150,34 @@ def refresh_institutional():
     threading.Thread(target=do_inst, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新三大法人資料"})
 
+# ── 背景更新佇列 ─────────────────────────────────────────
+_bg_updating = set()  # 正在背景更新的股票代碼
+
+def _bg_update_financials(code):
+    """背景更新個股全部資料"""
+    if code in _bg_updating:
+        return
+    _bg_updating.add(code)
+    def _do():
+        try:
+            fetch_company_financials(code)
+        except:
+            pass
+        finally:
+            _bg_updating.discard(code)
+    threading.Thread(target=_do, daemon=True).start()
+
 # ── 個股年度財報 ────────────────────────────────────────────
 @app.route("/api/stocks/<code>/financials")
 def get_financials(code):
     from datetime import datetime, timedelta
 
-    # 檢查快取（24 小時內有效）
     rows = query_db(
         "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 5",
         (code,)
     )
+
+    # 快取過期 → 背景更新，先回傳現有資料
     cache_valid = False
     if rows:
         try:
@@ -170,12 +188,15 @@ def get_financials(code):
             pass
 
     if not cache_valid:
-        try:
-            result = fetch_company_financials(code)
-        except Exception as e:
-            print(f"[財報] {code} 更新失敗: {e}")
-            result = None
-        if result:
+        if rows:
+            # 有舊資料：背景更新，先回傳舊的（秒開）
+            _bg_update_financials(code)
+        else:
+            # 完全沒資料：同步抓（第一次必須等）
+            try:
+                fetch_company_financials(code)
+            except:
+                pass
             rows = query_db(
                 "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 5",
                 (code,)
@@ -274,14 +295,20 @@ def get_quarterly(code):
             pass
 
     if not cache_valid:
-        try:
-            fetch_company_quarterly(code)
-        except Exception as e:
-            print(f"[季報] {code} 更新失敗: {e}")
-        rows = query_db(
-            f"SELECT * FROM quarterly_financial WHERE code = ? {q_order} LIMIT 8",
-            (code,)
-        )
+        if rows:
+            # 有舊資料：背景更新
+            def _bg_q(c=code):
+                try: fetch_company_quarterly(c)
+                except: pass
+            threading.Thread(target=_bg_q, daemon=True).start()
+        else:
+            # 沒資料：同步抓
+            try: fetch_company_quarterly(code)
+            except: pass
+            rows = query_db(
+                f"SELECT * FROM quarterly_financial WHERE code = ? {q_order} LIMIT 8",
+                (code,)
+            )
 
     data = []
     for r in rows:
@@ -359,11 +386,18 @@ def get_pe_history(code):
             pass
 
     if not cache_valid:
-        fetch_pe_history(code)
-        rows = query_db(
-            "SELECT * FROM pe_history WHERE code = ? ORDER BY year ASC",
-            (code,)
-        )
+        if rows:
+            def _bg_pe(c=code):
+                try: fetch_pe_history(c)
+                except: pass
+            threading.Thread(target=_bg_pe, daemon=True).start()
+        else:
+            try: fetch_pe_history(code)
+            except: pass
+            rows = query_db(
+                "SELECT * FROM pe_history WHERE code = ? ORDER BY year ASC",
+                (code,)
+            )
 
     data = [dict(r) for r in rows]
     # 取最近 8 年
@@ -411,11 +445,20 @@ def get_monthly_revenue(code):
             pass
 
     if not cache_valid:
-        fetch_company_monthly_revenue(code)
-        rows = query_db(
-            "SELECT * FROM monthly_revenue WHERE code = ? ORDER BY year DESC, month ASC",
-            (code,)
-        )
+        if rows:
+            # 有舊資料：背景更新
+            def _bg_rev(c=code):
+                try: fetch_company_monthly_revenue(c)
+                except: pass
+            threading.Thread(target=_bg_rev, daemon=True).start()
+        else:
+            # 沒資料：同步抓
+            try: fetch_company_monthly_revenue(code)
+            except: pass
+            rows = query_db(
+                "SELECT * FROM monthly_revenue WHERE code = ? ORDER BY year DESC, month ASC",
+                (code,)
+            )
 
     # 建立 {(year, month): revenue} 查找表
     rev_map = {}
