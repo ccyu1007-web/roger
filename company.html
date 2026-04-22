@@ -562,8 +562,7 @@ function renderFinTable(data) {
   const fmtP = v => {
     if (v == null) return '<td class="v-empty">-</td>';
     const cls = v < 0 ? 'v-neg' : v > 0 ? 'v-pos' : 'v-neutral';
-    const sign = v > 0 ? '+' : '';
-    return `<td class="${cls}">${sign}${v.toFixed(2)}%</td>`;
+    return `<td class="${cls}">${v.toFixed(2)}%</td>`;
   };
   const fmt2 = v => {
     if (v == null) return '<td class="v-empty">-</td>';
@@ -1483,9 +1482,9 @@ function applyPE(hi, lo) {
   alert(`已套用 PE 範圍：${lo} ~ ${hi}\n\n切到「年度財報」tab 可看到估值計算器已更新`);
 }
 
-// ── 存入筆記 ──
+// ── 存入筆記（寫入質性研究筆記區同一個 key）──
 function saveToNotes(date, subject) {
-  const key = 'company_notes_' + CODE;
+  const key = 'notes_' + CODE;
   const existing = localStorage.getItem(key) || '';
   const line = `[${date}] ${subject}`;
   // 避免重複存

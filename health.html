@@ -48,7 +48,8 @@
   .top-alert-orange { background: #fff7ed; color: #9a3412; border: 2px solid #f97316; }
   a { color: #2563eb; text-decoration: none; }
   .back { margin-bottom: 16px; font-size: .9rem; }
-  .refresh-btn { padding: 6px 16px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: .85rem; }
+  .refresh-btn { padding: 6px 16px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; font-size: .85rem; transition: all .2s; }
+  .refresh-btn.loading { background: #f59e0b; border-color: #f59e0b; animation: pulse 1s infinite; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -123,6 +124,9 @@
 <h2>備份狀態</h2>
 <div class="card" id="backupInfo"></div>
 
+<h2>多源交叉校驗 <button class="refresh-btn" style="font-size:.75rem;padding:4px 12px" onclick="runCrossValidate()">立即校驗</button></h2>
+<div class="card" id="crossValidate"></div>
+
 <h2>關鍵欄位異動日誌（近 50 筆）</h2>
 <div class="card">
   <table id="auditTable">
@@ -149,9 +153,13 @@ async function handleQuarantine(id, action) {
 }
 
 async function loadAll() {
+  const btn = document.querySelector('.refresh-btn');
+  const origText = btn.textContent;
+  btn.textContent = '更新中...';
+  btn.classList.add('loading');
   try {
   const safe = url => fetch(url).then(r => r.json()).catch(() => null);
-  const [health, providers, breakers, quarantine, fingerprints, coverage, audit, dbStatus] = await Promise.all([
+  const [health, providers, breakers, quarantine, fingerprints, coverage, audit, dbStatus, cv] = await Promise.all([
     safe('/api/health'),
     safe('/api/providers'),
     safe('/api/breakers'),
@@ -160,6 +168,7 @@ async function loadAll() {
     safe('/api/coverage'),
     safe('/api/audit?limit=50'),
     safe('/api/db-status'),
+    safe('/api/cross-validate'),
   ]);
   if (!health) { document.body.innerHTML += '<div style="text-align:center;padding:40px;color:#ef4444">API 載入失敗，請確認系統已啟動</div>'; return; }
   const _breakers = breakers || {};
@@ -393,6 +402,9 @@ async function loadAll() {
   }
   } catch(e) {
     document.body.innerHTML += `<div style="text-align:center;padding:40px;color:#ef4444;font-size:1.1rem">渲染錯誤：${e.message}<br><pre style="text-align:left;max-width:600px;margin:12px auto;font-size:.8rem;background:#fef2f2;padding:12px;border-radius:8px">${e.stack}</pre></div>`;
+  } finally {
+    btn.textContent = origText;
+    btn.classList.remove('loading');
   }
 }
 

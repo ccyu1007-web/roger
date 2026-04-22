@@ -4,19 +4,24 @@
 """
 
 from flask import Flask, jsonify, request
-import sqlite3
+import os
+import db as sqlite3
 import threading
 from guardian import (generate_health_report, get_provider_status, PROVIDER_TIERS,
                       get_all_breakers, get_breaker,
                       get_quarantine_list, resolve_quarantine,
                       get_fingerprint_stats, get_coverage_map,
                       get_audit_log, get_daily_briefing,
-                      get_recent_news)
+                      get_recent_news,
+                      cross_validate, get_latest_validation)
 from scraper import (run as scraper_run, refresh_prices, init_db, init_financial_db,
                      init_monthly_revenue_db, init_quarterly_db,
                      init_pe_history_db, fetch_company_financials,
                      fetch_company_monthly_revenue, fetch_company_quarterly,
-                     fetch_pe_history, _calc_fin_grade)
+                     fetch_pe_history, _calc_fin_grade, fetch_institutional,
+                     quick_update)
+from etf_fetcher import (init_etf_db, get_stock_etf_membership,
+                         get_etf_holdings_list, get_etf_changes)
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 DB_PATH = "stocks.db"
@@ -55,7 +60,8 @@ def get_stocks():
                        fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
                        fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
                        fin_grade_5, fin_grade_5y,
-                       price_pos, fair_low, fair_high
+                       price_pos, fair_low, fair_high,
+                       inst_foreign, inst_trust, inst_dealer
                 FROM stocks WHERE 1=1"""
     params = []
     if q:
@@ -67,6 +73,29 @@ def get_stocks():
     sql += " ORDER BY code ASC"
 
     rows = query_db(sql, params)
+
+    # 附加 ETF 持股資訊（批次查詢，避免 N+1）
+    etf_map = {}
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("""
+            SELECT h.stock_code,
+                   GROUP_CONCAT(h.etf_code || ':' || COALESCE(i.name,''), ',') as etf_list
+            FROM etf_holdings h
+            LEFT JOIN etf_info i ON h.etf_code = i.code
+            GROUP BY h.stock_code
+        """)
+        for r in c.fetchall():
+            etf_map[r["stock_code"]] = r["etf_list"]
+        conn.close()
+    except:
+        pass
+
+    for row in rows:
+        row["etf_tags"] = etf_map.get(row["code"], "")
+
     return jsonify({"count": len(rows), "data": rows})
 
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
@@ -109,6 +138,17 @@ def refresh():
 @app.route("/api/refresh/status")
 def refresh_status():
     return jsonify({"is_refreshing": _is_refreshing})
+
+# ── 更新三大法人 ────────────────────────────────────────────
+@app.route("/api/refresh/institutional", methods=["POST"])
+def refresh_institutional():
+    def do_inst():
+        try:
+            fetch_institutional()
+        except Exception as e:
+            print(f"[法人更新] 錯誤: {e}")
+    threading.Thread(target=do_inst, daemon=True).start()
+    return jsonify({"status": "started", "msg": "開始更新三大法人資料"})
 
 # ── 個股年度財報 ────────────────────────────────────────────
 @app.route("/api/stocks/<code>/financials")
@@ -171,9 +211,14 @@ def get_financials(code):
         # 每股自由現金流
         shares = cs / 10 if cs and cs > 0 else None
         d['fcf_per_share'] = round(d['fcf'] / shares, 2) if d.get('fcf') is not None and shares else None
-        # 配息率
+        # 配息率（EPS <= 0 但有配息 → 100%）
         total_div = ((cd or 0) + (sd or 0))
-        d['payout_ratio'] = round(total_div / eps_val * 100, 2) if eps_val and eps_val > 0 and total_div > 0 else None
+        if total_div > 0 and eps_val is not None and eps_val > 0:
+            d['payout_ratio'] = round(total_div / eps_val * 100, 2)
+        elif total_div > 0 and (eps_val is None or eps_val <= 0):
+            d['payout_ratio'] = 100.0
+        else:
+            d['payout_ratio'] = None
         # 年度標籤（民國年）
         d['year_label'] = str(d['year'] - 1911)
 
@@ -210,7 +255,10 @@ def get_quarterly(code):
     from datetime import datetime, timedelta
 
     rows = query_db(
-        "SELECT * FROM quarterly_financial WHERE code = ? ORDER BY quarter DESC LIMIT 8",
+        """SELECT * FROM quarterly_financial WHERE code = ?
+           ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                    CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+           LIMIT 8""",
         (code,)
     )
     cache_valid = False
@@ -225,7 +273,10 @@ def get_quarterly(code):
     if not cache_valid:
         fetch_company_quarterly(code)
         rows = query_db(
-            "SELECT * FROM quarterly_financial WHERE code = ? ORDER BY quarter DESC LIMIT 8",
+            """SELECT * FROM quarterly_financial WHERE code = ?
+               ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                        CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+               LIMIT 8""",
             (code,)
         )
 
@@ -240,6 +291,16 @@ def get_quarterly(code):
         nip = d.get('net_income_parent')
         eps_val = d.get('eps')
         opex = d.get('operating_expense')
+
+        # 反算稅額（群益季表無稅欄位，用 稅前淨利 - 稅後淨利 推算）
+        if tax is None and pti is not None and nip is not None:
+            tax = round(pti - nip, 2)
+            d['tax'] = tax
+
+        # 反算繼續營業單位損益（近似 = 稅後淨利）
+        if ci is None and nip is not None:
+            ci = nip
+            d['continuing_income'] = ci
 
         # 毛利率
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
@@ -341,7 +402,7 @@ def get_monthly_revenue(code):
     if rows:
         try:
             updated = datetime.strptime(rows[0]['updated_at'], '%Y-%m-%d %H:%M:%S')
-            if datetime.now() - updated < timedelta(hours=4):
+            if datetime.now() - updated < timedelta(hours=24):
                 cache_valid = True
         except:
             pass
@@ -416,6 +477,18 @@ def get_monthly_revenue(code):
 @app.route("/api/health")
 def health():
     return jsonify(generate_health_report())
+
+@app.route("/api/cross-validate", methods=["POST"])
+def run_cross_validate():
+    """手動觸發交叉校驗"""
+    result = cross_validate(sample_size=30)
+    return jsonify(result)
+
+@app.route("/api/cross-validate")
+def get_cross_validate():
+    """取得最近一次校驗結果"""
+    result = get_latest_validation()
+    return jsonify(result or {"checked": 0, "ok": 0, "mismatches": []})
 
 @app.route("/api/providers")
 def providers():
@@ -562,8 +635,8 @@ def upgrade_news(nid):
 @app.route("/api/news/<int:nid>/status", methods=["POST"])
 def update_news_status(nid):
     status = request.json.get("status") if request.is_json else request.args.get("status")
-    if status not in ('important', 'dismissed'):
-        return jsonify({"error": "status must be important or dismissed"}), 400
+    if status not in ('important', 'dismissed', None):
+        return jsonify({"error": "status must be important, dismissed, or null"}), 400
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE material_news SET status=? WHERE id=?", (status, nid))
@@ -724,16 +797,91 @@ def industry_compare(code):
         "peers": peers
     })
 
+# ── ETF 成分股 API ─────────────────────────────────────────
+@app.route("/api/etf/stock/<code>")
+def etf_membership(code):
+    """查詢某股票被哪些 ETF 持有"""
+    return jsonify(get_stock_etf_membership(code))
+
+@app.route("/api/etf/<etf_code>/holdings")
+def etf_holdings(etf_code):
+    """查詢某 ETF 的所有持股"""
+    return jsonify(get_etf_holdings_list(etf_code))
+
+@app.route("/api/etf/changes")
+def etf_changes():
+    """查詢 ETF 成分股異動紀錄"""
+    etf_code = request.args.get("etf")
+    limit = int(request.args.get("limit", 50))
+    return jsonify(get_etf_changes(etf_code, limit))
+
+@app.route("/api/etf/list")
+def etf_list():
+    """取得所有追蹤的 ETF 清單及其持股數"""
+    rows = query_db("""
+        SELECT i.code, i.name, i.issuer, i.last_fetch,
+               COUNT(h.stock_code) as holding_count
+        FROM etf_info i
+        LEFT JOIN etf_holdings h ON i.code = h.etf_code
+        GROUP BY i.code
+        ORDER BY i.code
+    """)
+    return jsonify(rows)
+
 # ── 前端首頁 ────────────────────────────────────────────────
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
 
-# ── 啟動時初始化資料庫 ──────────────────────────────────────
-if __name__ == "__main__":
+# ── 初始化資料庫 ────────────────────────────────────────────
+def _init_all_db():
     init_db()
     init_financial_db()
     init_monthly_revenue_db()
     init_quarterly_db()
     init_pe_history_db()
+    init_etf_db()
+    # PostgreSQL 需要額外建立 api_health 表
+    if sqlite3.DB_TYPE == 'postgresql':
+        try:
+            conn = sqlite3.connect()
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS api_health (
+                source TEXT PRIMARY KEY,
+                description TEXT,
+                last_success TEXT,
+                last_fail TEXT,
+                fail_count INTEGER DEFAULT 0,
+                last_record_count INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'ok'
+            )""")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+_init_all_db()
+
+# ── 雲端排程（APScheduler，取代 LaunchAgent）────────────────
+if os.environ.get('DATABASE_URL'):
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        scheduler = BackgroundScheduler(timezone='Asia/Taipei')
+        # 每 30 分鐘快速更新（股價 + 最新營收 + EPS）
+        scheduler.add_job(quick_update, 'interval', minutes=30,
+                          id='quick_update', replace_existing=True)
+        # 每天早上 6:00 完整爬蟲
+        scheduler.add_job(scraper_run, 'cron', hour=6,
+                          id='daily_scrape', replace_existing=True)
+        # 週一到週五 14:30 盤後更新
+        scheduler.add_job(scraper_run, 'cron', day_of_week='mon-fri',
+                          hour=14, minute=30,
+                          id='afternoon_scrape', replace_existing=True)
+        scheduler.start()
+        print("[排程] APScheduler 已啟動")
+    except Exception as e:
+        print(f"[排程] APScheduler 啟動失敗: {e}")
+
+# ── 啟動 ────────────────────────────────────────────────────
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

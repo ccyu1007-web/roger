@@ -21,30 +21,42 @@
 
   /* ── 工具列 ── */
   .toolbar {
-    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    display: flex; flex-wrap: wrap; align-items: center;
     background: #fff; border-radius: 10px;
-    padding: 14px 18px; margin-bottom: 16px;
+    padding: 10px 16px; margin-bottom: 16px; gap: 0;
     box-shadow: 0 1px 6px rgba(0,0,0,.08);
   }
+  .toolbar-row {
+    display: flex; align-items: center; gap: 6px;
+    width: 100%; flex-wrap: wrap;
+  }
+  .toolbar-row + .toolbar-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
   .toolbar input[type="text"] {
-    flex: 1; min-width: 180px; max-width: 280px;
+    min-width: 180px; max-width: 260px;
     border: 1px solid #cbd5e1; border-radius: 7px;
-    padding: 7px 12px; font-size: .9rem; outline: none;
+    padding: 6px 10px; font-size: .85rem; outline: none;
   }
   .toolbar input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
-  .market-btns { display: flex; gap: 6px; }
+  .market-btns { display: flex; gap: 4px; }
   .watch-btns { display: flex; gap: 6px; align-items: center; }
   .watch-cb { width: 18px; height: 18px; cursor: pointer; accent-color: #f97316; }
+  .tb-group {
+    display: flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 6px; background: #f8fafc;
+  }
+  .tb-group + .tb-group { margin-left: 2px; }
+  .tb-label { font-size: .78rem; color: #475569; font-weight: 700; white-space: nowrap; }
   .mkt-btn {
-    padding: 6px 16px; border-radius: 20px; border: 2px solid #cbd5e1;
-    background: #fff; cursor: pointer; font-size: .85rem; font-weight: 600;
+    padding: 4px 12px; border-radius: 16px; border: 1.5px solid #cbd5e1;
+    background: #fff; cursor: pointer; font-size: .8rem; font-weight: 600;
     color: #64748b; transition: all .15s;
   }
   .mkt-btn.active    { border-color: #2563eb; background: #2563eb; color: #fff; }
   .mkt-btn.ot.active { border-color: #7c3aed; background: #7c3aed; }
   .count-badge {
-    margin-left: auto; font-size: .82rem; color: #94a3b8; white-space: nowrap;
+    font-size: .78rem; color: #94a3b8; white-space: nowrap;
   }
+  .tb-spacer { flex: 1; }
   .btn-refresh {
     display: flex; align-items: center; gap: 5px;
     padding: 7px 16px; border-radius: 7px; border: none;
@@ -112,11 +124,11 @@
     font-size: .78rem; font-weight: 700; white-space: nowrap;
   }
   .grade-aa    { background: #ef4444; color: #fff; }
-  .grade-a     { background: #f97316; color: #fff; }
-  .grade-ba    { background: #f3f4f6; color: #6b7280; }
-  .grade-b     { background: none; color: #9ca3af; }
-  .grade-watch { background: #f3f4f6; color: #6b7280; }
-  .grade-crit  { background: #f3f4f6; color: #6b7280; }
+  .grade-a     { background: #ef4444; color: #fff; }
+  .grade-ba    { background: #f97316; color: #fff; }
+  .grade-b     { background: #f97316; color: #fff; }
+  .grade-watch { background: #f3f4f6; color: #9ca3af; }
+  .grade-crit  { background: #f3f4f6; color: #9ca3af; }
   .grade-x     { background: #f3f4f6; color: #9ca3af; }
 
   /* 價位判斷 */
@@ -159,13 +171,25 @@
   body.hide-g-divc .g-divc,
   body.hide-g-divs .g-divs,
   body.hide-g-po .g-po,
+  body.hide-g-blend .g-blend,
+  body.hide-g-inst .g-inst,
   body.hide-g-wt .g-wt,
   body.hide-g-cl .g-cl,
   body.hide-g-fg .g-fg,
   body.hide-g-shen .g-shen,
-  body.hide-g-est .g-est { display: none !important; }
+  body.hide-g-est .g-est,
+  body.hide-g-etf .g-etf { display: none !important; }
 
-  /* ── 權重股息設定 ── */
+  /* ETF 標籤 */
+  .etf-tag { display:inline-block; padding:1px 5px; border-radius:3px; font-size:.68rem; font-weight:600; margin:1px; white-space:nowrap; }
+  .etf-tag-0050 { background:#dbeafe; color:#1d4ed8; }
+  .etf-tag-0056 { background:#fef3c7; color:#b45309; }
+  .etf-tag-00878 { background:#d1fae5; color:#047857; }
+  .etf-tag-00713 { background:#ede9fe; color:#6d28d9; }
+  .etf-tag-00919 { background:#fce7f3; color:#be185d; }
+  .etf-tag-006208 { background:#e0f2fe; color:#0369a1; }
+
+  /* ── 加權股息設定 ── */
   .weight-bar {
     display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
     background: #fff; border-radius: 10px;
@@ -230,40 +254,91 @@
 
 <div class="container">
   <div class="toolbar">
-    <input type="text" id="searchInput" placeholder="🔍 輸入股票代碼或名稱搜尋..." oninput="onSearch()">
-    <div class="market-btns">
-      <button class="mkt-btn active" data-mkt="" onclick="setMarket(this)">全部</button>
-      <button class="mkt-btn" data-mkt="上市" onclick="setMarket(this)">上市</button>
-      <button class="mkt-btn ot" data-mkt="上櫃" onclick="setMarket(this)">上櫃</button>
+    <div class="toolbar-row">
+      <input type="text" id="searchInput" placeholder="🔍 輸入股票代碼或名稱搜尋..." oninput="onSearch()">
+      <div class="market-btns">
+        <button class="mkt-btn active" data-mkt="" onclick="setMarket(this)">全部</button>
+        <button class="mkt-btn" data-mkt="上市" onclick="setMarket(this)">上市</button>
+        <button class="mkt-btn ot" data-mkt="上櫃" onclick="setMarket(this)">上櫃</button>
+      </div>
+      <div class="tb-spacer"></div>
+      <select id="pageSizeSelect" onchange="changePageSize()" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:.8rem;cursor:pointer">
+        <option value="50">每頁 50</option>
+        <option value="100">每頁 100</option>
+        <option value="200">每頁 200</option>
+        <option value="0">全部顯示</option>
+      </select>
+      <span class="count-badge" id="countBadge"></span>
+      <label style="font-size:.78rem;color:#64748b;white-space:nowrap;display:flex;align-items:center;gap:4px">縮放
+        <input type="range" id="zoomSlider" min="50" max="120" value="100" step="5" style="width:70px;cursor:pointer" oninput="applyZoom(this.value)">
+        <span id="zoomVal" style="min-width:30px">100%</span>
+      </label>
+      <button class="mkt-btn" onclick="toggleAllSettings()" id="btnSettings" style="border-color:#6b7280;color:#6b7280">篩選設定</button>
+      <button class="btn-refresh" id="btnRefresh" onclick="triggerRefresh()">
+        <span id="refreshIcon">↻</span> 更新股價
+      </button>
     </div>
-    <span style="color:#e2e8f0;font-size:1.2rem">|</span>
-    <span style="font-size:.82rem;color:#64748b;font-weight:600">觀察</span>
-    <div class="market-btns">
-      <button class="mkt-btn" id="btnWatchFilter" onclick="toggleWatchFilter()">顯示</button>
-      <button class="mkt-btn" onclick="autoWatchCheck()" style="border-color:#f59e0b;color:#f59e0b">挑選</button>
-      <button class="mkt-btn" onclick="clearWatch()" style="border-color:#ef4444;color:#ef4444;font-size:.78rem">清除</button>
+    <div class="toolbar-row">
+      <div class="tb-group">
+        <span class="tb-label">觀察</span>
+        <button class="mkt-btn" id="btnWatchFilter" onclick="toggleWatchFilter()">顯示</button>
+        <button class="mkt-btn" onclick="autoWatchCheck()" style="border-color:#f59e0b;color:#f59e0b">挑選</button>
+        <button class="mkt-btn" onclick="clearWatch()" style="border-color:#ef4444;color:#ef4444">清除</button>
+        <span class="count-badge" id="watchCount"></span>
+      </div>
+      <div class="tb-group">
+        <span class="tb-label">持股</span>
+        <button class="mkt-btn" id="btnHoldFilter" onclick="toggleHoldFilter()" style="border-color:#2563eb;color:#2563eb">顯示</button>
+        <button class="mkt-btn" onclick="openHoldPanel()" style="border-color:#2563eb;color:#2563eb">編輯</button>
+        <span class="count-badge" id="holdCount"></span>
+      </div>
+      <div class="tb-group">
+        <span class="tb-label">重點</span>
+        <button class="mkt-btn" id="btnFocusFilter" onclick="toggleFocusFilter()" style="border-color:#7c3aed;color:#7c3aed">顯示</button>
+        <button class="mkt-btn" onclick="openFocusPanel()" style="border-color:#7c3aed;color:#7c3aed">編輯</button>
+        <span class="count-badge" id="focusCount"></span>
+      </div>
+      <div class="tb-group">
+        <span class="tb-label">體質</span>
+        <button class="mkt-btn" id="btnQualityFilter" onclick="toggleQualityFilter()" style="border-color:#059669;color:#059669">顯示</button>
+        <button class="mkt-btn" onclick="autoQualityCheck()" style="border-color:#059669;color:#059669">判斷</button>
+        <button class="mkt-btn" onclick="clearQuality()" style="border-color:#ef4444;color:#ef4444">清除</button>
+        <span class="count-badge" id="qualityCount"></span>
+      </div>
+      <div class="tb-group">
+        <span class="tb-label">ETF</span>
+        <select id="etfFilter" onchange="applyEtfFilter()" style="border:1px solid #cbd5e1;border-radius:5px;padding:3px 8px;font-size:.78rem;color:#475569;cursor:pointer">
+          <option value="">全部</option>
+          <optgroup label="市值型">
+            <option value="0050">0050 台灣50</option>
+            <option value="006208">006208 富邦台50</option>
+            <option value="0051">0051 中型100</option>
+          </optgroup>
+          <optgroup label="高股息">
+            <option value="0056">0056 高股息</option>
+            <option value="00878">00878 永續高股息</option>
+            <option value="00713">00713 高息低波</option>
+            <option value="00919">00919 精選高息</option>
+            <option value="00929">00929 科技優息</option>
+            <option value="00940">00940 價值高息</option>
+            <option value="00939">00939 高息動能</option>
+            <option value="00934">00934 成長高股息</option>
+            <option value="00936">00936 高息中小</option>
+            <option value="00915">00915 優選高股息</option>
+            <option value="00918">00918 高填息30</option>
+            <option value="00900">00900 特選高股息</option>
+            <option value="00927">00927 半導體收益</option>
+          </optgroup>
+          <optgroup label="主題型">
+            <option value="00881">00881 台灣5G+</option>
+            <option value="00850">00850 ESG永續</option>
+            <option value="00692">00692 公司治理</option>
+            <option value="0052">0052 富邦科技</option>
+          </optgroup>
+          <option value="any">任一ETF</option>
+        </select>
+      </div>
     </div>
-    <span class="count-badge" id="watchCount"></span>
-    <span style="color:#e2e8f0;font-size:1.2rem">|</span>
-    <span style="font-size:.82rem;color:#64748b;font-weight:600">體質</span>
-    <div class="market-btns">
-      <button class="mkt-btn" id="btnQualityFilter" onclick="toggleQualityFilter()" style="border-color:#059669;color:#059669">顯示</button>
-      <button class="mkt-btn" onclick="autoQualityCheck()" style="border-color:#059669;color:#059669">判斷</button>
-      <button class="mkt-btn" onclick="clearQuality()" style="border-color:#ef4444;color:#ef4444;font-size:.78rem">清除</button>
-    </div>
-    <span class="count-badge" id="qualityCount"></span>
-    <span style="color:#e2e8f0;font-size:1.2rem">|</span>
-    <select id="pageSizeSelect" onchange="changePageSize()" style="border:1px solid #cbd5e1;border-radius:7px;padding:5px 8px;font-size:.85rem;cursor:pointer">
-      <option value="50">每頁 50</option>
-      <option value="100">每頁 100</option>
-      <option value="200">每頁 200</option>
-      <option value="0">全部顯示</option>
-    </select>
-    <span class="count-badge" id="countBadge"></span>
-    <button class="mkt-btn" onclick="toggleAllSettings()" id="btnSettings" style="border-color:#6b7280;color:#6b7280">篩選設定</button>
-    <button class="btn-refresh" id="btnRefresh" onclick="triggerRefresh()">
-      <span id="refreshIcon">↻</span> 更新股價
-    </button>
   </div>
 
   <div style="display:flex;align-items:center;gap:8px;padding:6px 18px;margin-bottom:4px;font-size:.82rem">
@@ -303,7 +378,7 @@
     </div>
 
     <div class="weight-bar" style="margin-top:8px">
-      <span class="wb-label">權重股息設定：</span>
+      <span class="wb-label">加權股息設定：</span>
       <div class="wb-item"><label>最近1年</label><input id="w1" type="text" oninput="onWeightChange()">%</div>
       <div class="wb-item"><label>最近2年</label><input id="w2" type="text" oninput="onWeightChange()">%</div>
       <div class="wb-item"><label>最近3年</label><input id="w3" type="text" oninput="onWeightChange()">%</div>
@@ -311,6 +386,14 @@
       <div class="wb-item"><label>最近5年</label><input id="w5" type="text" oninput="onWeightChange()">%</div>
       <span class="wb-total" id="wTotal">合計 0%</span>
       <button onclick="resetWeights()" style="padding:3px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer;font-size:.78rem;color:#64748b">預設值</button>
+    </div>
+
+    <div class="weight-bar" style="margin-top:4px">
+      <span class="wb-label">權重混合比：</span>
+      <div class="wb-item"><label>沈董</label><input id="blendShen" type="text" style="width:36px" oninput="onBlendChange()">%</div>
+      <div class="wb-item"><label>加權</label><input id="blendWt" type="text" style="width:36px" oninput="onBlendChange()">%</div>
+      <span class="wb-total" id="blendTotal">合計 0%</span>
+      <span style="font-size:.76rem;color:#94a3b8">權重EPS = 沈董EPS × A% + 加權EPS × B%</span>
     </div>
 
     <div class="weight-bar" style="margin-top:4px">
@@ -349,6 +432,9 @@
           <!-- 股價 -->
           <th class="col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
           <th onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
+          <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
+          <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
+          <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
           <th class="col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
           <th class="col-div" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
@@ -356,30 +442,36 @@
           <th onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 結論 -->
           <th class="col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
-          <!-- 權重估值 -->
-          <th class="col-div" onclick="sortBy('weighted_grade')">權重等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_pe')">權重PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_yld')">權重殖利率<span class="sort-icon" id="si_weighted_yld">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_eps')">權重EPS<span class="sort-icon" id="si_weighted_eps">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_div')">權重股息<span class="sort-icon" id="si_weighted_div">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_payout')">權重配息率<span class="sort-icon" id="si_weighted_payout">↕</span></th>
           <!-- 沈董明細（可收合） -->
           <th class="g-shen col-div" onclick="sortBy('shen_pe')">沈董PE<span class="sort-icon" id="si_shen_pe">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_yld')">沈董殖利率<span class="sort-icon" id="si_shen_yld">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
+          <!-- 權重（沈董+加權混合） -->
+          <th class="g-blend col-div" onclick="sortBy('blend_pe')">權重PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_yld')">權重殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_eps')">權重EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_div')">權重股利<span class="sort-icon" id="si_blend_div">↕</span></th>
+          <!-- 加權估值 -->
+          <th class="g-wt col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
+          <th class="g-wt" onclick="sortBy('weighted_pe')">加權PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
+          <th class="g-wt" onclick="sortBy('weighted_yld')">加權殖利率<span class="sort-icon" id="si_weighted_yld">↕</span></th>
+          <th class="g-wt" onclick="sortBy('weighted_eps')">加權EPS<span class="sort-icon" id="si_weighted_eps">↕</span></th>
+          <th class="g-wt" onclick="sortBy('weighted_div')">加權股息<span class="sort-icon" id="si_weighted_div">↕</span></th>
+          <th class="g-wt" onclick="sortBy('weighted_payout')">加權配息率<span class="sort-icon" id="si_weighted_payout">↕</span></th>
           <!-- 預估值（可收合，含等級+明細） -->
           <th class="col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
           <th class="g-est" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
           <th class="g-est" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
           <th class="g-est" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
+          <!-- 近四季 -->
+          <th class="col-div" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
+          <th onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
           <th class="col-div" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
-          <th class="col-div" onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
-          <th onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
           <th class="col-div" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
           <th class="g-ytd col-div" onclick="sortBy('eps_ytd')">當年累計<span class="sort-icon" id="si_eps_ytd">↕</span></th>
           <!-- 動態欄位 -->
@@ -390,6 +482,8 @@
           <th class="g-cl" onclick="sortBy('contract_2')"><span id="hdr_cl2">合約負債2</span><span class="sort-icon" id="si_contract_2">↕</span></th>
           <th class="g-cl" onclick="sortBy('contract_3')"><span id="hdr_cl3">合約負債3</span><span class="sort-icon" id="si_contract_3">↕</span></th>
           <th class="g-cl" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
+          <!-- ETF 成分股 -->
+          <th class="g-etf col-div">ETF 成分股</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -418,17 +512,20 @@ function gradeHtml(g) {
 
 // ── 欄位群組開關 ─────────────────────────────────────────────
 const COL_GROUPS = [
-  { key: 'g-qeps', label: '季度EPS', default: false },
+  { key: 'g-inst', label: '法人買賣', default: true },
+  { key: 'g-shen', label: '沈董明細', default: false },
+  { key: 'g-blend', label: '權重明細', default: false },
+  { key: 'g-wt',   label: '加權明細', default: false },
+  { key: 'g-est',  label: '預估明細', default: false },
+  { key: 'g-fg',   label: '財務等級', default: true },
   { key: 'g-ytd',  label: '當年累計', default: true },
+  { key: 'g-qeps', label: '季度EPS', default: false },
   { key: 'g-yeps', label: '年度EPS', default: false },
   { key: 'g-divc', label: '現金股利', default: false },
   { key: 'g-divs', label: '股票股利', default: false },
   { key: 'g-po',   label: '配息率', default: false },
-  { key: 'g-shen', label: '沈董明細', default: false },
-  { key: 'g-wt',   label: '權重明細', default: false },
-  { key: 'g-est',  label: '預估明細', default: false },
   { key: 'g-cl',   label: '合約負債', default: true },
-  { key: 'g-fg',   label: '財務等級', default: true },
+  { key: 'g-etf',  label: 'ETF成分股', default: true },
 ];
 
 let _colVisible = JSON.parse(localStorage.getItem('col_visible') || 'null');
@@ -460,6 +557,142 @@ function applyColVisibility() {
 
 // ── 觀察清單（localStorage）─────────────────────────────────
 let watchSet = new Set(JSON.parse(localStorage.getItem('watchList') || '[]'));
+
+// ── 持股清單（localStorage）─────────────────────────────────
+let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
+let holdOnly = false;
+
+function saveHold() {
+  localStorage.setItem('holdList', JSON.stringify([...holdSet]));
+  updateHoldCount();
+}
+function updateHoldCount() {
+  const el = document.getElementById('holdCount');
+  if (el) el.textContent = holdSet.size ? `${holdSet.size} 支` : '';
+}
+function toggleHoldFilter() {
+  holdOnly = !holdOnly;
+  const btn = document.getElementById('btnHoldFilter');
+  btn.classList.toggle('active', holdOnly);
+  page = 1;
+  applyFilter();
+}
+function openHoldPanel() {
+  let panel = document.getElementById('holdPanel');
+  if (panel) { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; return; }
+  panel = document.createElement('div');
+  panel.id = 'holdPanel';
+  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);padding:24px;z-index:9999;min-width:340px;max-height:80vh;overflow-y:auto';
+  renderHoldPanel(panel);
+  document.body.appendChild(panel);
+}
+function renderHoldPanel(panel) {
+  if (!panel) panel = document.getElementById('holdPanel');
+  if (!panel) return;
+  const items = [...holdSet].map(code => {
+    const stock = allData.find(r => r.code === code);
+    const name = stock ? stock.name : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9">
+      <span><strong>${code}</strong> ${name}</span>
+      <button onclick="removeHold('${code}')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-weight:700;font-size:1rem">x</button>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-weight:700;font-size:1rem">持股清單</span>
+      <button onclick="document.getElementById('holdPanel').style.display='none'" style="border:none;background:none;cursor:pointer;font-size:1.2rem;color:#64748b">x</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input id="holdInput" placeholder="輸入股票代碼" style="flex:1;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:.9rem" onkeydown="if(event.key==='Enter')addHold()">
+      <button onclick="addHold()" style="padding:6px 14px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer;font-size:.85rem;font-weight:600">加入</button>
+    </div>
+    <div id="holdListItems">${items || '<span style="color:#94a3b8">尚未加入持股</span>'}</div>
+  `;
+}
+function addHold() {
+  const input = document.getElementById('holdInput');
+  const code = input.value.trim();
+  if (!code) return;
+  holdSet.add(code);
+  saveHold();
+  input.value = '';
+  renderHoldPanel();
+  if (holdOnly) applyFilter();
+}
+function removeHold(code) {
+  holdSet.delete(code);
+  saveHold();
+  renderHoldPanel();
+  if (holdOnly) applyFilter();
+}
+
+// ── 重點觀察清單（localStorage）─────────────────────────────
+let focusSet  = new Set(JSON.parse(localStorage.getItem('focusList') || '[]'));
+let focusOnly = false;
+
+function saveFocus() {
+  localStorage.setItem('focusList', JSON.stringify([...focusSet]));
+  updateFocusCount();
+}
+function updateFocusCount() {
+  const el = document.getElementById('focusCount');
+  if (el) el.textContent = focusSet.size ? `${focusSet.size} 支` : '';
+}
+function toggleFocusFilter() {
+  focusOnly = !focusOnly;
+  const btn = document.getElementById('btnFocusFilter');
+  btn.classList.toggle('active', focusOnly);
+  page = 1;
+  applyFilter();
+}
+function openFocusPanel() {
+  let panel = document.getElementById('focusPanel');
+  if (panel) { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; return; }
+  panel = document.createElement('div');
+  panel.id = 'focusPanel';
+  panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);padding:24px;z-index:9999;min-width:340px;max-height:80vh;overflow-y:auto';
+  renderFocusPanel(panel);
+  document.body.appendChild(panel);
+}
+function renderFocusPanel(panel) {
+  if (!panel) panel = document.getElementById('focusPanel');
+  if (!panel) return;
+  const items = [...focusSet].map(code => {
+    const stock = allData.find(r => r.code === code);
+    const name = stock ? stock.name : '';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9">
+      <span><strong>${code}</strong> ${name}</span>
+      <button onclick="removeFocus('${code}')" style="border:none;background:none;color:#ef4444;cursor:pointer;font-weight:700;font-size:1rem">x</button>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-weight:700;font-size:1rem">重點觀察清單</span>
+      <button onclick="document.getElementById('focusPanel').style.display='none'" style="border:none;background:none;cursor:pointer;font-size:1.2rem;color:#64748b">x</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input id="focusInput" placeholder="輸入股票代碼" style="flex:1;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:.9rem" onkeydown="if(event.key==='Enter')addFocus()">
+      <button onclick="addFocus()" style="padding:6px 14px;border:1px solid #7c3aed;border-radius:6px;background:#7c3aed;color:#fff;cursor:pointer;font-size:.85rem;font-weight:600">加入</button>
+    </div>
+    <div id="focusListItems">${items || '<span style="color:#94a3b8">尚未加入重點觀察</span>'}</div>
+  `;
+}
+function addFocus() {
+  const input = document.getElementById('focusInput');
+  const code = input.value.trim();
+  if (!code) return;
+  focusSet.add(code);
+  saveFocus();
+  input.value = '';
+  renderFocusPanel();
+  if (focusOnly) applyFilter();
+}
+function removeFocus(code) {
+  focusSet.delete(code);
+  saveFocus();
+  renderFocusPanel();
+  if (focusOnly) applyFilter();
+}
 
 // ── 觀察清單自動挑選 ──────────────────────────────────────
 const DEFAULT_W_SETTINGS = {
@@ -590,11 +823,11 @@ const FIELD_OPTIONS = [
   {label:'營收年增率', key:'revenue_yoy'},
   {label:'營收月增率', key:'revenue_mom'},
   {label:'累積營收年增率', key:'revenue_cum_yoy'},
-  {label:'權重股息', key:'weighted_div'},
-  {label:'權重EPS', key:'weighted_eps'},
-  {label:'權重配息率', key:'weighted_payout'},
-  {label:'權重本益比', key:'weighted_pe'},
-  {label:'權重殖利率', key:'weighted_yld'},
+  {label:'加權股息', key:'weighted_div'},
+  {label:'加權EPS', key:'weighted_eps'},
+  {label:'加權配息率', key:'weighted_payout'},
+  {label:'加權本益比', key:'weighted_pe'},
+  {label:'加權殖利率', key:'weighted_yld'},
   {label:'合約負債變動率', key:'contract_chg'},
 ];
 
@@ -684,6 +917,8 @@ function toggleQualityFilter() {
   page = 1;
   applyFilter();
 }
+
+function applyEtfFilter() { page = 1; applyFilter(); }
 
 // ── 體質篩選條件設定 ──
 const DEFAULT_Q_SETTINGS = {
@@ -816,7 +1051,6 @@ function toggleWatch(cb) {
   const code = cb.dataset.code;
   if (cb.checked) {
     watchSet.add(code);
-    // 記錄加入時的價格
     const stock = allData.find(r => r.code === code);
     if (stock && stock.close) {
       watchPrices[code] = { price: stock.close, date: TODAY };
@@ -828,10 +1062,8 @@ function toggleWatch(cb) {
     localStorage.setItem('watchPrices', JSON.stringify(watchPrices));
   }
   saveWatch();
-  // 更新該行樣式
   const tr = cb.closest('tr');
   if (tr) tr.classList.toggle('watched', cb.checked);
-  // 若在觀察模式且取消勾選，重新篩選
   if (watchOnly && !cb.checked) applyFilter();
 }
 function toggleWatchFilter() {
@@ -939,7 +1171,7 @@ function calcDerived(r) {
     }
   }
 
-  // 權重股息
+  // 加權股息
   r.weighted_div = null;
   const ws = _divWeights;
   if (ws) {
@@ -956,7 +1188,7 @@ function calcDerived(r) {
     if (wsum > 0) r.weighted_div = Math.round(wdiv * 100) / 100;
   }
 
-  // 權重EPS
+  // 加權EPS
   r.weighted_eps = null;
   if (ws) {
     let weps = 0, wesum = 0;
@@ -971,7 +1203,7 @@ function calcDerived(r) {
     if (wesum > 0) r.weighted_eps = Math.round(weps * 100) / 100;
   }
 
-  // 權重配息率 = 加權各年度配息率（而非 權重股息/權重EPS）
+  // 加權配息率 = 加權各年度配息率（而非 加權股息/加權EPS）
   r.weighted_payout = null;
   {
     let wpSum = 0, wSum = 0;
@@ -986,7 +1218,7 @@ function calcDerived(r) {
     if (wSum > 0) r.weighted_payout = Math.round(wpSum * 100) / 100;
   }
 
-  // 沈董股利 = 沈董EPS * 權重配息率
+  // 沈董股利 = 沈董EPS * 加權配息率
   r.shen_div = null;
   if (r.shen_eps != null && r.shen_eps > 0 && r.weighted_payout != null) {
     r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
@@ -1007,7 +1239,7 @@ function calcDerived(r) {
     r.shen_grade = null;
   }
 
-  // 權重本益比、權重殖利率、權重評估等級
+  // 加權本益比、加權殖利率、權重評估等級
   r.weighted_pe = null;
   r.weighted_yld = null;
   r.weighted_grade = null;
@@ -1022,6 +1254,35 @@ function calcDerived(r) {
     r.weighted_grade = 'X';
   } else if (r.weighted_pe != null && r.weighted_yld != null) {
     r.weighted_grade = _calcMatrixGrade(r.weighted_pe, r.weighted_yld, r.code);
+  }
+
+  // 權重混合（沈董 × A% + 加權 × B%）
+  const bS = _blendShen / 100, bW = _blendWt / 100;
+  r.blend_eps = null;
+  r.blend_div = null;
+  r.blend_pe = null;
+  r.blend_yld = null;
+  r.blend_grade = null;
+  if (bS + bW > 0) {
+    // EPS
+    const se = r.shen_eps, we = r.weighted_eps;
+    if (se != null && we != null) r.blend_eps = Math.round((se * bS + we * bW) * 100) / 100;
+    else if (se != null) r.blend_eps = Math.round(se * 100) / 100;
+    else if (we != null) r.blend_eps = Math.round(we * 100) / 100;
+    // 股利
+    const sd = r.shen_div, wd = r.weighted_div;
+    if (sd != null && wd != null) r.blend_div = Math.round((sd * bS + wd * bW) * 100) / 100;
+    else if (sd != null) r.blend_div = Math.round(sd * 100) / 100;
+    else if (wd != null) r.blend_div = Math.round(wd * 100) / 100;
+    // PE & 殖利率
+    if (r.blend_eps != null && r.blend_eps > 0 && r.close != null)
+      r.blend_pe = Math.round(r.close / r.blend_eps * 100) / 100;
+    if (r.blend_div != null && r.blend_div > 0 && r.close != null && r.close > 0)
+      r.blend_yld = Math.round(r.blend_div / r.close * 10000) / 100;
+    // 等級
+    if (r.blend_eps != null && r.blend_eps <= 0) r.blend_grade = 'X';
+    else if (r.blend_pe != null && r.blend_yld != null)
+      r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code);
   }
 
   // eps_ytd 補齊：如果為空，用最新年度 EPS（Q4 累計=全年）
@@ -1090,7 +1351,7 @@ function calcDerived(r) {
   } catch(e) {}
 }
 
-// ── 權重股息 ─────────────────────────────────────────────
+// ── 加權股息 ─────────────────────────────────────────────
 const DEFAULT_WEIGHTS = [30, 25, 20, 15, 10];
 let _divWeights = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || [...DEFAULT_WEIGHTS];
 
@@ -1125,6 +1386,40 @@ function resetWeights() {
   initWeights();
   allData.forEach(calcDerived);
   applyFilter();
+}
+
+// ── 權重混合比 ─────────────────────────────────────────────
+const DEFAULT_BLEND = { shen: 50, wt: 50 };
+let _blendShen = 50, _blendWt = 50;
+(function() {
+  const saved = JSON.parse(localStorage.getItem('blend_ratio') || 'null');
+  if (saved) { _blendShen = saved.shen || 50; _blendWt = saved.wt || 50; }
+})();
+
+function initBlend() {
+  const s = document.getElementById('blendShen');
+  const w = document.getElementById('blendWt');
+  if (s) s.value = _blendShen;
+  if (w) w.value = _blendWt;
+  updateBlendTotal();
+}
+
+function onBlendChange() {
+  _blendShen = parseFloat(document.getElementById('blendShen').value) || 0;
+  _blendWt = parseFloat(document.getElementById('blendWt').value) || 0;
+  localStorage.setItem('blend_ratio', JSON.stringify({ shen: _blendShen, wt: _blendWt }));
+  updateBlendTotal();
+  allData.forEach(calcDerived);
+  applyFilter();
+}
+
+function updateBlendTotal() {
+  const sum = _blendShen + _blendWt;
+  const el = document.getElementById('blendTotal');
+  if (el) {
+    el.textContent = `合計 ${sum}%`;
+    el.className = 'wb-total ' + (Math.abs(sum - 100) < 0.01 ? 'ok' : 'ng');
+  }
 }
 
 // ── 矩陣等級計算（共用）────────────────────────────────
@@ -1232,11 +1527,14 @@ async function loadData() {
 
     initColToggle();
     updateWatchCount();
+    updateHoldCount();
+    updateFocusCount();
     updateQualityCount();
     initWatchSettings();
     initQualitySettings();
     renderConditions();
     initWeights();
+    initBlend();
     initGlobalVal();
     applySort();
     render();
@@ -1372,12 +1670,16 @@ function setMarket(btn) {
 
 function applyFilter() {
   const q = document.getElementById('searchInput').value.toLowerCase();
+  const etfVal = document.getElementById('etfFilter')?.value || '';
   filtered = allData.filter(r => {
     const mktOk   = !market || r.market === market;
     const qOk     = !q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q);
     const watchOk = !watchOnly || watchSet.has(r.code);
+    const holdOk  = !holdOnly  || holdSet.has(r.code);
+    const focusOk = !focusOnly || focusSet.has(r.code);
     const qualityOk = !qualityOnly || qualitySet.has(r.code);
-    return mktOk && qOk && watchOk && qualityOk;
+    const etfOk = !etfVal || (etfVal === 'any' ? !!r.etf_tags : (r.etf_tags || '').includes(etfVal + ':'));
+    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk;
   });
   page = 1;
   applySort();
@@ -1398,6 +1700,7 @@ function sortBy(col) {
    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
    'div_c4','div_s4','div_c5','div_s5',
    'payout_1','payout_2','payout_3','payout_4','payout_5',
+   'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
    'contract_1','contract_2','contract_3','contract_chg',
    'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5'].forEach(c => {
@@ -1412,12 +1715,14 @@ function sortBy(col) {
 
 function applySort() {
   const numCols = ['close','change','open','high','low','volume',
+                   'inst_foreign','inst_trust','inst_dealer',
                    'change_240d','eps_4q_sum','trailing_pe','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
                    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
                    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
                    'div_c4','div_s4','div_c5','div_s5',
                    'payout_1','payout_2','payout_3','payout_4','payout_5',
+                   'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
                    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
                    'contract_1','contract_2','contract_3','contract_chg',
                    'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5'];
@@ -1441,9 +1746,16 @@ function applySort() {
 }
 
 // ── 渲染 ────────────────────────────────────────────────────
-function fmtPct(v) {
+function fmtInst(v) {
   if (v == null) return '－';
-  const cls = (Math.abs(v) <= 1) ? 'chg-minor' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
+  const cls = v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
+  const str = v > 0 ? `+${v.toLocaleString()}` : v < 0 ? v.toLocaleString() : '0';
+  return `<span class="${cls}">${str}</span>`;
+}
+function fmtPct(v, threshold) {
+  if (v == null) return '－';
+  const t = threshold || 0;
+  const cls = v >= t && v > 0 ? 'up' : v <= -t && v < 0 ? 'down' : v !== 0 ? 'chg-minor' : 'flat';
   const str = v > 0 ? `▲ ${v.toFixed(2)}%` : v < 0 ? `▼ ${Math.abs(v).toFixed(2)}%` : '－';
   return `<span class="${cls}">${str}</span>`;
 }
@@ -1472,6 +1784,21 @@ function render() {
   else if (curM > 3 || (curM === 3 && curD >= 31))    latestQ = `${roc-1}Q4`;
   else                                                 latestQ = `${roc-1}Q3`;
 
+  // 如果實際資料中有更新的季度（提前公告），以資料為準
+  function qVal(q) { const [y, n] = q.split('Q'); return parseInt(y) * 10 + parseInt(n); }
+  const latestQVal = qVal(latestQ);
+  let dataMaxQ = latestQ;
+  let dataMaxQVal = latestQVal;
+  allData.forEach(r => {
+    if (r.eps_1q && r.eps_1 != null) {
+      const v = qVal(r.eps_1q);
+      if (v > dataMaxQVal) { dataMaxQVal = v; dataMaxQ = r.eps_1q; }
+    }
+  });
+  if (dataMaxQVal > latestQVal) {
+    latestQ = dataMaxQ;
+  }
+
   // 產生最新 5 季
   function prevQ(q) {
     const [y, n] = [parseInt(q.split('Q')[0]), parseInt(q.split('Q')[1])];
@@ -1480,13 +1807,30 @@ function render() {
   _fixedQ = [latestQ];
   for (let i = 0; i < 4; i++) _fixedQ.push(prevQ(_fixedQ[_fixedQ.length - 1]));
 
-  // 年度：最新已公布完整年度（Q4 年報）
+  // 年度 EPS：法定期限為基準，但如果資料中有更新的年度就往前推
   const latestFullYear = latestQ.includes('Q4') ? latestQ.split('Q')[0] : String(parseInt(latestQ.split('Q')[0]) - 1);
+  let dataMaxYear = parseInt(latestFullYear);
+  allData.forEach(r => {
+    if (r.eps_y1_label) {
+      const y = parseInt(r.eps_y1_label);
+      if (y > dataMaxYear) dataMaxYear = y;
+    }
+  });
   _fixedY = [];
-  for (let i = 0; i < 5; i++) _fixedY.push(String(parseInt(latestFullYear) - i));
+  for (let i = 0; i < 5; i++) _fixedY.push(String(dataMaxYear - i));
 
-  // 股利年度：跟年度 EPS 一致
-  _fixedD = [..._fixedY];
+  // 股利年度：有新股利資料就加欄，年底才剔除最舊欄位
+  let dataMaxDivYear = parseInt(latestFullYear);
+  allData.forEach(r => {
+    if (r.div_1_label) {
+      const y = parseInt(r.div_1_label);
+      if (y > dataMaxDivYear) dataMaxDivYear = y;
+    }
+  });
+  // 年底（12月）才讓最新年度往前推並剔除最舊
+  const divBaseYear = (curM === 12) ? Math.max(dataMaxDivYear, parseInt(latestFullYear)) : dataMaxDivYear;
+  _fixedD = [];
+  for (let i = 0; i < 5; i++) _fixedD.push(String(divBaseYear - i));
 
   // 動態生成表頭（用 DOM 插入 <th>）
   const anchor = document.getElementById('dynColAnchor');
@@ -1550,7 +1894,7 @@ function render() {
     const isEpsNew = r.eps_date === TODAY;
 
     const chg      = r.change;
-    const chgClass = chg == null ? 'flat' : (Math.abs(chg) <= 1) ? 'chg-minor' : chg > 0 ? 'up' : 'down';
+    const chgClass = chg == null ? 'flat' : chg > 0 ? 'up' : chg < 0 ? 'down' : 'flat';
     const chgStr   = chg != null
       ? (chg > 0 ? `▲ ${chg.toFixed(2)}` : chg < 0 ? `▼ ${Math.abs(chg).toFixed(2)}` : '－')
       : '－';
@@ -1607,31 +1951,42 @@ function render() {
       <!-- 股價 -->
       <td class="col-div"><strong>${fmt(r.close)}</strong></td>
       <td class="${chgClass}">${chgStr}</td>
+      <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
+      <td class="g-inst">${fmtInst(r.inst_trust)}</td>
+      <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
       <td class="col-div">${revDateHtml}</td>
       <!-- 成長性 -->
-      <td class="col-div">${fmtPct(r.revenue_cum_yoy)}</td>
-      <td>${fmtPct(r.revenue_yoy)}</td>
-      <td>${fmtPct(r.revenue_mom)}</td>
+      <td class="col-div">${fmtPct(r.revenue_cum_yoy, 10)}</td>
+      <td>${fmtPct(r.revenue_yoy, 10)}</td>
+      <td>${fmtPct(r.revenue_mom, 10)}</td>
       <!-- 結論 -->
       <td class="col-div">${gradeHtml(r.shen_grade)}</td>
-      <!-- 權重估值 -->
-      <td class="col-div">${gradeHtml(r.weighted_grade)}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_pe != null ? r.weighted_pe.toFixed(2) : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_yld != null ? r.weighted_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_eps != null ? r.weighted_eps.toFixed(2) : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_div != null ? r.weighted_div.toFixed(2) : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_payout != null ? r.weighted_payout.toFixed(2) + '%' : '－'}</td>
       <!-- 沈董明細 -->
       <td class="g-shen col-div">${r.shen_pe != null ? r.shen_pe.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_yld != null ? r.shen_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-shen"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_div != null ? r.shen_div.toFixed(2) : '－'}</td>
+      <!-- 權重（混合） -->
+      <td class="g-blend col-div">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
+      <td class="g-blend">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-blend">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
+      <td class="g-blend">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
+      <!-- 加權估值 -->
+      <td class="g-wt col-div">${gradeHtml(r.weighted_grade)}</td>
+      <td class="g-wt" style="color:#475569">${r.weighted_pe != null ? r.weighted_pe.toFixed(2) : '－'}</td>
+      <td class="g-wt" style="color:#475569">${r.weighted_yld != null ? r.weighted_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-wt" style="color:#475569">${r.weighted_eps != null ? r.weighted_eps.toFixed(2) : '－'}</td>
+      <td class="g-wt" style="color:#475569">${r.weighted_div != null ? r.weighted_div.toFixed(2) : '－'}</td>
+      <td class="g-wt" style="color:#475569">${r.weighted_payout != null ? r.weighted_payout.toFixed(2) + '%' : '－'}</td>
       <!-- 預估值 -->
       <td class="col-div">${gradeHtml(r.est_grade)}</td>
       <td class="g-est">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
+      <!-- 近四季 -->
+      <td class="col-div">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
+      <td>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
       <!-- 財務等級 -->
       ${_fixedY.map((y, i) => {
         const g = r._fg[y];
@@ -1641,8 +1996,6 @@ function render() {
       }).join('')}
       <!-- 補充 -->
       <td class="${c240Class} col-div">${c240Str}</td>
-      <td class="${r.eps_4q_sum != null && r.eps_4q_sum < 0 ? 'neg-eps col-div' : 'col-div'}">${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
-      <td>${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
       <td class="col-div">${epsDateHtml}</td>
       <td class="g-ytd col-div">${r.eps_ytd != null ? r.eps_ytd.toFixed(2) : '－'}</td>
       <!-- 動態欄位 -->
@@ -1656,6 +2009,7 @@ function render() {
       <td class="g-cl">${r.contract_2 != null ? (r.contract_2 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
+      <td class="g-etf col-div">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
     </tr>`;
   }).join('');
 
@@ -1701,12 +2055,12 @@ function renderSummary() {
 }
 
 function exportCSV() {
-  const headers = ['代碼','名稱','市場','產業別','收盤價','漲跌','240日漲跌幅',
+  const headers = ['代碼','名稱','市場','產業別','收盤價','漲跌','外資','投信','自營商','240日漲跌幅',
     '近四季EPS','近四季PE','沈董EPS','沈董PE','沈董股利','沈董殖利率','沈董等級',
     '累積營收年增率','營收年增率','營收月增率'];
   const rows = filtered.map(r => [
     r.code, r.name, r.market, r.industry || '',
-    r.close, r.change, r.change_240d,
+    r.close, r.change, r.inst_foreign, r.inst_trust, r.inst_dealer, r.change_240d,
     r.eps_4q_sum, r.trailing_pe, r.shen_eps, r.shen_pe, r.shen_div, r.shen_yld, r.shen_grade || '',
     r.revenue_cum_yoy, r.revenue_yoy, r.revenue_mom,
   ].map(v => v == null ? '' : v).join(','));
@@ -1762,6 +2116,21 @@ function changePageSize() {
   page = 1;
   render();
 }
+
+function applyZoom(val) {
+  const pct = parseInt(val);
+  document.getElementById('zoomVal').textContent = pct + '%';
+  document.getElementById('stockTable').style.fontSize = (pct / 100 * 0.8) + 'rem';
+  localStorage.setItem('tableZoom', pct);
+}
+// 載入時恢復縮放設定
+(function() {
+  const saved = localStorage.getItem('tableZoom');
+  if (saved) {
+    const slider = document.getElementById('zoomSlider');
+    if (slider) { slider.value = saved; applyZoom(saved); }
+  }
+})();
 
 // 鍵盤快捷鍵：← → 翻頁
 document.addEventListener('keydown', e => {

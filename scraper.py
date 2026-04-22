@@ -10,11 +10,13 @@
 """
 
 import requests
-import sqlite3
+import db as sqlite3
 from datetime import datetime, date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import random
+import re
+from bs4 import BeautifulSoup
 from guardian import (backup_raw_response, cleanup_old_backups,
                       validate_batch, get_breaker, get_priority_queue,
                       track_finmind_call, should_skip_finmind,
@@ -28,6 +30,15 @@ DB_PATH = "stocks.db"
 
 _session = requests.Session()
 _session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; StockBot/1.0)"})
+
+# 批次 API 回傳的資料日期（ROC 格式，如 "1150421"）
+_twse_batch_date = None
+
+
+def _today_roc():
+    """今天的民國日期字串，如 '1150421'"""
+    t = date.today()
+    return f"{t.year - 1911}{t.strftime('%m%d')}"
 
 
 # ── 資料庫初始化 ────────────────────────────────────────────
@@ -134,6 +145,9 @@ def init_db():
         ("price_pos",       "INTEGER"),
         ("fair_low",        "REAL"),
         ("fair_high",       "REAL"),
+        ("inst_foreign",    "INTEGER"),
+        ("inst_trust",      "INTEGER"),
+        ("inst_dealer",     "INTEGER"),
     ]
     for col, typ in new_cols:
         try:
@@ -253,6 +267,12 @@ def fetch_twse():
     if not price_data:
         print("[TWSE] 股價抓取失敗")
         return []
+
+    # 記錄批次 API 的資料日期
+    global _twse_batch_date
+    if price_data:
+        _twse_batch_date = str(price_data[0].get("Date", "")).strip()
+        print(f"[TWSE] 批次 API 資料日期: {_twse_batch_date}（今天: {_today_roc()}）")
 
     rows = []
     for item in price_data:
@@ -1271,6 +1291,12 @@ def run(scheduled=True):
     # 6. 寫入資料庫
     save_to_db(all_rows)
 
+    # 6b. 股價修正：批次 API 資料非今天 → 用即時 API 覆蓋正確股價
+    if _twse_batch_date and _twse_batch_date != _today_roc() and datetime.now().weekday() < 5:
+        print(f"[股價修正] 批次 API 日期 {_twse_batch_date} ≠ 今天 {_today_roc()}，用即時 API 覆蓋...")
+        rt_count = _refresh_realtime()
+        print(f"[股價修正] 即時 API 更新 {rt_count} 支")
+
     # 7. 補回 DELETE+INSERT 不包含的資料（產業別、年度EPS歷史、財務等級）
     print("[後處理] 補回輔助資料...")
     _post_process_after_save()
@@ -1283,6 +1309,13 @@ def run(scheduled=True):
 
     # 觀察清單個股資料預抓取（年度財報 + 月營收 + 季度財報 + 歷史PE）
     _prefetch_watchlist_details()
+
+    # ETF 成分股更新（偵測異動）
+    try:
+        from etf_fetcher import run as etf_run
+        etf_run()
+    except Exception as e:
+        print(f"[ETF] 更新失敗: {e}")
 
     print(f"\n完成！共更新 {len(all_rows)} 筆")
     print(f"  營收年增率：{rev_hit} 筆")
@@ -1643,43 +1676,45 @@ def init_financial_db():
 
 def fetch_company_financials(code):
     """
-    多來源個股年度財報（自動降級）：
-    1. Yahoo Finance（免費無限制）
-    2. FinMind（有額度限制）
-    任一成功就回傳，全失敗回傳 None。
+    個股年度財報更新：
+    1. 群益證券全部資料（損益表+資產負債表+現金流量表+股利+月營收+合約負債）
+    2. 群益資料不足時才用 Yahoo 補充（不用 FinMind，節省額度）
     """
-    # 先查市場別
+    # 來源 1：群益全部（免費無限制）
+    capital_ok = False
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT market FROM stocks WHERE code=?", (code,))
-        r = c.fetchone()
-        market = r[0] if r else '上市'
-        conn.close()
-    except:
-        market = '上市'
-
-    # 來源 1：Yahoo Finance
-    try:
-        from yahoo_fetcher import _get_yahoo_session, fetch_yahoo_financials, save_yahoo_to_db
-        session, crumb = _get_yahoo_session()
-        data = fetch_yahoo_financials(session, crumb, code, market)
-        if data:
-            a, q = save_yahoo_to_db(code, data)
-            if a > 0:
-                conn = sqlite3.connect(DB_PATH)
-                conn.row_factory = sqlite3.Row
-                c = conn.cursor()
-                c.execute("SELECT * FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 5", (code,))
-                rows = [dict(r) for r in c.fetchall()]
-                conn.close()
-                if rows:
-                    return rows
+        from capital_fetcher import fetch_all_three
+        a1, q1, a2, a3, a4, a5 = fetch_all_three(code)
+        capital_ok = (a1 > 0 or a2 > 0 or a3 > 0)
     except:
         pass
 
-    # 來源 2：FinMind
-    return _fetch_financials_finmind(code)
+    # 檢查群益是否已補齊關鍵欄位
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT total_equity, operating_cf FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 1", (code,))
+    row = c.fetchone()
+    needs_supplement = not row or row['total_equity'] is None or row['operating_cf'] is None
+
+    # 只有群益資料不足時才用 Yahoo 補充
+    if needs_supplement:
+        try:
+            c.execute("SELECT market FROM stocks WHERE code=?", (code,))
+            r = c.fetchone()
+            market = r['market'] if r else '上市'
+            from yahoo_fetcher import _get_yahoo_session, fetch_yahoo_financials, save_yahoo_to_db
+            session, crumb = _get_yahoo_session()
+            data = fetch_yahoo_financials(session, crumb, code, market)
+            if data:
+                save_yahoo_to_db(code, data)
+        except:
+            pass
+
+    c.execute("SELECT * FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 5", (code,))
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows if rows else None
 
 
 def _fetch_financials_finmind(code):
@@ -1835,7 +1870,7 @@ def _fetch_financials_finmind(code):
         c = conn.cursor()
         for row in results:
             c.execute("""
-                INSERT OR REPLACE INTO financial_annual
+                INSERT INTO financial_annual
                   (code, year, revenue, cost, gross_profit, operating_expense,
                    operating_income, non_operating, pretax_income, tax,
                    net_income, net_income_parent, total_assets, total_equity,
@@ -1847,6 +1882,28 @@ def _fetch_financials_finmind(code):
                    :net_income, :net_income_parent, :total_assets, :total_equity,
                    :common_stock, :operating_cf, :capex, :eps,
                    :cash_dividend, :stock_dividend, :updated_at)
+                ON CONFLICT(code, year) DO UPDATE SET
+                  -- 損益表共用欄位：不覆蓋已有值（群益優先）
+                  revenue = COALESCE(revenue, excluded.revenue),
+                  cost = COALESCE(cost, excluded.cost),
+                  gross_profit = COALESCE(gross_profit, excluded.gross_profit),
+                  operating_income = COALESCE(operating_income, excluded.operating_income),
+                  pretax_income = COALESCE(pretax_income, excluded.pretax_income),
+                  net_income = COALESCE(net_income, excluded.net_income),
+                  eps = COALESCE(eps, excluded.eps),
+                  -- FinMind 獨有/補充欄位：優先用 FinMind 新值
+                  operating_expense = COALESCE(excluded.operating_expense, operating_expense),
+                  non_operating = COALESCE(excluded.non_operating, non_operating),
+                  tax = COALESCE(excluded.tax, tax),
+                  net_income_parent = COALESCE(excluded.net_income_parent, net_income_parent),
+                  total_assets = COALESCE(excluded.total_assets, total_assets),
+                  total_equity = COALESCE(excluded.total_equity, total_equity),
+                  common_stock = COALESCE(excluded.common_stock, common_stock),
+                  operating_cf = COALESCE(excluded.operating_cf, operating_cf),
+                  capex = COALESCE(excluded.capex, capex),
+                  cash_dividend = COALESCE(excluded.cash_dividend, cash_dividend),
+                  stock_dividend = COALESCE(excluded.stock_dividend, stock_dividend),
+                  updated_at = excluded.updated_at
             """, {
                 'code': row['code'], 'year': row['year'],
                 'revenue': row.get('revenue'), 'cost': row.get('cost'),
@@ -1905,42 +1962,34 @@ def init_quarterly_db():
 
 def fetch_company_quarterly(code):
     """
-    多來源個股季度財報（自動降級）：
-    1. Yahoo Finance（免費無限制）
-    2. FinMind（有額度限制）
+    個股季度財報更新：
+    群益季報（損益表+合約負債）已在 fetch_company_financials 的 fetch_all_three 裡抓過，
+    這裡只需要直接讀 DB。如果 DB 沒資料才補抓。
     """
-    # 先查市場別
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT market FROM stocks WHERE code=?", (code,))
-        r = c.fetchone()
-        market = r[0] if r else '上市'
-        conn.close()
-    except:
-        market = '上市'
+    # 先檢查 DB 是否有資料
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""SELECT COUNT(*) as cnt FROM quarterly_financial
+                 WHERE code=? AND updated_at > datetime('now', '-12 hours')""", (code,))
+    has_recent = c.fetchone()['cnt'] > 0
 
-    # 來源 1：Yahoo Finance
-    try:
-        from yahoo_fetcher import _get_yahoo_session, fetch_yahoo_financials, save_yahoo_to_db
-        session, crumb = _get_yahoo_session()
-        data = fetch_yahoo_financials(session, crumb, code, market)
-        if data:
-            a, q = save_yahoo_to_db(code, data)
-            if q > 0:
-                conn = sqlite3.connect(DB_PATH)
-                conn.row_factory = sqlite3.Row
-                c = conn.cursor()
-                c.execute("SELECT * FROM quarterly_financial WHERE code=? ORDER BY quarter DESC LIMIT 8", (code,))
-                rows = [dict(r) for r in c.fetchall()]
-                conn.close()
-                if rows:
-                    return rows
-    except:
-        pass
+    if not has_recent:
+        # DB 沒有近期資料，用群益補抓
+        try:
+            from capital_fetcher import fetch_capital_financials, fetch_capital_contract_liability
+            fetch_capital_financials(code)
+            fetch_capital_contract_liability(code)
+        except:
+            pass
 
-    # 來源 2：FinMind
-    return _fetch_quarterly_finmind(code)
+    c.execute("""SELECT * FROM quarterly_financial WHERE code=?
+                 ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                          CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+                 LIMIT 8""", (code,))
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows if rows else None
 
 
 def _fetch_quarterly_finmind(code):
@@ -2733,6 +2782,79 @@ def _prefetch_watchlist_details():
     print(f"[預抓取] FinMind 補充完成 {done}/{len(batch)} 支")
 
 
+def _parse_inst_val(v):
+    v = v.replace(',', '').replace('--', '').strip()
+    if not v:
+        return None
+    try:
+        return int(v)
+    except:
+        return None
+
+
+def _fetch_inst_one(code):
+    try:
+        url = f"https://stock.capital.com.tw/z/zc/zcl/zcl_{code}.djhtm"
+        s = requests.Session()
+        s.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+        r = s.get(url, timeout=15)
+        r.encoding = 'big5'
+        soup = BeautifulSoup(r.text, 'html.parser')
+        for t in soup.find_all('table'):
+            rows = t.find_all('tr')
+            found_header = False
+            for row in rows:
+                cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+                if '外資' in cells and '投信' in cells and '自營商' in cells:
+                    found_header = True
+                    continue
+                if found_header and len(cells) >= 5:
+                    date_str = cells[0]
+                    if not re.match(r'\d+/\d+/\d+', date_str):
+                        continue
+                    foreign = _parse_inst_val(cells[1])
+                    trust   = _parse_inst_val(cells[2])
+                    dealer  = _parse_inst_val(cells[3])
+                    return code, foreign, trust, dealer
+        return code, None, None, None
+    except:
+        return code, None, None, None
+
+
+def fetch_institutional():
+    """從群益證券抓取全部個股的三大法人當日買賣超，批次寫入 DB"""
+    t0 = time.time()
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    codes = [r[0] for r in conn.execute("SELECT code FROM stocks ORDER BY code").fetchall()]
+    conn.close()
+    print(f"[法人] 開始抓取 {len(codes)} 支股票的三大法人買賣超...")
+
+    results = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = []
+        for i, code in enumerate(codes):
+            futures.append(pool.submit(_fetch_inst_one, code))
+            if (i + 1) % 8 == 0:
+                time.sleep(0.5)
+        for f in as_completed(futures):
+            results.append(f.result())
+
+    conn = sqlite3.connect(DB_PATH)
+    updated = 0
+    for code, foreign, trust, dealer in results:
+        if foreign is not None or trust is not None or dealer is not None:
+            conn.execute(
+                "UPDATE stocks SET inst_foreign=?, inst_trust=?, inst_dealer=? WHERE code=?",
+                (foreign, trust, dealer, code)
+            )
+            updated += 1
+    conn.commit()
+    conn.close()
+    print(f"[法人] 完成：更新 {updated}/{len(codes)} 支，耗時 {time.time()-t0:.1f}s")
+    return updated
+
+
 def refresh_prices():
     """
     只更新股價。
@@ -2760,12 +2882,25 @@ def refresh_prices():
         # 即時 API 全部失敗，fallback 到批次 API
         print("[股價更新] 即時 API 無回傳，改用批次收盤 API...")
 
-    # 批次收盤 API
+    # 批次收盤 API（先檢查資料日期是否為今天）
+    today_roc = _today_roc()
+
+    # 先用 TWSE 批次 API 嘗試，順便取得資料日期
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_twse = pool.submit(fetch_twse)
         f_tpex = pool.submit(fetch_tpex)
         twse_rows = f_twse.result()
         tpex_rows = f_tpex.result()
+
+    # 如果批次 API 資料不是今天的（平日），改用即時 API
+    if _twse_batch_date and _twse_batch_date != today_roc and now.weekday() < 5:
+        print(f"[股價更新] 批次 API 日期 {_twse_batch_date} ≠ 今天 {today_roc}，改用即時 API...")
+        rt_count = _refresh_realtime()
+        if rt_count > 0:
+            elapsed = time.time() - t0
+            print(f"[股價更新-即時修正] {rt_count} 支，耗時 {elapsed:.1f} 秒")
+            return rt_count
+        print("[股價更新] 即時 API 也無回傳，使用批次 API 資料（可能非當日）")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()

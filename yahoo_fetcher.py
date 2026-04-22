@@ -3,7 +3,7 @@ yahoo_fetcher.py — 用 Yahoo Finance 批次補齊個股財報資料
 免費、無額度限制、不依賴 FinMind
 """
 import requests
-import sqlite3
+import db as sqlite3
 import time
 import random
 from datetime import datetime
@@ -81,20 +81,11 @@ def save_yahoo_to_db(code, data):
             continue
         yr = int(date[:4])
 
-        # 已有完整資料（有 net_income）就跳過
-        c.execute("SELECT net_income FROM financial_annual WHERE code=? AND year=?", (code, yr))
+        # 檢查已有資料
+        c.execute("SELECT net_income, total_equity, operating_cf FROM financial_annual WHERE code=? AND year=?", (code, yr))
         existing = c.fetchone()
-        if existing and existing[0] is not None:
-            continue
-
-        revenue = _safe_raw(stmt, 'totalRevenue')
-        cost = _safe_raw(stmt, 'costOfRevenue')
-        gross_profit = _safe_raw(stmt, 'grossProfit')
-        operating_income = _safe_raw(stmt, 'operatingIncome')
-        pretax_income = _safe_raw(stmt, 'incomeBeforeTax')
-        tax = _safe_raw(stmt, 'incomeTaxExpense')
-        net_income = _safe_raw(stmt, 'netIncome')
-        ebit = _safe_raw(stmt, 'ebit')
+        has_income = existing and existing[0] is not None
+        needs_bs_cf = existing and (existing[1] is None or existing[2] is None)
 
         # 從 BS 取
         bs = bs_by_year.get(yr, {})
@@ -106,6 +97,36 @@ def save_yahoo_to_db(code, data):
         cf = cf_by_year.get(yr, {})
         operating_cf = _safe_raw(cf, 'totalCashFromOperatingActivities')
         capex = _safe_raw(cf, 'capitalExpenditures')
+
+        if has_income and not needs_bs_cf:
+            continue  # 損益表+資產負債表+現金流都齊了，跳過
+
+        if has_income and needs_bs_cf:
+            # 損益表已有（群益優先），只補寫資產負債表和現金流
+            try:
+                c.execute("""UPDATE financial_annual SET
+                    total_assets=COALESCE(?, total_assets),
+                    total_equity=COALESCE(?, total_equity),
+                    common_stock=COALESCE(?, common_stock),
+                    operating_cf=COALESCE(?, operating_cf),
+                    capex=COALESCE(?, capex),
+                    updated_at=?
+                    WHERE code=? AND year=?""",
+                    (total_assets, total_equity, common_stock,
+                     operating_cf, capex, now_str, code, yr))
+                annual_saved += 1
+            except:
+                pass
+            continue
+
+        # 完全沒資料，寫入全部欄位
+        revenue = _safe_raw(stmt, 'totalRevenue')
+        cost = _safe_raw(stmt, 'costOfRevenue')
+        gross_profit = _safe_raw(stmt, 'grossProfit')
+        operating_income = _safe_raw(stmt, 'operatingIncome')
+        pretax_income = _safe_raw(stmt, 'incomeBeforeTax')
+        tax = _safe_raw(stmt, 'incomeTaxExpense')
+        net_income = _safe_raw(stmt, 'netIncome')
 
         try:
             c.execute("""INSERT INTO financial_annual

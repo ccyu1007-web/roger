@@ -3,7 +3,7 @@ backfill.py — 批次補齊個股詳細資料
 三輪策略：Yahoo Finance → 政府 API → FinMind
 每天凌晨 4:00 自動跑，跑完的不會重跑。
 """
-import sqlite3
+import db as sqlite3
 import time
 import random
 from datetime import datetime

@@ -11,7 +11,8 @@ guardian.py — 資料守護系統
 9. 多源仲裁（Data Arbitration）
 """
 
-import json, os, sqlite3, gzip, math, hashlib
+import json, os, gzip, math, hashlib
+import db as sqlite3
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from collections import defaultdict
@@ -1023,6 +1024,123 @@ def arbitrate_values(values_by_source, tolerance_pct=5):
     }
 
 
+# ═══════════════════════════════════════════════════════════
+# 10. 多源交叉校驗（Cross Validation）
+#     定期抽樣比對 DB 資料 vs 外部來源，標記差異
+# ═══════════════════════════════════════════════════════════
+
+def cross_validate(sample_size=20):
+    """
+    抽樣交叉校驗：從 DB 抽 N 支股票，比對群益 vs 政府API 的關鍵數字。
+    回傳: {'checked': N, 'mismatches': [...], 'ok': N}
+    """
+    import requests
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # 隨機抽樣有資料的股票
+    c.execute("SELECT code, name, close, eps_y1, revenue_yoy FROM stocks WHERE close IS NOT NULL ORDER BY RANDOM() LIMIT ?", (sample_size,))
+    samples = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    # 取政府 API 的股價和營收作為比對基準
+    try:
+        twse = requests.get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+                           headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
+        price_map = {str(r.get('Code','')).strip(): float(r.get('ClosingPrice','0').replace(',','') or 0) for r in twse}
+    except:
+        price_map = {}
+
+    try:
+        rev_data = requests.get("https://openapi.twse.com.tw/v1/openData/t187ap05_L",
+                               headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
+        rev_map = {}
+        for r in rev_data:
+            code = str(r.get('公司代號','')).strip()
+            yoy = r.get('營業收入-去年同月增減(%)')
+            if code and yoy:
+                try: rev_map[code] = float(yoy)
+                except: pass
+    except:
+        rev_map = {}
+
+    mismatches = []
+    ok_count = 0
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    for s in samples:
+        code = s['code']
+        issues = []
+
+        # 股價比對（容許 0.5% 差異，因為可能是不同時間點）
+        if code in price_map and s['close'] and price_map[code] > 0:
+            db_price = s['close']
+            api_price = price_map[code]
+            diff_pct = abs(db_price - api_price) / api_price * 100
+            if diff_pct > 5:  # 超過 5% 才算異常
+                issues.append({
+                    'field': '股價', 'db': db_price, 'api': api_price,
+                    'diff': f'{diff_pct:.1f}%', 'source': '政府API'
+                })
+
+        # 營收年增率比對（容許 1% 差異）
+        if code in rev_map and s['revenue_yoy'] is not None:
+            db_yoy = s['revenue_yoy']
+            api_yoy = rev_map[code]
+            diff = abs(db_yoy - api_yoy)
+            if diff > 1:
+                issues.append({
+                    'field': '營收年增率', 'db': db_yoy, 'api': api_yoy,
+                    'diff': f'{diff:.2f}%', 'source': '政府API'
+                })
+
+        if issues:
+            mismatches.append({'code': code, 'name': s['name'], 'issues': issues})
+        else:
+            ok_count += 1
+
+    # 寫入校驗記錄
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
+            details TEXT)""")
+        c.execute("INSERT INTO cross_validation (checked_at, sample_size, ok_count, mismatch_count, details) VALUES (?,?,?,?,?)",
+                  (now_str, len(samples), ok_count, len(mismatches), json.dumps(mismatches, ensure_ascii=False)))
+        conn.commit()
+        conn.close()
+    except:
+        pass
+
+    return {
+        'checked': len(samples),
+        'ok': ok_count,
+        'mismatches': mismatches,
+        'checked_at': now_str,
+    }
+
+
+def get_latest_validation():
+    """取得最近一次交叉校驗結果"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM cross_validation ORDER BY id DESC LIMIT 1")
+        row = c.fetchone()
+        conn.close()
+        if row:
+            result = dict(row)
+            result['details'] = json.loads(result['details']) if result['details'] else []
+            return result
+    except:
+        pass
+    return None
+
+
 def get_coverage_map():
     """
     資料斷層地圖：檢查各項關鍵資料的覆蓋率。
@@ -1797,10 +1915,28 @@ def get_daily_briefing():
     opportunities.sort(key=lambda x: (x['price_pos'], x['code']))
     near_cheap.sort(key=lambda x: x['dist_pct'])
 
+    # ETF 成分股異動（近 30 天）
+    etf_changes = []
+    try:
+        conn2 = sqlite3.connect(DB_PATH)
+        conn2.row_factory = sqlite3.Row
+        c2 = conn2.cursor()
+        c2.execute("""SELECT ec.etf_code, ei.name as etf_name, ec.stock_code, ec.stock_name,
+                             ec.action, ec.change_date, ec.created_at
+                      FROM etf_changes ec
+                      LEFT JOIN etf_info ei ON ec.etf_code = ei.code
+                      WHERE ec.created_at > datetime('now', '-30 days')
+                      ORDER BY ec.created_at DESC LIMIT 50""")
+        etf_changes = [dict(r) for r in c2.fetchall()]
+        conn2.close()
+    except:
+        pass
+
     return {
         'alerts': alerts,
         'opportunities': opportunities,
         'near_cheap': near_cheap,
+        'etf_changes': etf_changes,
         'summary': summary,
         'data_date': grouped[list(grouped.keys())[0]][0]['date'] if grouped else None,
     }

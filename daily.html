@@ -78,91 +78,106 @@ const POS_TAGS = {
 
 async function load() {
   try {
-    const [briefRes, newsRes] = await Promise.all([
+    const [briefRes, newsRes, etfChgRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/news?tier=0&limit=500'),
+      fetch('/api/etf/changes?limit=100'),
     ]);
     const d = await briefRes.json();
     const news = await newsRes.json();
-    render(d, news);
+    const etfChanges = await etfChgRes.json();
+    render(d, news, etfChanges);
   } catch(e) {
     document.getElementById('content').innerHTML =
       '<div style="text-align:center;padding:60px;color:#ef4444">無法載入，請確認系統已啟動<br><br>如果是第一次使用，請先執行一次快速更新：<br><code>python3 scraper.py --quick</code></div>';
   }
 }
 
-function render(d, news) {
+function render(d, news, etfChanges) {
   if (d.data_date) {
     document.getElementById('dateLabel').textContent = `資料日期：${d.data_date}`;
   }
 
   let html = '';
 
-  // ── 紅色警示區 ──
-  html += `<div class="section">
-    <div class="section-header red-header">持倉 / 觀察警示</div>
-    <div class="section-body">`;
-  if (d.alerts.length === 0) {
-    html += '<div class="empty-msg">今日無警示</div>';
-  } else {
-    d.alerts.forEach(a => {
-      html += `<div class="stock-row">
-        <a class="stock-code" href="/company.html?code=${a.code}" target="_blank">${a.code}</a>
-        <span class="stock-name">${a.name}</span>
-        <span class="tag tag-down">${a.old_grade} → ${a.new_grade}</span>
-        <span class="metric">收盤 <b>${a.price}</b></span>
-      </div>`;
+  // ── ETF 成分股異動 ──
+  if (etfChanges && etfChanges.length) {
+    const etfNames = {
+      '0050':'元大台灣50', '0056':'元大高股息', '00878':'國泰永續高股息',
+      '00713':'元大高息低波', '00919':'群益精選高息', '006208':'富邦台50'
+    };
+    const etfColors = {
+      '0050':'#1d4ed8', '0056':'#b45309', '00878':'#047857',
+      '00713':'#6d28d9', '00919':'#be185d', '006208':'#0369a1'
+    };
+    const etfBg = {
+      '0050':'#dbeafe', '0056':'#fef3c7', '00878':'#d1fae5',
+      '00713':'#ede9fe', '00919':'#fce7f3', '006208':'#e0f2fe'
+    };
+
+    // 按 ETF 分組
+    const byEtf = {};
+    etfChanges.forEach(c => {
+      if (!byEtf[c.etf_code]) byEtf[c.etf_code] = [];
+      byEtf[c.etf_code].push(c);
     });
+
+    const totalAdded = etfChanges.filter(c => c.action === 'add').length;
+    const totalRemoved = etfChanges.filter(c => c.action === 'remove').length;
+
+    html += `<div class="section">
+      <div class="section-header" style="background:#eff6ff;color:#1e40af;border-bottom:2px solid #93c5fd">
+        ETF 成分股異動
+        <span style="font-weight:400;font-size:.82rem;margin-left:8px">新增 ${totalAdded} / 剔除 ${totalRemoved}</span>
+      </div>
+      <div class="section-body" style="padding-top:12px">`;
+
+    Object.keys(byEtf).sort().forEach(etf => {
+      const items = byEtf[etf];
+      const color = etfColors[etf] || '#475569';
+      const bg = etfBg[etf] || '#f1f5f9';
+      const name = etfNames[etf] || etf;
+      const adds = items.filter(c => c.action === 'add');
+      const removes = items.filter(c => c.action === 'remove');
+      const chgDate = items[0]?.change_date || '';
+
+      html += `<div style="margin-bottom:14px;border:1px solid ${bg};border-radius:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${bg}">
+          <span style="font-weight:700;color:${color};font-size:.92rem">${etf}</span>
+          <span style="color:${color};font-size:.82rem">${name}</span>
+          <span style="margin-left:auto;font-size:.76rem;color:#94a3b8">${chgDate}</span>
+        </div>
+        <div style="padding:8px 14px;display:flex;gap:20px;flex-wrap:wrap">`;
+
+      if (adds.length) {
+        html += `<div style="flex:1;min-width:200px">
+          <div style="font-size:.78rem;color:#059669;font-weight:700;margin-bottom:4px">新增 ${adds.length} 檔</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+        adds.forEach(c => {
+          html += `<a href="/company.html?code=${c.stock_code}" target="_blank"
+            style="display:inline-block;padding:3px 8px;background:#dcfce7;color:#166534;border-radius:4px;font-size:.8rem;font-weight:600;text-decoration:none"
+            title="${c.stock_name}">${c.stock_code} ${c.stock_name}</a>`;
+        });
+        html += '</div></div>';
+      }
+
+      if (removes.length) {
+        html += `<div style="flex:1;min-width:200px">
+          <div style="font-size:.78rem;color:#dc2626;font-weight:700;margin-bottom:4px">剔除 ${removes.length} 檔</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+        removes.forEach(c => {
+          html += `<a href="/company.html?code=${c.stock_code}" target="_blank"
+            style="display:inline-block;padding:3px 8px;background:#fee2e2;color:#991b1b;border-radius:4px;font-size:.8rem;font-weight:600;text-decoration:none"
+            title="${c.stock_name}">${c.stock_code} ${c.stock_name}</a>`;
+        });
+        html += '</div></div>';
+      }
+
+      html += '</div></div>';
+    });
+
+    html += '</div></div>';
   }
-  html += '</div></div>';
-
-  // ── 機會區（只展開今天新進入的，持續便宜收合）──
-  const isNew = o => o.change !== '持續便宜' && o.change !== '首次記錄';
-  const superCheapNew = d.opportunities.filter(o => o.price_pos === 1 && isNew(o));
-  const cheapNew = d.opportunities.filter(o => o.price_pos === 2 && isNew(o));
-  const newlyChanged = d.opportunities.filter(o => o.price_pos > 2 && isNew(o));
-  const stayingCheap = d.opportunities.filter(o => !isNew(o));
-
-  html += `<div class="section">
-    <div class="section-header blue-header">機會區 <span style="font-weight:400;font-size:.82rem;margin-left:8px">今日新進 ${superCheapNew.length + cheapNew.length} 支 / 持續便宜 ${stayingCheap.length} 支</span></div>
-    <div class="section-body">`;
-
-  if (superCheapNew.length === 0 && cheapNew.length === 0 && newlyChanged.length === 0 && d.near_cheap.length === 0 && stayingCheap.length === 0) {
-    html += '<div class="empty-msg">觀察清單今日無價位變化</div>';
-  } else {
-    if (superCheapNew.length) {
-      html += '<div style="margin:12px 0 6px;font-weight:700;color:#7f1d1d;font-size:.88rem">今日新進 — 深度便宜</div>';
-      superCheapNew.forEach(o => html += stockRow(o));
-    }
-    if (cheapNew.length) {
-      html += '<div style="margin:12px 0 6px;font-weight:700;color:#dc2626;font-size:.88rem">今日新進 — 便宜區</div>';
-      cheapNew.forEach(o => html += stockRow(o));
-    }
-    if (newlyChanged.length) {
-      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.85rem;color:#3b82f6;font-weight:600">偏低區（${newlyChanged.length} 支）</summary><div style="margin-top:4px">`;
-      newlyChanged.forEach(o => html += stockRow(o));
-      html += '</div></details>';
-    }
-    if (stayingCheap.length) {
-      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.85rem;color:#64748b;font-weight:600">持續便宜（${stayingCheap.length} 支，無變化）</summary><div style="margin-top:4px">`;
-      stayingCheap.forEach(o => html += stockRow(o));
-      html += '</div></details>';
-    }
-    if (d.near_cheap.length) {
-      html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.85rem;color:#92400e;font-weight:600">接近便宜區（${d.near_cheap.length} 支）</summary><div style="margin-top:4px">`;
-      d.near_cheap.forEach(n => {
-        html += `<div class="stock-row">
-          <a class="stock-code" href="/company.html?code=${n.code}" target="_blank">${n.code}</a>
-          <span class="stock-name">${n.name}</span>
-          <span class="metric">收盤 <b>${n.price}</b></span>
-          <span class="metric">便宜線 <b>${n.fair_low}</b></span>
-          <span class="change-label">距離 ${n.dist_pct}%</span>
-        </div>`;
-      });
-      html += '</div></details>';
-    }
-  }
-  html += '</div></div>';
 
   // ── 新聞分「今日」和「歷史」──
   const todayStr = new Date().toLocaleDateString('zh-TW', {month:'2-digit', day:'2-digit'}).replace('/','/');
@@ -353,10 +368,6 @@ function render(d, news) {
     <div class="section-header gray-header">狀態總覽</div>
     <div class="summary-bar">
       <span>追蹤股數：<b>${d.summary.total}</b></span>
-      <span>往便宜移動：<b>${d.summary.to_cheap}</b></span>
-      <span>往昂貴移動：<b>${d.summary.to_expensive}</b></span>
-      <span>等級變動：<b>${d.summary.grade_change}</b></span>
-      <span>無變化：<b>${d.summary.no_change}</b></span>
     </div>
   </div>`;
 
@@ -371,8 +382,24 @@ async function upgradeNews(id, el) {
 
 async function markNews(id, status, el) {
   await fetch(`/api/news/${id}/status`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
-  el.closest('.stock-row').style.opacity = '0.3';
-  el.closest('.stock-row').style.pointerEvents = 'none';
+  const row = el.closest('.stock-row');
+  // 找到按鈕區域替換為狀態標籤+撤銷按鈕
+  const btns = row.querySelectorAll('button');
+  const label = status === 'important' ? '已標重要' : '已略過';
+  const color = status === 'important' ? '#059669' : '#94a3b8';
+  const html = `<span style="font-size:.7rem;color:${color};background:${status==='important'?'#dcfce7':'#f1f5f9'};padding:1px 6px;border-radius:3px">${label}</span>
+    <button onclick="undoNews(${id},this)" style="padding:1px 6px;border:1px solid #e2e8f0;border-radius:3px;background:#fff;color:#94a3b8;cursor:pointer;font-size:.68rem;margin-left:4px">撤銷</button>`;
+  btns.forEach(b => b.remove());
+  const span = document.createElement('span');
+  span.innerHTML = html;
+  row.appendChild(span);
+  row.style.opacity = status === 'dismissed' ? '0.5' : '1';
+}
+
+async function undoNews(id, el) {
+  await fetch(`/api/news/${id}/status`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status: null})});
+  // 重新載入整個報告
+  loadReport();
 }
 
 function newsRow(n, bg, color) {
