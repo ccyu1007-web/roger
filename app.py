@@ -835,15 +835,15 @@ def index():
 
 # ── 初始化資料庫 ────────────────────────────────────────────
 def _init_all_db():
-    init_db()
-    init_financial_db()
-    init_monthly_revenue_db()
-    init_quarterly_db()
-    init_pe_history_db()
-    init_etf_db()
-    # PostgreSQL 需要額外建立 api_health 表
-    if sqlite3.DB_TYPE == 'postgresql':
-        try:
+    try:
+        init_db()
+        init_financial_db()
+        init_monthly_revenue_db()
+        init_quarterly_db()
+        init_pe_history_db()
+        init_etf_db()
+        # PostgreSQL 需要額外建立 api_health 表
+        if sqlite3.DB_TYPE == 'postgresql':
             conn = sqlite3.connect()
             c = conn.cursor()
             c.execute("""CREATE TABLE IF NOT EXISTS api_health (
@@ -857,8 +857,9 @@ def _init_all_db():
             )""")
             conn.commit()
             conn.close()
-        except Exception:
-            pass
+        print("[DB] 初始化完成")
+    except Exception as e:
+        print(f"[DB] 初始化失敗（表格可能已存在）: {e}")
 
 _init_all_db()
 
