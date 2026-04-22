@@ -170,7 +170,11 @@ def get_financials(code):
             pass
 
     if not cache_valid:
-        result = fetch_company_financials(code)
+        try:
+            result = fetch_company_financials(code)
+        except Exception as e:
+            print(f"[財報] {code} 更新失敗: {e}")
+            result = None
         if result:
             rows = query_db(
                 "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 5",
@@ -254,11 +258,10 @@ def get_financials(code):
 def get_quarterly(code):
     from datetime import datetime, timedelta
 
+    q_order = """ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                    CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC"""
     rows = query_db(
-        """SELECT * FROM quarterly_financial WHERE code = ?
-           ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
-                    CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-           LIMIT 8""",
+        f"SELECT * FROM quarterly_financial WHERE code = ? {q_order} LIMIT 8",
         (code,)
     )
     cache_valid = False
@@ -271,12 +274,12 @@ def get_quarterly(code):
             pass
 
     if not cache_valid:
-        fetch_company_quarterly(code)
+        try:
+            fetch_company_quarterly(code)
+        except Exception as e:
+            print(f"[季報] {code} 更新失敗: {e}")
         rows = query_db(
-            """SELECT * FROM quarterly_financial WHERE code = ?
-               ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
-                        CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-               LIMIT 8""",
+            f"SELECT * FROM quarterly_financial WHERE code = ? {q_order} LIMIT 8",
             (code,)
         )
 
