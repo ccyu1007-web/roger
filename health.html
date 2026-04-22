@@ -401,7 +401,7 @@ async function loadAll() {
   bEl.innerHTML = `備份大小：${b.total_size_mb || 0} MB / 保留天數：${b.days || 0} 天 / 保留 30 天自動清理`;
 
   // 交叉校驗
-  const cvEl = document.getElementById('crossValidate');
+  const xvEl = document.getElementById('crossValidate');
   if (cv && cv.checked > 0) {
     const cvColor = cv.mismatches && cv.mismatches.length > 0 ? '#f59e0b' : '#22c55e';
     const cvIcon = cv.mismatches && cv.mismatches.length > 0 ? '有差異' : '全部一致';
@@ -421,9 +421,9 @@ async function loadAll() {
       });
       cvHtml += '</tbody></table>';
     }
-    cvEl.innerHTML = cvHtml;
+    xvEl.innerHTML = cvHtml;
   } else {
-    cvEl.innerHTML = '<div style="color:#94a3b8">尚未執行過校驗，按「立即校驗」開始</div>';
+    xvEl.innerHTML = '<div style="color:#94a3b8">尚未執行過校驗，按「立即校驗」開始</div>';
   }
 
   // 異動日誌
