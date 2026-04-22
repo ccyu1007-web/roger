@@ -123,10 +123,10 @@ if DATABASE_URL:
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-    # 清理 URL（移除可能的換行、空白、有問題的 sslmode）
-    DATABASE_URL = DATABASE_URL.strip()
-    DATABASE_URL = re.sub(r'[\r\n]+', '', DATABASE_URL)
+    # 清理 URL（移除所有空白、換行）再加回正確的 sslmode
+    DATABASE_URL = re.sub(r'\s+', '', DATABASE_URL)
     DATABASE_URL = re.sub(r'[?&]sslmode=[^&]*', '', DATABASE_URL)
+    DATABASE_URL += '?sslmode=require'
 
     DB_TYPE = 'postgresql'
 
