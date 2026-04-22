@@ -828,6 +828,23 @@ def etf_list():
     """)
     return jsonify(rows)
 
+# ── 連線測試（除錯用）────────────────────────────────────────
+@app.route("/api/test-db")
+def test_db():
+    import os
+    db_url = os.environ.get('DATABASE_URL', 'NOT SET')
+    # 遮蔽密碼
+    safe_url = db_url[:30] + '***' + db_url[-30:] if len(db_url) > 60 else db_url
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT 1")
+        result = c.fetchone()
+        conn.close()
+        return jsonify({"status": "ok", "db_type": sqlite3.DB_TYPE, "url": safe_url, "test": str(result)})
+    except Exception as e:
+        return jsonify({"status": "error", "db_type": sqlite3.DB_TYPE, "url": safe_url, "error": str(e)})
+
 # ── 前端首頁 ────────────────────────────────────────────────
 @app.route("/")
 def index():
