@@ -73,7 +73,13 @@ def create_pg_table(pgconn, sconn, table):
         if notnull and not is_auto:
             parts.append('NOT NULL')
         if default is not None and not is_auto:
-            parts.append(f'DEFAULT {default}')
+            # SQLite 的字串預設值可能帶引號格式不同，統一處理
+            d = str(default)
+            if d.startswith("'") or d.startswith('"'):
+                d = f"'{d.strip(chr(39)).strip(chr(34))}'"
+            elif not d.replace('.','').replace('-','').lstrip().isdigit():
+                d = f"'{d}'"
+            parts.append(f'DEFAULT {d}')
         col_defs.append(' '.join(parts))
 
     # 主鍵

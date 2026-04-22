@@ -1317,6 +1317,17 @@ def run(scheduled=True):
     except Exception as e:
         print(f"[ETF] 更新失敗: {e}")
 
+    # 交叉校驗（抽樣比對資料正確性）
+    try:
+        from guardian import cross_validate
+        cv = cross_validate(sample_size=20)
+        if cv['mismatches']:
+            print(f"[交叉校驗] {cv['checked']} 支抽查，{len(cv['mismatches'])} 支有差異！")
+        else:
+            print(f"[交叉校驗] {cv['checked']} 支抽查，全部一致")
+    except:
+        pass
+
     print(f"\n完成！共更新 {len(all_rows)} 筆")
     print(f"  營收年增率：{rev_hit} 筆")
     print(f"  EPS 資料：{eps_hit} 筆")

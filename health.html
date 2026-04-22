@@ -147,6 +147,19 @@ async function resetBreaker(source) {
   loadAll();
 }
 
+async function runCrossValidate() {
+  const el = document.getElementById('crossValidate');
+  el.innerHTML = '<div style="color:#f59e0b;font-weight:600;animation:pulse 1s infinite">校驗中...（抽樣 30 支比對政府 API）</div>';
+  try {
+    const res = await fetch('/api/cross-validate', {method: 'POST'});
+    const data = await res.json();
+    // 重新載入頁面顯示結果
+    loadAll();
+  } catch(e) {
+    el.innerHTML = '<div style="color:#ef4444">校驗失敗</div>';
+  }
+}
+
 async function handleQuarantine(id, action) {
   await fetch(`/api/quarantine/${id}/${action}`, {method: 'POST'});
   loadAll();
@@ -386,6 +399,32 @@ async function loadAll() {
   const bEl = document.getElementById('backupInfo');
   const b = health.backup_status || {};
   bEl.innerHTML = `備份大小：${b.total_size_mb || 0} MB / 保留天數：${b.days || 0} 天 / 保留 30 天自動清理`;
+
+  // 交叉校驗
+  const cvEl = document.getElementById('crossValidate');
+  if (cv && cv.checked > 0) {
+    const cvColor = cv.mismatches && cv.mismatches.length > 0 ? '#f59e0b' : '#22c55e';
+    const cvIcon = cv.mismatches && cv.mismatches.length > 0 ? '有差異' : '全部一致';
+    let cvHtml = `<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-size:1.1rem;font-weight:700;color:${cvColor}">${cvIcon}</div>
+      <div>抽查 <strong>${cv.checked}</strong> 支，一致 <strong>${cv.ok}</strong>，差異 <strong style="color:#ef4444">${cv.mismatches ? cv.mismatches.length : 0}</strong></div>
+      <div style="font-size:.78rem;color:#94a3b8">${cv.checked_at || ''}</div>
+    </div>`;
+    if (cv.mismatches && cv.mismatches.length > 0) {
+      cvHtml += '<table style="width:100%"><thead><tr><th>代碼</th><th>名稱</th><th>欄位</th><th>DB值</th><th>API值</th><th>差異</th><th>比對來源</th></tr></thead><tbody>';
+      cv.mismatches.forEach(m => {
+        (m.issues || []).forEach(iss => {
+          cvHtml += `<tr><td style="font-weight:600">${m.code}</td><td>${m.name}</td><td>${iss.field}</td>
+            <td>${iss.db}</td><td style="color:#ef4444;font-weight:600">${iss.api}</td>
+            <td>${iss.diff}</td><td style="font-size:.8rem;color:#94a3b8">${iss.source}</td></tr>`;
+        });
+      });
+      cvHtml += '</tbody></table>';
+    }
+    cvEl.innerHTML = cvHtml;
+  } else {
+    cvEl.innerHTML = '<div style="color:#94a3b8">尚未執行過校驗，按「立即校驗」開始</div>';
+  }
 
   // 異動日誌
   const aTbody = document.querySelector('#auditTable tbody');

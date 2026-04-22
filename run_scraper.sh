@@ -1,5 +1,6 @@
 #!/bin/bash
 cd /Users/roger/Documents/AI機器人/stock_system
+export DATABASE_URL="postgresql://stockuser:IsoT7cNVIkYMPVacxlj1LPEXxV52peiK@dpg-d7kbculf420s738a70gg-a.singapore-postgres.render.com/stocks_to8d"
 LOG_DIR="logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/scraper_$(date +%Y%m%d_%H%M%S).log"
