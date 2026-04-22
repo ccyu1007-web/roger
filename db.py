@@ -123,10 +123,7 @@ if DATABASE_URL:
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-    # 連線 SSL 設定（Render 內部可用，外部必須）
-    if 'sslmode' not in DATABASE_URL:
-        sep = '&' if '?' in DATABASE_URL else '?'
-        DATABASE_URL += f'{sep}sslmode=prefer'
+    # 不自動加 sslmode，由環境變數控制
 
     DB_TYPE = 'postgresql'
 
