@@ -895,6 +895,10 @@ if os.environ.get('DATABASE_URL'):
         scheduler.add_job(scraper_run, 'cron', day_of_week='mon-fri',
                           hour=14, minute=30,
                           id='afternoon_scrape', replace_existing=True)
+        # 週一到週五 15:30 更新三大法人買賣超
+        scheduler.add_job(fetch_institutional, 'cron', day_of_week='mon-fri',
+                          hour=15, minute=30,
+                          id='institutional_update', replace_existing=True)
         scheduler.start()
         print("[排程] APScheduler 已啟動")
     except Exception as e:
