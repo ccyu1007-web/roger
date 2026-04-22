@@ -7,7 +7,7 @@ db.py — 資料庫抽象層
 import os
 import re
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = (os.environ.get('DATABASE_URL') or '').strip() or None
 
 # ── 表格主鍵映射（INSERT OR REPLACE 轉換用）──────────────────
 TABLE_PK = {
@@ -123,7 +123,10 @@ if DATABASE_URL:
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-    # 不自動加 sslmode，由環境變數控制
+    # 清理 URL（移除可能的換行、空白、有問題的 sslmode）
+    DATABASE_URL = DATABASE_URL.strip()
+    DATABASE_URL = re.sub(r'[\r\n]+', '', DATABASE_URL)
+    DATABASE_URL = re.sub(r'[?&]sslmode=[^&]*', '', DATABASE_URL)
 
     DB_TYPE = 'postgresql'
 
