@@ -23,17 +23,20 @@ BACKUP_DIR = "raw_backup"
 
 def _init_fingerprint_table():
     """建立指紋表（只跑一次）"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS content_fingerprint (
-        source TEXT PRIMARY KEY,
-        last_hash TEXT,
-        last_changed TEXT,
-        check_count INTEGER DEFAULT 0,
-        skip_count INTEGER DEFAULT 0
-    )""")
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS content_fingerprint (
+            source TEXT PRIMARY KEY,
+            last_hash TEXT,
+            last_changed TEXT,
+            check_count INTEGER DEFAULT 0,
+            skip_count INTEGER DEFAULT 0
+        )""")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[Guardian] fingerprint table init: {e}")
 
 _init_fingerprint_table()
 

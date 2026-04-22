@@ -123,6 +123,10 @@ if DATABASE_URL:
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
+    # 外部連線需要 sslmode
+    if '?' not in DATABASE_URL:
+        DATABASE_URL += '?sslmode=require'
+
     DB_TYPE = 'postgresql'
 
     class _PGCursor:
