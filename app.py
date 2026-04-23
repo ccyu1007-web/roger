@@ -60,6 +60,17 @@ def get_stocks():
     q      = request.args.get("q", "").strip()
     market = request.args.get("market", "")
 
+    # 確保新欄位存在（Render PostgreSQL 可能還沒有）
+    try:
+        conn_init = sqlite3.connect(DB_PATH)
+        for col, typ in [('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER')]:
+            try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+            except: pass
+        try: conn_init.commit()
+        except: pass
+        conn_init.close()
+    except: pass
+
     sql    = """SELECT code, name, market, industry, close, change, change_240d,
                        revenue_date, revenue_yoy, revenue_mom, revenue_cum_yoy,
                        eps_date, eps_1, eps_1q, eps_2, eps_2q,
