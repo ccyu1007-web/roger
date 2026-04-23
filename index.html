@@ -577,6 +577,7 @@ function applyColVisibility() {
   COL_GROUPS.forEach(g => {
     document.body.classList.toggle('hide-' + g.key, !_colVisible[g.key]);
   });
+  fixFrozenColumns();
 }
 
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
