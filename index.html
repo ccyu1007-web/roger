@@ -274,7 +274,7 @@
         <span id="zoomVal" style="min-width:30px">100%</span>
       </label>
       <button class="mkt-btn" onclick="toggleAllSettings()" id="btnSettings" style="border-color:#6b7280;color:#6b7280">篩選設定</button>
-      <button class="mkt-btn" onclick="reloadStocks()" style="border-color:#2563eb;color:#2563eb">重新整理</button>
+      <button class="mkt-btn" id="btnReload" onclick="reloadStocks()" style="border-color:#2563eb;color:#2563eb">重新整理</button>
       <button class="btn-refresh" id="btnRefresh" onclick="triggerRefresh()">
         <span id="refreshIcon">↻</span> 更新股價
       </button>
@@ -1634,18 +1634,24 @@ function setRefreshingUI(isRunning) {
 }
 
 async function reloadStocks() {
-  const [sRes, stRes] = await Promise.all([
-    fetch('/api/status'),
-    fetch('/api/stocks')
-  ]);
-  const status = await sRes.json();
-  const stocks = await stRes.json();
-  updateStatusBar(status);
-  allData  = stocks.data;
-  allData.forEach(calcDerived);
-  filtered = [...allData];
-  applyFilter();
-  fetchRealtimePrices();
+  const btn = document.getElementById('btnReload');
+  if (btn) { btn.style.borderColor = '#f59e0b'; btn.style.color = '#f59e0b'; btn.textContent = '載入中...'; }
+  try {
+    const [sRes, stRes] = await Promise.all([
+      fetch('/api/status'),
+      fetch('/api/stocks')
+    ]);
+    const status = await sRes.json();
+    const stocks = await stRes.json();
+    updateStatusBar(status);
+    allData  = stocks.data;
+    allData.forEach(calcDerived);
+    filtered = [...allData];
+    applyFilter();
+    fetchRealtimePrices();
+  } finally {
+    if (btn) { btn.style.borderColor = '#2563eb'; btn.style.color = '#2563eb'; btn.textContent = '重新整理'; }
+  }
 }
 
 // ── 即時報價 ─────────────────────────────────────────────────
