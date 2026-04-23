@@ -1322,35 +1322,7 @@ function calcDerived(r) {
       r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code);
   }
 
-  // 評價等級計算共用參數
-  {
-    const eps = r.est_eps != null ? r.est_eps : r.shen_eps;
-    const div = r.est_div != null ? r.est_div : r.shen_div;
-    const bDiv = r.blend_div;
-    const peLo = _globalVal.peLow || 10;
-    const peHi = _globalVal.peHigh || 18;
-    const peMid = (peLo + peHi) / 2;           // 合理PE = 14
-    const peLoBias = (peMid + peLo) / 2;        // 偏低PE = 12
-    const yldHigh = _globalVal.yldHigh || 5.5;
-    const yldMax = _globalVal.yldMax || 6;
-
-    function _calcVal(peVal, yldVal) {
-      if (eps == null || eps <= 0 || div == null || div <= 0) return null;
-      const v1 = eps * peVal;
-      const v2 = div / (yldVal / 100);
-      const v3 = bDiv != null && bDiv > 0 ? bDiv / 0.06 + div : null;
-      const candidates = [v1, v2];
-      if (v3 != null) candidates.push(v3);
-      return Math.round(Math.min(...candidates) * 100) / 100;
-    }
-
-    r.val_aa = _calcVal(peLo, yldMax);          // AA = 最低PE(10) × 最高殖利率(6%)
-    r.val_a1 = _calcVal(peLo, yldHigh);         // A1 = 最低PE(10) × 偏高殖利率(5.5%)
-    r.val_a2 = _calcVal(peLoBias, yldMax);      // A2 = 偏低PE(12) × 最高殖利率(6%)
-    r.val_a  = _calcVal(peLoBias, yldHigh);     // A  = 偏低PE(12) × 偏高殖利率(5.5%)
-    // 長期6% = 權重股利 / 6%
-    r.val_lt6 = bDiv != null && bDiv > 0 ? Math.round(bDiv / 0.06 * 100) / 100 : null;
-  }
+  // 評價等級計算 — 移到後面，等 est_eps/est_div 算完才跑（見下方）
 
   // eps_ytd 補齊：如果為空，用最新年度 EPS（Q4 累計=全年）
   if (r.eps_ytd == null && r.eps_y1 != null && r.eps_y1_label) {
@@ -1416,6 +1388,35 @@ function calcDerived(r) {
       }
     }
   } catch(e) {}
+
+  // 評價等級計算（必須在 est_eps/est_div 之後）
+  {
+    const eps = r.est_eps != null ? r.est_eps : r.shen_eps;
+    const div = r.est_div != null ? r.est_div : r.shen_div;
+    const bDiv = r.blend_div;
+    const peLo = _globalVal.peLow || 10;
+    const peHi = _globalVal.peHigh || 18;
+    const peMid = (peLo + peHi) / 2;
+    const peLoBias = (peMid + peLo) / 2;
+    const yldHigh = _globalVal.yldHigh || 5.5;
+    const yldMax = _globalVal.yldMax || 6;
+
+    function _calcVal(peVal, yldVal) {
+      if (eps == null || eps <= 0 || div == null || div <= 0) return null;
+      const v1 = eps * peVal;
+      const v2 = div / (yldVal / 100);
+      const v3 = bDiv != null && bDiv > 0 ? bDiv / 0.06 + div : null;
+      const candidates = [v1, v2];
+      if (v3 != null) candidates.push(v3);
+      return Math.round(Math.min(...candidates) * 100) / 100;
+    }
+
+    r.val_aa = _calcVal(peLo, yldMax);
+    r.val_a1 = _calcVal(peLo, yldHigh);
+    r.val_a2 = _calcVal(peLoBias, yldMax);
+    r.val_a  = _calcVal(peLoBias, yldHigh);
+    r.val_lt6 = bDiv != null && bDiv > 0 ? Math.round(bDiv / 0.06 * 100) / 100 : null;
+  }
 }
 
 // ── 加權股息 ─────────────────────────────────────────────
