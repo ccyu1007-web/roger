@@ -203,12 +203,14 @@ def get_financials(code):
         except:
             pass
 
+    is_cloud = os.environ.get('DATABASE_URL') is not None
     if not cache_valid:
         if rows:
             # 有舊資料：背景更新，先回傳舊的（秒開）
-            _bg_update_financials(code)
-        else:
-            # 完全沒資料：同步抓（第一次必須等）
+            if not is_cloud:
+                _bg_update_financials(code)
+        elif not is_cloud:
+            # 本機：完全沒資料時同步抓（第一次必須等）
             try:
                 fetch_company_financials(code)
             except:
@@ -294,6 +296,7 @@ def get_financials(code):
 @app.route("/api/stocks/<code>/quarterly")
 def get_quarterly(code):
     from datetime import datetime, timedelta
+    is_cloud = os.environ.get('DATABASE_URL') is not None
 
     q_order = """ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
                     CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC"""
@@ -310,15 +313,13 @@ def get_quarterly(code):
         except:
             pass
 
-    if not cache_valid:
+    if not cache_valid and not is_cloud:
         if rows:
-            # 有舊資料：背景更新
             def _bg_q(c=code):
                 try: fetch_company_quarterly(c)
                 except: pass
             threading.Thread(target=_bg_q, daemon=True).start()
         else:
-            # 沒資料：同步抓
             try: fetch_company_quarterly(code)
             except: pass
             rows = query_db(
@@ -401,7 +402,8 @@ def get_pe_history(code):
         except:
             pass
 
-    if not cache_valid:
+    is_cloud = os.environ.get('DATABASE_URL') is not None
+    if not cache_valid and not is_cloud:
         if rows:
             def _bg_pe(c=code):
                 try: fetch_pe_history(c)
@@ -460,15 +462,14 @@ def get_monthly_revenue(code):
         except:
             pass
 
-    if not cache_valid:
+    is_cloud = os.environ.get('DATABASE_URL') is not None
+    if not cache_valid and not is_cloud:
         if rows:
-            # 有舊資料：背景更新
             def _bg_rev(c=code):
                 try: fetch_company_monthly_revenue(c)
                 except: pass
             threading.Thread(target=_bg_rev, daemon=True).start()
         else:
-            # 沒資料：同步抓
             try: fetch_company_monthly_revenue(code)
             except: pass
             rows = query_db(
