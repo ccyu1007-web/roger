@@ -19,7 +19,7 @@ from scraper import (run as scraper_run, refresh_prices, init_db, init_financial
                      init_pe_history_db, fetch_company_financials,
                      fetch_company_monthly_revenue, fetch_company_quarterly,
                      fetch_pe_history, _calc_fin_grade, fetch_institutional,
-                     quick_update, estimate_system_eps)
+                     quick_update, estimate_system_eps, estimate_system_eps_multi)
 from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
 
@@ -530,6 +530,15 @@ def get_system_estimate(code):
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e), "confidence": "N/A"})
+
+
+@app.route("/api/stocks/<code>/system-estimate-multi")
+def get_system_estimate_multi(code):
+    try:
+        result = estimate_system_eps_multi(code)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"quarters": [], "error": str(e)})
 
 
 # ── 歷史本益比 ──────────────────────────────────────────────
