@@ -1317,11 +1317,13 @@ def run(scheduled=True):
     except Exception as e:
         print(f"[ETF] 更新失敗: {e}")
 
-    # 三大法人買賣超
-    try:
-        fetch_institutional()
-    except Exception as e:
-        print(f"[法人] 更新失敗: {e}")
+    # 三大法人買賣超（五點後才公佈，14:30 排程不跑，由獨立排程處理）
+    now_h = datetime.now().hour
+    if now_h >= 17:
+        try:
+            fetch_institutional()
+        except Exception as e:
+            print(f"[法人] 更新失敗: {e}")
 
     # 交叉校驗（抽樣比對資料正確性）
     try:
