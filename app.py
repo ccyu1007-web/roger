@@ -19,7 +19,7 @@ from scraper import (run as scraper_run, refresh_prices, init_db, init_financial
                      init_pe_history_db, fetch_company_financials,
                      fetch_company_monthly_revenue, fetch_company_quarterly,
                      fetch_pe_history, _calc_fin_grade, fetch_institutional,
-                     quick_update)
+                     quick_update, estimate_system_eps)
 from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
 
@@ -518,6 +518,16 @@ def get_quarterly(code):
     stock_info = query_db("SELECT name FROM stocks WHERE code = ?", (code,))
     name = stock_info[0]['name'] if stock_info else code
     return jsonify({"code": code, "name": name, "data": data})
+
+
+# ── 系統 EPS 估算 ─────────────────────────────────────────────
+@app.route("/api/stocks/<code>/system-estimate")
+def get_system_estimate(code):
+    try:
+        result = estimate_system_eps(code)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e), "confidence": "N/A"})
 
 
 # ── 歷史本益比 ──────────────────────────────────────────────

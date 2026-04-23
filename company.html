@@ -113,6 +113,54 @@
   }
 
   /* ── 估算計算器 ── */
+  /* 系統估算 */
+  .sys-est-wrap {
+    border-top: 3px solid #8b5cf6; background: #faf5ff; padding: 20px 24px;
+    border-radius: 10px; margin-top: 16px; margin-bottom: 8px;
+  }
+  .sys-est-title {
+    font-size: 1rem; font-weight: 700; color: #5b21b6;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .sys-conf {
+    font-size: .75rem; color: #fff; padding: 2px 10px; border-radius: 10px;
+    font-weight: 600;
+  }
+  .sys-est-result {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .sys-est-quarter {
+    font-size: 1.1rem; font-weight: 700; color: #334155;
+  }
+  .sys-est-eps {
+    font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  .sys-est-eps.v-pos { color: #059669; }
+  .sys-est-eps.v-neg { color: #dc2626; }
+  .sys-yoy { font-size: .85rem; color: #64748b; }
+  .sys-issues { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sys-issue-tag {
+    font-size: .75rem; padding: 2px 10px; border-radius: 10px;
+    background: #fef3c7; color: #92400e; font-weight: 500;
+  }
+  .sys-detail-toggle {
+    font-size: .82rem; color: #8b5cf6; cursor: pointer; padding: 6px 0;
+    user-select: none; font-weight: 500;
+  }
+  .sys-detail-toggle:hover { text-decoration: underline; }
+  .sys-detail-grid {
+    display: none; font-size: .85rem; max-width: 480px;
+    border-top: 1px solid #e9d5ff; padding-top: 8px; margin-top: 4px;
+  }
+  .sys-detail-grid.show { display: block; }
+  .sys-d-row {
+    display: flex; justify-content: space-between; padding: 4px 0;
+    border-bottom: 1px solid #f3e8ff;
+  }
+  .sys-d-row span:first-child { color: #6b21a8; font-weight: 500; }
+  .sys-d-row span:last-child { color: #334155; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sys-d-hl { background: #f3e8ff; border-radius: 4px; padding: 4px 6px; }
+
   .est-wrap {
     border-top: 3px solid #2563eb; background: #fff; padding: 24px 28px;
     border-radius: 0 0 10px 10px;
@@ -785,6 +833,9 @@ function renderQuarterlyTable(data) {
   html += '</tbody></table>';
   html += '<div class="fs-footer">金額單位：百萬元（除每股數據與加權股數外）</div>';
 
+  // 系統估算區塊（先放 placeholder，非同步填入）
+  html += '<div id="sysEstContainer"></div>';
+
   // 取得最新一季的加權股數（千股→百萬股）
   const latestShares = data.find(d => d.weighted_shares)?.weighted_shares;
   const sharesMillion = latestShares ? (latestShares / 1000) : null;
@@ -793,6 +844,7 @@ function renderQuarterlyTable(data) {
 
   document.getElementById('panel').innerHTML = html;
   initEstimator(sharesMillion);
+  loadSystemEstimate();
 }
 
 // ── EPS 估算計算器 ──
@@ -1060,6 +1112,69 @@ async function initEstimator(sharesMillion) {
   if (savedNotes) {
     const notesArea = document.getElementById('notesArea');
     if (notesArea) notesArea.value = savedNotes;
+  }
+}
+
+// ── 系統 EPS 估算 ──
+async function loadSystemEstimate() {
+  const container = document.getElementById('sysEstContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="loading" style="padding:12px"><div class="spinner"></div><span style="margin-left:8px;font-size:.85rem">系統估算中...</span></div>';
+
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/system-estimate`);
+    const data = await res.json();
+    if (data.error) {
+      container.innerHTML = `<div class="sys-est-wrap"><div class="sys-est-title">系統 EPS 估算</div><div style="color:#94a3b8;font-size:.85rem;padding:8px 0">${data.error}</div></div>`;
+      return;
+    }
+    const d = data.details;
+    const confColor = {A:'#059669', B:'#d97706', C:'#dc2626'}[data.confidence] || '#94a3b8';
+    const confLabel = {A:'高', B:'中', C:'低'}[data.confidence] || '-';
+
+    let yoyHtml = '';
+    if (d.yoy_eps != null) {
+      const chg = data.est_eps - d.yoy_eps;
+      const cls = chg >= 0 ? 'v-pos' : 'v-neg';
+      yoyHtml = `<span class="sys-yoy">去年同期 ${d.yoy_eps.toFixed(2)} | 差異 <span class="${cls}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}</span></span>`;
+    }
+
+    let issuesHtml = '';
+    if (d.issues && d.issues.length) {
+      issuesHtml = `<div class="sys-issues">${d.issues.map(i => `<span class="sys-issue-tag">${i}</span>`).join('')}</div>`;
+    }
+
+    const revNote = d.rev_estimated > 0 ? `（實際 ${d.rev_actual} 月 / 預估 ${d.rev_estimated} 月）` : `（${d.rev_actual} 月實際營收）`;
+
+    container.innerHTML = `
+    <div class="sys-est-wrap">
+      <div class="sys-est-title">
+        <span>系統 EPS 估算</span>
+        <span class="sys-conf" style="background:${confColor}">信心 ${confLabel}</span>
+      </div>
+      <div class="sys-est-result">
+        <div class="sys-est-quarter">${data.quarter}</div>
+        <div class="sys-est-eps ${data.est_eps >= 0 ? 'v-pos' : 'v-neg'}">${data.est_eps.toFixed(2)}</div>
+        ${yoyHtml}
+      </div>
+      ${issuesHtml}
+      <div class="sys-detail-toggle" onclick="this.nextElementSibling.classList.toggle('show')">展開明細</div>
+      <div class="sys-detail-grid">
+        <div class="sys-d-row"><span>預估季營收</span><span>${(d.est_revenue/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬${revNote}</span></div>
+        <div class="sys-d-row"><span>預估毛利率</span><span>${d.est_gm.toFixed(2)}%</span></div>
+        <div class="sys-d-row"><span>預估毛利</span><span>${(d.est_gross_profit/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬</span></div>
+        <div class="sys-d-row"><span>預估營業費用</span><span>${(d.est_opex/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬</span></div>
+        <div class="sys-d-row sys-d-hl"><span>預估營業利益</span><span>${(d.est_oi/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬</span></div>
+        <div class="sys-d-row"><span>預估業外收支</span><span>${(d.est_nonop/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬</span></div>
+        <div class="sys-d-row"><span>預估稅前淨利</span><span>${(d.est_pti/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬</span></div>
+        <div class="sys-d-row"><span>預估稅率</span><span>${d.est_tax_rate.toFixed(2)}%</span></div>
+        <div class="sys-d-row"><span>歸屬母公司權重</span><span>${d.est_pw.toFixed(2)}%</span></div>
+        <div class="sys-d-row sys-d-hl"><span>預估歸屬母公司淨利</span><span>${(d.est_nip/1000000).toLocaleString('zh-TW',{maximumFractionDigits:0})} 百萬</span></div>
+        <div class="sys-d-row"><span>加權股數</span><span>${d.est_shares.toLocaleString('zh-TW')} 股</span></div>
+      </div>
+    </div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="sys-est-wrap"><div class="sys-est-title">系統 EPS 估算</div><div style="color:#ef4444;font-size:.85rem;padding:8px 0">載入失敗</div></div>`;
   }
 }
 

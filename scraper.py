@@ -3100,6 +3100,261 @@ def _refresh_realtime():
     return count
 
 
+def estimate_system_eps(code):
+    """
+    系統 EPS 估算：根據月營收 + 歷史季度財報，自動預估下一季 EPS。
+    演算法：
+      1. 月營收 × 季節係數 → 預估季營收
+      2. 毛利率：近 2 季加權 + 營收連動調整 ×0.3
+      3. 營業費用：固定+變動拆分
+      4. 業外：trimmed mean + 穩定度
+      5. 稅率：近 4 季累計，限 5~40%
+      6. 歸屬母公司權重：近 4 季平均
+      7. 股數：前一季
+      8. 信心等級 A/B/C/N/A
+    回傳 dict: {quarter, est_eps, confidence, details}
+    """
+    import statistics
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # --- 取季度財報（最近 12 季）---
+    rows = conn.execute("""
+        SELECT * FROM quarterly_financial WHERE code = ?
+        ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                 CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+        LIMIT 12
+    """, (code,)).fetchall()
+    rows = [dict(r) for r in rows]
+
+    if len(rows) < 4:
+        conn.close()
+        return {"error": "季度資料不足（需至少 4 季）", "confidence": "N/A"}
+
+    # --- 取月營收 ---
+    rev_rows = conn.execute("""
+        SELECT year, month, revenue FROM monthly_revenue
+        WHERE code = ? ORDER BY year DESC, month DESC LIMIT 36
+    """, (code,)).fetchall()
+    rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
+    conn.close()
+
+    # 判斷要估算哪一季
+    latest_q = rows[0]['quarter']  # e.g. "114Q3"
+    parts = latest_q.split('Q')
+    ly, lq = int(parts[0]), int(parts[1])
+    if lq == 4:
+        est_year, est_q = ly + 1, 1
+    else:
+        est_year, est_q = ly, lq + 1
+    est_quarter = f"{est_year}Q{est_q}"
+
+    # 該季對應月份（民國年轉西元）
+    west_year = est_year + 1911
+    q_months = {1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12]}
+    months = q_months[est_q]
+
+    # --- Step 1: 月營收預估 ---
+    est_rev_total = 0
+    rev_available = 0
+    rev_estimated = 0
+    for m in months:
+        actual = rev_map.get((west_year, m))
+        if actual:
+            est_rev_total += actual
+            rev_available += 1
+        else:
+            # 用去年同期 × 近 12 月平均年增率
+            prev = rev_map.get((west_year - 1, m))
+            if prev:
+                # 計算近 12 月平均年增率
+                growths = []
+                for rm in rev_rows:
+                    ry, rmm = rm['year'], rm['month']
+                    prev_rev = rev_map.get((ry - 1, rmm))
+                    if prev_rev and prev_rev > 0:
+                        growths.append(rm['revenue'] / prev_rev)
+                        if len(growths) >= 12:
+                            break
+                avg_growth = statistics.mean(growths) if growths else 1.0
+                est_rev_total += prev * avg_growth
+                rev_estimated += 1
+            else:
+                # 無去年同期，用最近一季平均月營收
+                if rows[0].get('revenue'):
+                    est_rev_total += rows[0]['revenue'] / 3
+                    rev_estimated += 1
+
+    # --- Step 2: 毛利率（近 2 季加權 + 營收連動） ---
+    gm_list = []
+    for r in rows[:4]:
+        if r.get('revenue') and r['revenue'] > 0 and r.get('gross_profit') is not None:
+            gm_list.append(r['gross_profit'] / r['revenue'])
+    if len(gm_list) >= 2:
+        # 近 2 季加權 (60/40)
+        base_gm = gm_list[0] * 0.6 + gm_list[1] * 0.4
+        # 營收連動調整：營收成長 → 毛利率微幅改善
+        if rows[0].get('revenue') and rows[0]['revenue'] > 0:
+            rev_chg = est_rev_total / rows[0]['revenue'] - 1
+            base_gm += rev_chg * 0.3 * base_gm  # 營收每增 10% → 毛利率改善 3%
+        est_gm = base_gm
+    elif gm_list:
+        est_gm = gm_list[0]
+    else:
+        return {"error": "無毛利率資料", "confidence": "N/A"}
+
+    est_gross_profit = est_rev_total * est_gm
+
+    # --- Step 3: 營業費用（固定+變動拆分） ---
+    opex_data = []
+    for r in rows[:8]:
+        if r.get('operating_expense') is not None and r.get('revenue') and r['revenue'] > 0:
+            opex_data.append((r['operating_expense'], r['revenue']))
+
+    if len(opex_data) >= 2:
+        # 用最近 4~8 季做回歸：opex = fixed + variable_rate * revenue
+        opex_vals = [x[0] for x in opex_data]
+        rev_vals = [x[1] for x in opex_data]
+        n = len(opex_data)
+        mean_rev = sum(rev_vals) / n
+        mean_opex = sum(opex_vals) / n
+
+        ss_xy = sum((rev_vals[i] - mean_rev) * (opex_vals[i] - mean_opex) for i in range(n))
+        ss_xx = sum((rev_vals[i] - mean_rev) ** 2 for i in range(n))
+
+        if ss_xx > 0:
+            variable_rate = ss_xy / ss_xx
+            fixed = mean_opex - variable_rate * mean_rev
+            # 限制 variable_rate 合理範圍
+            variable_rate = max(0, min(variable_rate, 0.5))
+            fixed = max(0, fixed)
+            est_opex = fixed + variable_rate * est_rev_total
+        else:
+            est_opex = mean_opex
+    elif opex_data:
+        est_opex = opex_data[0][0]
+    else:
+        # fallback: 用毛利的 30%
+        est_opex = est_gross_profit * 0.3
+
+    est_oi = est_gross_profit - est_opex
+
+    # --- Step 4: 業外（trimmed mean + 穩定度） ---
+    nonop_list = [r.get('non_operating') for r in rows[:8] if r.get('non_operating') is not None]
+    nonop_stable = True
+    if len(nonop_list) >= 3:
+        # trimmed mean：去掉最大最小
+        sorted_nonop = sorted(nonop_list)
+        trimmed = sorted_nonop[1:-1] if len(sorted_nonop) > 2 else sorted_nonop
+        est_nonop = statistics.mean(trimmed)
+        # 穩定度：標準差 / 均值絕對值
+        if abs(est_nonop) > 0:
+            cv = statistics.stdev(nonop_list) / abs(est_nonop)
+            nonop_stable = cv < 1.0
+    elif nonop_list:
+        est_nonop = nonop_list[0]
+    else:
+        est_nonop = 0
+
+    est_pti = est_oi + est_nonop
+
+    # --- Step 5: 稅率（近 4 季累計，限 5~40%） ---
+    tax_sum = 0
+    pti_sum = 0
+    for r in rows[:4]:
+        if r.get('pretax_income') and r['pretax_income'] > 0 and r.get('tax') is not None:
+            pti_sum += r['pretax_income']
+            tax_sum += r['tax']
+        elif r.get('pretax_income') and r['pretax_income'] > 0 and r.get('net_income_parent') is not None:
+            pti_sum += r['pretax_income']
+            tax_sum += r['pretax_income'] - r['net_income_parent']
+
+    if pti_sum > 0:
+        est_tax_rate = max(0.05, min(tax_sum / pti_sum, 0.40))
+    else:
+        est_tax_rate = 0.20  # 預設 20%
+
+    est_ni = est_pti * (1 - est_tax_rate) if est_pti > 0 else est_pti * (1 - 0.20)
+
+    # --- Step 6: 歸屬母公司權重（近 4 季平均） ---
+    pw_list = []
+    for r in rows[:4]:
+        ci = r.get('continuing_income') or r.get('net_income_parent')
+        nip = r.get('net_income_parent')
+        if ci and ci != 0 and nip is not None:
+            pw = nip / ci
+            if 0.3 <= pw <= 1.1:
+                pw_list.append(pw)
+    est_pw = statistics.mean(pw_list) if pw_list else 1.0
+
+    est_nip = est_ni * est_pw
+
+    # --- Step 7: 股數（前一季 EPS 反算） ---
+    est_shares = None
+    for r in rows[:4]:
+        if r.get('eps') and r['eps'] != 0 and r.get('net_income_parent') is not None:
+            est_shares = r['net_income_parent'] / r['eps']  # 單位：百萬股？不，淨利單位元 / EPS單位元 = 股數
+            break
+
+    if est_shares is None or est_shares == 0:
+        return {"error": "無法計算股數", "confidence": "N/A"}
+
+    est_eps = round(est_nip / est_shares, 2)
+
+    # --- Step 8: 信心等級 ---
+    issues = []
+    if rev_estimated >= 2:
+        issues.append("營收多數為預估")
+    if not nonop_stable:
+        issues.append("業外不穩定")
+    if len(gm_list) < 2:
+        issues.append("毛利率資料不足")
+    if len(opex_data) < 4:
+        issues.append("費用資料較少")
+
+    if not issues:
+        confidence = "A"
+    elif len(issues) == 1:
+        confidence = "B"
+    else:
+        confidence = "C"
+
+    # --- 同期比較 ---
+    yoy_quarter = f"{est_year - 1}Q{est_q}"
+    yoy_eps = None
+    for r in rows:
+        if r['quarter'] == yoy_quarter:
+            yoy_eps = r.get('eps')
+            break
+
+    details = {
+        "est_revenue": round(est_rev_total),
+        "est_gm": round(est_gm * 100, 2),
+        "est_gross_profit": round(est_gross_profit),
+        "est_opex": round(est_opex),
+        "est_oi": round(est_oi),
+        "est_nonop": round(est_nonop),
+        "est_pti": round(est_pti),
+        "est_tax_rate": round(est_tax_rate * 100, 2),
+        "est_ni": round(est_ni),
+        "est_pw": round(est_pw * 100, 2),
+        "est_nip": round(est_nip),
+        "est_shares": round(est_shares),
+        "rev_actual": rev_available,
+        "rev_estimated": rev_estimated,
+        "yoy_eps": yoy_eps,
+        "issues": issues,
+    }
+
+    return {
+        "quarter": est_quarter,
+        "est_eps": est_eps,
+        "confidence": confidence,
+        "details": details,
+    }
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == '--quick':
