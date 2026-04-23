@@ -1913,12 +1913,13 @@ def _push_snapshot_to_render(data_date):
     if not rows:
         return
 
+    conn2 = sqlite3.connect(DB_PATH)
     # 撈完整快照（含 price 等欄位）
-    full_rows = conn.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+    full_rows = conn2.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                                        shen_eps, shen_pe, shen_yld, fin_grade,
                                        val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
                                 FROM stock_state WHERE date=?""", (data_date,)).fetchall()
-    conn.close()
+    conn2.close()
 
     if not full_rows:
         return
