@@ -1,4 +1,7 @@
 flask
+gunicorn
 requests
 beautifulsoup4
 lxml
+apscheduler
+psycopg2-binary

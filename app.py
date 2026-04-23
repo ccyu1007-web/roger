@@ -927,7 +927,8 @@ def _init_all_db():
 _init_all_db()
 
 # ── 雲端排程（APScheduler，取代 LaunchAgent）────────────────
-if os.environ.get('DATABASE_URL'):
+# 只在主 worker 啟動（避免 gunicorn 多 worker 重複執行）
+if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(timezone='Asia/Taipei')
