@@ -1906,7 +1906,13 @@ def get_daily_briefing():
                             val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
                      FROM stock_state ORDER BY stock_id, date DESC""")
     except:
-        # 評價欄位尚未建立，用舊查詢
+        # 評價欄位尚未建立，rollback 後用舊查詢
+        try: conn.commit()
+        except: pass
+        conn.close()
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
         c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                             shen_eps, shen_pe, shen_yld, fin_grade
                      FROM stock_state ORDER BY stock_id, date DESC""")
@@ -2074,10 +2080,15 @@ def get_daily_briefing():
         c3 = conn3.cursor()
         try:
             c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
+            for r in c3.fetchall():
+                stock_extra[r['code']] = dict(r)
         except:
+            try: conn3.commit()
+            except: pass
+            c3 = conn3.cursor()
             c3.execute("SELECT code, volume FROM stocks")
-        for r in c3.fetchall():
-            stock_extra[r['code']] = dict(r)
+            for r in c3.fetchall():
+                stock_extra[r['code']] = dict(r)
         conn3.close()
     except:
         pass
