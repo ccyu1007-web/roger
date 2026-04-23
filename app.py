@@ -244,12 +244,11 @@ def sync_news():
     for r in data['rows']:
         try:
             c.execute("""INSERT INTO material_news
-                         (code, name, date, subject, link, source, tier, matched_rule, direction, alarm, created_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                         ON CONFLICT DO NOTHING""",
+                         (code, name, date, subject, link, tier, matched_rule, direction, created_at)
+                         VALUES (?,?,?,?,?,?,?,?,?)""",
                       (r.get('code'), r.get('name'), r.get('date'), r.get('subject'),
-                       r.get('link'), r.get('source'), r.get('tier'),
-                       r.get('matched_rule'), r.get('direction'), r.get('alarm'), r.get('created_at')))
+                       r.get('link'), r.get('tier'),
+                       r.get('matched_rule'), r.get('direction'), r.get('created_at')))
             inserted += c.rowcount
         except:
             pass

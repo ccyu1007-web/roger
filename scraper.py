@@ -2498,7 +2498,7 @@ def _push_news_to_render():
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
-        rows = conn.execute("""SELECT code, name, date, subject, link, source, tier, matched_rule, direction, alarm, created_at
+        rows = conn.execute("""SELECT code, name, date, subject, link, tier, matched_rule, direction, created_at
                                FROM material_news WHERE created_at > datetime('now', '-1 day')""").fetchall()
         conn.close()
         if not rows:
