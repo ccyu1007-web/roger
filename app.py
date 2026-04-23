@@ -243,12 +243,16 @@ def sync_news():
     inserted = 0
     for r in data['rows']:
         try:
-            c.execute("""INSERT INTO material_news
-                         (code, name, date, subject, link, tier, matched_rule, direction, created_at)
-                         VALUES (?,?,?,?,?,?,?,?,?)""",
-                      (r.get('code'), r.get('name'), r.get('date'), r.get('subject'),
-                       r.get('link'), r.get('tier'),
-                       r.get('matched_rule'), r.get('direction'), r.get('created_at')))
+            # 用 subject+code+date 去重
+            c.execute("SELECT id FROM material_news WHERE code=? AND subject=? AND date=?",
+                      (r.get('code'), r.get('subject'), r.get('date')))
+            if not c.fetchone():
+                c.execute("""INSERT INTO material_news
+                             (code, name, date, subject, link, tier, matched_rule, direction, created_at)
+                             VALUES (?,?,?,?,?,?,?,?,?)""",
+                          (r.get('code'), r.get('name'), r.get('date'), r.get('subject'),
+                           r.get('link'), r.get('tier'),
+                           r.get('matched_rule'), r.get('direction'), r.get('created_at')))
             inserted += c.rowcount
         except:
             pass
