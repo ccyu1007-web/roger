@@ -1416,6 +1416,9 @@ def _post_process_after_save():
     # ── 財務等級重算（各自管理 DB 連線）──
     _refresh_fin_grades()
     _refresh_grades_from_pbr()
+
+    # ── 系統 EPS 估算（批次更新所有股票）──
+    _batch_system_estimate()
     print("  後處理完成")
 
 
@@ -3098,6 +3101,38 @@ def _refresh_realtime():
     conn.commit()
     conn.close()
     return count
+
+
+def _batch_system_estimate():
+    """批次更新所有股票的系統 EPS 估算"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # 確保欄位存在
+    for col, typ in [('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT')]:
+        try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+        except: pass
+    try: conn.commit()
+    except: pass
+
+    codes = [r['code'] for r in conn.execute("SELECT code FROM stocks ORDER BY code").fetchall()]
+    conn.close()
+
+    success = 0
+    for code in codes:
+        try:
+            result = estimate_system_eps(code)
+            if result.get('est_eps') is not None and 'error' not in result:
+                c2 = sqlite3.connect(DB_PATH)
+                c2.execute(
+                    "UPDATE stocks SET sys_est_eps=?, sys_est_quarter=?, sys_est_confidence=? WHERE code=?",
+                    (result['est_eps'], result['quarter'], result['confidence'], code)
+                )
+                c2.commit()
+                c2.close()
+                success += 1
+        except:
+            pass
+    print(f"  系統 EPS 估算：{success}/{len(codes)} 支完成")
 
 
 def estimate_system_eps(code):
