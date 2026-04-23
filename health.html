@@ -202,7 +202,7 @@ async function loadAll() {
   // DB 異常
   if (dbStatus && dbStatus.alert) alerts.push({cls: 'top-alert-red', msg: '資料庫完整性異常！請立即檢查'});
   // iCloud 斷線
-  if (dbStatus && !dbStatus.icloud) alerts.push({cls: 'top-alert-orange', msg: 'iCloud 同步已關閉！資料未備份到雲端'});
+  if (dbStatus && !dbStatus.icloud && !window.location.hostname.includes('onrender.com')) alerts.push({cls: 'top-alert-orange', msg: 'iCloud 同步已關閉！資料未備份到雲端'});
   // 熔斷中
   for (const [src, b] of Object.entries(_breakers)) {
     if (b.state === 'OPEN') alerts.push({cls: 'top-alert-red', msg: `熔斷中：${src}（異常率 ${(b.rate*100).toFixed(1)}%）`});
