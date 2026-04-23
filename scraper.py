@@ -2173,7 +2173,17 @@ def init_pe_history_db():
 
 
 def fetch_pe_history(code):
-    """從 FinMind 抓取個股近 8 年每日 PER，計算每年最高/最低"""
+    """群益優先抓歷史本益比，FinMind 為 fallback"""
+    # 來源 1：群益（免費無限制）
+    try:
+        from capital_fetcher import fetch_capital_pe_history
+        n = fetch_capital_pe_history(code)
+        if n > 0:
+            return []  # 群益成功，不用 FinMind
+    except:
+        pass
+
+    # 來源 2：FinMind（有額度限制）
     start_date = f"{date.today().year - 8}-01-01"
     url = (f"https://api.finmindtrade.com/api/v4/data"
            f"?dataset=TaiwanStockPER&data_id={code}&start_date={start_date}")

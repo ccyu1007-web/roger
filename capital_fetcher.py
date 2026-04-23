@@ -584,8 +584,74 @@ def fetch_capital_monthly_revenue(code):
 
 # ── 四表一次抓取 ────────────────────────────────────────
 
+# ── 歷史本益比（zca 基本資料）─────────────────────────────
+
+def fetch_capital_pe_history(code):
+    """從群益基本資料頁面抓取歷年最高/最低本益比"""
+    try:
+        url = f"https://stock.capital.com.tw/z/zc/zca/zca.djhtm?a={code}"
+        r = _session.get(url, timeout=15)
+        r.encoding = 'big5'
+        soup = BeautifulSoup(r.text, 'html.parser')
+    except:
+        return 0
+
+    years = []
+    pe_highs = []
+    pe_lows = []
+
+    for t in soup.find_all('table'):
+        for row in t.find_all('tr'):
+            cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+            if not cells:
+                continue
+            if cells[0] == '年度' and len(cells) > 2:
+                years = [c for c in cells[1:] if re.match(r'\d+', c)]
+            elif cells[0] == '最高本益比' and len(cells) > 2:
+                pe_highs = [_parse_num(c) for c in cells[1:1+len(years)]]
+            elif cells[0] == '最低本益比' and len(cells) > 2:
+                pe_lows = [_parse_num(c) for c in cells[1:1+len(years)]]
+
+    if not years or not pe_highs or not pe_lows:
+        return 0
+
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # 確保表存在
+    c.execute("""CREATE TABLE IF NOT EXISTS pe_history (
+        code TEXT NOT NULL, year INTEGER NOT NULL,
+        pe_high REAL, pe_low REAL, updated_at TEXT,
+        PRIMARY KEY (code, year))""")
+
+    saved = 0
+    cur_year = datetime.now().year
+    for i, yr_str in enumerate(years):
+        yr = int(yr_str) + 1911  # 民國轉西曆
+        if yr >= cur_year:
+            continue  # 跳過當年（不完整）
+        pe_h = pe_highs[i] if i < len(pe_highs) else None
+        pe_l = pe_lows[i] if i < len(pe_lows) else None
+        if pe_h is None or pe_l is None or pe_h <= 0 or pe_l <= 0:
+            continue
+        try:
+            c.execute("""INSERT INTO pe_history (code, year, pe_high, pe_low, updated_at)
+                VALUES (?,?,?,?,?)
+                ON CONFLICT(code, year) DO UPDATE SET
+                pe_high=excluded.pe_high, pe_low=excluded.pe_low, updated_at=excluded.updated_at""",
+                (code, yr, pe_h, pe_l, now_str))
+            saved += 1
+        except:
+            pass
+
+    conn.commit()
+    conn.close()
+    return saved
+
+
 def fetch_all_three(code):
-    """一次抓取個股全部資料：損益表+資產負債表+現金流量表+股利+月營收+合約負債"""
+    """一次抓取個股全部資料：損益表+資產負債表+現金流量表+股利+月營收+合約負債+本益比歷史"""
     a1, q1 = fetch_capital_financials(code)
     time.sleep(random.uniform(0.2, 0.4))
     a2 = fetch_capital_balance_sheet(code)
@@ -597,6 +663,8 @@ def fetch_all_three(code):
     a4 = fetch_capital_monthly_revenue(code)
     time.sleep(random.uniform(0.2, 0.4))
     a5 = fetch_capital_contract_liability(code)
+    time.sleep(random.uniform(0.2, 0.4))
+    a7 = fetch_capital_pe_history(code)
     return a1, q1, a2, a3, a4, a5
 
 
