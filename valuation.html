@@ -155,7 +155,11 @@ function render(d) {
     if (hideLoVol) items = items.filter(c => (c.volume || 0) >= 500);
     if (!items.length) return;
 
-    html += `<h2><span class="tag tag-${lv.toLowerCase()}">${lv}</span> ${LEVEL_LABELS[lv]}（${items.length} 支）</h2>`;
+    html += `<details${lv === 'AA' ? ' open' : ''}><summary style="cursor:pointer;padding:6px 0">
+      <span class="tag tag-${lv.toLowerCase()}" style="font-size:.85rem;padding:3px 12px">${lv}</span>
+      <strong style="font-size:.95rem;margin-left:6px">${LEVEL_LABELS[lv]}</strong>
+      <span class="metric" style="margin-left:8px">${items.length} 支</span>
+    </summary>`;
     items.forEach(c => {
       const isLowVol = (c.volume || 0) < 500;
       const rowCls = isLowVol ? ' dim' : '';
@@ -176,6 +180,7 @@ function render(d) {
         ${c.deepest ? `<span class="metric">歷史最深 <strong>${c.deepest}</strong></span>` : ''}
       </div>`;
     });
+    html += '</details>';
   });
 
   html += '</div></div>';
