@@ -171,6 +171,7 @@
   body.hide-g-divc .g-divc,
   body.hide-g-divs .g-divs,
   body.hide-g-po .g-po,
+  body.hide-g-val .g-val,
   body.hide-g-blend .g-blend,
   body.hide-g-inst .g-inst,
   body.hide-g-wt .g-wt,
@@ -433,6 +434,12 @@
           <!-- 股價 -->
           <th class="col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
           <th onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
+          <!-- 評價（可收合） -->
+          <th class="g-val col-div" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
+          <th class="g-val" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
+          <th class="g-val" onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
+          <th class="g-val" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
+          <th class="g-val" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
           <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
           <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
           <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
@@ -469,11 +476,6 @@
           <!-- 近四季 -->
           <th class="col-div" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
           <th onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
-          <th class="col-div" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
-          <th onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
-          <th onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
-          <th onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
-          <th onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
@@ -518,6 +520,7 @@ function gradeHtml(g) {
 
 // ── 欄位群組開關 ─────────────────────────────────────────────
 const COL_GROUPS = [
+  { key: 'g-val', label: '評價', default: true },
   { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-shen', label: '沈董明細', default: false },
   { key: 'g-blend', label: '權重明細', default: false },
@@ -2021,6 +2024,12 @@ function render() {
       <!-- 股價 -->
       <td class="col-div"><strong>${fmt(r.close)}</strong></td>
       <td class="${chgClass}">${chgStr}</td>
+      <!-- 評價 -->
+      <td class="g-val col-div"${r.val_aa != null && r.close != null && r.close <= r.val_aa ? ' style="background:#fee2e2;color:#dc2626;font-weight:700"' : ''}>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
+      <td class="g-val"${r.val_a1 != null && r.close != null && r.close <= r.val_a1 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
+      <td class="g-val"${r.val_a2 != null && r.close != null && r.close <= r.val_a2 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a2 != null ? r.val_a2.toFixed(2) : '－'}</td>
+      <td class="g-val"${r.val_a != null && r.close != null && r.close <= r.val_a ? ' style="background:#dbeafe;color:#1d4ed8;font-weight:700"' : ''}>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
+      <td class="g-val"${r.val_lt6 != null && r.close != null && r.close <= r.val_lt6 ? ' style="background:#dcfce7;color:#166534;font-weight:700"' : ''}>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
       <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
       <td class="g-inst">${fmtInst(r.inst_trust)}</td>
       <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
@@ -2057,11 +2066,6 @@ function render() {
       <!-- 近四季 -->
       <td class="col-div">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
       <td>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
-      <td class="col-div">${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
-      <td>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
-      <td>${r.val_a2 != null ? r.val_a2.toFixed(2) : '－'}</td>
-      <td>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
-      <td>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
       <!-- 財務等級 -->
       ${_fixedY.map((y, i) => {
         const g = r._fg[y];
