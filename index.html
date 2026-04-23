@@ -552,8 +552,11 @@ const COL_GROUPS = [
 let _colVisible = JSON.parse(localStorage.getItem('col_visible') || 'null');
 if (!_colVisible) {
   _colVisible = {};
-  COL_GROUPS.forEach(g => _colVisible[g.key] = g.default);
 }
+// 新增的 key 自動補上預設值（不影響已有設定）
+COL_GROUPS.forEach(g => {
+  if (_colVisible[g.key] === undefined) _colVisible[g.key] = g.default;
+});
 
 function initColToggle() {
   const bar = document.getElementById('colToggleBar');
