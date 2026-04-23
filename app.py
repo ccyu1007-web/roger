@@ -24,7 +24,31 @@ from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
 
 app = Flask(__name__, static_folder=".", static_url_path="")
+app.config['COMPRESS_MIMETYPES'] = ['application/json']
 DB_PATH = "stocks.db"
+
+# ── 回應壓縮 ──────────────────────────────────────────────
+try:
+    from flask_compress import Compress
+    Compress(app)
+except ImportError:
+    # 手動 gzip
+    import gzip as _gzip
+    from io import BytesIO
+    @app.after_request
+    def _compress(response):
+        if response.content_length and response.content_length > 500 and 'gzip' in request.headers.get('Accept-Encoding', ''):
+            buf = BytesIO()
+            with _gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=6) as f:
+                f.write(response.get_data())
+            response.set_data(buf.getvalue())
+            response.headers['Content-Encoding'] = 'gzip'
+            response.headers['Content-Length'] = len(response.get_data())
+        return response
+
+# ── 股票資料快取（避免每次都查 DB）──────────────────────────
+_stocks_cache = None
+_stocks_cache_time = 0
 
 # ── 爬蟲狀態鎖（避免同時跑兩次）──────────────────────────
 _refresh_lock   = threading.Lock()
@@ -42,6 +66,9 @@ def query_db(sql, args=()):
 # ── 取得全部股票 ────────────────────────────────────────────
 @app.route("/api/stocks")
 def get_stocks():
+    import time as _time
+    global _stocks_cache, _stocks_cache_time
+
     q      = request.args.get("q", "").strip()
     market = request.args.get("market", "")
 
@@ -72,6 +99,11 @@ def get_stocks():
         params.append(market)
     sql += " ORDER BY code ASC"
 
+    # 無篩選時用記憶體快取（30秒）
+    use_cache = not q and not market
+    if use_cache and _stocks_cache and (_time.time() - _stocks_cache_time < 30):
+        return _stocks_cache
+
     rows = query_db(sql, params)
 
     # 附加 ETF 持股資訊（批次查詢，避免 N+1）
@@ -96,7 +128,11 @@ def get_stocks():
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
 
-    return jsonify({"count": len(rows), "data": rows})
+    result = jsonify({"count": len(rows), "data": rows})
+    if use_cache:
+        _stocks_cache = result
+        _stocks_cache_time = _time.time()
+    return result
 
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
 @app.route("/api/status")
