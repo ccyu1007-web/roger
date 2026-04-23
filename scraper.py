@@ -1698,15 +1698,19 @@ def fetch_company_financials(code):
     個股年度財報更新：
     1. 群益證券全部資料（損益表+資產負債表+現金流量表+股利+月營收+合約負債）
     2. 群益資料不足時才用 Yahoo 補充（不用 FinMind，節省額度）
+    雲端環境（Render）跳過群益爬蟲（海外IP可能被擋），靠排程更新。
     """
-    # 來源 1：群益全部（免費無限制）
+    is_cloud = os.environ.get('DATABASE_URL') is not None
+
+    # 來源 1：群益全部（僅本機，Render 跳過）
     capital_ok = False
-    try:
-        from capital_fetcher import fetch_all_three
-        a1, q1, a2, a3, a4, a5 = fetch_all_three(code)
-        capital_ok = (a1 > 0 or a2 > 0 or a3 > 0)
-    except:
-        pass
+    if not is_cloud:
+        try:
+            from capital_fetcher import fetch_all_three
+            a1, q1, a2, a3, a4, a5 = fetch_all_three(code)
+            capital_ok = (a1 > 0 or a2 > 0 or a3 > 0)
+        except:
+            pass
 
     # 檢查群益是否已補齊關鍵欄位
     conn = sqlite3.connect(DB_PATH)
@@ -1993,8 +1997,8 @@ def fetch_company_quarterly(code):
                  WHERE code=? AND updated_at > datetime('now', '-12 hours')""", (code,))
     has_recent = c.fetchone()['cnt'] > 0
 
-    if not has_recent:
-        # DB 沒有近期資料，用群益補抓
+    if not has_recent and not os.environ.get('DATABASE_URL'):
+        # 本機才用群益補抓（Render 跳過）
         try:
             from capital_fetcher import fetch_capital_financials, fetch_capital_contract_liability
             fetch_capital_financials(code)
