@@ -487,7 +487,7 @@
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
           <th class="col-div" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
-          <th class="col-div" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
+          <th class="g-qeps col-div" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
           <th class="g-ytd col-div" onclick="sortBy('eps_ytd')">當年累計<span class="sort-icon" id="si_eps_ytd">↕</span></th>
           <!-- 動態欄位 -->
           <th id="dynColAnchor" style="display:none"></th>
@@ -499,7 +499,7 @@
           <th class="g-cl" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
           <!-- ETF 成分股 -->
           <th class="g-etf col-div">ETF 成分股</th>
-          <th>營收備註</th>
+          <th class="g-rev">營收備註</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -2156,7 +2156,7 @@ function render() {
       }).join('')}
       <!-- 補充 -->
       <td class="${c240Class} col-div">${c240Str}</td>
-      <td class="col-div">${epsDateHtml}</td>
+      <td class="g-qeps col-div">${epsDateHtml}</td>
       <td class="g-ytd col-div">${r.eps_ytd != null ? r.eps_ytd.toFixed(2) : '－'}</td>
       <!-- 動態欄位 -->
       ${_fixedQ.map((q, i) => { const v = r._qeps[q]; return `<td class="g-qeps${i===0?' col-div':''}">${v != null ? fmtEps(v) : '－'}</td>`; }).join('')}
@@ -2170,7 +2170,7 @@ function render() {
       <td class="g-cl">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
       <td class="g-etf col-div">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
-      <td style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
+      <td class="g-rev" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
     </tr>`;
   }).join('');
 
