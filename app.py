@@ -142,6 +142,22 @@ def refresh_status():
 # ── 更新三大法人 ────────────────────────────────────────────
 @app.route("/api/refresh/institutional", methods=["POST"])
 def refresh_institutional():
+    # 如果 POST body 有 data，直接批次寫入（從本機同步用）
+    if request.is_json and request.json.get('data'):
+        rows = request.json['data']
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        updated = 0
+        for r in rows:
+            c.execute("UPDATE stocks SET inst_foreign=?, inst_trust=?, inst_dealer=? WHERE code=?",
+                      (r.get('f'), r.get('t'), r.get('d'), r['code']))
+            if c.rowcount:
+                updated += 1
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok", "updated": updated})
+
+    # 否則觸發群益爬蟲
     def do_inst():
         try:
             fetch_institutional()
