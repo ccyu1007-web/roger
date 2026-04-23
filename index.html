@@ -1131,29 +1131,18 @@ function clearWatch() {
 function calcDerived(r) {
   const eps4 = [r.eps_1, r.eps_2, r.eps_3, r.eps_4].filter(v => v != null);
 
-  // 近四季 EPS 加總 + 預估股利 + 殖利率 + 評等
+  // 近四季 EPS 加總 + PE（股利/殖利率/評等移到 weighted_payout 之後計算）
   if (eps4.length === 4) {
     const sum = eps4.reduce((a, b) => a + b, 0);
     r.eps_4q_sum = Math.round(sum * 100) / 100;
     r.trailing_pe = (sum > 0 && r.close != null) ? Math.round(r.close / sum * 100) / 100 : null;
-    // 近四季預估股利 = 近四季EPS × 加權配息率
-    r.trailing_div = (sum > 0 && r.weighted_payout != null)
-      ? Math.round(sum * r.weighted_payout) / 100 : null;
-    // 近四季殖利率 = 近四季預估股利 / 股價
-    r.trailing_yld = (r.trailing_div != null && r.trailing_div > 0 && r.close != null && r.close > 0)
-      ? Math.round(r.trailing_div / r.close * 10000) / 100 : null;
-    // 近四季評等
-    if (sum <= 0) r.trailing_grade = 'X';
-    else if (r.trailing_pe != null && r.trailing_yld != null)
-      r.trailing_grade = _calcMatrixGrade(r.trailing_pe, r.trailing_yld, r.code);
-    else r.trailing_grade = null;
   } else {
     r.eps_4q_sum = null;
     r.trailing_pe = null;
-    r.trailing_div = null;
-    r.trailing_yld = null;
-    r.trailing_grade = null;
   }
+  r.trailing_div = null;
+  r.trailing_yld = null;
+  r.trailing_grade = null;
 
   // 沈董 EPS：用當年度已公佈季度推算全年
   const allEps = [
@@ -1438,6 +1427,18 @@ function calcDerived(r) {
       }
     }
   } catch(e) {}
+
+  // 近四季股利/殖利率/評等（必須在 weighted_payout 之後）
+  if (r.eps_4q_sum != null && r.eps_4q_sum > 0) {
+    r.trailing_div = (r.weighted_payout != null)
+      ? Math.round(r.eps_4q_sum * r.weighted_payout) / 100 : null;
+    r.trailing_yld = (r.trailing_div != null && r.trailing_div > 0 && r.close != null && r.close > 0)
+      ? Math.round(r.trailing_div / r.close * 10000) / 100 : null;
+    if (r.trailing_pe != null && r.trailing_yld != null)
+      r.trailing_grade = _calcMatrixGrade(r.trailing_pe, r.trailing_yld, r.code);
+    else if (r.eps_4q_sum <= 0)
+      r.trailing_grade = 'X';
+  }
 
   // 評價等級計算（必須在 est_eps/est_div 之後）
   {
