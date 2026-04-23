@@ -200,12 +200,15 @@ def sync_snapshot():
     updated = 0
     for r in data['rows']:
         try:
-            c.execute("""UPDATE stock_state SET val_level=?, val_aa=?, val_a1=?, val_a2=?, val_a=?, val_lt6=?, discount_pct=?
-                         WHERE stock_id=? AND date=?""",
-                      (r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'), r.get('a'),
-                       r.get('lt6'), r.get('dp'), r['code'], r['date']))
-            if c.rowcount:
-                updated += 1
+            c.execute("""INSERT INTO stock_state (stock_id, date, val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)
+                         ON CONFLICT(stock_id, date) DO UPDATE SET
+                         val_level=excluded.val_level, val_aa=excluded.val_aa, val_a1=excluded.val_a1,
+                         val_a2=excluded.val_a2, val_a=excluded.val_a, val_lt6=excluded.val_lt6,
+                         discount_pct=excluded.discount_pct""",
+                      (r['code'], r['date'], r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'),
+                       r.get('a'), r.get('lt6'), r.get('dp'), datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            updated += 1
             # 更新 stocks 表
             c.execute("UPDATE stocks SET deepest_val_level=?, val_cheap_days=? WHERE code=?",
                       (r.get('deepest'), r.get('cheap_days', 0), r['code']))
