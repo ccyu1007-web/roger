@@ -55,8 +55,12 @@
     <h1>每日新聞報告</h1>
     <span class="date-label" id="dateLabel"></span>
   </div>
-  <div style="display:flex;gap:16px">
+  <div style="display:flex;gap:16px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
     <a href="/">回總表</a>
+    <a href="/valuation.html">評價報告</a>
+    <input type="text" id="newsSearch" placeholder="搜尋股票代碼、名稱或關鍵字..." oninput="filterNews()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:.85rem">
+  </div>
+  <div style="display:flex;gap:16px">
     <a href="/health.html">系統監控</a>
   </div>
 </header>
@@ -432,6 +436,15 @@ function stockRow(o) {
     <span class="change-label">${o.change}</span>
     ${o.fair_low ? `<span class="metric" style="font-size:.78rem;color:#94a3b8">合理價 ${o.fair_low}~${o.fair_high}</span>` : ''}
   </div>`;
+}
+
+function filterNews() {
+  const q = document.getElementById('newsSearch').value.toLowerCase().trim();
+  document.querySelectorAll('.stock-row').forEach(row => {
+    if (!q) { row.style.display = ''; return; }
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(q) ? '' : 'none';
+  });
 }
 
 load();
