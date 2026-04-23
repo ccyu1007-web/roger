@@ -1498,7 +1498,7 @@ function calcDerived(r) {
 }
 
 // ── 加權股息 ─────────────────────────────────────────────
-const DEFAULT_WEIGHTS = [30, 25, 20, 15, 10];
+const DEFAULT_WEIGHTS = [30, 30, 20, 10, 10];
 let _divWeights = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || [...DEFAULT_WEIGHTS];
 
 function initWeights() {
@@ -1535,7 +1535,7 @@ function resetWeights() {
 }
 
 // ── 權重混合比 ─────────────────────────────────────────────
-const DEFAULT_BLEND = { shen: 50, wt: 50 };
+const DEFAULT_BLEND = { shen: 60, wt: 40 };
 let _blendShen = 50, _blendWt = 50;
 (function() {
   const saved = JSON.parse(localStorage.getItem('blend_ratio') || 'null');
