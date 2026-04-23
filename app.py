@@ -950,6 +950,126 @@ if os.environ.get('DATABASE_URL'):
     except Exception as e:
         print(f"[排程] APScheduler 啟動失敗: {e}")
 
+# ── 使用者清單（觀察/持股/重點/體質）─────────────────────
+def _init_user_lists():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS user_lists (
+        list_type TEXT NOT NULL,
+        code TEXT NOT NULL,
+        added_at TEXT,
+        price_at REAL,
+        PRIMARY KEY (list_type, code)
+    )""")
+    # 個股筆記也存 DB
+    c.execute("""CREATE TABLE IF NOT EXISTS user_notes (
+        code TEXT PRIMARY KEY,
+        content TEXT,
+        updated_at TEXT
+    )""")
+    # 個股估值參數也存 DB
+    c.execute("""CREATE TABLE IF NOT EXISTS user_estimates (
+        code TEXT PRIMARY KEY,
+        params TEXT,
+        updated_at TEXT
+    )""")
+    conn.commit()
+    conn.close()
+
+_init_user_lists()
+
+@app.route("/api/user-lists")
+def get_user_lists():
+    rows = query_db("SELECT list_type, code, added_at, price_at FROM user_lists ORDER BY list_type, code")
+    result = {}
+    for r in rows:
+        lt = r['list_type']
+        if lt not in result:
+            result[lt] = []
+        result[lt].append({'code': r['code'], 'added_at': r['added_at'], 'price_at': r['price_at']})
+    return jsonify(result)
+
+@app.route("/api/user-lists/<list_type>", methods=["POST"])
+def update_user_list(list_type):
+    from datetime import datetime
+    if list_type not in ('watch', 'hold', 'focus', 'quality'):
+        return jsonify({"error": "invalid list_type"}), 400
+    data = request.json
+    action = data.get('action')  # 'add' or 'remove' or 'sync'
+    code = data.get('code')
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    if action == 'add' and code:
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        price = data.get('price')
+        c.execute("INSERT OR REPLACE INTO user_lists (list_type, code, added_at, price_at) VALUES (?,?,?,?)",
+                  (list_type, code, now, price))
+    elif action == 'remove' and code:
+        c.execute("DELETE FROM user_lists WHERE list_type=? AND code=?", (list_type, code))
+    elif action == 'sync':
+        # 整批同步（從 localStorage 遷移用）
+        codes = data.get('codes', [])
+        c.execute("DELETE FROM user_lists WHERE list_type=?", (list_type,))
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        for item in codes:
+            if isinstance(item, str):
+                c.execute("INSERT OR IGNORE INTO user_lists (list_type, code, added_at) VALUES (?,?,?)",
+                          (list_type, item, now))
+            elif isinstance(item, dict):
+                c.execute("INSERT OR IGNORE INTO user_lists (list_type, code, added_at, price_at) VALUES (?,?,?,?)",
+                          (list_type, item.get('code',''), now, item.get('price')))
+
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/user-notes/<code>", methods=["GET"])
+def get_user_note(code):
+    rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))
+    if rows:
+        return jsonify(rows[0])
+    return jsonify({"content": "", "updated_at": None})
+
+@app.route("/api/user-notes/<code>", methods=["POST"])
+def save_user_note(code):
+    from datetime import datetime
+    content = request.json.get('content', '')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if content.strip():
+        c.execute("INSERT OR REPLACE INTO user_notes (code, content, updated_at) VALUES (?,?,?)",
+                  (code, content, now))
+    else:
+        c.execute("DELETE FROM user_notes WHERE code=?", (code,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/user-estimates/<code>", methods=["GET"])
+def get_user_estimate(code):
+    rows = query_db("SELECT params, updated_at FROM user_estimates WHERE code=?", (code,))
+    if rows and rows[0]['params']:
+        import json
+        return jsonify(json.loads(rows[0]['params']))
+    return jsonify({})
+
+@app.route("/api/user-estimates/<code>", methods=["POST"])
+def save_user_estimate(code):
+    from datetime import datetime
+    import json
+    params = request.json
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO user_estimates (code, params, updated_at) VALUES (?,?,?)",
+              (code, json.dumps(params, ensure_ascii=False), now))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
 # ── 啟動 ────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

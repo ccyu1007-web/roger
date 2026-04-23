@@ -555,11 +555,31 @@ function applyColVisibility() {
   });
 }
 
-// ── 觀察清單（localStorage）─────────────────────────────────
+// ── 使用者清單（DB + localStorage 雙寫）─────────────────────
 let watchSet = new Set(JSON.parse(localStorage.getItem('watchList') || '[]'));
-
-// ── 持股清單（localStorage）─────────────────────────────────
 let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
+
+// 從 DB 載入清單（覆蓋 localStorage）
+async function loadUserLists() {
+  try {
+    const res = await fetch('/api/user-lists');
+    const data = await res.json();
+    if (data.watch) { watchSet = new Set(data.watch.map(r => r.code)); localStorage.setItem('watchList', JSON.stringify([...watchSet])); }
+    if (data.hold) { holdSet = new Set(data.hold.map(r => r.code)); localStorage.setItem('holdList', JSON.stringify([...holdSet])); }
+    if (data.focus) { focusSet = new Set(data.focus.map(r => r.code)); localStorage.setItem('focusList', JSON.stringify([...focusSet])); }
+    if (data.quality) { qualitySet = new Set(data.quality.map(r => r.code)); localStorage.setItem('qualityList', JSON.stringify([...qualitySet])); }
+    updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount();
+  } catch(e) {}
+}
+
+function _syncList(type, action, code, price) {
+  fetch(`/api/user-lists/${type}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action, code, price})
+  }).catch(() => {});
+}
+
+// ── 持股清單 ─────────────────────────────────────────────
 let holdOnly = false;
 
 function saveHold() {
@@ -614,6 +634,7 @@ function addHold() {
   const code = input.value.trim();
   if (!code) return;
   holdSet.add(code);
+  _syncList('hold', 'add', code);
   saveHold();
   input.value = '';
   renderHoldPanel();
@@ -621,6 +642,7 @@ function addHold() {
 }
 function removeHold(code) {
   holdSet.delete(code);
+  _syncList('hold', 'remove', code);
   saveHold();
   renderHoldPanel();
   if (holdOnly) applyFilter();
@@ -682,6 +704,7 @@ function addFocus() {
   const code = input.value.trim();
   if (!code) return;
   focusSet.add(code);
+  _syncList('focus', 'add', code);
   saveFocus();
   input.value = '';
   renderFocusPanel();
@@ -689,6 +712,7 @@ function addFocus() {
 }
 function removeFocus(code) {
   focusSet.delete(code);
+  _syncList('focus', 'remove', code);
   saveFocus();
   renderFocusPanel();
   if (focusOnly) applyFilter();
@@ -1052,14 +1076,17 @@ function toggleWatch(cb) {
   if (cb.checked) {
     watchSet.add(code);
     const stock = allData.find(r => r.code === code);
-    if (stock && stock.close) {
-      watchPrices[code] = { price: stock.close, date: TODAY };
+    const price = stock && stock.close ? stock.close : null;
+    if (price) {
+      watchPrices[code] = { price, date: TODAY };
       localStorage.setItem('watchPrices', JSON.stringify(watchPrices));
     }
+    _syncList('watch', 'add', code, price);
   } else {
     watchSet.delete(code);
     delete watchPrices[code];
     localStorage.setItem('watchPrices', JSON.stringify(watchPrices));
+    _syncList('watch', 'remove', code);
   }
   saveWatch();
   const tr = cb.closest('tr');
@@ -1526,6 +1553,7 @@ async function loadData() {
     document.getElementById('stockTable').style.display = 'table';
 
     initColToggle();
+    await loadUserLists();  // 從 DB 載入清單
     updateWatchCount();
     updateHoldCount();
     updateFocusCount();
