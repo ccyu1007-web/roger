@@ -470,6 +470,9 @@
           <th class="col-div" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
           <th onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
           <th onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
+          <th onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
+          <th onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
+          <th onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
@@ -1314,25 +1317,32 @@ function calcDerived(r) {
       r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code);
   }
 
-  // 評價AA = min(EPS×最低PE, 股利/最高殖利率%, 權重股利/6%+股利)
-  r.val_aa = null;
+  // 評價等級計算共用參數
   {
     const eps = r.est_eps != null ? r.est_eps : r.shen_eps;
     const div = r.est_div != null ? r.est_div : r.shen_div;
     const bDiv = r.blend_div;
     const peLo = _globalVal.peLow || 10;
+    const peHi = _globalVal.peHigh || 18;
+    const peMid = (peLo + peHi) / 2;           // 合理PE = 14
+    const peLoBias = (peMid + peLo) / 2;        // 偏低PE = 12
+    const yldHigh = _globalVal.yldHigh || 5.5;
     const yldMax = _globalVal.yldMax || 6;
 
-    if (eps != null && eps > 0 && div != null && div > 0) {
-      const v1 = eps * peLo;                        // EPS × 最低PE
-      const v2 = div / (yldMax / 100);              // 股利 / 最高殖利率%
-      const v3 = bDiv != null && bDiv > 0
-        ? bDiv / 0.06 + div                          // 權重股利/6% + 股利
-        : null;
+    function _calcVal(peVal, yldVal) {
+      if (eps == null || eps <= 0 || div == null || div <= 0) return null;
+      const v1 = eps * peVal;
+      const v2 = div / (yldVal / 100);
+      const v3 = bDiv != null && bDiv > 0 ? bDiv / 0.06 + div : null;
       const candidates = [v1, v2];
       if (v3 != null) candidates.push(v3);
-      r.val_aa = Math.round(Math.min(...candidates) * 100) / 100;
+      return Math.round(Math.min(...candidates) * 100) / 100;
     }
+
+    r.val_aa = _calcVal(peLo, yldMax);          // AA = 最低PE(10) × 最高殖利率(6%)
+    r.val_a1 = _calcVal(peLo, yldHigh);         // A1 = 最低PE(10) × 偏高殖利率(5.5%)
+    r.val_a2 = _calcVal(peLoBias, yldMax);      // A2 = 偏低PE(12) × 最高殖利率(6%)
+    r.val_a  = _calcVal(peLoBias, yldHigh);     // A  = 偏低PE(12) × 偏高殖利率(5.5%)
   }
 
   // eps_ytd 補齊：如果為空，用最新年度 EPS（Q4 累計=全年）
@@ -1750,7 +1760,7 @@ function sortBy(col) {
   localStorage.setItem('sort_col', sortCol);
   localStorage.setItem('sort_asc', String(sortAsc));
   ['code','name','close','change','change_240d','trailing_pe',
-   'eps_4q_sum','trailing_pe','val_aa','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
+   'eps_4q_sum','trailing_pe','val_aa','val_a1','val_a2','val_a','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
    'revenue_date','revenue_cum_yoy','revenue_yoy','revenue_mom',
    'eps_date','eps_1','eps_2','eps_3','eps_4','eps_5',
    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
@@ -1773,7 +1783,7 @@ function sortBy(col) {
 function applySort() {
   const numCols = ['close','change','open','high','low','volume',
                    'inst_foreign','inst_trust','inst_dealer',
-                   'change_240d','eps_4q_sum','trailing_pe','val_aa','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','revenue_cum_yoy','revenue_yoy','revenue_mom',
+                   'change_240d','eps_4q_sum','trailing_pe','val_aa','val_a1','val_a2','val_a','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
                    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
                    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
@@ -2045,6 +2055,9 @@ function render() {
       <td class="col-div">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
       <td>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
       <td>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
+      <td>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
+      <td>${r.val_a2 != null ? r.val_a2.toFixed(2) : '－'}</td>
+      <td>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
       <!-- 財務等級 -->
       ${_fixedY.map((y, i) => {
         const g = r._fg[y];
@@ -2114,12 +2127,12 @@ function renderSummary() {
 
 function exportCSV() {
   const headers = ['代碼','名稱','市場','產業別','收盤價','漲跌','外資','投信','自營商','240日漲跌幅',
-    '近四季EPS','近四季PE','評價AA','沈董EPS','沈董PE','沈董股利','沈董殖利率','沈董等級',
+    '近四季EPS','近四季PE','評價AA','評價A1','評價A2','評價A','沈董EPS','沈董PE','沈董股利','沈董殖利率','沈董等級',
     '累積營收年增率','營收年增率','營收月增率'];
   const rows = filtered.map(r => [
     r.code, r.name, r.market, r.industry || '',
     r.close, r.change, r.inst_foreign, r.inst_trust, r.inst_dealer, r.change_240d,
-    r.eps_4q_sum, r.trailing_pe, r.val_aa, r.shen_eps, r.shen_pe, r.shen_div, r.shen_yld, r.shen_grade || '',
+    r.eps_4q_sum, r.trailing_pe, r.val_aa, r.val_a1, r.val_a2, r.val_a, r.shen_eps, r.shen_pe, r.shen_div, r.shen_yld, r.shen_grade || '',
     r.revenue_cum_yoy, r.revenue_yoy, r.revenue_mom,
   ].map(v => v == null ? '' : v).join(','));
 
