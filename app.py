@@ -174,6 +174,48 @@ def refresh():
 def refresh_status():
     return jsonify({"is_refreshing": _is_refreshing})
 
+# ── 本機同步評價快照到 Render ────────────────────────────────
+@app.route("/api/sync/snapshot", methods=["POST"])
+def sync_snapshot():
+    """接收本機 push 過來的 stock_state 評價資料"""
+    from datetime import datetime
+    data = request.json
+    if not data or 'rows' not in data:
+        return jsonify({"error": "missing rows"}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # 確保欄位存在
+    for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
+                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),('discount_pct','REAL')]:
+        try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
+        except: pass
+    try: c.execute("ALTER TABLE stocks ADD COLUMN deepest_val_level TEXT")
+    except: pass
+    try: c.execute("ALTER TABLE stocks ADD COLUMN val_cheap_days INTEGER DEFAULT 0")
+    except: pass
+    try: conn.commit()
+    except: pass
+
+    updated = 0
+    for r in data['rows']:
+        try:
+            c.execute("""UPDATE stock_state SET val_level=?, val_aa=?, val_a1=?, val_a2=?, val_a=?, val_lt6=?, discount_pct=?
+                         WHERE stock_id=? AND date=?""",
+                      (r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'), r.get('a'),
+                       r.get('lt6'), r.get('dp'), r['code'], r['date']))
+            if c.rowcount:
+                updated += 1
+            # 更新 stocks 表
+            c.execute("UPDATE stocks SET deepest_val_level=?, val_cheap_days=? WHERE code=?",
+                      (r.get('deepest'), r.get('cheap_days', 0), r['code']))
+        except:
+            pass
+
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
 # ── 更新三大法人 ────────────────────────────────────────────
 @app.route("/api/refresh/institutional", methods=["POST"])
 def refresh_institutional():

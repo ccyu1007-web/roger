@@ -1887,7 +1887,46 @@ def snapshot_stock_states():
     conn.commit()
     conn.close()
     print(f"[狀態快照] {count} 支已記錄（{data_date}）")
+
+    # 本機自動 push 評價資料到 Render
+    if not os.environ.get('DATABASE_URL'):
+        try:
+            _push_snapshot_to_render(data_date)
+        except Exception as e:
+            print(f"[評價同步] push 失敗: {e}")
+
     return count
+
+
+def _push_snapshot_to_render(data_date):
+    """把本機的評價快照 push 到 Render"""
+    import requests as _req
+    RENDER_URL = "https://tock-system.onrender.com"
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("""SELECT stock_id, date, val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                           FROM stock_state WHERE date=? AND val_level IS NOT NULL""", (data_date,)).fetchall()
+    extras = {}
+    for r in conn.execute("SELECT code, deepest_val_level, val_cheap_days FROM stocks"):
+        extras[r[0]] = (r[1], r[2])
+    conn.close()
+
+    if not rows:
+        return
+
+    data = []
+    for r in rows:
+        ex = extras.get(r[0], (None, 0))
+        data.append({
+            'code': r[0], 'date': r[1], 'vl': r[2],
+            'aa': r[3], 'a1': r[4], 'a2': r[5], 'a': r[6], 'lt6': r[7], 'dp': r[8],
+            'deepest': ex[0], 'cheap_days': ex[1],
+        })
+
+    for i in range(0, len(data), 500):
+        batch = data[i:i+500]
+        _req.post(f'{RENDER_URL}/api/sync/snapshot', json={'rows': batch}, timeout=30)
+
+    print(f"[評價同步] 已 push {len(data)} 支到 Render")
 
 
 def get_daily_briefing():
