@@ -1430,8 +1430,30 @@ function calcDerived(r) {
 
   // 近四季股利/殖利率/評等（必須在 weighted_payout 之後）
   if (r.eps_4q_sum != null && r.eps_4q_sum > 0) {
-    r.trailing_div = (r.weighted_payout != null)
-      ? Math.round(r.eps_4q_sum * r.weighted_payout) / 100 : null;
+    // 判斷近四季是否全為去年度（跟沈董 fallback 同條件）
+    if (r._shen_is_fallback) {
+      // 去年完整四季 → 優先取該年度實際股利
+      const divLabel = r.eps_y1_label;
+      let foundDiv = false;
+      for (let i = 1; i <= 5; i++) {
+        if (r[`div_${i}_label`] === divLabel) {
+          const cd = r[`div_c${i}`] || 0;
+          const sd = r[`div_s${i}`] || 0;
+          if (cd + sd > 0) {
+            r.trailing_div = Math.round((cd + sd) * 100) / 100;
+            foundDiv = true;
+          }
+          break;
+        }
+      }
+      if (!foundDiv && r.weighted_payout != null) {
+        r.trailing_div = Math.round(r.eps_4q_sum * r.weighted_payout) / 100;
+      }
+    } else {
+      // 有新年度季資料 → EPS × 加權配息率
+      r.trailing_div = (r.weighted_payout != null)
+        ? Math.round(r.eps_4q_sum * r.weighted_payout) / 100 : null;
+    }
     r.trailing_yld = (r.trailing_div != null && r.trailing_div > 0 && r.close != null && r.close > 0)
       ? Math.round(r.trailing_div / r.close * 10000) / 100 : null;
     if (r.trailing_pe != null && r.trailing_yld != null)
