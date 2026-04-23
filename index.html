@@ -494,6 +494,7 @@
           <th class="g-cl" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
           <!-- ETF 成分股 -->
           <th class="g-etf col-div">ETF 成分股</th>
+          <th>營收備註</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -2093,6 +2094,7 @@ function render() {
       <td class="g-cl">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
       <td class="g-etf col-div">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
+      <td style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
     </tr>`;
   }).join('');
 

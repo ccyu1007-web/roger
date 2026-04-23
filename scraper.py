@@ -2302,6 +2302,8 @@ def quick_update():
             yoy = safe_float(d.get('營業收入-去年同月增減(%)'))
             mom = safe_float(d.get('營業收入-上月比較增減(%)'))
             cum_yoy = safe_float(d.get('累計營業收入-前期比較增減(%)'))
+            note = str(d.get('備註', '')).strip()
+            if note in ('-', '－', '無', ''): note = None
 
             west_year = roc_year + 1911
 
@@ -2316,14 +2318,14 @@ def quick_update():
             # 同月份 → 用政府官方值覆蓋（確保數據正確），但不改 revenue_date
             if old_y == west_year and old_m == month:
                 c.execute("""UPDATE stocks SET
-                    revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?
-                    WHERE code=?""", (yoy, mom, cum_yoy, code))
+                    revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, revenue_note=?
+                    WHERE code=?""", (yoy, mom, cum_yoy, note, code))
             else:
                 c.execute("""UPDATE stocks SET
                     revenue_date=?, revenue_year=?, revenue_month=?,
-                    revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?
+                    revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, revenue_note=?
                     WHERE code=?""",
-                    (today_str, west_year, month, yoy, mom, cum_yoy, code))
+                    (today_str, west_year, month, yoy, mom, cum_yoy, note, code))
                 rev_updated += 1
 
     print(f"[營收] 更新 {rev_updated} 支")

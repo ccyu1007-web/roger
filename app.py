@@ -76,7 +76,8 @@ def get_stocks():
                        fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
                        fin_grade_5, fin_grade_5y,
                        price_pos, fair_low, fair_high,
-                       inst_foreign, inst_trust, inst_dealer
+                       inst_foreign, inst_trust, inst_dealer,
+                       revenue_note
                 FROM stocks WHERE 1=1"""
     params = []
     if q:
