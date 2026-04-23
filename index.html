@@ -81,22 +81,21 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前三欄：觀察 + 股票代碼 + 公司名稱 */
-  thead th:nth-child(1),
-  thead th:nth-child(2),
-  thead th:nth-child(3) { position: sticky; top: 0; z-index: 4; }
+  /* 凍結前四欄：觀察 + 體質 + 股票代碼 + 公司名稱 */
+  thead th:nth-child(1), thead th:nth-child(2),
+  thead th:nth-child(3), thead th:nth-child(4) { position: sticky; top: 0; z-index: 4; }
   thead th:nth-child(1) { left: 0; }
   thead th:nth-child(2) { left: 0; }
-  thead th:nth-child(3) { left: 0; border-right: 2px solid #93c5fd; }
-  tbody td:nth-child(1),
-  tbody td:nth-child(2),
-  tbody td:nth-child(3) { position: sticky; background: #fff; z-index: 1; }
+  thead th:nth-child(3) { left: 0; }
+  thead th:nth-child(4) { left: 0; border-right: 2px solid #93c5fd; }
+  tbody td:nth-child(1), tbody td:nth-child(2),
+  tbody td:nth-child(3), tbody td:nth-child(4) { position: sticky; background: #fff; z-index: 1; }
   tbody td:nth-child(1) { left: 0; }
   tbody td:nth-child(2) { left: 0; }
-  tbody td:nth-child(3) { left: 0; border-right: 2px solid #e2e8f0; }
-  tbody tr:nth-child(even) td:nth-child(1),
-  tbody tr:nth-child(even) td:nth-child(2),
-  tbody tr:nth-child(even) td:nth-child(3) { background: #f8fafc; }
+  tbody td:nth-child(3) { left: 0; }
+  tbody td:nth-child(4) { left: 0; border-right: 2px solid #e2e8f0; }
+  tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2),
+  tbody tr:nth-child(even) td:nth-child(3), tbody tr:nth-child(even) td:nth-child(4) { background: #f8fafc; }
   tbody tr:hover td:nth-child(1),
   tbody tr:hover td:nth-child(2),
   tbody tr:hover td:nth-child(3) { background: #dbeafe; }
@@ -171,6 +170,8 @@
   body.hide-g-divc .g-divc,
   body.hide-g-divs .g-divs,
   body.hide-g-po .g-po,
+  body.hide-g-mkt .g-mkt,
+  body.hide-g-rev .g-rev,
   body.hide-g-val .g-val,
   body.hide-g-blend .g-blend,
   body.hide-g-inst .g-inst,
@@ -430,8 +431,8 @@
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
           <th onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
-          <th class="no-sort">市場</th>
-          <th onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
+          <th class="g-mkt no-sort">市場</th>
+          <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
           <!-- 股價 -->
           <th class="col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
           <th onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
@@ -444,11 +445,11 @@
           <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
           <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
           <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
-          <th class="col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
+          <th class="g-rev col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
-          <th class="col-div" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
-          <th onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
-          <th onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
+          <th class="g-rev" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
+          <th class="g-rev" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
+          <th class="g-rev" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 結論 -->
           <th class="col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
           <!-- 沈董明細（可收合） -->
@@ -523,7 +524,9 @@ function gradeHtml(g) {
 
 // ── 欄位群組開關 ─────────────────────────────────────────────
 const COL_GROUPS = [
+  { key: 'g-mkt', label: '市場產業', default: true },
   { key: 'g-val', label: '評價', default: true },
+  { key: 'g-rev', label: '營收', default: true },
   { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-shen', label: '沈董明細', default: false },
   { key: 'g-blend', label: '權重明細', default: false },
@@ -2023,8 +2026,8 @@ function render() {
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
       <td>${r.name}</td>
-      <td>${mktBadge}</td>
-      <td style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
+      <td class="g-mkt">${mktBadge}</td>
+      <td class="g-mkt" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
       <!-- 股價 -->
       <td class="col-div"><strong>${fmt(r.close)}</strong></td>
       <td class="${chgClass}">${chgStr}</td>
@@ -2037,11 +2040,11 @@ function render() {
       <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
       <td class="g-inst">${fmtInst(r.inst_trust)}</td>
       <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
-      <td class="col-div">${revDateHtml}</td>
+      <td class="g-rev col-div">${revDateHtml}</td>
       <!-- 成長性 -->
-      <td class="col-div">${fmtPct(r.revenue_cum_yoy, 10)}</td>
-      <td>${fmtPct(r.revenue_yoy, 10)}</td>
-      <td>${fmtPct(r.revenue_mom, 10)}</td>
+      <td class="g-rev">${fmtPct(r.revenue_cum_yoy, 10)}</td>
+      <td class="g-rev">${fmtPct(r.revenue_yoy, 10)}</td>
+      <td class="g-rev">${fmtPct(r.revenue_mom, 10)}</td>
       <!-- 結論 -->
       <td class="col-div">${gradeHtml(r.shen_grade)}</td>
       <!-- 沈董明細 -->
@@ -2159,17 +2162,17 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const th1 = document.querySelector('thead th:nth-child(1)');
-  const th2 = document.querySelector('thead th:nth-child(2)');
-  if (!th1 || !th2) return;
-  const w1 = th1.offsetWidth;
-  const w2 = w1 + th2.offsetWidth;
-  document.querySelectorAll('thead th:nth-child(2), tbody td:nth-child(2)').forEach(el => {
-    el.style.left = w1 + 'px';
-  });
-  document.querySelectorAll('thead th:nth-child(3), tbody td:nth-child(3)').forEach(el => {
-    el.style.left = w2 + 'px';
-  });
+  const ths = [1,2,3,4].map(i => document.querySelector(`thead th:nth-child(${i})`));
+  if (!ths[0]) return;
+  let left = 0;
+  for (let i = 0; i < 4; i++) {
+    if (!ths[i]) break;
+    const n = i + 1;
+    document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
+      el.style.left = left + 'px';
+    });
+    left += ths[i].offsetWidth;
+  }
 }
 
 function renderPagination() {
