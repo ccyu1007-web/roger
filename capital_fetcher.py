@@ -365,29 +365,39 @@ def fetch_capital_contract_liability(code):
 
     n_q = len(quarters)
 
-    # 找合約負債-流動
+    # 找合約負債-流動 和 存貨
     cl_values = {}
+    inv_values = {}
     for i, t in enumerate(texts):
         if t == '合約負債－流動' and i + n_q < len(texts):
             vals = texts[i + 1: i + 1 + n_q]
             for j, q in enumerate(quarters):
                 if j < len(vals):
                     cl_values[q] = _parse_num(vals[j])
-            break
+        if t == '存貨' and i + n_q < len(texts):
+            vals = texts[i + 1: i + 1 + n_q]
+            for j, q in enumerate(quarters):
+                if j < len(vals):
+                    inv_values[q] = _parse_num(vals[j])
 
-    if not cl_values:
+    if not cl_values and not inv_values:
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # 確保欄位存在
+    try: c.execute("ALTER TABLE quarterly_financial ADD COLUMN inventory REAL")
+    except: pass
     mul = 1000000  # 百萬 → 元
 
     saved = 0
-    for q_label, cl in cl_values.items():
-        if cl is None:
-            continue
-        cl *= mul
+    all_quarters = set(list(cl_values.keys()) + list(inv_values.keys()))
+    for q_label in all_quarters:
+        cl = cl_values.get(q_label)
+        inv = inv_values.get(q_label)
+        if cl is not None: cl *= mul
+        if inv is not None: inv *= mul
 
         # 轉換季度格式：2025.4Q → 114Q4
         m = re.match(r'(\d{4})\.(\d+)Q', q_label)
@@ -399,10 +409,18 @@ def fetch_capital_contract_liability(code):
         quarter_key = f"{roc_year}Q{quarter}"
 
         try:
-            c.execute("""UPDATE quarterly_financial
-                SET contract_liability = ?, updated_at = ?
-                WHERE code = ? AND quarter = ?""",
-                (cl, now_str, code, quarter_key))
+            sets = []
+            vals = []
+            if cl is not None:
+                sets.append("contract_liability = ?")
+                vals.append(cl)
+            if inv is not None:
+                sets.append("inventory = ?")
+                vals.append(inv)
+            sets.append("updated_at = ?")
+            vals.append(now_str)
+            vals.extend([code, quarter_key])
+            c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code = ? AND quarter = ?", vals)
             if c.rowcount:
                 saved += 1
         except:

@@ -762,6 +762,7 @@ function renderQuarterlyTable(data) {
       ['每股盈餘-業外',        d => d.eps_nonop,       fmt2],
     ]},
     { title: '其他', unit: '百萬元', items: [
+      ['存貨', d => d.inventory, fmtM],
       ['合約負債', d => d.contract_liability, fmtCL],
     ]},
   ];
