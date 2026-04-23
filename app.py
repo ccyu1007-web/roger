@@ -230,6 +230,33 @@ def sync_snapshot():
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
 
+# ── 本機同步新聞到 Render ────────────────────────────────────
+@app.route("/api/sync/news", methods=["POST"])
+def sync_news():
+    """接收本機 push 過來的新聞"""
+    from datetime import datetime
+    data = request.json
+    if not data or 'rows' not in data:
+        return jsonify({"error": "missing rows"}), 400
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    inserted = 0
+    for r in data['rows']:
+        try:
+            c.execute("""INSERT INTO material_news
+                         (code, name, date, subject, link, source, tier, matched_rule, direction, alarm, created_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                         ON CONFLICT DO NOTHING""",
+                      (r.get('code'), r.get('name'), r.get('date'), r.get('subject'),
+                       r.get('link'), r.get('source'), r.get('tier'),
+                       r.get('matched_rule'), r.get('direction'), r.get('alarm'), r.get('created_at')))
+            inserted += c.rowcount
+        except:
+            pass
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "inserted": inserted})
+
 # ── 更新三大法人 ────────────────────────────────────────────
 @app.route("/api/refresh/institutional", methods=["POST"])
 def refresh_institutional():

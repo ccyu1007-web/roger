@@ -2485,7 +2485,31 @@ def quick_update():
     except: pass
     try: auto_archive_old_news()
     except: pass
+    # 本機自動 push 新聞到 Render
+    if not os.environ.get('DATABASE_URL'):
+        try: _push_news_to_render()
+        except: pass
     print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
+
+
+def _push_news_to_render():
+    """把本機今天的新聞 push 到 Render"""
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""SELECT code, name, date, subject, link, source, tier, matched_rule, direction, alarm, created_at
+                               FROM material_news WHERE created_at > datetime('now', '-1 day')""").fetchall()
+        conn.close()
+        if not rows:
+            return
+        data = [dict(r) for r in rows]
+        for i in range(0, len(data), 200):
+            batch = data[i:i+200]
+            requests.post(f'{RENDER_URL}/api/sync/news', json={'rows': batch}, timeout=30)
+        print(f"[新聞同步] 已 push {len(data)} 筆到 Render")
+    except Exception as e:
+        print(f"[新聞同步] 失敗: {e}")
 
 
 def _calc_fin_grade(roe, operating_margin, fcf, revenue):
