@@ -1149,6 +1149,7 @@ function calcDerived(r) {
   const curYearEps = allEps.filter(e => parseInt(e.q.split('Q')[0]) === CUR_ROC_YEAR);
   const n = curYearEps.length;
 
+  r._shen_is_fallback = false;  // 標記是否用 fallback（非當年度年化）
   if (n >= 4) {
     r.shen_eps = Math.round(curYearEps.reduce((a, e) => a + e.v, 0) * 100) / 100;
   } else if (n > 0) {
@@ -1157,6 +1158,7 @@ function calcDerived(r) {
   } else {
     // fallback: 近四季加總 → 年度EPS → 近四季trailing
     r.shen_eps = r.eps_4q_sum || r.eps_y1 || r.eps_ytd || null;
+    r._shen_is_fallback = true;
   }
 
   // 沈董本益比
@@ -1260,10 +1262,35 @@ function calcDerived(r) {
     if (wSum > 0) r.weighted_payout = Math.round(wpSum * 100) / 100;
   }
 
-  // 沈董股利 = 沈董EPS * 加權配息率
+  // 沈董股利
   r.shen_div = null;
-  if (r.shen_eps != null && r.shen_eps > 0 && r.weighted_payout != null) {
-    r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+  if (r.shen_eps != null && r.shen_eps > 0) {
+    if (r._shen_is_fallback) {
+      // fallback 模式（用過去四季加總）→ 優先取該年度的實際股利
+      // eps_y1_label 是最新完整年度的民國年
+      const divLabel = r.eps_y1_label;
+      let foundDiv = false;
+      for (let i = 1; i <= 5; i++) {
+        if (r[`div_${i}_label`] === divLabel) {
+          const cd = r[`div_c${i}`] || 0;
+          const sd = r[`div_s${i}`] || 0;
+          if (cd + sd > 0) {
+            r.shen_div = Math.round((cd + sd) * 100) / 100;
+            foundDiv = true;
+          }
+          break;
+        }
+      }
+      // 沒有該年度股利 → 才用 沈董EPS × 加權配息率
+      if (!foundDiv && r.weighted_payout != null) {
+        r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+      }
+    } else {
+      // 當年度年化模式 → 沈董EPS × 加權配息率
+      if (r.weighted_payout != null) {
+        r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+      }
+    }
   }
 
   // 沈董殖利率 = 沈董股利 / 目前股價
