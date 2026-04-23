@@ -457,7 +457,8 @@
           <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
           <!-- 權重（沈董+加權混合） -->
-          <th class="g-blend col-div" onclick="sortBy('blend_pe')">權重PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
+          <th class="g-blend col-div" onclick="sortBy('blend_grade')">權重等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_pe')">權重PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_yld')">權重殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_eps')">權重EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_div')">權重股利<span class="sort-icon" id="si_blend_div">↕</span></th>
@@ -2048,7 +2049,8 @@ function render() {
       <td class="g-shen"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_div != null ? r.shen_div.toFixed(2) : '－'}</td>
       <!-- 權重（混合） -->
-      <td class="g-blend col-div">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
+      <td class="g-blend col-div">${gradeHtml(r.blend_grade)}</td>
+      <td class="g-blend">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
       <td class="g-blend">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-blend">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
       <td class="g-blend">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
