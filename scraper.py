@@ -1317,6 +1317,12 @@ def run(scheduled=True):
     except Exception as e:
         print(f"[ETF] 更新失敗: {e}")
 
+    # 三大法人買賣超
+    try:
+        fetch_institutional()
+    except Exception as e:
+        print(f"[法人] 更新失敗: {e}")
+
     # 交叉校驗（抽樣比對資料正確性）
     try:
         from guardian import cross_validate
