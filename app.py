@@ -32,19 +32,7 @@ try:
     from flask_compress import Compress
     Compress(app)
 except ImportError:
-    # 手動 gzip
-    import gzip as _gzip
-    from io import BytesIO
-    @app.after_request
-    def _compress(response):
-        if response.content_length and response.content_length > 500 and 'gzip' in request.headers.get('Accept-Encoding', ''):
-            buf = BytesIO()
-            with _gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=6) as f:
-                f.write(response.get_data())
-            response.set_data(buf.getvalue())
-            response.headers['Content-Encoding'] = 'gzip'
-            response.headers['Content-Length'] = len(response.get_data())
-        return response
+    pass  # Render 上會安裝，本機沒有就不壓縮
 
 # ── 股票資料快取（避免每次都查 DB）──────────────────────────
 _stocks_cache = None
