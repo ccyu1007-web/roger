@@ -102,7 +102,7 @@ def get_stocks():
     # 無篩選時用記憶體快取（30秒）
     use_cache = not q and not market
     if use_cache and _stocks_cache and (_time.time() - _stocks_cache_time < 30):
-        return _stocks_cache
+        return jsonify(_stocks_cache)
 
     rows = query_db(sql, params)
 
@@ -128,11 +128,11 @@ def get_stocks():
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
 
-    result = jsonify({"count": len(rows), "data": rows})
+    result_data = {"count": len(rows), "data": rows}
     if use_cache:
-        _stocks_cache = result
+        _stocks_cache = result_data
         _stocks_cache_time = _time.time()
-    return result
+    return jsonify(result_data)
 
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
 @app.route("/api/status")
