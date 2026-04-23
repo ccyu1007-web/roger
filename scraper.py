@@ -1410,10 +1410,52 @@ def _post_process_after_save():
     # ── 股利補充（BWIBBU 殖利率反推，不依賴 FinMind）──
     _fill_dividends_from_bwibbu()
 
+    # ── 從 quarterly_financial 同步 EPS 到 stocks 表 ──
+    _sync_eps_from_quarterly()
+
     # ── 財務等級重算（各自管理 DB 連線）──
     _refresh_fin_grades()
     _refresh_grades_from_pbr()
     print("  後處理完成")
+
+
+def _sync_eps_from_quarterly():
+    """從 quarterly_financial 正確排序後回寫 stocks 表的 eps_1~eps_5"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT code, quarter, eps FROM quarterly_financial
+                 WHERE eps IS NOT NULL
+                 ORDER BY code,
+                 CAST(SUBSTR(quarter,1,INSTR(quarter,'Q')-1) AS INTEGER) DESC,
+                 CAST(SUBSTR(quarter,INSTR(quarter,'Q')+1) AS INTEGER) DESC""")
+    from collections import defaultdict
+    qf = defaultdict(list)
+    for r in c.fetchall():
+        if len(qf[r[0]]) < 5:
+            qf[r[0]].append((r[1], r[2]))
+
+    updated = 0
+    for code, quarters in qf.items():
+        vals = {}
+        for i, (q, eps) in enumerate(quarters, 1):
+            vals[f'eps_{i}'] = eps
+            vals[f'eps_{i}q'] = q
+        for i in range(len(quarters) + 1, 6):
+            vals[f'eps_{i}'] = None
+            vals[f'eps_{i}q'] = None
+        c.execute("""UPDATE stocks SET
+            eps_1=?, eps_1q=?, eps_2=?, eps_2q=?, eps_3=?, eps_3q=?,
+            eps_4=?, eps_4q=?, eps_5=?, eps_5q=? WHERE code=?""",
+            (vals['eps_1'], vals['eps_1q'], vals['eps_2'], vals['eps_2q'],
+             vals['eps_3'], vals['eps_3q'], vals['eps_4'], vals['eps_4q'],
+             vals['eps_5'], vals['eps_5q'], code))
+        if c.rowcount:
+            updated += 1
+
+    conn.commit()
+    conn.close()
+    if updated:
+        print(f"  [EPS同步] 從 quarterly_financial 同步 {updated} 支到 stocks 表")
 
 
 def _fill_dividends_from_bwibbu():
