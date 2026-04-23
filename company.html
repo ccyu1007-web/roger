@@ -819,7 +819,7 @@ function buildEstimator(sharesMillion, sysQuarters) {
   const sharesDisplay = sharesMillion ? sharesMillion.toFixed(2) : '-';
   const n = sysQuarters.length;
   const sysCols = n > 0 ? ' ' + Array(n).fill('140px').join(' ') : '';
-  const gridStyle = `grid-template-columns: 180px 1fr${sysCols}`;
+  const gridStyle = `grid-template-columns: 180px 200px${sysCols}`;
 
   const confMap = {A:{color:'#059669',label:'高'}, B:{color:'#d97706',label:'中'}, C:{color:'#dc2626',label:'低'}};
   const fM = v => v != null ? (v / 1000000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '-';
