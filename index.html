@@ -170,6 +170,7 @@
   body.hide-g-divc .g-divc,
   body.hide-g-divs .g-divs,
   body.hide-g-po .g-po,
+  body.hide-g-grades .g-grades,
   body.hide-g-trail .g-trail,
   body.hide-g-mkt .g-mkt,
   body.hide-g-rev .g-rev,
@@ -452,31 +453,31 @@
           <th class="g-rev" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
           <th class="g-rev" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 等級排列：預估→沈董→綜合→近四季→加權 -->
-          <th class="col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
+          <th class="g-grades col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
           <th class="g-est" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
           <th class="g-est" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
           <th class="g-est" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
           <!-- 沈董 -->
-          <th class="col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
+          <th class="g-grades col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_pe')">沈董PE<span class="sort-icon" id="si_shen_pe">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_yld')">沈董殖利率<span class="sort-icon" id="si_shen_yld">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
           <!-- 綜合 -->
-          <th class="col-div" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
+          <th class="g-grades col-div" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_pe')">綜合PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_yld')">綜合殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_eps')">綜合EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_div')">綜合股利<span class="sort-icon" id="si_blend_div">↕</span></th>
           <!-- 近四季 -->
-          <th class="col-div" onclick="sortBy('trailing_grade')">近四季評等<span class="sort-icon" id="si_trailing_grade">↕</span></th>
+          <th class="g-grades col-div" onclick="sortBy('trailing_grade')">近四季評等<span class="sort-icon" id="si_trailing_grade">↕</span></th>
           <th class="g-trail" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
           <th class="g-trail" onclick="sortBy('trailing_yld')">近四季殖利率<span class="sort-icon" id="si_trailing_yld">↕</span></th>
           <th class="g-trail" onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
           <th class="g-trail" onclick="sortBy('trailing_div')">近四季股利<span class="sort-icon" id="si_trailing_div">↕</span></th>
           <!-- 加權 -->
-          <th class="col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
+          <th class="g-grades col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_pe')">加權PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_yld')">加權殖利率<span class="sort-icon" id="si_weighted_yld">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_eps')">加權EPS<span class="sort-icon" id="si_weighted_eps">↕</span></th>
@@ -535,6 +536,7 @@ const COL_GROUPS = [
   { key: 'g-blend', label: '綜合明細', default: false },
   { key: 'g-wt',   label: '加權明細', default: false },
   { key: 'g-est',  label: '預估明細', default: false },
+  { key: 'g-grades', label: '五等級', default: true },
   { key: 'g-trail', label: '近四季明細', default: false },
   { key: 'g-fg',   label: '財務等級', default: true },
   { key: 'g-ytd',  label: '當年累計', default: true },
@@ -2115,31 +2117,31 @@ function render() {
       <td class="g-rev">${fmtPct(r.revenue_mom, 10)}</td>
       <!-- 結論 -->
       <!-- 預估 -->
-      <td class="col-div">${gradeHtml(r.est_grade)}</td>
+      <td class="g-grades col-div">${gradeHtml(r.est_grade)}</td>
       <td class="g-est">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
       <!-- 沈董 -->
-      <td class="col-div">${gradeHtml(r.shen_grade)}</td>
+      <td class="g-grades col-div">${gradeHtml(r.shen_grade)}</td>
       <td class="g-shen">${r.shen_pe != null ? r.shen_pe.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_yld != null ? r.shen_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-shen"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_div != null ? r.shen_div.toFixed(2) : '－'}</td>
       <!-- 綜合 -->
-      <td class="col-div">${gradeHtml(r.blend_grade)}</td>
+      <td class="g-grades col-div">${gradeHtml(r.blend_grade)}</td>
       <td class="g-blend">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
       <td class="g-blend">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-blend">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
       <td class="g-blend">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
       <!-- 近四季 -->
-      <td class="col-div">${gradeHtml(r.trailing_grade)}</td>
+      <td class="g-grades col-div">${gradeHtml(r.trailing_grade)}</td>
       <td class="g-trail">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
       <td class="g-trail">${r.trailing_yld != null ? r.trailing_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-trail"${r.eps_4q_sum != null && r.eps_4q_sum < 0 ? ' style="color:#ef4444;font-weight:700"' : ''}>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
       <td class="g-trail">${r.trailing_div != null ? r.trailing_div.toFixed(2) : '－'}</td>
       <!-- 加權 -->
-      <td class="col-div">${gradeHtml(r.weighted_grade)}</td>
+      <td class="g-grades col-div">${gradeHtml(r.weighted_grade)}</td>
       <td class="g-wt" style="color:#475569">${r.weighted_pe != null ? r.weighted_pe.toFixed(2) : '－'}</td>
       <td class="g-wt" style="color:#475569">${r.weighted_yld != null ? r.weighted_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-wt" style="color:#475569">${r.weighted_eps != null ? r.weighted_eps.toFixed(2) : '－'}</td>
