@@ -1913,12 +1913,24 @@ def _push_snapshot_to_render(data_date):
     if not rows:
         return
 
+    # 撈完整快照（含 price 等欄位）
+    full_rows = conn.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                                       shen_eps, shen_pe, shen_yld, fin_grade,
+                                       val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                                FROM stock_state WHERE date=?""", (data_date,)).fetchall()
+    conn.close()
+
+    if not full_rows:
+        return
+
     data = []
-    for r in rows:
+    for r in full_rows:
         ex = extras.get(r[0], (None, 0))
         data.append({
-            'code': r[0], 'date': r[1], 'vl': r[2],
-            'aa': r[3], 'a1': r[4], 'a2': r[5], 'a': r[6], 'lt6': r[7], 'dp': r[8],
+            'code': r[0], 'date': r[1], 'price': r[2], 'pp': r[3],
+            'fl': r[4], 'fm': r[5], 'fh': r[6],
+            'se': r[7], 'sp': r[8], 'sy': r[9], 'fg': r[10],
+            'vl': r[11], 'aa': r[12], 'a1': r[13], 'a2': r[14], 'a': r[15], 'lt6': r[16], 'dp': r[17],
             'deepest': ex[0], 'cheap_days': ex[1],
         })
 

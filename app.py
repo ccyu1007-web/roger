@@ -200,14 +200,25 @@ def sync_snapshot():
     updated = 0
     for r in data['rows']:
         try:
-            c.execute("""INSERT INTO stock_state (stock_id, date, val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct, updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?)
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            c.execute("""INSERT INTO stock_state
+                         (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                          shen_eps, shen_pe, shen_yld, fin_grade,
+                          val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
+                         price=excluded.price, price_pos=excluded.price_pos,
+                         fair_low=excluded.fair_low, fair_mid=excluded.fair_mid, fair_high=excluded.fair_high,
+                         shen_eps=excluded.shen_eps, shen_pe=excluded.shen_pe, shen_yld=excluded.shen_yld,
+                         fin_grade=excluded.fin_grade,
                          val_level=excluded.val_level, val_aa=excluded.val_aa, val_a1=excluded.val_a1,
                          val_a2=excluded.val_a2, val_a=excluded.val_a, val_lt6=excluded.val_lt6,
-                         discount_pct=excluded.discount_pct""",
-                      (r['code'], r['date'], r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'),
-                       r.get('a'), r.get('lt6'), r.get('dp'), datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                         discount_pct=excluded.discount_pct, updated_at=excluded.updated_at""",
+                      (r['code'], r['date'], r.get('price'), r.get('pp'),
+                       r.get('fl'), r.get('fm'), r.get('fh'),
+                       r.get('se'), r.get('sp'), r.get('sy'), r.get('fg'),
+                       r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'),
+                       r.get('a'), r.get('lt6'), r.get('dp'), now))
             updated += 1
             # 更新 stocks 表
             c.execute("UPDATE stocks SET deepest_val_level=?, val_cheap_days=? WHERE code=?",
