@@ -1779,12 +1779,20 @@ def snapshot_stock_states():
     except: pass
 
     # 取所有有收盤價的股票
-    c.execute("""SELECT code, close, volume,
-                        eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
-                        eps_4, eps_4q, eps_5, eps_5q,
-                        eps_y1, eps_ytd, fin_grade_1,
-                        div_c1, div_s1, deepest_val_level, val_cheap_days
-                 FROM stocks WHERE close IS NOT NULL""")
+    try:
+        c.execute("""SELECT code, close, volume,
+                            eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
+                            eps_4, eps_4q, eps_5, eps_5q,
+                            eps_y1, eps_ytd, fin_grade_1,
+                            div_c1, div_s1, deepest_val_level, val_cheap_days
+                     FROM stocks WHERE close IS NOT NULL""")
+    except:
+        c.execute("""SELECT code, close, volume,
+                            eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
+                            eps_4, eps_4q, eps_5, eps_5q,
+                            eps_y1, eps_ytd, fin_grade_1,
+                            div_c1, div_s1
+                     FROM stocks WHERE close IS NOT NULL""")
     rows = [dict(r) for r in c.fetchall()]
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -1892,10 +1900,16 @@ def get_daily_briefing():
     c = conn.cursor()
 
     # 取所有有快照的股票的最近兩筆
-    c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                        shen_eps, shen_pe, shen_yld, fin_grade,
-                        val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
-                 FROM stock_state ORDER BY stock_id, date DESC""")
+    try:
+        c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                            shen_eps, shen_pe, shen_yld, fin_grade,
+                            val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                     FROM stock_state ORDER BY stock_id, date DESC""")
+    except:
+        # 評價欄位尚未建立，用舊查詢
+        c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                            shen_eps, shen_pe, shen_yld, fin_grade
+                     FROM stock_state ORDER BY stock_id, date DESC""")
     all_rows = c.fetchall()
 
     # 按 stock_id 分組，取最近 6 筆（去抖動需要看 5 日歷史）
@@ -2058,7 +2072,10 @@ def get_daily_briefing():
         conn3 = sqlite3.connect(DB_PATH)
         conn3.row_factory = sqlite3.Row
         c3 = conn3.cursor()
-        c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
+        try:
+            c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
+        except:
+            c3.execute("SELECT code, volume FROM stocks")
         for r in c3.fetchall():
             stock_extra[r['code']] = dict(r)
         conn3.close()
