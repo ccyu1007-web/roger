@@ -170,6 +170,7 @@
   body.hide-g-divc .g-divc,
   body.hide-g-divs .g-divs,
   body.hide-g-po .g-po,
+  body.hide-g-trail .g-trail,
   body.hide-g-mkt .g-mkt,
   body.hide-g-rev .g-rev,
   body.hide-g-val .g-val,
@@ -458,13 +459,13 @@
           <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
           <!-- 權重（沈董+加權混合） -->
-          <th class="g-blend col-div" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
+          <th class="col-div" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_pe')">綜合PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_yld')">綜合殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_eps')">綜合EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
           <th class="g-blend" onclick="sortBy('blend_div')">綜合股利<span class="sort-icon" id="si_blend_div">↕</span></th>
           <!-- 加權估值 -->
-          <th class="g-wt col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
+          <th class="col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_pe')">加權PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_yld')">加權殖利率<span class="sort-icon" id="si_weighted_yld">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_eps')">加權EPS<span class="sort-icon" id="si_weighted_eps">↕</span></th>
@@ -477,8 +478,11 @@
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
           <th class="g-est" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
           <!-- 近四季 -->
-          <th class="col-div" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
-          <th onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
+          <th class="col-div" onclick="sortBy('trailing_grade')">近四季評等<span class="sort-icon" id="si_trailing_grade">↕</span></th>
+          <th class="g-trail" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
+          <th class="g-trail" onclick="sortBy('trailing_yld')">近四季殖利率<span class="sort-icon" id="si_trailing_yld">↕</span></th>
+          <th class="g-trail" onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
+          <th class="g-trail" onclick="sortBy('trailing_div')">近四季股利<span class="sort-icon" id="si_trailing_div">↕</span></th>
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
@@ -532,6 +536,7 @@ const COL_GROUPS = [
   { key: 'g-blend', label: '綜合明細', default: false },
   { key: 'g-wt',   label: '加權明細', default: false },
   { key: 'g-est',  label: '預估明細', default: false },
+  { key: 'g-trail', label: '近四季明細', default: false },
   { key: 'g-fg',   label: '財務等級', default: true },
   { key: 'g-ytd',  label: '當年累計', default: true },
   { key: 'g-qeps', label: '季度EPS', default: false },
@@ -1127,14 +1132,28 @@ function clearWatch() {
 function calcDerived(r) {
   const eps4 = [r.eps_1, r.eps_2, r.eps_3, r.eps_4].filter(v => v != null);
 
-  // 近四季 EPS 加總
+  // 近四季 EPS 加總 + 預估股利 + 殖利率 + 評等
   if (eps4.length === 4) {
     const sum = eps4.reduce((a, b) => a + b, 0);
     r.eps_4q_sum = Math.round(sum * 100) / 100;
     r.trailing_pe = (sum > 0 && r.close != null) ? Math.round(r.close / sum * 100) / 100 : null;
+    // 近四季預估股利 = 近四季EPS × 加權配息率
+    r.trailing_div = (sum > 0 && r.weighted_payout != null)
+      ? Math.round(sum * r.weighted_payout) / 100 : null;
+    // 近四季殖利率 = 近四季預估股利 / 股價
+    r.trailing_yld = (r.trailing_div != null && r.trailing_div > 0 && r.close != null && r.close > 0)
+      ? Math.round(r.trailing_div / r.close * 10000) / 100 : null;
+    // 近四季評等
+    if (sum <= 0) r.trailing_grade = 'X';
+    else if (r.trailing_pe != null && r.trailing_yld != null)
+      r.trailing_grade = _calcMatrixGrade(r.trailing_pe, r.trailing_yld, r.code);
+    else r.trailing_grade = null;
   } else {
     r.eps_4q_sum = null;
     r.trailing_pe = null;
+    r.trailing_div = null;
+    r.trailing_yld = null;
+    r.trailing_grade = null;
   }
 
   // 沈董 EPS：用當年度已公佈季度推算全年
@@ -1800,7 +1819,7 @@ function sortBy(col) {
   localStorage.setItem('sort_col', sortCol);
   localStorage.setItem('sort_asc', String(sortAsc));
   ['code','name','close','change','change_240d','trailing_pe',
-   'eps_4q_sum','trailing_pe','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
+   'eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
    'revenue_date','revenue_cum_yoy','revenue_yoy','revenue_mom',
    'eps_date','eps_1','eps_2','eps_3','eps_4','eps_5',
    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
@@ -1823,7 +1842,7 @@ function sortBy(col) {
 function applySort() {
   const numCols = ['close','change','open','high','low','volume',
                    'inst_foreign','inst_trust','inst_dealer',
-                   'change_240d','eps_4q_sum','trailing_pe','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','revenue_cum_yoy','revenue_yoy','revenue_mom',
+                   'change_240d','eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
                    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
                    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
@@ -2080,13 +2099,13 @@ function render() {
       <td class="g-shen"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_div != null ? r.shen_div.toFixed(2) : '－'}</td>
       <!-- 權重（混合） -->
-      <td class="g-blend col-div">${gradeHtml(r.blend_grade)}</td>
+      <td class="col-div">${gradeHtml(r.blend_grade)}</td>
       <td class="g-blend">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
       <td class="g-blend">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-blend">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
       <td class="g-blend">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
       <!-- 加權估值 -->
-      <td class="g-wt col-div">${gradeHtml(r.weighted_grade)}</td>
+      <td class="col-div">${gradeHtml(r.weighted_grade)}</td>
       <td class="g-wt" style="color:#475569">${r.weighted_pe != null ? r.weighted_pe.toFixed(2) : '－'}</td>
       <td class="g-wt" style="color:#475569">${r.weighted_yld != null ? r.weighted_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-wt" style="color:#475569">${r.weighted_eps != null ? r.weighted_eps.toFixed(2) : '－'}</td>
@@ -2099,8 +2118,11 @@ function render() {
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
       <!-- 近四季 -->
-      <td class="col-div">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
-      <td>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
+      <td class="col-div">${gradeHtml(r.trailing_grade)}</td>
+      <td class="g-trail">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
+      <td class="g-trail">${r.trailing_yld != null ? r.trailing_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-trail"${r.eps_4q_sum != null && r.eps_4q_sum < 0 ? ' style="color:#ef4444;font-weight:700"' : ''}>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
+      <td class="g-trail">${r.trailing_div != null ? r.trailing_div.toFixed(2) : '－'}</td>
       <!-- 財務等級 -->
       ${_fixedY.map((y, i) => {
         const g = r._fg[y];
