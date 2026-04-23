@@ -486,7 +486,7 @@
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
-          <th class="col-div" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
+          <th class="g-mkt col-div" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
           <th class="g-qeps col-div" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
           <th class="g-ytd col-div" onclick="sortBy('eps_ytd')">當年累計<span class="sort-icon" id="si_eps_ytd">↕</span></th>
           <!-- 動態欄位 -->
@@ -2158,7 +2158,7 @@ function render() {
         return `<td class="g-fg${divCls}">${gradeHtml(g)}</td>`;
       }).join('')}
       <!-- 補充 -->
-      <td class="${c240Class} col-div">${c240Str}</td>
+      <td class="g-mkt ${c240Class} col-div">${c240Str}</td>
       <td class="g-qeps col-div">${epsDateHtml}</td>
       <td class="g-ytd col-div">${r.eps_ytd != null ? r.eps_ytd.toFixed(2) : '－'}</td>
       <!-- 動態欄位 -->
