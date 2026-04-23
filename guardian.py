@@ -1607,6 +1607,65 @@ def auto_archive_old_news():
 # 預設估值參數（與前端 DEFAULT_GLOBAL_VAL 一致）
 DEFAULT_PE_HIGH = 18
 DEFAULT_PE_LOW = 10
+DEFAULT_YLD_HIGH = 5.5
+DEFAULT_YLD_MAX = 6.0
+
+
+def _calc_val_levels(close, shen_eps, shen_div, blend_div,
+                     pe_low=None, pe_high=None, yld_high=None, yld_max=None):
+    """
+    計算評價門檻（AA/A1/A2/A/長期6%）和當前等級。
+    回傳: {val_aa, val_a1, val_a2, val_a, val_lt6, val_level, discount_pct}
+    """
+    if pe_low is None: pe_low = DEFAULT_PE_LOW
+    if pe_high is None: pe_high = DEFAULT_PE_HIGH
+    if yld_high is None: yld_high = DEFAULT_YLD_HIGH
+    if yld_max is None: yld_max = DEFAULT_YLD_MAX
+
+    pe_mid = (pe_low + pe_high) / 2
+    pe_lo_bias = (pe_mid + pe_low) / 2  # 偏低PE
+
+    def _calc_val(pe_val, yld_val):
+        if shen_eps is None or shen_eps <= 0 or shen_div is None or shen_div <= 0:
+            return None
+        v1 = shen_eps * pe_val
+        v2 = shen_div / (yld_val / 100)
+        v3 = blend_div / 0.06 + shen_div if blend_div and blend_div > 0 else None
+        candidates = [v1, v2]
+        if v3 is not None: candidates.append(v3)
+        return round(min(candidates), 2)
+
+    val_aa = _calc_val(pe_low, yld_max)
+    val_a1 = _calc_val(pe_low, yld_high)
+    val_a2 = _calc_val(pe_lo_bias, yld_max)
+    val_a  = _calc_val(pe_lo_bias, yld_high)
+    val_lt6 = round(blend_div / 0.06, 2) if blend_div and blend_div > 0 else None
+
+    # 判定等級
+    val_level = None
+    discount_pct = None
+    if close and val_aa and close <= val_aa + 0.005:
+        val_level = 'AA'
+        discount_pct = round((val_aa - close) / val_aa * 100, 2) if val_aa > 0 else 0
+    elif close and val_a1 and close <= val_a1 + 0.005:
+        val_level = 'A1'
+        denom = val_a1 - val_aa if val_aa and val_a1 - val_aa > 0 else val_a1
+        discount_pct = round((val_a1 - close) / denom * 100, 2) if denom > 0 else 0
+    elif close and val_a2 and close <= val_a2 + 0.005:
+        val_level = 'A2'
+        denom = val_a2 - val_a1 if val_a1 and val_a2 - val_a1 > 0 else val_a2
+        discount_pct = round((val_a2 - close) / denom * 100, 2) if denom > 0 else 0
+    elif close and val_a and close <= val_a + 0.005:
+        val_level = 'A'
+        denom = val_a - val_a2 if val_a2 and val_a - val_a2 > 0 else val_a
+        discount_pct = round((val_a - close) / denom * 100, 2) if denom > 0 else 0
+    else:
+        val_level = 'above'
+
+    return {
+        'val_aa': val_aa, 'val_a1': val_a1, 'val_a2': val_a2, 'val_a': val_a,
+        'val_lt6': val_lt6, 'val_level': val_level, 'discount_pct': discount_pct,
+    }
 
 def _init_stock_state_table():
     try:
@@ -1707,12 +1766,24 @@ def snapshot_stock_states():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
+    # 確保 stock_state 有評價欄位
+    for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
+                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
+                     ('discount_pct','REAL')]:
+        try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
+        except: pass
+    # stocks 表加 deepest_val_level
+    try: c.execute("ALTER TABLE stocks ADD COLUMN deepest_val_level TEXT")
+    except: pass
+    try: c.execute("ALTER TABLE stocks ADD COLUMN val_cheap_days INTEGER DEFAULT 0")
+    except: pass
+
     # 取所有有收盤價的股票
     c.execute("""SELECT code, close, volume,
                         eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
                         eps_4, eps_4q, eps_5, eps_5q,
                         eps_y1, eps_ytd, fin_grade_1,
-                        div_c1, div_s1
+                        div_c1, div_s1, deepest_val_level, val_cheap_days
                  FROM stocks WHERE close IS NOT NULL""")
     rows = [dict(r) for r in c.fetchall()]
 
@@ -1743,21 +1814,63 @@ def snapshot_stock_states():
         # 沈董 PE
         shen_pe = round(close / shen_eps, 2) if shen_eps and shen_eps > 0 and close else None
 
+        # 計算評價等級
+        # 沈董股利（簡易版）
+        shen_div = None
+        blend_div = None
+        div_total = (row.get('div_c1') or 0) + (row.get('div_s1') or 0)
+        eps_y1_val = row.get('eps_y1')
+        if shen_eps and shen_eps > 0 and div_total > 0 and eps_y1_val and eps_y1_val > 0:
+            payout = min(1.0, div_total / eps_y1_val)
+            shen_div = round(shen_eps * payout, 4)
+            # blend_div 簡化 = shen_div（後端沒有加權EPS，用沈董近似）
+            blend_div = shen_div
+
+        vl = _calc_val_levels(close, shen_eps, shen_div, blend_div)
+
         c.execute("""INSERT INTO stock_state
                      (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                      shen_eps, shen_pe, shen_yld, fin_grade, updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                      shen_eps, shen_pe, shen_yld, fin_grade,
+                      val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                      updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                      ON CONFLICT(stock_id, date) DO UPDATE SET
                      price=excluded.price, price_pos=excluded.price_pos,
                      fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
                      fair_high=excluded.fair_high, shen_eps=excluded.shen_eps,
                      shen_pe=excluded.shen_pe, shen_yld=excluded.shen_yld,
-                     fin_grade=excluded.fin_grade, updated_at=excluded.updated_at""",
+                     fin_grade=excluded.fin_grade,
+                     val_level=excluded.val_level, val_aa=excluded.val_aa,
+                     val_a1=excluded.val_a1, val_a2=excluded.val_a2,
+                     val_a=excluded.val_a, val_lt6=excluded.val_lt6,
+                     discount_pct=excluded.discount_pct,
+                     updated_at=excluded.updated_at""",
                   (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
-                   shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'), now_str))
+                   shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
+                   vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
+                   vl['val_a'], vl['val_lt6'], vl['discount_pct'], now_str))
+
+        # 更新便宜天數和歷史最深等級
+        cur_level = vl['val_level']
+        old_cheap_days = row.get('val_cheap_days') or 0
+        old_deepest = row.get('deepest_val_level')
+
+        # 便宜天數：≤A 就累加，above 就歸零
+        if cur_level and cur_level != 'above':
+            new_cheap_days = old_cheap_days + 1
+        else:
+            new_cheap_days = 0
+
+        # 歷史最深等級
+        LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, 'above': 0, None: 0}
+        cur_depth = LEVEL_DEPTH.get(cur_level, 0)
+        old_depth = LEVEL_DEPTH.get(old_deepest, 0)
+        new_deepest = cur_level if cur_depth > old_depth else old_deepest
+
         # 同步寫回 stocks 表
-        c.execute("UPDATE stocks SET price_pos=?, fair_low=?, fair_high=? WHERE code=?",
-                  (price_pos, fair_low, fair_high, code))
+        c.execute("""UPDATE stocks SET price_pos=?, fair_low=?, fair_high=?,
+                     deepest_val_level=?, val_cheap_days=? WHERE code=?""",
+                  (price_pos, fair_low, fair_high, new_deepest, new_cheap_days, code))
         count += 1
 
     # 清理 180 天前的舊資料
@@ -1780,7 +1893,8 @@ def get_daily_briefing():
 
     # 取所有有快照的股票的最近兩筆
     c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                        shen_eps, shen_pe, shen_yld, fin_grade
+                        shen_eps, shen_pe, shen_yld, fin_grade,
+                        val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
                  FROM stock_state ORDER BY stock_id, date DESC""")
     all_rows = c.fetchall()
 
@@ -1935,12 +2049,118 @@ def get_daily_briefing():
     except:
         pass
 
+    # ── 評價監控 ──
+    LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, 'above': 0, None: 0}
+
+    # 取 stocks 表的便宜天數和歷史最深
+    stock_extra = {}
+    try:
+        conn3 = sqlite3.connect(DB_PATH)
+        conn3.row_factory = sqlite3.Row
+        c3 = conn3.cursor()
+        c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
+        for r in c3.fetchall():
+            stock_extra[r['code']] = dict(r)
+        conn3.close()
+    except:
+        pass
+
+    val_level_changes = []  # 閃電機會
+    val_cheap_list = []     # 便宜清單
+    val_dist = {'AA': 0, 'A1': 0, 'A2': 0, 'A': 0}  # 累積分布
+    val_dist_prev = {'AA': 0, 'A1': 0, 'A2': 0, 'A': 0}
+
+    for sid, snapshots in grouped.items():
+        name = names.get(sid, sid)
+        latest = snapshots[0]
+        cur_level = latest.get('val_level')
+        extra = stock_extra.get(sid, {})
+
+        if cur_level and cur_level in val_dist:
+            # 累積制：AA 包含在 A1 裡
+            for lv in val_dist:
+                if LEVEL_DEPTH.get(lv, 0) <= LEVEL_DEPTH.get(cur_level, 0):
+                    val_dist[lv] += 1
+
+        # 前一日分布
+        if len(snapshots) >= 2:
+            prev_level = snapshots[1].get('val_level')
+            if prev_level and prev_level in val_dist_prev:
+                for lv in val_dist_prev:
+                    if LEVEL_DEPTH.get(lv, 0) <= LEVEL_DEPTH.get(prev_level, 0):
+                        val_dist_prev[lv] += 1
+
+            # 跨級變動
+            if cur_level != prev_level and cur_level and prev_level:
+                cur_d = LEVEL_DEPTH.get(cur_level, 0)
+                prev_d = LEVEL_DEPTH.get(prev_level, 0)
+
+                # 門檻是否變動
+                threshold_changed = False
+                for f in ['val_aa', 'val_a1', 'val_a2', 'val_a']:
+                    if latest.get(f) and snapshots[1].get(f) and abs(latest[f] - snapshots[1][f]) > 0.01:
+                        threshold_changed = True
+                        break
+
+                if cur_d != prev_d:
+                    val_level_changes.append({
+                        'code': sid, 'name': name,
+                        'from': prev_level, 'to': cur_level,
+                        'direction': 'cheaper' if cur_d > prev_d else 'expensive',
+                        'price': latest.get('price'),
+                        'discount_pct': latest.get('discount_pct'),
+                        'threshold_changed': threshold_changed,
+                        'val_aa': latest.get('val_aa'),
+                        'val_a1': latest.get('val_a1'),
+                    })
+
+        # 便宜清單
+        if cur_level and cur_level != 'above':
+            cheap_days = extra.get('val_cheap_days', 0)
+            deepest = extra.get('deepest_val_level')
+            volume = extra.get('volume', 0)
+            is_new = False
+            if len(snapshots) >= 2:
+                prev_lv = snapshots[1].get('val_level')
+                is_new = (prev_lv == 'above' or prev_lv is None)
+
+            # 是否從深處回升
+            recovering = (deepest and LEVEL_DEPTH.get(deepest, 0) > LEVEL_DEPTH.get(cur_level, 0))
+
+            val_cheap_list.append({
+                'code': sid, 'name': name,
+                'level': cur_level,
+                'price': latest.get('price'),
+                'discount_pct': latest.get('discount_pct'),
+                'cheap_days': cheap_days,
+                'is_new': is_new,
+                'deepest': deepest,
+                'recovering': recovering,
+                'volume': volume,
+                'shen_yld': latest.get('shen_yld'),
+                'val_aa': latest.get('val_aa'),
+                'val_a': latest.get('val_a'),
+            })
+
+    # 排序
+    val_level_changes.sort(key=lambda x: (0 if x['direction'] == 'cheaper' else 1, x['code']))
+    val_cheap_list.sort(key=lambda x: (-LEVEL_DEPTH.get(x['level'], 0), -(x.get('discount_pct') or 0)))
+
+    # 分布增減
+    val_dist_delta = {}
+    for lv in val_dist:
+        val_dist_delta[lv] = val_dist[lv] - val_dist_prev.get(lv, 0)
+
     return {
         'alerts': alerts,
         'opportunities': opportunities,
         'near_cheap': near_cheap,
         'etf_changes': etf_changes,
         'summary': summary,
+        'val_level_changes': val_level_changes,
+        'val_dist': val_dist,
+        'val_dist_delta': val_dist_delta,
+        'val_cheap_list': val_cheap_list,
         'data_date': grouped[list(grouped.keys())[0]][0]['date'] if grouped else None,
     }
 

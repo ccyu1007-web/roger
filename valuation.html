@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日評價報告</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f8fafc; color: #1a202c; padding: 20px; }
+  h1 { font-size: 1.4rem; color: #1e3a5f; margin-bottom: 8px; }
+  h2 { font-size: 1.05rem; color: #334155; margin: 20px 0 10px; }
+  .back { margin-bottom: 12px; font-size: .9rem; }
+  .back a { color: #2563eb; text-decoration: none; }
+  .date-label { font-size: .85rem; color: #94a3b8; margin-bottom: 16px; }
+  .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
+  .section-header { padding: 12px 18px; font-weight: 700; font-size: .95rem; border-bottom: 2px solid; }
+  .section-body { padding: 12px 18px; }
+  .flash-green { background: #f0fdf4; color: #166534; border-color: #22c55e; }
+  .flash-red { background: #fef2f2; color: #991b1b; border-color: #ef4444; }
+
+  /* 分布卡片 */
+  .dist-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .dist-card { flex: 1; min-width: 140px; padding: 14px; border-radius: 8px; text-align: center; }
+  .dist-card .level { font-size: .82rem; font-weight: 600; }
+  .dist-card .count { font-size: 1.6rem; font-weight: 800; }
+  .dist-card .delta { font-size: .82rem; }
+  .dist-aa { background: #fee2e2; color: #dc2626; }
+  .dist-a1 { background: #fef3c7; color: #92400e; }
+  .dist-a2 { background: #dbeafe; color: #1d4ed8; }
+  .dist-a { background: #f0fdf4; color: #166534; }
+
+  /* 股票行 */
+  .stock-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; }
+  .stock-row:last-child { border-bottom: none; }
+  .stock-code { font-weight: 700; color: #2563eb; text-decoration: none; font-size: .88rem; min-width: 50px; }
+  .stock-name { font-size: .85rem; color: #475569; min-width: 60px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: .72rem; font-weight: 700; }
+  .tag-aa { background: #fee2e2; color: #dc2626; }
+  .tag-a1 { background: #fef3c7; color: #92400e; }
+  .tag-a2 { background: #dbeafe; color: #1d4ed8; }
+  .tag-a { background: #dcfce7; color: #166534; }
+  .tag-new { background: #f0abfc; color: #7e22ce; }
+  .tag-recover { background: #e0f2fe; color: #0369a1; }
+  .tag-long { background: #f1f5f9; color: #64748b; }
+  .tag-low-vol { background: #f3f4f6; color: #9ca3af; }
+  .metric { font-size: .82rem; color: #64748b; }
+  .metric strong { color: #1a202c; }
+  .arrow-up { color: #22c55e; }
+  .arrow-down { color: #ef4444; }
+  .dim { opacity: 0.45; }
+  .toggle-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .toggle-btn { padding: 4px 12px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; cursor: pointer; font-size: .8rem; }
+  .toggle-btn.active { border-color: #2563eb; background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="back"><a href="/">< 回總表</a> | <a href="/daily.html">每日新聞報告</a></div>
+<h1>每日評價報告</h1>
+<div class="date-label" id="dateLabel"></div>
+
+<div id="content"><div style="text-align:center;padding:40px;color:#94a3b8">載入中...</div></div>
+
+<script>
+async function load() {
+  try {
+    const res = await fetch('/api/daily-briefing');
+    const d = await res.json();
+    render(d);
+  } catch(e) {
+    document.getElementById('content').innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">無法載入</div>';
+  }
+}
+
+let hideLoVol = false;
+
+function render(d) {
+  if (d.data_date) document.getElementById('dateLabel').textContent = `資料日期：${d.data_date}`;
+
+  const changes = d.val_level_changes || [];
+  const dist = d.val_dist || {};
+  const delta = d.val_dist_delta || {};
+  const cheapList = d.val_cheap_list || [];
+
+  let html = '';
+
+  // ── 一、閃電機會區 ──
+  const cheaper = changes.filter(c => c.direction === 'cheaper');
+  const expensive = changes.filter(c => c.direction === 'expensive');
+
+  if (cheaper.length || expensive.length) {
+    html += `<div class="section">
+      <div class="section-header flash-green">閃電機會區 — 今日跨級變動</div>
+      <div class="section-body">`;
+
+    if (cheaper.length) {
+      html += `<h2 style="color:#166534">變便宜（${cheaper.length} 支）</h2>`;
+      cheaper.forEach(c => {
+        const warn = c.threshold_changed ? ' <span style="color:#f59e0b;font-size:.72rem">門檻調整</span>' : '';
+        html += `<div class="stock-row">
+          <a class="stock-code" href="/company.html?code=${c.code}" target="_blank">${c.code}</a>
+          <span class="stock-name">${c.name}</span>
+          <span class="tag tag-${c.to.toLowerCase()}">${c.from} → ${c.to}</span>
+          <span class="metric">收盤 <strong>${c.price}</strong></span>
+          <span class="metric">折價 <strong>${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</strong></span>
+          ${warn}
+        </div>`;
+      });
+    }
+
+    if (expensive.length) {
+      html += `<details style="margin-top:12px"><summary style="cursor:pointer;color:#94a3b8;font-size:.85rem">變貴中（${expensive.length} 支）— 點擊展開</summary>`;
+      expensive.forEach(c => {
+        html += `<div class="stock-row dim">
+          <a class="stock-code" href="/company.html?code=${c.code}" target="_blank">${c.code}</a>
+          <span class="stock-name">${c.name}</span>
+          <span class="tag" style="background:#f1f5f9;color:#94a3b8">${c.from} → ${c.to}</span>
+          <span class="metric">收盤 ${c.price}</span>
+        </div>`;
+      });
+      html += '</details>';
+    }
+    html += '</div></div>';
+  }
+
+  // ── 二、市場體感區 ──
+  const fmtDelta = v => v > 0 ? `<span class="arrow-up">↑${v}</span>` : v < 0 ? `<span class="arrow-down">↓${Math.abs(v)}</span>` : '-';
+  html += `<div class="section">
+    <div class="section-header" style="background:#f8fafc;color:#334155;border-color:#cbd5e1">市場體感 — 評價分布統計（累積制）</div>
+    <div class="section-body">
+      <div class="dist-cards">
+        <div class="dist-card dist-aa"><div class="level">≤ AA（超便宜）</div><div class="count">${dist.AA || 0}</div><div class="delta">${fmtDelta(delta.AA || 0)}</div></div>
+        <div class="dist-card dist-a1"><div class="level">≤ A1（便宜）</div><div class="count">${dist.A1 || 0}</div><div class="delta">${fmtDelta(delta.A1 || 0)}</div></div>
+        <div class="dist-card dist-a2"><div class="level">≤ A2（合理偏低）</div><div class="count">${dist.A2 || 0}</div><div class="delta">${fmtDelta(delta.A2 || 0)}</div></div>
+        <div class="dist-card dist-a"><div class="level">≤ A（偏低）</div><div class="count">${dist.A || 0}</div><div class="delta">${fmtDelta(delta.A || 0)}</div></div>
+      </div>
+    </div>
+  </div>`;
+
+  // ── 三、深度挖寶區 ──
+  html += `<div class="section">
+    <div class="section-header" style="background:#fffbeb;color:#92400e;border-color:#f59e0b">深度挖寶 — 完整便宜清單</div>
+    <div class="section-body">
+      <div class="toggle-bar">
+        <button class="toggle-btn ${hideLoVol ? 'active' : ''}" onclick="hideLoVol=!hideLoVol;render(window._lastData)">
+          ${hideLoVol ? '顯示全部' : '隱藏低流動性'}
+        </button>
+        <span class="metric">共 ${cheapList.length} 支在便宜區</span>
+      </div>`;
+
+  const LEVEL_ORDER = ['AA', 'A1', 'A2', 'A'];
+  const LEVEL_LABELS = { AA: '超便宜', A1: '便宜', A2: '合理偏低', A: '偏低' };
+
+  LEVEL_ORDER.forEach(lv => {
+    let items = cheapList.filter(c => c.level === lv);
+    if (hideLoVol) items = items.filter(c => (c.volume || 0) >= 500);
+    if (!items.length) return;
+
+    html += `<h2><span class="tag tag-${lv.toLowerCase()}">${lv}</span> ${LEVEL_LABELS[lv]}（${items.length} 支）</h2>`;
+    items.forEach(c => {
+      const isLowVol = (c.volume || 0) < 500;
+      const rowCls = isLowVol ? ' dim' : '';
+      const badges = [];
+      if (c.is_new) badges.push('<span class="tag tag-new">新進榜</span>');
+      if (c.cheap_days >= 10) badges.push(`<span class="tag tag-long">已${c.cheap_days}天</span>`);
+      if (c.recovering) badges.push('<span class="tag tag-recover">低檔轉強</span>');
+      if (c.shen_yld && c.shen_yld >= 5) badges.push(`<span class="tag" style="background:#dcfce7;color:#166534">殖${c.shen_yld.toFixed(1)}%</span>`);
+      if (isLowVol) badges.push('<span class="tag tag-low-vol">低流動</span>');
+
+      html += `<div class="stock-row${rowCls}">
+        <a class="stock-code" href="/company.html?code=${c.code}" target="_blank">${c.code}</a>
+        <span class="stock-name">${c.name}</span>
+        ${badges.join(' ')}
+        <span class="metric">收盤 <strong>${c.price}</strong></span>
+        <span class="metric">折價 <strong>${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</strong></span>
+        <span class="metric">便宜 <strong>${c.cheap_days || 0}</strong> 天</span>
+        ${c.deepest ? `<span class="metric">歷史最深 <strong>${c.deepest}</strong></span>` : ''}
+      </div>`;
+    });
+  });
+
+  html += '</div></div>';
+  document.getElementById('content').innerHTML = html;
+  window._lastData = d;
+}
+
+load();
+</script>
+</body>
+</html>
