@@ -65,15 +65,22 @@ import sqlite3; conn = sqlite3.connect('$DB_FILE'); conn.execute('VACUUM'); conn
 " 2>/dev/null && echo "[$NOW] VACUUM 完成" >> "$LOG_FILE"
 fi
 
-# ── 5. 每日正常備份（保留 7 天）──
+# ── 5. 每日正常備份（本機保留 7 天）──
 cp "$DB_FILE" "$BACKUP_DIR/stocks_$(date +%Y%m%d).db"
 find "$BACKUP_DIR" -name "stocks_2*.db" -mtime +7 -delete 2>/dev/null
 
-# ── 5. iCloud 同步檢查 ──
+# ── 6. iCloud 雲端備份（每日同步最新 DB）──
+ICLOUD_BACKUP="$HOME/Library/Mobile Documents/com~apple~CloudDocs/stock_backup"
 ICLOUD_ALERT="logs/ICLOUD_ALERT"
-if ls "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Documents/" &>/dev/null; then
+if [ -d "$HOME/Library/Mobile Documents/com~apple~CloudDocs/" ]; then
+    mkdir -p "$ICLOUD_BACKUP"
+    cp "$DB_FILE" "$ICLOUD_BACKUP/stocks_latest.db"
+    cp "$DB_FILE" "$ICLOUD_BACKUP/stocks_$(date +%Y%m%d).db"
+    # iCloud 備份只保留 30 天
+    find "$ICLOUD_BACKUP" -name "stocks_2*.db" -mtime +30 -delete 2>/dev/null
     rm -f "$ICLOUD_ALERT"
     ICLOUD_STATUS="ok"
+    echo "[$NOW] iCloud 備份完成：$ICLOUD_BACKUP/stocks_latest.db" >> "$LOG_FILE"
 else
     touch "$ICLOUD_ALERT"
     ICLOUD_STATUS="未同步"
