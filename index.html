@@ -397,7 +397,7 @@
       <div class="wb-item"><label>沈董</label><input id="blendShen" type="text" style="width:36px" oninput="onBlendChange()">%</div>
       <div class="wb-item"><label>加權</label><input id="blendWt" type="text" style="width:36px" oninput="onBlendChange()">%</div>
       <span class="wb-total" id="blendTotal">合計 0%</span>
-      <span style="font-size:.76rem;color:#94a3b8">權重EPS = 沈董EPS × A% + 加權EPS × B%</span>
+      <span style="font-size:.76rem;color:#94a3b8">綜合EPS = 沈董EPS × A% + 加權EPS × B%</span>
     </div>
 
     <div class="weight-bar" style="margin-top:4px">
@@ -458,11 +458,11 @@
           <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
           <!-- 權重（沈董+加權混合） -->
-          <th class="g-blend col-div" onclick="sortBy('blend_grade')">權重等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_pe')">權重PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_yld')">權重殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_eps')">權重EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_div')">權重股利<span class="sort-icon" id="si_blend_div">↕</span></th>
+          <th class="g-blend col-div" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_pe')">綜合PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_yld')">綜合殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_eps')">綜合EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
+          <th class="g-blend" onclick="sortBy('blend_div')">綜合股利<span class="sort-icon" id="si_blend_div">↕</span></th>
           <!-- 加權估值 -->
           <th class="g-wt col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
           <th class="g-wt" onclick="sortBy('weighted_pe')">加權PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
@@ -529,7 +529,7 @@ const COL_GROUPS = [
   { key: 'g-rev', label: '營收', default: true },
   { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-shen', label: '沈董明細', default: false },
-  { key: 'g-blend', label: '權重明細', default: false },
+  { key: 'g-blend', label: '綜合明細', default: false },
   { key: 'g-wt',   label: '加權明細', default: false },
   { key: 'g-est',  label: '預估明細', default: false },
   { key: 'g-fg',   label: '財務等級', default: true },
