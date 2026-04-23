@@ -353,8 +353,12 @@ def get_quarterly(code):
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
         # 營業費用占營收比率
         d['opex_ratio'] = round(opex / rev * 100, 2) if rev and opex is not None else None
-        # 稅率
-        d['tax_rate'] = round(tax / pti * 100, 2) if pti and pti != 0 and tax is not None else None
+        # 稅率（邊界保護：虧損或稅前淨利接近0時不算）
+        if pti and pti > 0 and tax is not None:
+            raw_rate = tax / pti * 100
+            d['tax_rate'] = round(min(max(raw_rate, 0), 100), 2)  # 限制 0~100%
+        else:
+            d['tax_rate'] = None
         # 歸屬母公司權重
         d['parent_weight'] = round(nip / ci * 100, 2) if ci and ci != 0 and nip is not None else None
         # 加權平均股數（從 EPS 反算，單位：千股）
@@ -959,10 +963,8 @@ if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'tr
         scheduler.add_job(scraper_run, 'cron', day_of_week='mon-fri',
                           hour=14, minute=30,
                           id='afternoon_scrape', replace_existing=True)
-        # 週一到週五 17:10 更新三大法人買賣超（五點後公佈）
-        scheduler.add_job(fetch_institutional, 'cron', day_of_week='mon-fri',
-                          hour=17, minute=10,
-                          id='institutional_update', replace_existing=True)
+        # 三大法人：Render 上群益會被擋，不排程
+        # 法人資料由本機 17:10 抓完後 push 到 Render（/api/refresh/institutional POST with data）
         scheduler.start()
         print("[排程] APScheduler 已啟動")
     except Exception as e:

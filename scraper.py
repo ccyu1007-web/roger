@@ -1317,11 +1317,13 @@ def run(scheduled=True):
     except Exception as e:
         print(f"[ETF] 更新失敗: {e}")
 
-    # 三大法人買賣超（五點後才公佈，14:30 排程不跑，由獨立排程處理）
+    # 三大法人買賣超（五點後才公佈，14:30 排程不跑，06:00 排程會跑前一天的）
     now_h = datetime.now().hour
-    if now_h >= 17:
+    if now_h >= 17 or now_h < 9:
         try:
             fetch_institutional()
+            # 自動 push 到 Render
+            _push_institutional_to_render()
         except Exception as e:
             print(f"[法人] 更新失敗: {e}")
 
@@ -2876,6 +2878,23 @@ def fetch_institutional():
     conn.close()
     print(f"[法人] 完成：更新 {updated}/{len(codes)} 支，耗時 {time.time()-t0:.1f}s")
     return updated
+
+
+def _push_institutional_to_render():
+    """本機法人資料 push 到 Render PostgreSQL"""
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("SELECT code, inst_foreign, inst_trust, inst_dealer FROM stocks WHERE inst_foreign IS NOT NULL").fetchall()
+        conn.close()
+        data = [{'code': r[0], 'f': r[1], 't': r[2], 'd': r[3]} for r in rows]
+        for i in range(0, len(data), 500):
+            batch = data[i:i+500]
+            requests.post(f'{RENDER_URL}/api/refresh/institutional',
+                         json={'data': batch}, timeout=30)
+        print(f"[法人同步] 已 push {len(data)} 支到 Render")
+    except Exception as e:
+        print(f"[法人同步] 失敗: {e}")
 
 
 def refresh_prices():
