@@ -3688,6 +3688,68 @@ def estimate_annual_eps(code):
     # 去年 EPS
     last_year_eps = ann_rows[0].get('eps') if ann_rows else None
 
+    # === 配息率估算（近 5 年加權，排除 EPS ≤ 0） ===
+    payout_data = []
+    for r in ann_rows:
+        r_eps = r.get('eps')
+        r_div = r.get('cash_dividend') or 0
+        if r_eps and r_eps > 0:
+            pr = min(r_div / r_eps, 1.0)  # 上限 100%
+            payout_data.append(pr)
+
+    if payout_data:
+        weights = [0.35, 0.25, 0.20, 0.12, 0.08][:len(payout_data)]
+        wsum = sum(weights)
+        est_payout = sum(payout_data[i] * weights[i] for i in range(len(weights))) / wsum
+    else:
+        est_payout = None
+
+    # 系統預估股利 & 本益比 & 殖利率
+    est_div = round(est_eps * est_payout, 2) if est_payout is not None and est_eps > 0 else None
+
+    # 取目前股價
+    try:
+        conn2 = sqlite3.connect(DB_PATH)
+        conn2.row_factory = sqlite3.Row
+        price_row = conn2.execute("SELECT close FROM stocks WHERE code = ?", (code,)).fetchone()
+        conn2.close()
+        cur_price = price_row['close'] if price_row and price_row['close'] else None
+    except:
+        cur_price = None
+
+    est_pe = round(cur_price / est_eps, 2) if cur_price and est_eps and est_eps > 0 else None
+    est_yld = round(est_div / cur_price * 100, 2) if cur_price and est_div and cur_price > 0 else None
+
+    # === 系統價值評估矩陣 ===
+    # PE 倍數：最低10, 偏低12, 合理14, 偏高16, 最高18
+    # 殖利率：偏高5.5%, 最高6%
+    # 長期殖利率：6%
+    val = {}
+    if est_eps and est_eps > 0 and est_div is not None:
+        pe_low, pe_below, pe_fair = 10, 12, 14
+        yld_high, yld_max = 5.5, 6.0
+
+        # 加權股利（用近 5 年加權平均股利）
+        wt_div_data = []
+        for r in ann_rows:
+            d = (r.get('cash_dividend') or 0) + (r.get('stock_dividend') or 0)
+            if d > 0:
+                wt_div_data.append(d)
+        if wt_div_data:
+            ww = [0.35, 0.25, 0.20, 0.12, 0.08][:len(wt_div_data)]
+            wt_div = sum(wt_div_data[i] * ww[i] for i in range(len(ww))) / sum(ww)
+        else:
+            wt_div = est_div if est_div else 0
+
+        lt_yld = 6.0
+        lt6_val = round(wt_div / lt_yld * 100 + est_div, 2) if wt_div > 0 else None
+
+        val['aa'] = round(min(est_eps * pe_low, est_div / yld_max * 100, lt6_val or 9999), 2)
+        val['a1'] = round(min(est_eps * pe_low, est_div / yld_high * 100, lt6_val or 9999), 2)
+        val['a2'] = round(min(est_eps * pe_below, est_div / yld_max * 100, lt6_val or 9999), 2)
+        val['a']  = round(min(est_eps * pe_below, est_div / yld_high * 100, lt6_val or 9999), 2)
+        val['lt6'] = lt6_val
+
     return {
         "target": f"{roc_year}年度",
         "est_eps": est_eps,
@@ -3714,6 +3776,12 @@ def estimate_annual_eps(code):
             "last_year_eps": last_year_eps,
             "anomaly": anomaly,
             "issues": issues,
+            "est_payout": round(est_payout * 100, 2) if est_payout is not None else None,
+            "est_div": est_div,
+            "est_pe": est_pe,
+            "est_yld": est_yld,
+            "cur_price": cur_price,
+            "val": val,
         }
     }
 

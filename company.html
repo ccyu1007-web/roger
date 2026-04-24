@@ -883,6 +883,8 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       eps: annData.est_eps, epsStr: fN(annData.est_eps),
       lastEps: ad.last_year_eps, issues: ad.issues || [],
       nMonths: ad.n_months,
+      payout: ad.est_payout, div: ad.est_div, pe: ad.est_pe, yld: ad.est_yld,
+      curPrice: ad.cur_price, val: ad.val || {},
     };
   }
 
@@ -993,6 +995,42 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         if (ann.lastEps != null) extra = `<div style="font-size:.72rem;color:#64748b">去年 ${ann.lastEps.toFixed(2)}</div>`;
         extra += `<div style="font-size:.68rem;color:#94a3b8">${ann.nMonths}月資料</div>`;
         return `<div class="sys ann-col" style="flex-direction:column;align-items:flex-start"><div style="font-size:1.05rem;font-weight:800;color:${color}">${ann.epsStr}</div>${extra}</div>`;
+      })() : ''}
+
+      ${ann && ann.payout != null ? (() => {
+        const empties = sysData.map(() => '<div class="sys"></div>').join('');
+        const valColors = {aa:'#dc2626',a1:'#d97706',a2:'#d97706',a:'#2563eb',lt6:'#059669'};
+        const valNames = {aa:'系統AA',a1:'系統A1',a2:'系統A2',a:'系統A',lt6:'系統長期6%'};
+        const v = ann.val;
+        const cp = ann.curPrice;
+
+        let valRows = '';
+        for (const [k, label] of Object.entries(valNames)) {
+          if (v[k] != null) {
+            const below = cp != null && cp <= v[k] + 0.005;
+            const bgStyle = below ? `background:${valColors[k]}18;border-radius:4px;padding:2px 6px` : '';
+            valRows += `<div class="lbl result-label" style="color:${valColors[k]}">${label}</div>`;
+            valRows += `<div class="val"></div>${empties}`;
+            valRows += `<div class="sys ann-col" style="font-weight:700;color:${valColors[k]};${bgStyle}">${v[k].toFixed(2)}${below ? ' ✦' : ''}</div>`;
+          }
+        }
+
+        return `
+      <div class="sep"></div>
+      <div class="lbl result-label">預估配息率</div>
+      <div class="val"></div>${empties}
+      <div class="sys ann-col">${ann.payout != null ? ann.payout + '%' : '-'}</div>
+      <div class="lbl result-label">系統預估股利</div>
+      <div class="val"></div>${empties}
+      <div class="sys ann-col" style="font-weight:700">${ann.div != null ? ann.div.toFixed(2) : '-'}</div>
+      <div class="lbl result-label">系統本益比</div>
+      <div class="val"></div>${empties}
+      <div class="sys ann-col">${ann.pe != null ? ann.pe.toFixed(2) : '-'}</div>
+      <div class="lbl result-label">系統殖利率</div>
+      <div class="val"></div>${empties}
+      <div class="sys ann-col" style="font-weight:600;color:#059669">${ann.yld != null ? ann.yld + '%' : '-'}</div>
+      <div class="sep"></div>
+      ${valRows}`;
       })() : ''}
     </div>
     ${(() => {
