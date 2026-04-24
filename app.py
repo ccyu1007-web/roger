@@ -20,7 +20,7 @@ from scraper import (run as scraper_run, refresh_prices, init_db, init_financial
                      fetch_company_monthly_revenue, fetch_company_quarterly,
                      fetch_pe_history, _calc_fin_grade, fetch_institutional,
                      quick_update, estimate_system_eps, estimate_system_eps_multi,
-                     estimate_annual_eps, _log_estimate)
+                     estimate_annual_eps, _log_estimate, _fix_tax_data)
 from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
 
@@ -247,6 +247,37 @@ def sync_snapshot():
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
+
+# ── 本機同步估算到 Render ────────────────────────────────────
+@app.route("/api/sync/estimates", methods=["POST"])
+def sync_estimates():
+    """接收本機 push 過來的系統估算結果"""
+    data = request.json
+    if not data or 'data' not in data:
+        return jsonify({"error": "missing data"}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    for col, typ in [('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
+                     ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
+        try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+        except: pass
+
+    updated = 0
+    for row in data['data']:
+        try:
+            c.execute("""UPDATE stocks SET sys_ann_eps=?, sys_ann_div=?, sys_ann_pe=?,
+                         sys_ann_yld=?, sys_ann_confidence=? WHERE code=?""",
+                      (row.get('sys_ann_eps'), row.get('sys_ann_div'), row.get('sys_ann_pe'),
+                       row.get('sys_ann_yld'), row.get('sys_ann_confidence'), row['code']))
+            updated += c.rowcount
+        except:
+            pass
+
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
 
 # ── 本機同步新聞到 Render ────────────────────────────────────
 @app.route("/api/sync/news", methods=["POST"])
@@ -1251,6 +1282,13 @@ def _cleanup_expired_estimates():
             pass
 
 _cleanup_expired_estimates()
+
+# 啟動時修正稅務資料（本機+Render 通用）
+try:
+    from scraper import _fix_tax_data
+    _fix_tax_data()
+except:
+    pass
 
 @app.route("/api/user-lists")
 def get_user_lists():

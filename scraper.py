@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import random
 import re
+import os
 from bs4 import BeautifulSoup
 from guardian import (backup_raw_response, cleanup_old_backups,
                       validate_batch, get_breaker, get_priority_queue,
@@ -1417,8 +1418,12 @@ def _post_process_after_save():
     _refresh_fin_grades()
     _refresh_grades_from_pbr()
 
-    # ── 系統 EPS 估算（批次更新所有股票）──
+    # ── 稅務資料修正 ──
+    _fix_tax_data()
+
+    # ── 系統 EPS 估算（季+年，批次更新所有股票）──
     _batch_system_estimate()
+    _batch_annual_estimate()
     print("  後處理完成")
 
 
@@ -2504,6 +2509,11 @@ def quick_update():
     if not os.environ.get('DATABASE_URL'):
         try: _push_news_to_render()
         except: pass
+    # ── 5. 稅務修正 + 系統 EPS 估算（季+年）──
+    _fix_tax_data()
+    _batch_system_estimate()
+    _batch_annual_estimate()
+
     print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
 
 
@@ -3112,11 +3122,14 @@ def _batch_system_estimate():
         except: pass
     try: conn.commit()
     except: pass
-    codes = [r['code'] for r in conn.execute("SELECT code FROM stocks ORDER BY code").fetchall()]
+    rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
     conn.close()
 
     success = 0
-    for code in codes:
+    for r in rows:
+        code = r['code']
+        if (r['industry'] or '') in _EXCLUDED_INDUSTRIES:
+            continue
         try:
             result = estimate_system_eps(code)
             if result.get('est_eps') is not None and 'error' not in result:
@@ -3130,7 +3143,183 @@ def _batch_system_estimate():
                 success += 1
         except:
             pass
-    print(f"  系統 EPS 估算：{success}/{len(codes)} 支完成")
+    print(f"  系統 EPS 估算：{success}/{len(rows)} 支完成")
+
+
+# 不適用系統估算的產業（損益結構與一般製造/服務業不同）
+_EXCLUDED_INDUSTRIES = {'金融保險業', '金融業', '保險業', '銀行業', '證券業', '票券業', '期貨業'}
+
+
+def _batch_annual_estimate():
+    """批次更新所有股票的年度 EPS 估算"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    for col, typ in [('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
+                     ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
+        try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+        except: pass
+    try: conn.commit()
+    except: pass
+    rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
+    conn.close()
+
+    success = skip = 0
+    for r in rows:
+        code = r['code']
+        ind = r['industry'] or ''
+        # 不適用產業標記 N/A
+        if ind in _EXCLUDED_INDUSTRIES:
+            try:
+                c2 = sqlite3.connect(DB_PATH)
+                c2.execute("UPDATE stocks SET sys_ann_confidence='N/A' WHERE code=?", (code,))
+                c2.commit(); c2.close()
+            except: pass
+            skip += 1
+            continue
+        try:
+            ar = estimate_annual_eps(code)
+            if ar.get('est_eps') is not None and 'error' not in ar:
+                d = ar['details']
+                _log_estimate(code, ar, 'annual')
+                c2 = sqlite3.connect(DB_PATH)
+                c2.execute("""UPDATE stocks SET sys_ann_eps=?, sys_ann_div=?, sys_ann_pe=?,
+                              sys_ann_yld=?, sys_ann_confidence=? WHERE code=?""",
+                           (ar['est_eps'], d.get('est_div'), d.get('est_pe'),
+                            d.get('est_yld'), ar['confidence'], code))
+                c2.commit(); c2.close()
+                success += 1
+        except:
+            pass
+    print(f"  年度 EPS 估算：{success} 支完成，{skip} 支產業排除")
+
+    # 估算結果 push 到 Render
+    if not os.environ.get('DATABASE_URL'):
+        _push_estimates_to_render()
+
+    # 自動回填實際 EPS（回測用）
+    _backfill_actual_eps()
+
+
+def _push_estimates_to_render():
+    """將本機估算結果 push 到 Render"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""SELECT code, sys_ann_eps, sys_ann_div, sys_ann_pe,
+                               sys_ann_yld, sys_ann_confidence
+                               FROM stocks WHERE sys_ann_eps IS NOT NULL""").fetchall()
+        conn.close()
+        data = [dict(r) for r in rows]
+        if not data:
+            return
+        import requests
+        resp = requests.post(
+            "https://tock-system.onrender.com/api/sync/estimates",
+            json={"data": data}, timeout=30
+        )
+        if resp.status_code == 200:
+            print(f"  估算 push 到 Render：{len(data)} 支")
+        else:
+            print(f"  估算 push 失敗：{resp.status_code}")
+    except Exception as e:
+        print(f"  估算 push 失敗：{e}")
+
+
+def _backfill_actual_eps():
+    """自動回填實際 EPS 到 system_eps_actual（回測用）"""
+    try:
+        _init_eps_log_db()
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        roc_year = datetime.now().year - 1911
+
+        # 回填已公布的季度 EPS
+        quarters = conn.execute("""
+            SELECT DISTINCT code, quarter, eps, revenue, updated_at
+            FROM quarterly_financial
+            WHERE eps IS NOT NULL
+            AND CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) >= ?
+        """, (roc_year - 1,)).fetchall()
+
+        filled = 0
+        for q in quarters:
+            try:
+                conn.execute("""INSERT OR IGNORE INTO system_eps_actual
+                    (code, target_period, actual_revenue, actual_eps, report_date)
+                    VALUES (?, ?, ?, ?, ?)""",
+                    (q['code'], q['quarter'], q['revenue'], q['eps'], q['updated_at']))
+                filled += conn.total_changes
+            except:
+                pass
+
+        # 回填已公布的年度 EPS
+        annuals = conn.execute("""
+            SELECT code, year, revenue, eps, updated_at
+            FROM financial_annual
+            WHERE eps IS NOT NULL AND year >= ?
+        """, (datetime.now().year - 2,)).fetchall()
+
+        for a in annuals:
+            try:
+                period = f"{a['year'] - 1911}年度"
+                conn.execute("""INSERT OR IGNORE INTO system_eps_actual
+                    (code, target_period, actual_revenue, actual_eps, report_date)
+                    VALUES (?, ?, ?, ?, ?)""",
+                    (a['code'], period, a['revenue'], a['eps'], a['updated_at']))
+            except:
+                pass
+
+        conn.commit()
+        conn.close()
+    except:
+        pass
+
+
+def _fix_tax_data():
+    """修正 DB 中 tax=0 的異常資料（本機+Render 通用）"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    fixed = 0
+
+    # 季度：tax=0 但 pti > nip
+    c.execute('''UPDATE quarterly_financial
+        SET tax = ROUND(pretax_income - net_income_parent, 2)
+        WHERE tax = 0 AND pretax_income IS NOT NULL AND net_income_parent IS NOT NULL
+        AND pretax_income > net_income_parent AND pretax_income - net_income_parent > 100''')
+    fixed += c.rowcount
+
+    # 季度：pti == nip 異常
+    c.execute('''UPDATE quarterly_financial
+        SET tax = ROUND(pretax_income * 0.20, 2),
+            net_income_parent = ROUND(pretax_income * 0.80, 2)
+        WHERE pretax_income IS NOT NULL AND net_income_parent IS NOT NULL
+        AND ABS(pretax_income - net_income_parent) < 1 AND pretax_income > 1000000''')
+    fixed += c.rowcount
+
+    # 年度：同上
+    c.execute('''UPDATE financial_annual
+        SET tax = ROUND(pretax_income - net_income, 2)
+        WHERE tax = 0 AND pretax_income IS NOT NULL AND net_income IS NOT NULL
+        AND pretax_income > net_income AND pretax_income - net_income > 100''')
+    fixed += c.rowcount
+
+    c.execute('''UPDATE financial_annual
+        SET tax = ROUND(pretax_income * 0.20, 2),
+            net_income = ROUND(pretax_income * 0.80, 2)
+        WHERE pretax_income IS NOT NULL AND net_income IS NOT NULL
+        AND ABS(pretax_income - net_income) < 1 AND pretax_income > 1000000''')
+    fixed += c.rowcount
+
+    # 年度：nip 補填
+    c.execute('''UPDATE financial_annual
+        SET net_income_parent = net_income
+        WHERE net_income_parent IS NULL AND net_income IS NOT NULL''')
+    fixed += c.rowcount
+
+    conn.commit()
+    conn.close()
+    if fixed > 0:
+        print(f"  稅務資料修正：{fixed} 筆")
 
 
 # ── 系統 EPS 估算核心 ─────────────────────────────────────────
