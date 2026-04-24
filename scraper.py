@@ -3227,7 +3227,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
 
     est_gross_profit = est_rev_total * est_gm
 
-    # --- Step 3: 營業費用（固定+變動回歸） ---
+    # --- Step 3: 營業費用（固定+變動回歸 + 近期費用率保底） ---
     opex_data = [(r['operating_expense'], r['revenue'])
                  for r in hist[:8]
                  if r.get('operating_expense') is not None
@@ -3244,9 +3244,14 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
         if ss_xx > 0:
             vr = max(0, min(ss_xy / ss_xx, 0.5))
             fx = max(0, mean_opex - vr * mean_rev)
-            est_opex = fx + vr * est_rev_total
+            est_opex_reg = fx + vr * est_rev_total
         else:
-            est_opex = mean_opex
+            est_opex_reg = mean_opex
+        # 近 2 季平均費用率保底
+        recent_rates = [opex_data[i][0] / opex_data[i][1]
+                        for i in range(min(2, len(opex_data)))]
+        est_opex_rate = statistics.mean(recent_rates) * est_rev_total
+        est_opex = max(est_opex_reg, est_opex_rate)
     elif opex_data:
         est_opex = opex_data[0][0]
     else:
@@ -3603,9 +3608,15 @@ def estimate_annual_eps(code):
         if ss_xx > 0:
             vr = max(0, min(ss_xy / ss_xx, 0.5))
             fx = max(0, mean_opex - vr * mean_rev)
-            est_opex = fx + vr * est_revenue
+            est_opex_reg = fx + vr * est_revenue
         else:
-            est_opex = mean_opex
+            est_opex_reg = mean_opex
+        # 近 2 年平均費用率 × 預估營收（保底，避免低估）
+        recent_rates = [opex_data[i][0] / opex_data[i][1]
+                        for i in range(min(2, len(opex_data)))]
+        recent_avg_rate = statistics.mean(recent_rates)
+        est_opex_rate = recent_avg_rate * est_revenue
+        est_opex = max(est_opex_reg, est_opex_rate)
     elif opex_data:
         est_opex = opex_data[0][0]
     else:
