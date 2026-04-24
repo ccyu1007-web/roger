@@ -3198,30 +3198,21 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
     if est_rev_total <= 0:
         return {"error": "無營收資料"}
 
-    # --- Step 2: 毛利率（同季歷史優先 + 近季加權） ---
-    same_q = [r for r in hist if r['quarter'].endswith(f'Q{q_num}')
-              and r.get('revenue') and r['revenue'] > 0
-              and r.get('gross_profit') is not None]
+    # --- Step 2: 毛利率（近4季加權 + 同季參考 + 上限=最近一季） ---
     recent = [r for r in hist[:4] if r.get('revenue') and r['revenue'] > 0
               and r.get('gross_profit') is not None]
 
-    gm_pool = []
-    for r in same_q[:2]:
-        gm_pool.append(r['gross_profit'] / r['revenue'])
-    for r in recent[:2]:
-        gm = r['gross_profit'] / r['revenue']
-        if not gm_pool or abs(gm - gm_pool[0]) > 0.001:
-            gm_pool.append(gm)
+    gm_pool = [r['gross_profit'] / r['revenue'] for r in recent]
 
     if not gm_pool:
         return {"error": "無毛利率資料"}
 
     if len(gm_pool) >= 2:
-        est_gm = gm_pool[0] * 0.6 + gm_pool[1] * 0.4
-        ref_rev = same_q[0]['revenue'] if same_q else (recent[0]['revenue'] if recent else None)
-        if ref_rev and ref_rev > 0:
-            rev_chg = est_rev_total / ref_rev - 1
-            est_gm += rev_chg * 0.3 * est_gm
+        weights = [0.4, 0.3, 0.2, 0.1][:len(gm_pool)]
+        wsum = sum(weights)
+        est_gm = sum(gm_pool[i] * weights[i] for i in range(len(weights))) / wsum
+        # 上限 = 最近一季（保守）
+        est_gm = min(est_gm, gm_pool[0])
     else:
         est_gm = gm_pool[0]
 
@@ -3572,18 +3563,17 @@ def estimate_annual_eps(code):
                     anomaly = True
                     break
 
-    # === Step 2: 毛利率（同季估計邏輯：近季加權 + 營收連動） ===
+    # === Step 2: 毛利率（近4季加權 + 上限=最近一季，保守估計） ===
     gm_list = []
     for r in q_rows[:4]:
         if r.get('revenue') and r['revenue'] > 0 and r.get('gross_profit') is not None:
             gm_list.append(r['gross_profit'] / r['revenue'])
     if len(gm_list) >= 2:
-        est_gm = gm_list[0] * 0.6 + gm_list[1] * 0.4
-        if q_rows[0].get('revenue') and q_rows[0]['revenue'] > 0:
-            # 用年化營收對比
-            q_annual = q_rows[0]['revenue'] * 4
-            rev_chg = est_revenue / q_annual - 1 if q_annual > 0 else 0
-            est_gm += rev_chg * 0.3 * est_gm
+        weights = [0.4, 0.3, 0.2, 0.1][:len(gm_list)]
+        wsum = sum(weights)
+        est_gm = sum(gm_list[i] * weights[i] for i in range(len(weights))) / wsum
+        # 上限 = 最近一季（不超過最新實際值）
+        est_gm = min(est_gm, gm_list[0])
     elif gm_list:
         est_gm = gm_list[0]
     else:
