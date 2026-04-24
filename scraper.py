@@ -1418,6 +1418,10 @@ def _post_process_after_save():
     _refresh_fin_grades()
     _refresh_grades_from_pbr()
 
+    # ── MOPS 最新季 EPS ──
+    try: fetch_mops_quarterly_eps()
+    except: pass
+
     # ── 稅務資料修正 ──
     _fix_tax_data()
 
@@ -2509,9 +2513,12 @@ def quick_update():
     if not os.environ.get('DATABASE_URL'):
         try: _push_news_to_render()
         except: pass
-    # ── 5. 稅務修正（每次都跑）──
+    # ── 5. MOPS 最新季 EPS（比政府 API 快）──
+    try: fetch_mops_quarterly_eps()
+    except Exception as e: print(f"[MOPS] 失敗: {e}")
+
+    # ── 6. 稅務修正（每次都跑）──
     _fix_tax_data()
-    # 系統估算只在每天 06:00 完整排程（run()）裡跑，quick_update 不跑（避免每30分鐘重算）
 
     print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
 
@@ -3272,6 +3279,125 @@ def _backfill_actual_eps():
         conn.close()
     except:
         pass
+
+
+def fetch_mops_quarterly_eps():
+    """
+    從公開資訊觀測站抓取最新一季的 EPS（比政府 API 快數天）。
+    寫入 quarterly_financial + 同步 stocks 表。
+    """
+    from bs4 import BeautifulSoup
+
+    now = datetime.now()
+    roc_year = now.year - 1911
+    # 判斷要抓哪一季（看現在月份，抓前一季）
+    month = now.month
+    if month <= 4:
+        target_year, target_season = roc_year - 1, 4  # 去年 Q4
+    elif month <= 5:
+        target_year, target_season = roc_year, 1
+    elif month <= 8:
+        target_year, target_season = roc_year, 1  # Q1（5月公布）
+    elif month <= 10:
+        target_year, target_season = roc_year, 2
+    else:
+        target_year, target_season = roc_year, 3
+
+    # 也嘗試抓當季（有些公司提前公布）
+    seasons_to_try = [(target_year, target_season)]
+    if month >= 4 and month <= 5:
+        seasons_to_try.append((roc_year, 1))
+    elif month >= 7 and month <= 8:
+        seasons_to_try.append((roc_year, 2))
+    elif month >= 10 and month <= 11:
+        seasons_to_try.append((roc_year, 3))
+    elif month >= 3:
+        seasons_to_try.append((roc_year - 1, 4))
+
+    # 去重
+    seasons_to_try = list(dict.fromkeys(seasons_to_try))
+
+    total_updated = 0
+    for yr, sn in seasons_to_try:
+        quarter_key = f"{yr}Q{sn}"
+        for typek, label in [('sii', '上市'), ('otc', '上櫃')]:
+            try:
+                resp = requests.post(
+                    'https://mopsov.twse.com.tw/mops/web/ajax_t163sb19',
+                    data={'encodeURIComponent': '1', 'step': '1', 'firstin': '1',
+                          'off': '1', 'TYPEK': typek, 'year': str(yr), 'season': str(sn)},
+                    headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                    timeout=15
+                )
+                if resp.status_code != 200:
+                    continue
+                soup = BeautifulSoup(resp.text, 'html.parser')
+
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                count = 0
+                now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                for table in soup.find_all('table'):
+                    for row in table.find_all('tr'):
+                        cells = [td.get_text(strip=True) for td in row.find_all('td')]
+                        if len(cells) < 9 or not cells[0].isdigit() or len(cells[0]) != 4:
+                            continue
+                        code = cells[0]
+                        try:
+                            eps = float(cells[3].replace(',', ''))
+                        except:
+                            continue
+                        # 營收/營業利益/業外/稅後淨利（仟元→元）
+                        def parse_k(s):
+                            try: return float(s.replace(',', '')) * 1000
+                            except: return None
+                        revenue = parse_k(cells[5])
+                        oi = parse_k(cells[6])
+                        nonop = parse_k(cells[7])
+                        ni = parse_k(cells[8])
+
+                        # 寫入 quarterly_financial
+                        c.execute("""INSERT INTO quarterly_financial
+                            (code, quarter, revenue, operating_income, non_operating, net_income_parent, eps, updated_at)
+                            VALUES (?,?,?,?,?,?,?,?)
+                            ON CONFLICT(code, quarter) DO UPDATE SET
+                            revenue=COALESCE(excluded.revenue, revenue),
+                            operating_income=COALESCE(excluded.operating_income, operating_income),
+                            non_operating=COALESCE(excluded.non_operating, non_operating),
+                            net_income_parent=COALESCE(excluded.net_income_parent, net_income_parent),
+                            eps=excluded.eps,
+                            updated_at=excluded.updated_at""",
+                            (code, quarter_key, revenue, oi, nonop, ni, eps, now_str))
+
+                        # 同步到 stocks 表（推移 eps_1~eps_5）
+                        cur = c.execute("SELECT eps_1q FROM stocks WHERE code=?", (code,)).fetchone()
+                        if cur and cur[0] != quarter_key:
+                            c.execute("""UPDATE stocks SET
+                                eps_5=eps_4, eps_5q=eps_4q,
+                                eps_4=eps_3, eps_4q=eps_3q,
+                                eps_3=eps_2, eps_3q=eps_2q,
+                                eps_2=eps_1, eps_2q=eps_1q,
+                                eps_1=?, eps_1q=?, eps_date=?
+                                WHERE code=?""",
+                                (eps, quarter_key, date.today().strftime('%Y-%m-%d'), code))
+                            count += 1
+                        elif cur and cur[0] == quarter_key:
+                            # 已有，更新 EPS 值
+                            c.execute("UPDATE stocks SET eps_1=?, eps_date=? WHERE code=?",
+                                      (eps, date.today().strftime('%Y-%m-%d'), code))
+
+                conn.commit()
+                conn.close()
+                if count > 0:
+                    print(f"[MOPS] {label} {quarter_key}: 新增 {count} 支 EPS")
+                total_updated += count
+            except Exception as e:
+                print(f"[MOPS] {label} {quarter_key}: 失敗 {e}")
+
+    if total_updated > 0:
+        _sync_eps_from_quarterly()
+    return total_updated
 
 
 def _fix_tax_data():
