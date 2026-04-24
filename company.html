@@ -880,6 +880,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       nip: fM(d.est_nip),
       shares: d.est_shares ? (d.est_shares / 1000000).toFixed(2) : '-',
       eps: sq.est_eps, epsStr: fN(sq.est_eps),
+      epsCore: fN(d.est_eps_core), epsNonop: fN(d.est_eps_nonop),
       yoy_eps: d.yoy_eps, issues: d.issues || [],
       rev_actual: d.rev_actual, rev_estimated: d.rev_estimated,
     };
@@ -905,6 +906,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       nip: fM(ad.est_nip),
       shares: ad.est_shares ? (ad.est_shares / 1000000).toFixed(2) : '-',
       eps: annData.est_eps, epsStr: fN(annData.est_eps),
+      epsCore: fN(ad.est_eps_core), epsNonop: fN(ad.est_eps_nonop),
       lastEps: ad.last_year_eps, issues: ad.issues || [],
       nMonths: ad.n_months,
       payout: ad.est_payout, div: ad.est_div, pe: ad.est_pe, yld: ad.est_yld,
@@ -1021,6 +1023,12 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         return `<div class="sys ann-col" style="flex-direction:column;align-items:flex-start"><div style="font-size:1.05rem;font-weight:800;color:${color}">${ann.epsStr}</div>${extra}</div>`;
       })() : ''}
 
+      <div class="lbl result-label">估計 EPS-本業</div>
+      <div class="val"><div class="computed result-val" id="estEPScore">-</div></div>
+      ${sysCells('epsCore', null)}
+      <div class="lbl result-label">估計 EPS-業外</div>
+      <div class="val"><div class="computed result-val" id="estEPSnonop">-</div></div>
+      ${sysCells('epsNonop', null)}
     </div>
     ${(() => {
       const notes = [];

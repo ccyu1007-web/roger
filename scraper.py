@@ -3344,11 +3344,16 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
 
     est_eps = round(est_nip / est_shares, 2)
 
+    # EPS-本業 = 營業利益 × (1-稅率) / 股數
+    est_eps_core = round(est_oi * (1 - est_tax_rate) / est_shares, 2) if est_shares else None
+    # EPS-業外 = EPS - EPS本業
+    est_eps_nonop = round(est_eps - est_eps_core, 2) if est_eps_core is not None else None
+
     # --- Step 8: 信心等級 ---
     issues = []
     if rev_estimated >= 2: issues.append("營收多數為預估")
-    if nonop_level == 'volatile': issues.append("業外高波動(P25)")
-    elif nonop_level == 'moderate': issues.append("業外中波動(中位數)")
+    if nonop_level == 'volatile': issues.append("業外高波動")
+    elif nonop_level == 'moderate': issues.append("業外中波動")
     if len(gm_pool) < 2: issues.append("毛利率資料不足")
     if len(opex_data) < 4: issues.append("費用資料較少")
     confidence = "A" if not issues else ("B" if len(issues) == 1 else "C")
@@ -3374,6 +3379,8 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
             "est_pw": round(est_pw * 100, 2),
             "est_nip": round(est_nip),
             "est_shares": round(est_shares),
+            "est_eps_core": est_eps_core,
+            "est_eps_nonop": est_eps_nonop,
             "rev_actual": rev_actual,
             "rev_estimated": rev_estimated,
             "yoy_eps": yoy_eps,
@@ -3716,11 +3723,15 @@ def estimate_annual_eps(code):
 
     est_eps = round(est_nip / est_shares, 2)
 
+    # EPS-本業 / EPS-業外
+    est_eps_core = round(est_oi * (1 - est_tax_rate) / est_shares, 2) if est_shares else None
+    est_eps_nonop = round(est_eps - est_eps_core, 2) if est_eps_core is not None else None
+
     # === 信心等級 ===
     issues = []
     if anomaly: issues.append("單月YoY異常")
-    if nonop_level == 'volatile': issues.append("業外高波動(P25)")
-    elif nonop_level == 'moderate': issues.append("業外中波動(中位數)")
+    if nonop_level == 'volatile': issues.append("業外高波動")
+    elif nonop_level == 'moderate': issues.append("業外中波動")
     if rev_confidence == 'C': issues.append("兩法差距大")
     if n_months <= 3: issues.append("僅" + str(n_months) + "月資料")
 
@@ -3816,6 +3827,8 @@ def estimate_annual_eps(code):
             "est_pw": round(est_pw * 100, 2),
             "est_nip": round(est_nip),
             "est_shares": round(est_shares),
+            "est_eps_core": est_eps_core,
+            "est_eps_nonop": est_eps_nonop,
             "last_year_eps": last_year_eps,
             "anomaly": anomaly,
             "issues": issues,
