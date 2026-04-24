@@ -210,8 +210,13 @@
     background: #eef2ff; padding: 4px 14px; border-radius: 6px;
   }
   .est-val-grid {
-    display: grid; grid-template-columns: 180px 1fr; gap: 0;
+    display: grid; grid-template-columns: 180px 160px 140px; gap: 0;
     font-size: .88rem; max-width: 520px; margin-top: 14px;
+  }
+  .est-val-grid .sys-v {
+    padding: 7px 0; font-weight: 600; color: #0369a1;
+    font-variant-numeric: tabular-nums; font-size: .85rem;
+    display: flex; align-items: center;
   }
   .est-val-grid .lbl { padding: 7px 0; color: #475569; font-weight: 500; display: flex; align-items: center; }
   .est-val-grid .val { padding: 7px 0; display: flex; align-items: center; }
@@ -997,41 +1002,6 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         return `<div class="sys ann-col" style="flex-direction:column;align-items:flex-start"><div style="font-size:1.05rem;font-weight:800;color:${color}">${ann.epsStr}</div>${extra}</div>`;
       })() : ''}
 
-      ${ann && ann.payout != null ? (() => {
-        const empties = sysData.map(() => '<div class="sys"></div>').join('');
-        const valColors = {aa:'#dc2626',a1:'#d97706',a2:'#d97706',a:'#2563eb',lt6:'#059669'};
-        const valNames = {aa:'系統AA',a1:'系統A1',a2:'系統A2',a:'系統A',lt6:'系統長期6%'};
-        const v = ann.val;
-        const cp = ann.curPrice;
-
-        let valRows = '';
-        for (const [k, label] of Object.entries(valNames)) {
-          if (v[k] != null) {
-            const below = cp != null && cp <= v[k] + 0.005;
-            const bgStyle = below ? `background:${valColors[k]}18;border-radius:4px;padding:2px 6px` : '';
-            valRows += `<div class="lbl result-label" style="color:${valColors[k]}">${label}</div>`;
-            valRows += `<div class="val"></div>${empties}`;
-            valRows += `<div class="sys ann-col" style="font-weight:700;color:${valColors[k]};${bgStyle}">${v[k].toFixed(2)}${below ? ' ✦' : ''}</div>`;
-          }
-        }
-
-        return `
-      <div class="sep"></div>
-      <div class="lbl result-label">預估配息率</div>
-      <div class="val"></div>${empties}
-      <div class="sys ann-col">${ann.payout != null ? ann.payout + '%' : '-'}</div>
-      <div class="lbl result-label">系統預估股利</div>
-      <div class="val"></div>${empties}
-      <div class="sys ann-col" style="font-weight:700">${ann.div != null ? ann.div.toFixed(2) : '-'}</div>
-      <div class="lbl result-label">系統本益比</div>
-      <div class="val"></div>${empties}
-      <div class="sys ann-col">${ann.pe != null ? ann.pe.toFixed(2) : '-'}</div>
-      <div class="lbl result-label">系統殖利率</div>
-      <div class="val"></div>${empties}
-      <div class="sys ann-col" style="font-weight:600;color:#059669">${ann.yld != null ? ann.yld + '%' : '-'}</div>
-      <div class="sep"></div>
-      ${valRows}`;
-      })() : ''}
     </div>
     ${(() => {
       const notes = [];
@@ -1054,45 +1024,59 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div class="est-q-item"><label>${_estYear}Q3</label><input id="estQ3" type="text" oninput="calcAnnual()"></div>
         <div class="est-q-item"><label>${_estYear}Q4</label><input id="estQ4" type="text" oninput="calcAnnual()"></div>
         <div class="est-annual-eps">${_estYear} 預估 EPS = <span id="annEPS">-</span></div>
+        ${ann ? `<div class="est-annual-eps" style="background:#e0f2fe;color:#0369a1">系統 = <span style="font-weight:800">${ann.epsStr}</span></div>` : ''}
       </div>
 
       <div class="est-val-grid">
         <div class="lbl">配息率（%）</div>
         <div class="val"><input id="annPR" type="text" placeholder="%" oninput="calcFromPR()"></div>
+        <div class="sys-v">${ann && ann.payout != null ? ann.payout + '%' : '-'}</div>
         <div class="lbl">預估現金股利</div>
         <div class="val"><input id="annDiv" type="text" placeholder="元" oninput="calcFromDiv()"></div>
+        <div class="sys-v" style="font-weight:700">${ann && ann.div != null ? ann.div.toFixed(2) : '-'}</div>
 
         <div class="sep"></div>
 
         <div class="lbl" style="font-weight:600;color:#334155">目前股價</div>
         <div class="val"><div class="est-price-box" id="annPrice">-</div></div>
+        <div class="sys-v"></div>
         <div class="lbl" style="font-weight:600;color:#334155">預估本益比</div>
         <div class="val"><div class="computed" id="annPE" style="font-weight:700;font-size:.95rem">-</div></div>
+        <div class="sys-v">${ann && ann.pe != null ? ann.pe.toFixed(2) : '-'}</div>
         <div class="lbl" style="font-weight:600;color:#334155">預估殖利率</div>
         <div class="val"><div class="computed" id="annYield" style="font-weight:700;color:#059669;font-size:.95rem">-</div></div>
+        <div class="sys-v" style="color:#059669">${ann && ann.yld != null ? ann.yld + '%' : '-'}</div>
       </div>
 
       <!-- 本益比設定 + 歷史參考（左右並排） -->
       <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
-        <div class="est-val-grid" style="min-width:280px;flex-shrink:0">
+        <div class="est-val-grid" style="min-width:420px;flex-shrink:0">
           <div class="lbl">最高本益比</div>
           <div class="val"><input id="peHigh" type="text" placeholder="倍" oninput="calcPERange()"></div>
+          <div class="sys-v">18</div>
           <div class="lbl">最低本益比</div>
           <div class="val"><input id="peLow" type="text" placeholder="倍" oninput="calcPERange()"></div>
+          <div class="sys-v">10</div>
           <div class="sep"></div>
           <div class="lbl result-label">偏高本益比</div>
           <div class="val"><div class="computed result-val" id="peAbove">-</div></div>
+          <div class="sys-v">16</div>
           <div class="lbl result-label">合理本益比</div>
           <div class="val"><div class="computed result-val" id="peFair" style="color:#2563eb">-</div></div>
+          <div class="sys-v">14</div>
           <div class="lbl result-label">偏低本益比</div>
           <div class="val"><div class="computed result-val" id="peBelow">-</div></div>
+          <div class="sys-v">12</div>
           <div class="sep"></div>
           <div class="lbl result-label">偏高價格</div>
           <div class="val"><div class="computed result-val" id="priceAbove">-</div></div>
+          <div class="sys-v" id="sysPriceAbove">${ann && ann.eps > 0 ? (ann.eps * 16).toFixed(2) : '-'}</div>
           <div class="lbl result-label">合理價格</div>
           <div class="val"><div class="computed result-val" id="priceFair" style="color:#2563eb">-</div></div>
+          <div class="sys-v" id="sysPriceFair" style="color:#2563eb">${ann && ann.eps > 0 ? (ann.eps * 14).toFixed(2) : '-'}</div>
           <div class="lbl result-label">偏低價格</div>
           <div class="val"><div class="computed result-val" id="priceBelow">-</div></div>
+          <div class="sys-v" id="sysPriceBelow">${ann && ann.eps > 0 ? (ann.eps * 12).toFixed(2) : '-'}</div>
         </div>
         <div id="peHistoryContainer" style="flex:1;min-width:300px"><div class="loading" style="padding:12px"><div class="spinner"></div></div></div>
       </div>
@@ -1101,17 +1085,23 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div class="est-val-grid" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
         <div class="lbl">偏高殖利率（%）</div>
         <div class="val"><input id="yldHigh" type="text" placeholder="%" oninput="calcYldRange()"></div>
+        <div class="sys-v">5.5%</div>
         <div class="lbl">最高殖利率（%）</div>
         <div class="val"><input id="yldMax" type="text" placeholder="%" oninput="calcYldRange()"></div>
+        <div class="sys-v">6%</div>
         <div class="sep"></div>
         <div class="lbl result-label">合理殖利率</div>
         <div class="val"><div class="computed result-val" id="yldFair" style="color:#2563eb">-</div></div>
+        <div class="sys-v">5.75%</div>
         <div class="lbl result-label">偏高殖利率價格</div>
         <div class="val"><div class="computed result-val" id="yldPriceHigh">-</div></div>
+        <div class="sys-v" id="sysYldPriceHigh">${ann && ann.div ? (ann.div / 5.5 * 100).toFixed(2) : '-'}</div>
         <div class="lbl result-label">合理殖利率價格</div>
         <div class="val"><div class="computed result-val" id="yldPriceFair" style="color:#2563eb">-</div></div>
+        <div class="sys-v" id="sysYldPriceFair" style="color:#2563eb">${ann && ann.div ? (ann.div / 5.75 * 100).toFixed(2) : '-'}</div>
         <div class="lbl result-label">最高殖利率價格</div>
         <div class="val"><div class="computed result-val" id="yldPriceMax">-</div></div>
+        <div class="sys-v" id="sysYldPriceMax">${ann && ann.div ? (ann.div / 6 * 100).toFixed(2) : '-'}</div>
       </div>
     </div>
 
@@ -1246,6 +1236,7 @@ async function initEstimator(sharesMillion) {
   }
   loadPEHistory();
   calcValMethod();
+  renderMatrix();
 
   // 載入筆記
   const savedNotes = localStorage.getItem('notes_' + CODE);
@@ -1422,6 +1413,26 @@ function renderMatrix() {
   const yMax  = parseNum('yldMax');
 
   if (peHi == null || peLo == null || yHigh == null || yMax == null) {
+    // 即使使用者未填，仍顯示系統等級
+    const gradeEl = document.getElementById('matrixGrade');
+    if (gradeEl && _sysAnnual && _sysAnnual.details) {
+      const sa = _sysAnnual.details;
+      const sPE = sa.est_pe, sYld = sa.est_yld;
+      if (sPE != null && sYld != null) {
+        const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
+        const sPeCols = [{lo:-Infinity,hi:10},{lo:10,hi:11},{lo:11,hi:14},{lo:14,hi:16},{lo:16,hi:18},{lo:18,hi:Infinity}];
+        const sYRows = [{lo:6,hi:Infinity},{lo:5.5,hi:6},{lo:_yldFloor,hi:5.5},{lo:-Infinity,hi:_yldFloor}];
+        let sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
+        let sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
+        if (sRow >= 0 && sCol >= 0) {
+          const sg = grades[sRow][sCol];
+          const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a' : (sg==='BA1'||sg==='BA2') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b' : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
+          gradeEl.innerHTML = `<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>`
+            + `<div style="margin-top:10px"><div class="grade-badge ${sBadge}"><span class="grade-label">系統評估等級：</span>${sg}</div>`
+            + `<div style="margin-top:4px;font-size:.82rem;color:#0369a1">系統本益比 ${sPE.toFixed(2)} / 系統殖利率 ${sYld}%</div></div>`;
+        }
+      }
+    }
     el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入本益比與殖利率參數</div>';
     return;
   }
@@ -1480,6 +1491,7 @@ function renderMatrix() {
 
   // 等級 badge
   const gradeEl = document.getElementById('matrixGrade');
+  let gradeHtml = '';
   if (curRow >= 0 && curCol >= 0) {
     const g = grades[curRow][curCol];
     const badgeCls = g === 'AA' ? 'gb-aa' : (g==='A'||g==='A1'||g==='A2') ? 'gb-a'
@@ -1487,11 +1499,40 @@ function renderMatrix() {
       : g==='觀察' ? 'gb-watch' : g==='臨界點' ? 'gb-crit' : 'gb-x';
     const peStr = curPE != null ? curPE.toFixed(2) : '-';
     const yldStr = curYld != null ? curYld.toFixed(2) + '%' : '-';
-    gradeEl.innerHTML = `<div class="grade-badge ${badgeCls}"><span class="grade-label">價值評估矩陣等級：</span>${g}</div>`
+    gradeHtml = `<div class="grade-badge ${badgeCls}"><span class="grade-label">價值評估矩陣等級：</span>${g}</div>`
       + `<div style="margin-top:4px;font-size:.82rem;color:#64748b">本益比 ${peStr} / 殖利率 ${yldStr}</div>`;
   } else {
-    gradeEl.innerHTML = '<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>';
+    gradeHtml = '<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>';
   }
+
+  // 系統等級（用系統預估 PE/殖利率 + 預設倍數 18/10, 殖利率 5.5%/6%）
+  if (_sysAnnual && _sysAnnual.details) {
+    const sa = _sysAnnual.details;
+    const sPE = sa.est_pe;
+    const sYld = sa.est_yld;
+    if (sPE != null && sYld != null) {
+      // 系統用預設 PE: 最高18 最低10
+      const sPeCols = [
+        { lo: -Infinity, hi: 10 }, { lo: 10, hi: 11 }, { lo: 11, hi: 14 },
+        { lo: 14, hi: 16 }, { lo: 16, hi: 18 }, { lo: 18, hi: Infinity },
+      ];
+      const sYRows = [
+        { lo: 6, hi: Infinity }, { lo: 5.5, hi: 6 },
+        { lo: _yldFloor, hi: 5.5 }, { lo: -Infinity, hi: _yldFloor },
+      ];
+      let sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
+      let sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
+      if (sRow >= 0 && sCol >= 0) {
+        const sg = grades[sRow][sCol];
+        const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a'
+          : (sg==='BA1'||sg==='BA2') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b'
+          : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
+        gradeHtml += `<div style="margin-top:10px"><div class="grade-badge ${sBadge}"><span class="grade-label">系統評估等級：</span>${sg}</div>`
+          + `<div style="margin-top:4px;font-size:.82rem;color:#0369a1">系統本益比 ${sPE.toFixed(2)} / 系統殖利率 ${sYld}%</div></div>`;
+      }
+    }
+  }
+  gradeEl.innerHTML = gradeHtml;
 
   // 渲染表格
   let html = '<table class="vm-table"><thead><tr><th>殖利率 \\ 本益比</th>';
