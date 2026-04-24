@@ -610,44 +610,63 @@ function renderFinTable(data) {
     'ROE', '每股盈餘 (EPS)', '自由現金流（百萬元）',
   ]);
 
+  const fmtShares = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    return `<td class="v-neutral">${Math.round(v).toLocaleString('zh-TW')}</td>`;
+  };
+  const fmtCL = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    const m = v / 1000000;
+    const cls = m > 0 ? 'v-pos' : 'v-neutral';
+    return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
+  };
+
   const sections = [
     { title: '損益表', unit: '百萬元', rows: [
       ['營業收入淨額',       d => d.revenue,           fmtM],
       ['營業成本',           d => d.cost,              fmtM],
       ['毛利',               d => d.gross_profit,      fmtM],
+      ['毛利率',             d => d.gross_margin,      fmtP],
       ['營業費用',           d => d.operating_expense, fmtM],
+      ['營業費用占營收比率', d => d.opex_ratio,        fmtP],
       ['營業利益',           d => d.operating_income,  fmtM],
       ['業外收入及支出',     d => d.non_operating,     fmtM],
       ['稅前淨利',           d => d.pretax_income,     fmtM],
       ['稅',                 d => d.tax,               fmtM],
+      ['稅率',               d => d.tax_rate,          fmtP],
       ['稅後淨利',           d => d.net_income,        fmtM],
       ['歸屬母公司業主淨利', d => d.net_income_parent, fmtM],
+      ['歸屬母公司權重',     d => d.parent_weight,     fmtP],
+    ]},
+    { title: '每股數據與股利', unit: null, rows: [
+      ['加權平均股數（千股）', d => d.weighted_shares, fmtShares],
+      ['每股盈餘 (EPS)',       d => d.eps,            fmt2],
+      ['每股盈餘-本業',        d => d.eps_core,       fmt2],
+      ['每股盈餘-業外',        d => d.eps_nonop,      fmt2],
+      ['現金股利',             d => d.cash_dividend,  fmt2],
+      ['股票股利',             d => d.stock_dividend, fmt2],
+      ['配息率',               d => d.payout_ratio,   fmtP],
     ]},
     { title: '資產負債表', unit: '百萬元', rows: [
-      ['資產總額',   d => d.total_assets, fmtM],
-      ['權益總額',   d => d.total_equity, fmtM],
-      ['普通股股本', d => d.common_stock, fmtM],
+      ['資產總額',   d => d.total_assets,       fmtM],
+      ['權益總額',   d => d.total_equity,       fmtM],
+      ['普通股股本', d => d.common_stock,       fmtM],
+      ['存貨',       d => d.inventory,          fmtM],
+      ['合約負債',   d => d.contract_liability, fmtCL],
     ]},
     { title: '現金流量表', unit: '百萬元', rows: [
       ['營業活動現金流',     d => d.operating_cf, fmtM],
       ['購置不動產廠房設備', d => d.capex,        fmtM],
+      ['自由現金流',         d => d.fcf,          fmtFcfM],
+      ['每股自由現金流',     d => d.fcf_per_share, fmt2],
     ]},
     { title: '獲利能力', unit: null, rows: [
-      ['毛利率',     d => d.gross_margin,    fmtP],
       ['營業利益率', d => d.operating_margin, fmtP],
       ['稅前淨利率', d => d.pretax_margin,    fmtP],
       ['稅後淨利率', d => d.net_margin,       fmtP],
       ['ROA',        d => d.roa,              fmtP],
       ['ROE',        d => d.roe,              fmtP],
       ['盈餘品質率', d => d.earnings_quality, fmtP],
-    ]},
-    { title: '每股數據與股利', unit: null, rows: [
-      ['自由現金流（百萬元）', d => d.fcf,            fmtFcfM],
-      ['每股自由現金流',       d => d.fcf_per_share,  fmt2],
-      ['每股盈餘 (EPS)',       d => d.eps,            fmt2],
-      ['現金股利',             d => d.cash_dividend,  fmt2],
-      ['股票股利',             d => d.stock_dividend, fmt2],
-      ['配息率',               d => d.payout_ratio,   fmtP],
     ]},
   ];
 

@@ -374,14 +374,32 @@ def get_financials(code):
         cd  = d.get('cash_dividend')
         sd  = d.get('stock_dividend')
 
+        oi  = d.get('operating_income')
+        pti = d.get('pretax_income')
+        nip = d.get('net_income_parent')
+        opex = d.get('operating_expense')
+
         # 毛利率
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
+        # 營業費用占營收比率
+        d['opex_ratio'] = round(opex / rev * 100, 2) if rev and opex is not None else None
         # 營業利益率
-        d['operating_margin'] = round(d['operating_income'] / rev * 100, 2) if rev and d.get('operating_income') is not None else None
+        d['operating_margin'] = round(oi / rev * 100, 2) if rev and oi is not None else None
         # 稅前淨利率
-        d['pretax_margin'] = round(d['pretax_income'] / rev * 100, 2) if rev and d.get('pretax_income') is not None else None
+        d['pretax_margin'] = round(pti / rev * 100, 2) if rev and pti is not None else None
+        # 稅率（虧損不算，限 0~100%）
+        tax_val = d.get('tax')
+        if pti and pti > 0 and tax_val is not None:
+            raw_rate = tax_val / pti * 100
+            d['tax_rate'] = round(min(max(raw_rate, 0), 100), 2)
+        else:
+            d['tax_rate'] = None
         # 稅後淨利率
         d['net_margin'] = round(ni / rev * 100, 2) if rev and ni is not None else None
+        # 繼續營業單位損益（近似 = 稅後淨利）
+        d['continuing_income'] = ni
+        # 歸屬母公司權重
+        d['parent_weight'] = round(nip / ni * 100, 2) if ni and ni != 0 and nip is not None else None
         # ROA
         d['roa'] = round(ni / ta * 100, 2) if ta and ni is not None else None
         # ROE
@@ -390,9 +408,27 @@ def get_financials(code):
         d['earnings_quality'] = round(ocf / ni * 100, 2) if ni and ni != 0 and ocf is not None else None
         # 自由現金流（capex 為負值）
         d['fcf'] = round(ocf + capex, 2) if ocf is not None and capex is not None else None
+        # 加權平均股數（千股，從 EPS 反算）
+        if eps_val and eps_val != 0 and nip is not None:
+            shares_raw = nip / eps_val
+            d['weighted_shares'] = round(shares_raw / 1000, 0)
+        else:
+            shares_raw = None
+            d['weighted_shares'] = None
         # 每股自由現金流
         shares = cs / 10 if cs and cs > 0 else None
         d['fcf_per_share'] = round(d['fcf'] / shares, 2) if d.get('fcf') is not None and shares else None
+        # 每股盈餘-本業
+        eff_tax = tax_val / pti if pti and pti != 0 and tax_val is not None else None
+        if oi is not None and shares_raw and eff_tax is not None:
+            d['eps_core'] = round(oi * (1 - eff_tax) / shares_raw, 2)
+        else:
+            d['eps_core'] = None
+        # 每股盈餘-業外
+        if d.get('eps_core') is not None and eps_val is not None:
+            d['eps_nonop'] = round(eps_val - d['eps_core'], 2)
+        else:
+            d['eps_nonop'] = None
         # 配息率（EPS <= 0 但有配息 → 100%）
         total_div = ((cd or 0) + (sd or 0))
         if total_div > 0 and eps_val is not None and eps_val > 0:

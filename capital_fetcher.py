@@ -286,7 +286,7 @@ def fetch_capital_financials(code):
 # ── 資產負債表（年表）────────────────────────────────────
 
 def fetch_capital_balance_sheet(code):
-    """從群益抓取年度資產負債表，補寫 total_assets / total_equity / common_stock"""
+    """從群益抓取年度資產負債表，補寫 total_assets / total_equity / common_stock / inventory / contract_liability"""
     url = f"https://stock.capital.com.tw/z/zc/zcp/zcpb/zcpb.djhtm?a={code}"
     texts = _fetch_page(url)
     if not texts:
@@ -296,6 +296,8 @@ def fetch_capital_balance_sheet(code):
         '資產總額': 'total_assets',
         '股東權益總額': 'total_equity',
         '股本': 'common_stock',
+        '存貨': 'inventory',
+        '合約負債－流動': 'contract_liability',
     }
     data = _extract_yearly_data(texts, row_labels)
     if not data:
@@ -304,6 +306,10 @@ def fetch_capital_balance_sheet(code):
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # 確保欄位存在
+    for col in ['inventory', 'contract_liability']:
+        try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} REAL")
+        except: pass
     mul = 1000000  # 百萬 → 元
 
     saved = 0
@@ -312,23 +318,40 @@ def fetch_capital_balance_sheet(code):
         ta = fields.get('total_assets')
         te = fields.get('total_equity')
         cs = fields.get('common_stock')
+        inv = fields.get('inventory')
+        cl = fields.get('contract_liability')
 
+        for v_name in ['ta', 'te', 'cs', 'inv', 'cl']:
+            v = locals()[v_name]
+            if v is not None:
+                locals()[v_name] = v * mul
+
+        ta = fields.get('total_assets')
+        te = fields.get('total_equity')
+        cs = fields.get('common_stock')
+        inv = fields.get('inventory')
+        cl = fields.get('contract_liability')
         if ta is not None: ta *= mul
         if te is not None: te *= mul
         if cs is not None: cs *= mul
+        if inv is not None: inv *= mul
+        if cl is not None: cl *= mul
 
         if ta is None and te is None:
             continue
 
         try:
-            c.execute("""INSERT INTO financial_annual (code, year, total_assets, total_equity, common_stock, updated_at)
-                VALUES (?,?,?,?,?,?)
+            c.execute("""INSERT INTO financial_annual (code, year, total_assets, total_equity, common_stock,
+                         inventory, contract_liability, updated_at)
+                VALUES (?,?,?,?,?,?,?,?)
                 ON CONFLICT(code, year) DO UPDATE SET
                 total_assets=COALESCE(excluded.total_assets, total_assets),
                 total_equity=COALESCE(excluded.total_equity, total_equity),
                 common_stock=COALESCE(excluded.common_stock, common_stock),
+                inventory=COALESCE(excluded.inventory, inventory),
+                contract_liability=COALESCE(excluded.contract_liability, contract_liability),
                 updated_at=excluded.updated_at""",
-                (code, yr, ta, te, cs, now_str))
+                (code, yr, ta, te, cs, inv, cl, now_str))
             saved += 1
         except:
             pass
