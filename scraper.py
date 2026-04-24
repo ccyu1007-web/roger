@@ -3259,37 +3259,39 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
 
     est_oi = est_gross_profit - est_opex
 
-    # --- Step 4: 業外（依穩定度分級 + 正值保守折扣） ---
+    # --- Step 4: 業外（年度÷4 × 0.7 + 季度加權 × 0.3） ---
     nonop_list = [r['non_operating'] for r in hist[:8] if r.get('non_operating') is not None]
     nonop_stable = True
     nonop_level = 'stable'
-    if len(nonop_list) >= 3:
-        med = statistics.median(nonop_list)
-        avg = statistics.mean(nonop_list)
-        sd = statistics.stdev(nonop_list)
-        cv = sd / abs(avg) if abs(avg) > 0 else (0 if sd == 0 else 999)
+    if nonop_list:
+        # 季度加權
+        recent = nonop_list[:4]
+        weights = [0.4, 0.3, 0.2, 0.1][:len(recent)]
+        wsum = sum(weights)
+        q_nonop = sum(recent[i] * weights[i] for i in range(len(weights))) / wsum
 
-        if cv < 0.5:
-            recent = nonop_list[:4]
-            weights = [0.4, 0.3, 0.2, 0.1][:len(recent)]
-            wsum = sum(weights)
-            est_nonop = sum(recent[i] * weights[i] for i in range(len(recent))) / wsum
-            if est_nonop > 0: est_nonop *= 0.7  # 穩定正值打7折
-            nonop_level = 'stable'
-        elif cv < 1.0:
-            est_nonop = med
-            if est_nonop > 0: est_nonop *= 0.5  # 中波動正值打5折
-            nonop_level = 'moderate'
+        # 年度錨定（年度業外 / 4 = 季度基準）
+        ann_nonop_q = None
+        if ann_rows:
+            for ar in ann_rows:
+                if ar.get('non_operating') is not None:
+                    ann_nonop_q = ar['non_operating'] / 4
+                    break
+        if ann_nonop_q is not None:
+            est_nonop = ann_nonop_q * 0.7 + q_nonop * 0.3
         else:
-            sorted_list = sorted(nonop_list)
-            idx = max(0, int(len(sorted_list) * 0.25))
-            est_nonop = sorted_list[idx]
-            if est_nonop > 0: est_nonop = 0  # 高波動正值歸零
-            nonop_level = 'volatile'
-            nonop_stable = False
-    elif nonop_list:
-        est_nonop = nonop_list[0]
-        if est_nonop > 0: est_nonop *= 0.5
+            est_nonop = q_nonop
+
+        # 穩定度判斷（用於信心等級）
+        if len(nonop_list) >= 3:
+            avg = statistics.mean(nonop_list)
+            sd = statistics.stdev(nonop_list)
+            cv = sd / abs(avg) if abs(avg) > 0 else 0
+            if cv >= 1.0:
+                nonop_level = 'volatile'
+                nonop_stable = False
+            elif cv >= 0.5:
+                nonop_level = 'moderate'
     else:
         est_nonop = 0
 
@@ -3637,29 +3639,33 @@ def estimate_annual_eps(code):
 
     est_oi = est_gross_profit - est_opex
 
-    # === Step 4: 業外（年度三級制 + 正值保守折扣） ===
-    nonop_list = [r['non_operating'] for r in ann_rows if r.get('non_operating') is not None]
+    # === Step 4: 業外（年度加權×0.7 + 季度加權×0.3） ===
+    nonop_ann = [r['non_operating'] for r in ann_rows if r.get('non_operating') is not None]
+    nonop_q = [r['non_operating'] for r in q_rows[:4] if r.get('non_operating') is not None]
     nonop_level = 'stable'
-    if len(nonop_list) >= 3:
-        avg = statistics.mean(nonop_list)
-        sd = statistics.stdev(nonop_list)
-        cv = sd / abs(avg) if abs(avg) > 0 else (0 if sd == 0 else 999)
-        if cv < 0.5:
-            weights = [0.4, 0.3, 0.2, 0.1][:len(nonop_list)]
-            est_nonop = sum(nonop_list[i] * weights[i] for i in range(len(weights))) / sum(weights)
-            if est_nonop > 0: est_nonop *= 0.7  # 穩定但正值打7折
-        elif cv < 1.0:
-            est_nonop = statistics.median(nonop_list)
-            if est_nonop > 0: est_nonop *= 0.5  # 中波動正值打5折
-            nonop_level = 'moderate'
+    if nonop_ann:
+        # 年度加權（近年權重高）
+        w_ann = [0.4, 0.3, 0.2, 0.1][:len(nonop_ann)]
+        ann_avg = sum(nonop_ann[i] * w_ann[i] for i in range(len(w_ann))) / sum(w_ann)
+
+        # 季度加權 × 4 → 年化
+        if nonop_q:
+            w_q = [0.4, 0.3, 0.2, 0.1][:len(nonop_q)]
+            q_annual = sum(nonop_q[i] * w_q[i] for i in range(len(w_q))) / sum(w_q) * 4
         else:
-            sorted_l = sorted(nonop_list)
-            est_nonop = sorted_l[max(0, int(len(sorted_l) * 0.25))]
-            if est_nonop > 0: est_nonop = 0  # 高波動正值歸零
-            nonop_level = 'volatile'
-    elif nonop_list:
-        est_nonop = nonop_list[0]
-        if est_nonop > 0: est_nonop *= 0.5
+            q_annual = ann_avg
+
+        est_nonop = ann_avg * 0.7 + q_annual * 0.3
+
+        # 穩定度判斷（信心等級用）
+        if len(nonop_ann) >= 3:
+            avg = statistics.mean(nonop_ann)
+            sd = statistics.stdev(nonop_ann)
+            cv = sd / abs(avg) if abs(avg) > 0 else 0
+            if cv >= 1.0: nonop_level = 'volatile'
+            elif cv >= 0.5: nonop_level = 'moderate'
+    elif nonop_q:
+        est_nonop = sum(nonop_q) / len(nonop_q) * 4
     else:
         est_nonop = 0
 
