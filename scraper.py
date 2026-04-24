@@ -3284,38 +3284,26 @@ def _backfill_actual_eps():
 def fetch_mops_quarterly_eps():
     """
     從公開資訊觀測站抓取最新一季的 EPS（比政府 API 快數天）。
+    注意：MOPS 的 EPS/營收/業外/淨利都是「累計值」，需轉成單季。
+    Q1：累計=單季。Q2/Q3/Q4：單季 = 本季累計 - 前季累計。
     寫入 quarterly_financial + 同步 stocks 表。
     """
     from bs4 import BeautifulSoup
 
     now = datetime.now()
     roc_year = now.year - 1911
-    # 判斷要抓哪一季（看現在月份，抓前一季）
     month = now.month
+
+    # 判斷要抓哪些季度
+    seasons_to_try = []
+    if month >= 4:
+        seasons_to_try.append((roc_year, 1))       # Q1（4~5月公布）
+    if month >= 8:
+        seasons_to_try.append((roc_year, 2))       # Q2（8~9月公布）
+    if month >= 11:
+        seasons_to_try.append((roc_year, 3))       # Q3（11月公布）
     if month <= 4:
-        target_year, target_season = roc_year - 1, 4  # 去年 Q4
-    elif month <= 5:
-        target_year, target_season = roc_year, 1
-    elif month <= 8:
-        target_year, target_season = roc_year, 1  # Q1（5月公布）
-    elif month <= 10:
-        target_year, target_season = roc_year, 2
-    else:
-        target_year, target_season = roc_year, 3
-
-    # 也嘗試抓當季（有些公司提前公布）
-    seasons_to_try = [(target_year, target_season)]
-    if month >= 4 and month <= 5:
-        seasons_to_try.append((roc_year, 1))
-    elif month >= 7 and month <= 8:
-        seasons_to_try.append((roc_year, 2))
-    elif month >= 10 and month <= 11:
-        seasons_to_try.append((roc_year, 3))
-    elif month >= 3:
-        seasons_to_try.append((roc_year - 1, 4))
-
-    # 去重
-    seasons_to_try = list(dict.fromkeys(seasons_to_try))
+        seasons_to_try.append((roc_year - 1, 4))   # 去年Q4（3~4月公布）
 
     total_updated = 0
     for yr, sn in seasons_to_try:
@@ -3338,6 +3326,10 @@ def fetch_mops_quarterly_eps():
                 count = 0
                 now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+                def parse_k(s):
+                    try: return float(s.replace(',', '')) * 1000
+                    except: return None
+
                 for table in soup.find_all('table'):
                     for row in table.find_all('tr'):
                         cells = [td.get_text(strip=True) for td in row.find_all('td')]
@@ -3345,21 +3337,59 @@ def fetch_mops_quarterly_eps():
                             continue
                         code = cells[0]
                         try:
-                            eps = float(cells[3].replace(',', ''))
+                            cum_eps = float(cells[3].replace(',', ''))
                         except:
                             continue
-                        # 營收/營業利益/業外/稅後淨利（仟元→元）
-                        def parse_k(s):
-                            try: return float(s.replace(',', '')) * 1000
-                            except: return None
-                        revenue = parse_k(cells[5])
-                        oi = parse_k(cells[6])
-                        nonop = parse_k(cells[7])
-                        ni = parse_k(cells[8])
+                        cum_revenue = parse_k(cells[5])
+                        cum_oi = parse_k(cells[6])
+                        cum_nonop = parse_k(cells[7])
+                        cum_ni = parse_k(cells[8])
 
-                        # 寫入 quarterly_financial
+                        # === 累計→單季轉換 ===
+                        single_eps = cum_eps
+                        single_rev = cum_revenue
+                        single_oi = cum_oi
+                        single_nonop = cum_nonop
+                        single_ni = cum_ni
+
+                        if sn > 1:
+                            # 從 DB 取得前季的累計值（前幾季的 quarterly_financial 加總）
+                            prev_quarters = [f"{yr}Q{q}" for q in range(1, sn)]
+                            placeholders = ','.join('?' * len(prev_quarters))
+                            prev = c.execute(f"""SELECT SUM(revenue), SUM(operating_income),
+                                SUM(non_operating), SUM(net_income_parent), SUM(eps)
+                                FROM quarterly_financial
+                                WHERE code=? AND quarter IN ({placeholders})""",
+                                [code] + prev_quarters).fetchone()
+
+                            if prev and prev[4] is not None:
+                                single_eps = round(cum_eps - prev[4], 4)
+                                single_rev = round(cum_revenue - prev[0], 2) if cum_revenue and prev[0] else cum_revenue
+                                single_oi = round(cum_oi - prev[1], 2) if cum_oi and prev[1] else cum_oi
+                                single_nonop = round(cum_nonop - prev[2], 2) if cum_nonop and prev[2] else cum_nonop
+                                single_ni = round(cum_ni - prev[3], 2) if cum_ni and prev[3] else cum_ni
+                            elif sn == 4:
+                                # Q4：沒有前3季資料，EPS 是全年累計→存到年度，不存季度
+                                # 寫入 stocks 表的 eps_y1
+                                cur_y = c.execute("SELECT eps_y1_label FROM stocks WHERE code=?", (code,)).fetchone()
+                                if cur_y and str(cur_y[0]) != str(yr):
+                                    c.execute("""UPDATE stocks SET
+                                        eps_y5=eps_y4, eps_y5_label=eps_y4_label,
+                                        eps_y4=eps_y3, eps_y4_label=eps_y3_label,
+                                        eps_y3=eps_y2, eps_y3_label=eps_y2_label,
+                                        eps_y2=eps_y1, eps_y2_label=eps_y1_label,
+                                        eps_y1=?, eps_y1_label=?,
+                                        eps_ytd=?, eps_ytd_label=?, eps_date=?
+                                        WHERE code=?""",
+                                        (cum_eps, str(yr), cum_eps, str(yr),
+                                         date.today().strftime('%Y-%m-%d'), code))
+                                    count += 1
+                                continue  # Q4 不寫 quarterly_financial 的 eps
+
+                        # 寫入 quarterly_financial（單季值）
                         c.execute("""INSERT INTO quarterly_financial
-                            (code, quarter, revenue, operating_income, non_operating, net_income_parent, eps, updated_at)
+                            (code, quarter, revenue, operating_income, non_operating,
+                             net_income_parent, eps, updated_at)
                             VALUES (?,?,?,?,?,?,?,?)
                             ON CONFLICT(code, quarter) DO UPDATE SET
                             revenue=COALESCE(excluded.revenue, revenue),
@@ -3368,9 +3398,10 @@ def fetch_mops_quarterly_eps():
                             net_income_parent=COALESCE(excluded.net_income_parent, net_income_parent),
                             eps=excluded.eps,
                             updated_at=excluded.updated_at""",
-                            (code, quarter_key, revenue, oi, nonop, ni, eps, now_str))
+                            (code, quarter_key, single_rev, single_oi, single_nonop,
+                             single_ni, single_eps, now_str))
 
-                        # 同步到 stocks 表（推移 eps_1~eps_5）
+                        # 同步到 stocks 表（推移 eps_1~eps_5，存單季 EPS）
                         cur = c.execute("SELECT eps_1q FROM stocks WHERE code=?", (code,)).fetchone()
                         if cur and cur[0] != quarter_key:
                             c.execute("""UPDATE stocks SET
@@ -3380,12 +3411,12 @@ def fetch_mops_quarterly_eps():
                                 eps_2=eps_1, eps_2q=eps_1q,
                                 eps_1=?, eps_1q=?, eps_date=?
                                 WHERE code=?""",
-                                (eps, quarter_key, date.today().strftime('%Y-%m-%d'), code))
+                                (single_eps, quarter_key,
+                                 date.today().strftime('%Y-%m-%d'), code))
                             count += 1
                         elif cur and cur[0] == quarter_key:
-                            # 已有，更新 EPS 值
                             c.execute("UPDATE stocks SET eps_1=?, eps_date=? WHERE code=?",
-                                      (eps, date.today().strftime('%Y-%m-%d'), code))
+                                      (single_eps, date.today().strftime('%Y-%m-%d'), code))
 
                 conn.commit()
                 conn.close()

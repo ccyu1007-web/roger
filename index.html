@@ -1666,6 +1666,7 @@ function resetGlobalVal() {
 
 let _fixedQ = [], _fixedY = [], _fixedD = [];  // 固定欄位的季度/年度
 let allData  = [];
+let _prevailingQuarter = ''; // 多數公司目前的最新季度
 let _newsFlags = {};  // code → count（有重要新聞的股票）
 let filtered = [];
 let sortCol  = localStorage.getItem('sort_col') || 'code';
@@ -1690,6 +1691,12 @@ async function loadData() {
     setRefreshingUI(status.is_refreshing);
 
     allData  = stocks.data;
+
+    // 計算多數公司的最新季度（用來判斷哪些公司有「新」EPS）
+    const qCount = {};
+    allData.forEach(r => { if (r.eps_1q) qCount[r.eps_1q] = (qCount[r.eps_1q] || 0) + 1; });
+    _prevailingQuarter = Object.entries(qCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
     allData.forEach(calcDerived);
     filtered = [...allData];
 
@@ -2101,10 +2108,12 @@ function render() {
         : r.revenue_date;
     }
 
-    // EPS 更新日期
+    // EPS 更新日期（最近一季有新 quarter 更新→紅色醒目）
     let epsDateHtml = '－';
     if (r.eps_date) {
-      epsDateHtml = isEpsNew
+      // 判斷是否為最新季度（比大多數公司更早公布）
+      const isNewQuarter = r.eps_1q && r.eps_1q > _prevailingQuarter;
+      epsDateHtml = isNewQuarter
         ? `<span style="color:#ef4444;font-weight:700">${r.eps_date}</span>`
         : r.eps_date;
     }
