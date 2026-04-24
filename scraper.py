@@ -3254,14 +3254,34 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
 
     est_oi = est_gross_profit - est_opex
 
-    # --- Step 4: 業外（trimmed mean + 穩定度） ---
+    # --- Step 4: 業外（依穩定度分級：穩定→加權均值, 中等→中位數, 高波動→P25） ---
     nonop_list = [r['non_operating'] for r in hist[:8] if r.get('non_operating') is not None]
-    nonop_stable = True
+    nonop_stable = True  # A: 穩定
+    nonop_level = 'stable'
     if len(nonop_list) >= 3:
-        trimmed = sorted(nonop_list)[1:-1]
-        est_nonop = statistics.mean(trimmed) if trimmed else statistics.mean(nonop_list)
-        if abs(est_nonop) > 0:
-            nonop_stable = statistics.stdev(nonop_list) / abs(est_nonop) < 1.0
+        med = statistics.median(nonop_list)
+        avg = statistics.mean(nonop_list)
+        sd = statistics.stdev(nonop_list)
+        cv = sd / abs(avg) if abs(avg) > 0 else (0 if sd == 0 else 999)
+
+        if cv < 0.5:
+            # 穩定：近 4 季加權平均（近→遠 40/30/20/10）
+            recent = nonop_list[:4]
+            weights = [0.4, 0.3, 0.2, 0.1][:len(recent)]
+            wsum = sum(weights)
+            est_nonop = sum(recent[i] * weights[i] for i in range(len(recent))) / wsum
+            nonop_level = 'stable'
+        elif cv < 1.0:
+            # 中等波動：取中位數
+            est_nonop = med
+            nonop_level = 'moderate'
+        else:
+            # 高度波動：取第 25 百分位數（偏保守）
+            sorted_list = sorted(nonop_list)
+            idx = max(0, int(len(sorted_list) * 0.25))
+            est_nonop = sorted_list[idx]
+            nonop_level = 'volatile'
+            nonop_stable = False
     elif nonop_list:
         est_nonop = nonop_list[0]
     else:
@@ -3308,7 +3328,8 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
     # --- Step 8: 信心等級 ---
     issues = []
     if rev_estimated >= 2: issues.append("營收多數為預估")
-    if not nonop_stable: issues.append("業外不穩定")
+    if nonop_level == 'volatile': issues.append("業外高波動(P25)")
+    elif nonop_level == 'moderate': issues.append("業外中波動(中位數)")
     if len(gm_pool) < 2: issues.append("毛利率資料不足")
     if len(opex_data) < 4: issues.append("費用資料較少")
     confidence = "A" if not issues else ("B" if len(issues) == 1 else "C")
