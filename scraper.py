@@ -3198,7 +3198,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
     if est_rev_total <= 0:
         return {"error": "無營收資料"}
 
-    # --- Step 2: 毛利率（近4季加權 + 同季參考 + 上限=最近一季） ---
+    # --- Step 2: 毛利率（近4季加權平均，近季權重高） ---
     recent = [r for r in hist[:4] if r.get('revenue') and r['revenue'] > 0
               and r.get('gross_profit') is not None]
 
@@ -3211,8 +3211,6 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
         weights = [0.4, 0.3, 0.2, 0.1][:len(gm_pool)]
         wsum = sum(weights)
         est_gm = sum(gm_pool[i] * weights[i] for i in range(len(weights))) / wsum
-        # 上限 = 最近一季（保守）
-        est_gm = min(est_gm, gm_pool[0])
     else:
         est_gm = gm_pool[0]
 
@@ -3564,7 +3562,7 @@ def estimate_annual_eps(code):
                     anomaly = True
                     break
 
-    # === Step 2: 毛利率（近4季加權 + 上限=最近一季，保守估計） ===
+    # === Step 2: 毛利率（近4季加權平均，近季權重高） ===
     gm_list = []
     for r in q_rows[:4]:
         if r.get('revenue') and r['revenue'] > 0 and r.get('gross_profit') is not None:
@@ -3573,8 +3571,6 @@ def estimate_annual_eps(code):
         weights = [0.4, 0.3, 0.2, 0.1][:len(gm_list)]
         wsum = sum(weights)
         est_gm = sum(gm_list[i] * weights[i] for i in range(len(weights))) / wsum
-        # 上限 = 最近一季（不超過最新實際值）
-        est_gm = min(est_gm, gm_list[0])
     elif gm_list:
         est_gm = gm_list[0]
     else:
