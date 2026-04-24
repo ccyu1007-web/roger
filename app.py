@@ -379,6 +379,16 @@ def get_financials(code):
         nip = d.get('net_income_parent')
         opex = d.get('operating_expense')
 
+        # 反算 net_income_parent（NULL 時用 net_income，pti==ni 時用 80%）
+        if nip is None and ni is not None:
+            nip = ni
+            d['net_income_parent'] = nip
+        if pti is not None and ni is not None and abs(pti - ni) < 1 and pti > 1000000:
+            ni = round(pti * 0.80, 2)
+            nip = ni
+            d['net_income'] = ni
+            d['net_income_parent'] = nip
+
         # 毛利率
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
         # 營業費用占營收比率
@@ -387,8 +397,14 @@ def get_financials(code):
         d['operating_margin'] = round(oi / rev * 100, 2) if rev and oi is not None else None
         # 稅前淨利率
         d['pretax_margin'] = round(pti / rev * 100, 2) if rev and pti is not None else None
-        # 稅率（虧損不算，限 0~100%）
+        # 反算稅額（稅為 NULL 或 0 但 pti>ni 時反算）
         tax_val = d.get('tax')
+        if pti is not None and ni is not None:
+            calc_tax = round(pti - ni, 2)
+            if tax_val is None or (tax_val == 0 and abs(calc_tax) > 100):
+                tax_val = calc_tax
+                d['tax'] = tax_val
+        # 稅率（虧損不算，限 0~100%）
         if pti and pti > 0 and tax_val is not None:
             raw_rate = tax_val / pti * 100
             d['tax_rate'] = round(min(max(raw_rate, 0), 100), 2)
@@ -514,10 +530,17 @@ def get_quarterly(code):
         eps_val = d.get('eps')
         opex = d.get('operating_expense')
 
-        # 反算稅額（群益季表無稅欄位，用 稅前淨利 - 稅後淨利 推算）
-        if tax is None and pti is not None and nip is not None:
-            tax = round(pti - nip, 2)
-            d['tax'] = tax
+        # 修正 pti==nip 異常（應有稅但沒扣，用 20% 預設稅率）
+        if pti is not None and nip is not None and abs(pti - nip) < 1 and pti > 1000000:
+            nip = round(pti * 0.80, 2)
+            d['net_income_parent'] = nip
+
+        # 反算稅額（群益季表無稅欄位或為0，用 稅前淨利 - 稅後淨利 推算）
+        if pti is not None and nip is not None:
+            calc_tax = round(pti - nip, 2)
+            if tax is None or (tax == 0 and abs(calc_tax) > 100):
+                tax = calc_tax
+                d['tax'] = tax
 
         # 反算繼續營業單位損益（近似 = 稅後淨利）
         if ci is None and nip is not None:
