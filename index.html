@@ -1434,25 +1434,20 @@ function calcDerived(r) {
     }
   } catch(e) {}
 
-  // 預估等級 fallback：使用者沒存檔 → 用系統評估等級
-  if (r.est_grade == null && r.sys_est_eps != null) {
-    const sEps = r.sys_est_eps;
+  // 預估等級 fallback：使用者沒存檔 → 用系統年度估算
+  if (r.est_grade == null && r.sys_ann_eps != null) {
+    const sEps = r.sys_ann_eps;
     if (sEps <= 0) {
       r.est_grade = 'X';
     } else if (r.close != null && r.close > 0) {
-      const sPE = r.close / sEps;
-      // 用最近一年股利算配息率 → 推系統股利 → 殖利率
-      const lastDiv = (r.div_c1 || 0) + (r.div_s1 || 0);
-      const lastEps = r.eps_y1;
-      const payoutRate = (lastEps && lastEps > 0 && lastDiv > 0) ? Math.min(lastDiv / lastEps, 1.0) : 0;
-      const sDiv = sEps * payoutRate;
-      const sYld = sDiv > 0 ? sDiv / r.close * 100 : 0;
+      const sPE = r.sys_ann_pe || (r.close / sEps);
+      const sYld = r.sys_ann_yld || 0;
       r.est_grade = _calcMatrixGrade(sPE, sYld, r.code);
-      if (r.est_div == null && sDiv > 0) r.est_div = Math.round(sDiv * 100) / 100;
+      if (r.est_div == null && r.sys_ann_div) r.est_div = r.sys_ann_div;
       if (r.est_yld == null && sYld > 0) r.est_yld = Math.round(sYld * 100) / 100;
     }
     if (r.est_eps == null) r.est_eps = sEps;
-    if (r.est_pe == null && sEps > 0 && r.close) r.est_pe = Math.round(r.close / sEps * 100) / 100;
+    if (r.est_pe == null && r.sys_ann_pe) r.est_pe = r.sys_ann_pe;
   }
 
   // 近四季股利/殖利率/評等（必須在 weighted_payout 之後）

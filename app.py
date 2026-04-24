@@ -65,7 +65,9 @@ def get_stocks():
     try:
         conn_init = sqlite3.connect(DB_PATH)
         for col, typ in [('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER'),
-                        ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT')]:
+                        ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT'),
+                        ('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
+                        ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except: pass
         try: conn_init.commit()
@@ -91,7 +93,8 @@ def get_stocks():
                        price_pos, fair_low, fair_high,
                        inst_foreign, inst_trust, inst_dealer,
                        revenue_note,
-                       sys_est_eps, sys_est_quarter, sys_est_confidence
+                       sys_est_eps, sys_est_quarter, sys_est_confidence,
+                       sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, sys_ann_confidence
                 FROM stocks WHERE 1=1"""
     params = []
     if q:
