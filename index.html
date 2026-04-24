@@ -182,6 +182,7 @@
   body.hide-g-fg .g-fg,
   body.hide-g-shen .g-shen,
   body.hide-g-est .g-est,
+  body.hide-g-sys .g-sys,
   body.hide-g-etf .g-etf { display: none !important; }
 
   /* ETF 標籤 */
@@ -458,6 +459,12 @@
           <th class="g-est" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
           <th class="g-est" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
+          <!-- 系統估算 -->
+          <th class="g-sys" onclick="sortBy('sys_ann_eps')">系統EPS<span class="sort-icon" id="si_sys_ann_eps">↕</span></th>
+          <th class="g-sys" onclick="sortBy('sys_ann_pe')">系統PE<span class="sort-icon" id="si_sys_ann_pe">↕</span></th>
+          <th class="g-sys" onclick="sortBy('sys_ann_yld')">系統殖利率<span class="sort-icon" id="si_sys_ann_yld">↕</span></th>
+          <th class="g-sys" onclick="sortBy('sys_ann_div')">系統股利<span class="sort-icon" id="si_sys_ann_div">↕</span></th>
+          <th class="g-sys" onclick="sortBy('sys_ann_confidence')">信心<span class="sort-icon" id="si_sys_ann_confidence">↕</span></th>
           <!-- 沈董 -->
           <th class="g-grades col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_pe')">沈董PE<span class="sort-icon" id="si_shen_pe">↕</span></th>
@@ -536,6 +543,7 @@ const COL_GROUPS = [
   { key: 'g-blend', label: '綜合明細', default: false },
   { key: 'g-wt',   label: '加權明細', default: false },
   { key: 'g-est',  label: '預估明細', default: false },
+  { key: 'g-sys',  label: '系統估算', default: false },
   { key: 'g-grades', label: '五等級', default: true },
   { key: 'g-trail', label: '近四季明細', default: false },
   { key: 'g-fg',   label: '財務等級', default: true },
@@ -1864,6 +1872,7 @@ function sortBy(col) {
   localStorage.setItem('sort_asc', String(sortAsc));
   ['code','name','close','change','change_240d','trailing_pe',
    'eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
+   'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
    'revenue_date','revenue_cum_yoy','revenue_yoy','revenue_mom',
    'eps_date','eps_1','eps_2','eps_3','eps_4','eps_5',
    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
@@ -1886,7 +1895,9 @@ function sortBy(col) {
 function applySort() {
   const numCols = ['close','change','open','high','low','volume',
                    'inst_foreign','inst_trust','inst_dealer',
-                   'change_240d','eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','revenue_cum_yoy','revenue_yoy','revenue_mom',
+                   'change_240d','eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld',
+                   'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
+                   'revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
                    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
                    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
@@ -2142,6 +2153,12 @@ function render() {
       <td class="g-est">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
+      <!-- 系統估算 -->
+      <td class="g-sys"${r.sys_ann_eps != null && r.sys_ann_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.sys_ann_eps != null ? r.sys_ann_eps.toFixed(2) : '－'}</td>
+      <td class="g-sys">${r.sys_ann_pe != null ? r.sys_ann_pe.toFixed(2) : '－'}</td>
+      <td class="g-sys">${r.sys_ann_yld != null ? r.sys_ann_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-sys">${r.sys_ann_div != null ? r.sys_ann_div.toFixed(2) : '－'}</td>
+      <td class="g-sys"><span style="padding:1px 6px;border-radius:8px;font-size:.78rem;font-weight:600;color:#fff;background:${r.sys_ann_confidence === 'A' ? '#059669' : r.sys_ann_confidence === 'B' ? '#d97706' : r.sys_ann_confidence === 'C' ? '#dc2626' : r.sys_ann_confidence === 'N/A' ? '#94a3b8' : '#94a3b8'}">${r.sys_ann_confidence || '－'}</span></td>
       <!-- 沈董 -->
       <td class="g-grades col-div">${gradeHtml(r.shen_grade)}</td>
       <td class="g-shen">${r.shen_pe != null ? r.shen_pe.toFixed(2) : '－'}</td>

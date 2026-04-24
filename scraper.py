@@ -2509,10 +2509,9 @@ def quick_update():
     if not os.environ.get('DATABASE_URL'):
         try: _push_news_to_render()
         except: pass
-    # ── 5. 稅務修正 + 系統 EPS 估算（季+年）──
+    # ── 5. 稅務修正（每次都跑）──
     _fix_tax_data()
-    _batch_system_estimate()
-    _batch_annual_estimate()
+    # 系統估算只在每天 06:00 完整排程（run()）裡跑，quick_update 不跑（避免每30分鐘重算）
 
     print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
 
@@ -3147,7 +3146,7 @@ def _batch_system_estimate():
 
 
 # 不適用系統估算的產業（損益結構與一般製造/服務業不同）
-_EXCLUDED_INDUSTRIES = {'金融保險業', '金融業', '保險業', '銀行業', '證券業', '票券業', '期貨業'}
+_EXCLUDED_INDUSTRIES = {'金融保險業', '金融業', '保險業', '銀行業', '證券業', '票券業', '期貨業', '建材營造'}
 
 
 def _batch_annual_estimate():
@@ -3953,9 +3952,14 @@ def estimate_annual_eps(code):
     elif nonop_level == 'moderate': issues.append("業外中波動")
     if rev_confidence == 'C': issues.append("兩法差距大")
     if n_months <= 3: issues.append("僅" + str(n_months) + "月資料")
+    # 控股型偵測：業外佔比 > 200%
+    if est_oi != 0 and abs(est_nonop / est_oi) > 2:
+        issues.append("業外主導型")
 
     confidence = rev_confidence
     if anomaly and confidence == 'A':
+        confidence = 'B'
+    if est_oi != 0 and abs(est_nonop / est_oi) > 2 and confidence == 'A':
         confidence = 'B'
 
     # 去年 EPS
