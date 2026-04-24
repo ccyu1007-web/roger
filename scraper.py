@@ -3302,18 +3302,35 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
     for r in hist[:4]:
         pti = r.get('pretax_income')
         if pti and pti > 0:
+            nip_r = r.get('net_income_parent')
             tax = r.get('tax')
+            # 反算：tax=NULL 或 tax=0 但 pti>nip
+            if nip_r is not None:
+                calc_tax = pti - nip_r
+                if tax is None or (tax == 0 and abs(calc_tax) > 100):
+                    tax = calc_tax
+                # pti==nip 異常
+                if abs(pti - nip_r) < 1 and pti > 1000000:
+                    tax = pti * 0.20
             if tax is not None:
                 pti_sum += pti; tax_sum += tax
-            elif r.get('net_income_parent') is not None:
-                pti_sum += pti; tax_sum += pti - r['net_income_parent']
     q_tax_rate = tax_sum / pti_sum if pti_sum > 0 else 0.20
     # 年度稅率錨定
     ann_tax_rate = None
     if ann_rows:
         for ar in ann_rows:
-            if ar.get('pretax_income') and ar['pretax_income'] > 0 and ar.get('tax'):
-                ann_tax_rate = ar['tax'] / ar['pretax_income']
+            ar_pti = ar.get('pretax_income')
+            ar_ni = ar.get('net_income') or ar.get('net_income_parent')
+            ar_tax = ar.get('tax')
+            # 反算年度稅
+            if ar_pti and ar_ni:
+                calc = ar_pti - ar_ni
+                if ar_tax is None or (ar_tax == 0 and abs(calc) > 100):
+                    ar_tax = calc
+                if abs(ar_pti - ar_ni) < 1 and ar_pti > 1000000:
+                    ar_tax = ar_pti * 0.20
+            if ar_pti and ar_pti > 0 and ar_tax:
+                ann_tax_rate = ar_tax / ar_pti
                 break
     if ann_tax_rate is not None:
         est_tax_rate = max(0.05, min(ann_tax_rate * 0.7 + q_tax_rate * 0.3, 0.40))
@@ -3613,32 +3630,31 @@ def estimate_annual_eps(code):
 
     est_gross_profit = est_revenue * est_gm
 
-    # === Step 3: 營業費用（年度財報回歸：固定+變動） ===
+    # === Step 3: 營業費用（年度×0.7 + 季度×0.3 錨定） ===
     opex_data = [(r['operating_expense'], r['revenue'])
                  for r in ann_rows
                  if r.get('operating_expense') is not None
                  and r.get('revenue') and r['revenue'] > 0]
 
-    if len(opex_data) >= 2:
-        opex_vals = [x[0] for x in opex_data]
-        rev_vals = [x[1] for x in opex_data]
-        n = len(opex_data)
-        mean_rev = sum(rev_vals) / n
-        mean_opex = sum(opex_vals) / n
-        ss_xy = sum((rev_vals[i] - mean_rev) * (opex_vals[i] - mean_opex) for i in range(n))
-        ss_xx = sum((rev_vals[i] - mean_rev) ** 2 for i in range(n))
-        if ss_xx > 0:
-            vr = max(0, min(ss_xy / ss_xx, 0.5))
-            fx = max(0, mean_opex - vr * mean_rev)
-            est_opex_reg = fx + vr * est_revenue
+    if len(opex_data) >= 1:
+        # 年度費用率（近年加權）
+        ann_opex_rates = [opex_data[i][0] / opex_data[i][1] for i in range(min(3, len(opex_data)))]
+        w_a = [0.5, 0.3, 0.2][:len(ann_opex_rates)]
+        ann_rate = sum(ann_opex_rates[i] * w_a[i] for i in range(len(w_a))) / sum(w_a)
+
+        # 季度費用率
+        q_opex_data = [(r['operating_expense'], r['revenue'])
+                       for r in q_rows[:4]
+                       if r.get('operating_expense') is not None
+                       and r.get('revenue') and r['revenue'] > 0]
+        if q_opex_data:
+            q_rates = [q_opex_data[i][0] / q_opex_data[i][1] for i in range(min(4, len(q_opex_data)))]
+            w_q = [0.4, 0.3, 0.2, 0.1][:len(q_rates)]
+            q_rate = sum(q_rates[i] * w_q[i] for i in range(len(w_q))) / sum(w_q)
         else:
-            est_opex_reg = mean_opex
-        # 近 2 年平均費用率 × 預估營收（保底，避免低估）
-        recent_rates = [opex_data[i][0] / opex_data[i][1]
-                        for i in range(min(2, len(opex_data)))]
-        recent_avg_rate = statistics.mean(recent_rates)
-        est_opex_rate = recent_avg_rate * est_revenue
-        est_opex = max(est_opex_reg, est_opex_rate)
+            q_rate = ann_rate
+
+        est_opex = (ann_rate * 0.7 + q_rate * 0.3) * est_revenue
     elif opex_data:
         est_opex = opex_data[0][0]
     else:
@@ -3678,21 +3694,35 @@ def estimate_annual_eps(code):
 
     est_pti = est_oi + est_nonop
 
-    # === Step 5: 稅率（年度×0.7 + 季度累計×0.3） ===
+    # === Step 5: 稅率（年度×0.7 + 季度累計×0.3，含反算） ===
     tax_sum = pti_sum = 0
     for r in q_rows[:4]:
         pti = r.get('pretax_income')
         if pti and pti > 0:
+            nip_r = r.get('net_income_parent')
             tax = r.get('tax')
+            if nip_r is not None:
+                calc_tax = pti - nip_r
+                if tax is None or (tax == 0 and abs(calc_tax) > 100):
+                    tax = calc_tax
+                if abs(pti - nip_r) < 1 and pti > 1000000:
+                    tax = pti * 0.20
             if tax is not None:
                 pti_sum += pti; tax_sum += tax
-            elif r.get('net_income_parent') is not None:
-                pti_sum += pti; tax_sum += pti - r['net_income_parent']
     q_tax_rate = tax_sum / pti_sum if pti_sum > 0 else 0.20
     ann_tax_rate = None
     for ar in ann_rows:
-        if ar.get('pretax_income') and ar['pretax_income'] > 0 and ar.get('tax'):
-            ann_tax_rate = ar['tax'] / ar['pretax_income']
+        ar_pti = ar.get('pretax_income')
+        ar_ni = ar.get('net_income') or ar.get('net_income_parent')
+        ar_tax = ar.get('tax')
+        if ar_pti and ar_ni:
+            calc = ar_pti - ar_ni
+            if ar_tax is None or (ar_tax == 0 and abs(calc) > 100):
+                ar_tax = calc
+            if abs(ar_pti - ar_ni) < 1 and ar_pti > 1000000:
+                ar_tax = ar_pti * 0.20
+        if ar_pti and ar_pti > 0 and ar_tax:
+            ann_tax_rate = ar_tax / ar_pti
             break
     if ann_tax_rate is not None:
         est_tax_rate = max(0.05, min(ann_tax_rate * 0.7 + q_tax_rate * 0.3, 0.40))
