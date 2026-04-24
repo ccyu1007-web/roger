@@ -1158,10 +1158,37 @@ def _init_user_lists():
         params TEXT,
         updated_at TEXT
     )""")
-    conn.commit()
+    # 確保 est_year 欄位存在
+    try: c.execute("ALTER TABLE user_estimates ADD COLUMN est_year INTEGER")
+    except: pass
+    try: conn.commit()
+    except: pass
     conn.close()
 
 _init_user_lists()
+
+# 自動清除過期預估（隔年 3/31 後清除）
+def _cleanup_expired_estimates():
+    from datetime import datetime
+    now = datetime.now()
+    roc_year = now.year - 1911
+    if now.month > 3:
+        cutoff_year = roc_year - 1
+    else:
+        cutoff_year = roc_year - 2
+    if cutoff_year > 0:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            deleted = conn.execute("DELETE FROM user_estimates WHERE est_year IS NOT NULL AND est_year <= ?",
+                                   (cutoff_year,)).rowcount
+            conn.commit()
+            conn.close()
+            if deleted > 0:
+                print(f"[自動清除] 已清除 {deleted} 筆過期預估（est_year <= {cutoff_year}）")
+        except:
+            pass
+
+_cleanup_expired_estimates()
 
 @app.route("/api/user-lists")
 def get_user_lists():
@@ -1247,10 +1274,11 @@ def save_user_estimate(code):
     import json
     params = request.json
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    est_year = datetime.now().year - 1911  # 民國年
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO user_estimates (code, params, updated_at) VALUES (?,?,?)",
-              (code, json.dumps(params, ensure_ascii=False), now))
+    c.execute("INSERT OR REPLACE INTO user_estimates (code, params, updated_at, est_year) VALUES (?,?,?,?)",
+              (code, json.dumps(params, ensure_ascii=False), now, est_year))
     conn.commit()
     conn.close()
     return jsonify({"status": "ok"})
