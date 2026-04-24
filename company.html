@@ -1115,7 +1115,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
           <span style="font-size:.76rem;color:#94a3b8">此設定套用全部公司</span>
         </div>
       </div>
-      <div id="matrixGrade" style="margin-bottom:10px"></div>
+      <div id="matrixGrade" style="margin-bottom:10px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap"></div>
       <div id="matrixContainer"></div>
       <div style="margin-top:6px;font-size:.78rem;color:#94a3b8">目前股價位置以粗框標示</div>
     </div>
@@ -1403,6 +1403,23 @@ function calcYldRange() {
   renderMatrix();
 }
 
+function _buildSysGradeBadge() {
+  if (!_sysAnnual || !_sysAnnual.details) return '';
+  const sa = _sysAnnual.details;
+  const sPE = sa.est_pe, sYld = sa.est_yld;
+  if (sPE == null || sYld == null) return '';
+  const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
+  const sPeCols = [{lo:-Infinity,hi:10},{lo:10,hi:11},{lo:11,hi:14},{lo:14,hi:16},{lo:16,hi:18},{lo:18,hi:Infinity}];
+  const sYRows = [{lo:6,hi:Infinity},{lo:5.5,hi:6},{lo:_yldFloor,hi:5.5},{lo:-Infinity,hi:_yldFloor}];
+  const sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
+  const sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
+  if (sRow < 0 || sCol < 0) return '';
+  const sg = grades[sRow][sCol];
+  const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a' : (sg==='BA1'||sg==='BA2') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b' : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
+  return `<div><div class="grade-badge ${sBadge}"><span class="grade-label">系統評估等級：</span>${sg}</div>`
+    + `<div style="margin-top:4px;font-size:.82rem;color:#0369a1">系統本益比 ${sPE.toFixed(2)} / 系統殖利率 ${sYld}%</div></div>`;
+}
+
 function renderMatrix() {
   const el = document.getElementById('matrixContainer');
   if (!el) return;
@@ -1413,25 +1430,11 @@ function renderMatrix() {
   const yMax  = parseNum('yldMax');
 
   if (peHi == null || peLo == null || yHigh == null || yMax == null) {
-    // 即使使用者未填，仍顯示系統等級
     const gradeEl = document.getElementById('matrixGrade');
-    if (gradeEl && _sysAnnual && _sysAnnual.details) {
-      const sa = _sysAnnual.details;
-      const sPE = sa.est_pe, sYld = sa.est_yld;
-      if (sPE != null && sYld != null) {
-        const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
-        const sPeCols = [{lo:-Infinity,hi:10},{lo:10,hi:11},{lo:11,hi:14},{lo:14,hi:16},{lo:16,hi:18},{lo:18,hi:Infinity}];
-        const sYRows = [{lo:6,hi:Infinity},{lo:5.5,hi:6},{lo:_yldFloor,hi:5.5},{lo:-Infinity,hi:_yldFloor}];
-        let sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
-        let sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
-        if (sRow >= 0 && sCol >= 0) {
-          const sg = grades[sRow][sCol];
-          const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a' : (sg==='BA1'||sg==='BA2') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b' : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
-          gradeEl.innerHTML = `<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>`
-            + `<div style="margin-top:10px"><div class="grade-badge ${sBadge}"><span class="grade-label">系統評估等級：</span>${sg}</div>`
-            + `<div style="margin-top:4px;font-size:.82rem;color:#0369a1">系統本益比 ${sPE.toFixed(2)} / 系統殖利率 ${sYld}%</div></div>`;
-        }
-      }
+    if (gradeEl) {
+      let h = '<div><div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div></div>';
+      h += _buildSysGradeBadge();
+      gradeEl.innerHTML = h;
     }
     el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入本益比與殖利率參數</div>';
     return;
@@ -1489,9 +1492,9 @@ function renderMatrix() {
   if (curPE != null) { curCol = peCols.findIndex(c => curPE >= c.lo && curPE < c.hi); }
   if (curYld != null) { curRow = yRows.findIndex(r => curYld >= r.lo && curYld < r.hi); }
 
-  // 等級 badge
+  // 等級 badge（左：使用者，右：系統）
   const gradeEl = document.getElementById('matrixGrade');
-  let gradeHtml = '';
+  let gradeHtml = '<div>';
   if (curRow >= 0 && curCol >= 0) {
     const g = grades[curRow][curCol];
     const badgeCls = g === 'AA' ? 'gb-aa' : (g==='A'||g==='A1'||g==='A2') ? 'gb-a'
@@ -1499,39 +1502,13 @@ function renderMatrix() {
       : g==='觀察' ? 'gb-watch' : g==='臨界點' ? 'gb-crit' : 'gb-x';
     const peStr = curPE != null ? curPE.toFixed(2) : '-';
     const yldStr = curYld != null ? curYld.toFixed(2) + '%' : '-';
-    gradeHtml = `<div class="grade-badge ${badgeCls}"><span class="grade-label">價值評估矩陣等級：</span>${g}</div>`
+    gradeHtml += `<div class="grade-badge ${badgeCls}"><span class="grade-label">價值評估矩陣等級：</span>${g}</div>`
       + `<div style="margin-top:4px;font-size:.82rem;color:#64748b">本益比 ${peStr} / 殖利率 ${yldStr}</div>`;
   } else {
-    gradeHtml = '<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>';
+    gradeHtml += '<div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div>';
   }
-
-  // 系統等級（用系統預估 PE/殖利率 + 預設倍數 18/10, 殖利率 5.5%/6%）
-  if (_sysAnnual && _sysAnnual.details) {
-    const sa = _sysAnnual.details;
-    const sPE = sa.est_pe;
-    const sYld = sa.est_yld;
-    if (sPE != null && sYld != null) {
-      // 系統用預設 PE: 最高18 最低10
-      const sPeCols = [
-        { lo: -Infinity, hi: 10 }, { lo: 10, hi: 11 }, { lo: 11, hi: 14 },
-        { lo: 14, hi: 16 }, { lo: 16, hi: 18 }, { lo: 18, hi: Infinity },
-      ];
-      const sYRows = [
-        { lo: 6, hi: Infinity }, { lo: 5.5, hi: 6 },
-        { lo: _yldFloor, hi: 5.5 }, { lo: -Infinity, hi: _yldFloor },
-      ];
-      let sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
-      let sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
-      if (sRow >= 0 && sCol >= 0) {
-        const sg = grades[sRow][sCol];
-        const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a'
-          : (sg==='BA1'||sg==='BA2') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b'
-          : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
-        gradeHtml += `<div style="margin-top:10px"><div class="grade-badge ${sBadge}"><span class="grade-label">系統評估等級：</span>${sg}</div>`
-          + `<div style="margin-top:4px;font-size:.82rem;color:#0369a1">系統本益比 ${sPE.toFixed(2)} / 系統殖利率 ${sYld}%</div></div>`;
-      }
-    }
-  }
+  gradeHtml += '</div>';
+  gradeHtml += _buildSysGradeBadge();
   gradeEl.innerHTML = gradeHtml;
 
   // 渲染表格
