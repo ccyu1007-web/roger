@@ -3430,6 +3430,362 @@ def estimate_system_eps_multi(code):
     return {"quarters": estimates}
 
 
+def estimate_annual_eps(code):
+    """
+    年度 EPS 估算：
+    營收：月份佔比法（主）+ YoY衰減法（輔）取保守值
+    費用：年度財報回歸（固定+變動）
+    業外：年度財報三級制
+    稅率/歸屬/股數：季度資料
+    """
+    import statistics
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 月營收
+    rev_rows = conn.execute("""
+        SELECT year, month, revenue FROM monthly_revenue
+        WHERE code = ? ORDER BY year DESC, month DESC LIMIT 60
+    """, (code,)).fetchall()
+    rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
+
+    # 年度財報
+    ann_rows = [dict(r) for r in conn.execute("""
+        SELECT * FROM financial_annual WHERE code = ?
+        ORDER BY year DESC LIMIT 5
+    """, (code,)).fetchall()]
+
+    # 季度財報（稅率/歸屬/股數用）
+    q_rows = [dict(r) for r in conn.execute("""
+        SELECT * FROM quarterly_financial WHERE code = ?
+        ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                 CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+        LIMIT 8
+    """, (code,)).fetchall()]
+    conn.close()
+
+    if len(ann_rows) < 2:
+        return {"error": "年度財報不足（需至少 2 年）"}
+
+    west_year = datetime.now().year
+    roc_year = west_year - 1911
+
+    # === Step 1: 年度營收預估 ===
+    # 當年度已公布月份
+    ytd_months = []
+    for m in range(1, 13):
+        rev = rev_map.get((west_year, m))
+        if rev:
+            ytd_months.append((m, rev))
+        else:
+            break
+    n_months = len(ytd_months)
+    if n_months == 0:
+        return {"error": "當年度無月營收資料"}
+
+    ytd_revenue = sum(r for _, r in ytd_months)
+
+    # --- 方法A：月份佔比法（近3年每月佔全年比重） ---
+    weight_years = []
+    for y in range(west_year - 1, west_year - 4, -1):
+        year_total = sum(rev_map.get((y, m), 0) for m in range(1, 13))
+        if year_total > 0:
+            ytd_weight = sum(rev_map.get((y, m), 0) for m in range(1, n_months + 1)) / year_total
+            if ytd_weight > 0:
+                weight_years.append(ytd_weight)
+
+    if weight_years:
+        avg_weight = statistics.mean(weight_years)
+        rev_method_a = ytd_revenue / avg_weight
+    else:
+        rev_method_a = ytd_revenue / n_months * 12  # fallback
+
+    # --- 方法B：YoY 衰減 + 均值回歸 ---
+    prev_ytd = sum(rev_map.get((west_year - 1, m), 0) for m in range(1, n_months + 1))
+    prev_annual = sum(rev_map.get((west_year - 1, m), 0) for m in range(1, 13))
+
+    if prev_ytd > 0 and prev_annual > 0:
+        ytd_growth = ytd_revenue / prev_ytd - 1
+
+        # 過去 3 年平均年成長率
+        hist_growths = []
+        for i in range(len(ann_rows) - 1):
+            r1, r2 = ann_rows[i], ann_rows[i + 1]
+            if r1.get('revenue') and r2.get('revenue') and r2['revenue'] > 0:
+                hist_growths.append(r1['revenue'] / r2['revenue'] - 1)
+        hist_avg_growth = statistics.mean(hist_growths) if hist_growths else 0
+
+        # 衰減係數
+        decay = {1: 0.6, 2: 0.6, 3: 0.6, 4: 0.75, 5: 0.75, 6: 0.75,
+                 7: 0.85, 8: 0.85, 9: 0.85, 10: 0.95, 11: 0.95, 12: 0.95}
+        d = decay.get(n_months, 0.8)
+
+        # 均值回歸：0.7 × YTD + 0.3 × 歷史
+        adj_growth = (ytd_growth * 0.7 + hist_avg_growth * 0.3) * d
+        # 上下限 -30% ~ +30%
+        adj_growth = max(-0.30, min(adj_growth, 0.30))
+
+        rev_method_b = prev_annual * (1 + adj_growth)
+    else:
+        rev_method_b = rev_method_a  # fallback
+
+    # --- 取保守值 + 信心 ---
+    if rev_method_a > 0 and rev_method_b > 0:
+        gap_pct = abs(rev_method_a - rev_method_b) / min(rev_method_a, rev_method_b) * 100
+        est_revenue = min(rev_method_a, rev_method_b)
+        rev_confidence = 'A' if gap_pct < 10 else ('B' if gap_pct < 25 else 'C')
+    else:
+        est_revenue = rev_method_a
+        rev_confidence = 'C'
+
+    # 累計營收成長率
+    rev_growth_pct = (ytd_revenue / prev_ytd - 1) * 100 if prev_ytd > 0 else None
+    adj_growth_pct = (est_revenue / prev_annual - 1) * 100 if prev_annual > 0 else None
+
+    # 單月 YoY 異常檢測
+    anomaly = False
+    monthly_yoys = []
+    for m, rev in ytd_months:
+        prev_m = rev_map.get((west_year - 1, m))
+        if prev_m and prev_m > 0:
+            monthly_yoys.append((rev / prev_m - 1) * 100)
+    if len(monthly_yoys) >= 1:
+        # 近 24 月 YoY 標準差
+        all_yoys = []
+        for rm in rev_rows:
+            prev_r = rev_map.get((rm['year'] - 1, rm['month']))
+            if prev_r and prev_r > 0:
+                all_yoys.append((rm['revenue'] / prev_r - 1) * 100)
+                if len(all_yoys) >= 24:
+                    break
+        if len(all_yoys) >= 6:
+            yoy_mean = statistics.mean(all_yoys)
+            yoy_sd = statistics.stdev(all_yoys)
+            for my in monthly_yoys:
+                if abs(my - yoy_mean) > yoy_sd * 2:
+                    anomaly = True
+                    break
+
+    # === Step 2: 毛利率（同季估計邏輯：近季加權 + 營收連動） ===
+    gm_list = []
+    for r in q_rows[:4]:
+        if r.get('revenue') and r['revenue'] > 0 and r.get('gross_profit') is not None:
+            gm_list.append(r['gross_profit'] / r['revenue'])
+    if len(gm_list) >= 2:
+        est_gm = gm_list[0] * 0.6 + gm_list[1] * 0.4
+        if q_rows[0].get('revenue') and q_rows[0]['revenue'] > 0:
+            # 用年化營收對比
+            q_annual = q_rows[0]['revenue'] * 4
+            rev_chg = est_revenue / q_annual - 1 if q_annual > 0 else 0
+            est_gm += rev_chg * 0.3 * est_gm
+    elif gm_list:
+        est_gm = gm_list[0]
+    else:
+        return {"error": "無毛利率資料"}
+
+    est_gross_profit = est_revenue * est_gm
+
+    # === Step 3: 營業費用（年度財報回歸：固定+變動） ===
+    opex_data = [(r['operating_expense'], r['revenue'])
+                 for r in ann_rows
+                 if r.get('operating_expense') is not None
+                 and r.get('revenue') and r['revenue'] > 0]
+
+    if len(opex_data) >= 2:
+        opex_vals = [x[0] for x in opex_data]
+        rev_vals = [x[1] for x in opex_data]
+        n = len(opex_data)
+        mean_rev = sum(rev_vals) / n
+        mean_opex = sum(opex_vals) / n
+        ss_xy = sum((rev_vals[i] - mean_rev) * (opex_vals[i] - mean_opex) for i in range(n))
+        ss_xx = sum((rev_vals[i] - mean_rev) ** 2 for i in range(n))
+        if ss_xx > 0:
+            vr = max(0, min(ss_xy / ss_xx, 0.5))
+            fx = max(0, mean_opex - vr * mean_rev)
+            est_opex = fx + vr * est_revenue
+        else:
+            est_opex = mean_opex
+    elif opex_data:
+        est_opex = opex_data[0][0]
+    else:
+        est_opex = est_gross_profit * 0.3
+
+    est_oi = est_gross_profit - est_opex
+
+    # === Step 4: 業外（年度財報三級制） ===
+    nonop_list = [r['non_operating'] for r in ann_rows if r.get('non_operating') is not None]
+    nonop_level = 'stable'
+    if len(nonop_list) >= 3:
+        avg = statistics.mean(nonop_list)
+        sd = statistics.stdev(nonop_list)
+        cv = sd / abs(avg) if abs(avg) > 0 else (0 if sd == 0 else 999)
+        if cv < 0.5:
+            weights = [0.4, 0.3, 0.2, 0.1][:len(nonop_list)]
+            est_nonop = sum(nonop_list[i] * weights[i] for i in range(len(weights))) / sum(weights)
+        elif cv < 1.0:
+            est_nonop = statistics.median(nonop_list)
+            nonop_level = 'moderate'
+        else:
+            sorted_l = sorted(nonop_list)
+            est_nonop = sorted_l[max(0, int(len(sorted_l) * 0.25))]
+            nonop_level = 'volatile'
+    elif nonop_list:
+        est_nonop = nonop_list[0]
+    else:
+        est_nonop = 0
+
+    est_pti = est_oi + est_nonop
+
+    # === Step 5: 稅率（季度近 4 季累計） ===
+    tax_sum = pti_sum = 0
+    for r in q_rows[:4]:
+        pti = r.get('pretax_income')
+        if pti and pti > 0:
+            tax = r.get('tax')
+            if tax is not None:
+                pti_sum += pti; tax_sum += tax
+            elif r.get('net_income_parent') is not None:
+                pti_sum += pti; tax_sum += pti - r['net_income_parent']
+    est_tax_rate = max(0.05, min(tax_sum / pti_sum, 0.40)) if pti_sum > 0 else 0.20
+    est_ni = est_pti * (1 - est_tax_rate) if est_pti > 0 else est_pti * 0.80
+
+    # === Step 6: 歸屬母公司權重 ===
+    pw_list = []
+    for r in q_rows[:4]:
+        ci = r.get('continuing_income') or r.get('net_income_parent')
+        nip = r.get('net_income_parent')
+        if ci and ci != 0 and nip is not None:
+            pw = nip / ci
+            if 0.3 <= pw <= 1.1:
+                pw_list.append(pw)
+    est_pw = statistics.mean(pw_list) if pw_list else 1.0
+    est_nip = est_ni * est_pw
+
+    # === Step 7: 股數 ===
+    est_shares = None
+    for r in q_rows[:4]:
+        if r.get('eps') and r['eps'] != 0 and r.get('net_income_parent') is not None:
+            est_shares = r['net_income_parent'] / r['eps']
+            break
+    if not est_shares:
+        return {"error": "無法計算股數"}
+
+    est_eps = round(est_nip / est_shares, 2)
+
+    # === 信心等級 ===
+    issues = []
+    if anomaly: issues.append("單月YoY異常")
+    if nonop_level == 'volatile': issues.append("業外高波動(P25)")
+    elif nonop_level == 'moderate': issues.append("業外中波動(中位數)")
+    if rev_confidence == 'C': issues.append("兩法差距大")
+    if n_months <= 3: issues.append("僅" + str(n_months) + "月資料")
+
+    confidence = rev_confidence
+    if anomaly and confidence == 'A':
+        confidence = 'B'
+
+    # 去年 EPS
+    last_year_eps = ann_rows[0].get('eps') if ann_rows else None
+
+    return {
+        "target": f"{roc_year}年度",
+        "est_eps": est_eps,
+        "confidence": confidence,
+        "details": {
+            "n_months": n_months,
+            "ytd_revenue": round(ytd_revenue),
+            "rev_growth_pct": round(rev_growth_pct, 2) if rev_growth_pct is not None else None,
+            "adj_growth_pct": round(adj_growth_pct, 2) if adj_growth_pct is not None else None,
+            "rev_method_a": round(rev_method_a),
+            "rev_method_b": round(rev_method_b),
+            "est_revenue": round(est_revenue),
+            "est_gm": round(est_gm * 100, 2),
+            "est_gross_profit": round(est_gross_profit),
+            "est_opex": round(est_opex),
+            "est_oi": round(est_oi),
+            "est_nonop": round(est_nonop),
+            "est_pti": round(est_pti),
+            "est_tax_rate": round(est_tax_rate * 100, 2),
+            "est_ni": round(est_ni),
+            "est_pw": round(est_pw * 100, 2),
+            "est_nip": round(est_nip),
+            "est_shares": round(est_shares),
+            "last_year_eps": last_year_eps,
+            "anomaly": anomaly,
+            "issues": issues,
+        }
+    }
+
+
+def _init_eps_log_db():
+    """建立估算日誌表"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS system_eps_log (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            code            TEXT NOT NULL,
+            est_date        TEXT NOT NULL,
+            target_period   TEXT NOT NULL,
+            months_used     INTEGER,
+            rev_growth      REAL,
+            est_revenue     REAL,
+            est_gm          REAL,
+            est_opex        REAL,
+            est_nonop       REAL,
+            est_tax_rate    REAL,
+            est_eps         REAL,
+            confidence      TEXT,
+            method_version  TEXT DEFAULT 'v1'
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS system_eps_actual (
+            code            TEXT NOT NULL,
+            target_period   TEXT NOT NULL,
+            actual_revenue  REAL,
+            actual_eps      REAL,
+            report_date     TEXT,
+            PRIMARY KEY (code, target_period)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def _log_estimate(code, result, est_type='annual'):
+    """將估算結果寫入日誌（新增不覆蓋）"""
+    _init_eps_log_db()
+    if 'error' in result:
+        return
+    d = result['details']
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        INSERT INTO system_eps_log
+        (code, est_date, target_period, months_used, rev_growth,
+         est_revenue, est_gm, est_opex, est_nonop, est_tax_rate,
+         est_eps, confidence, method_version)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        code,
+        datetime.now().strftime('%Y-%m-%d'),
+        result.get('target') or result.get('quarter', ''),
+        d.get('n_months') or d.get('rev_actual', 0),
+        d.get('adj_growth_pct') or d.get('rev_growth_pct'),
+        d.get('est_revenue'),
+        d.get('est_gm'),
+        d.get('est_opex'),
+        d.get('est_nonop'),
+        d.get('est_tax_rate'),
+        result.get('est_eps'),
+        result.get('confidence'),
+        'v1'
+    ))
+    conn.commit()
+    conn.close()
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == '--quick':

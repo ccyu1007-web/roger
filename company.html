@@ -166,6 +166,7 @@
     padding: 8px 0; font-weight: 700; color: #2563eb; font-size: .82rem;
     border-bottom: 2px solid #2563eb;
   }
+  .est-grid .ann-col { color: #0369a1; }
   .est-grid .result-val { font-weight: 700; color: #1e3a5f; font-size: .95rem; }
   .est-grid .result-highlight { color: #2563eb; font-size: 1.05rem; }
 
@@ -504,19 +505,23 @@ async function loadQuarterly() {
   const panel = document.getElementById('panel');
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入季度資料中...</div></div>';
   try {
-    const [qRes, sysRes] = await Promise.all([
+    const [qRes, sysRes, annRes] = await Promise.all([
       fetch(`/api/stocks/${CODE}/quarterly`),
-      fetch(`/api/stocks/${CODE}/system-estimate-multi`)
+      fetch(`/api/stocks/${CODE}/system-estimate-multi`),
+      fetch(`/api/stocks/${CODE}/system-estimate-annual`)
     ]);
     const json = await qRes.json();
     const sysJson = await sysRes.json();
+    const annJson = await annRes.json();
     updateTitle(json);
     if (!json.data || !json.data.length) { panel.innerHTML = '<div class="loading">無季度資料（FinMind 額度可能不足，請稍後再試）</div>'; return; }
     _sysQuarters = sysJson.quarters || [];
+    _sysAnnual = annJson.error ? null : annJson;
     renderQuarterlyTable(json.data);
   } catch(e) { panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗</div>'; }
 }
 let _sysQuarters = [];
+let _sysAnnual = null;
 
 // ── 載入月營收 ──
 async function loadRevenue() {
@@ -808,17 +813,19 @@ function renderQuarterlyTable(data) {
   const latestShares = data.find(d => d.weighted_shares)?.weighted_shares;
   const sharesMillion = latestShares ? (latestShares / 1000) : null;
 
-  html += buildEstimator(sharesMillion, _sysQuarters);
+  html += buildEstimator(sharesMillion, _sysQuarters, _sysAnnual);
 
   document.getElementById('panel').innerHTML = html;
   initEstimator(sharesMillion);
 }
 
 // ── EPS 估算計算器 ──
-function buildEstimator(sharesMillion, sysQuarters) {
+function buildEstimator(sharesMillion, sysQuarters, annData) {
   const sharesDisplay = sharesMillion ? sharesMillion.toFixed(2) : '-';
   const n = sysQuarters.length;
-  const sysCols = n > 0 ? ' ' + Array(n).fill('140px').join(' ') : '';
+  const hasAnn = annData && !annData.error;
+  const totalSysCols = n + (hasAnn ? 1 : 0);
+  const sysCols = totalSysCols > 0 ? ' ' + Array(totalSysCols).fill('140px').join(' ') : '';
   const gridStyle = `grid-template-columns: 180px 200px${sysCols}`;
 
   const confMap = {A:{color:'#059669',label:'高'}, B:{color:'#d97706',label:'中'}, C:{color:'#dc2626',label:'低'}};
@@ -827,7 +834,7 @@ function buildEstimator(sharesMillion, sysQuarters) {
   const fP = (v, dec) => v != null ? v.toFixed(dec || 2) + '%' : '-';
   const fN = (v, dec) => v != null ? v.toFixed(dec || 2) : '-';
 
-  // 建立每個系統欄的值陣列
+  // 季估算資料
   const sysData = sysQuarters.map(sq => {
     const d = sq.details;
     const mr = d.monthly_revs || [];
@@ -854,14 +861,47 @@ function buildEstimator(sharesMillion, sysQuarters) {
     };
   });
 
-  // 生成系統欄 helper
-  const sysCells = (field) => sysData.map(s => `<div class="sys">${s[field]}</div>`).join('');
+  // 年度估算資料
+  let ann = null;
+  if (hasAnn) {
+    const ad = annData.details;
+    const aConf = confMap[annData.confidence] || {color:'#94a3b8',label:'-'};
+    ann = {
+      target: annData.target, conf: aConf,
+      revGrowth: ad.rev_growth_pct != null ? (ad.rev_growth_pct >= 0 ? '+' : '') + ad.rev_growth_pct.toFixed(2) + '%' : '-',
+      adjGrowth: ad.adj_growth_pct != null ? (ad.adj_growth_pct >= 0 ? '+' : '') + ad.adj_growth_pct.toFixed(2) + '%' : '-',
+      cumRevK: fK(ad.est_revenue), cumRevM: fM(ad.est_revenue),
+      gm: fP(ad.est_gm), opex: fM(ad.est_opex), nonop: fM(ad.est_nonop),
+      tax: fP(ad.est_tax_rate), pw: fP(ad.est_pw),
+      oi: fM(ad.est_oi),
+      oir: ad.est_revenue > 0 ? fP(ad.est_oi / ad.est_revenue * 100) : '-',
+      pti: fM(ad.est_pti),
+      ptir: ad.est_revenue > 0 ? fP(ad.est_pti / ad.est_revenue * 100) : '-',
+      nir: ad.est_revenue > 0 && ad.est_ni != null ? fP(ad.est_ni / ad.est_revenue * 100) : '-',
+      nip: fM(ad.est_nip),
+      shares: ad.est_shares ? (ad.est_shares / 1000000).toFixed(2) : '-',
+      eps: annData.est_eps, epsStr: fN(annData.est_eps),
+      lastEps: ad.last_year_eps, issues: ad.issues || [],
+      nMonths: ad.n_months,
+    };
+  }
+
+  // 生成系統欄 helper（季 + 年度）
+  const sysCells = (field, annField) => {
+    let h = sysData.map(s => `<div class="sys">${s[field]}</div>`).join('');
+    if (ann) h += `<div class="sys ann-col">${annField != null ? annField : (ann[field] || '-')}</div>`;
+    return h;
+  };
+
+  // headers
   const sysHdrs = sysData.map(s =>
     `<div class="sys-hdr">${s.quarter}` +
     `<span style="font-size:.68rem;color:#fff;background:${s.conf.color};padding:1px 6px;border-radius:8px;margin-left:4px">${s.conf.label}</span>` +
     (s.has_actual ? '<span style="font-size:.68rem;color:#059669;margin-left:4px">已公布</span>' : '') +
     `</div>`
-  ).join('');
+  ).join('') + (ann ? `<div class="sys-hdr" style="border-bottom-color:#0ea5e9;color:#0369a1">${ann.target}` +
+    `<span style="font-size:.68rem;color:#fff;background:${ann.conf.color};padding:1px 6px;border-radius:8px;margin-left:4px">${ann.conf.label}</span>` +
+    `</div>` : '');
 
   return `
   <div class="est-wrap">
@@ -877,61 +917,61 @@ function buildEstimator(sharesMillion, sysQuarters) {
 
       <div class="lbl">自訂營收（仟元）</div>
       <div class="val"><input id="estRev1" type="text" placeholder="月營收 1" oninput="calcEstimate()"></div>
-      ${sysCells('rev1')}
+      ${sysCells('rev1', '')}
       <div class="lbl">自訂營收（仟元）</div>
       <div class="val"><input id="estRev2" type="text" placeholder="月營收 2" oninput="calcEstimate()"></div>
-      ${sysCells('rev2')}
+      ${sysCells('rev2', '')}
       <div class="lbl">自訂營收（仟元）</div>
       <div class="val"><input id="estRev3" type="text" placeholder="月營收 3" oninput="calcEstimate()"></div>
-      ${sysCells('rev3')}
+      ${sysCells('rev3', ann ? `<span style="font-size:.75rem;color:#0369a1">成長率 ${ann.revGrowth}</span><br><span style="font-size:.68rem;color:#94a3b8">調整後 ${ann.adjGrowth}</span>` : '')}
       <div class="lbl">累計營收（仟元）</div>
       <div class="val"><div class="computed" id="estCumRevK">-</div></div>
-      ${sysCells('cumRevK')}
+      ${sysCells('cumRevK', null)}
       <div class="lbl">累計營收（百萬）</div>
       <div class="val"><div class="computed" id="estCumRevM">-</div></div>
-      ${sysCells('cumRevM')}
+      ${sysCells('cumRevM', null)}
 
       <div class="sep"></div>
 
       <div class="lbl">毛利率（%）</div>
       <div class="val"><input id="estGM" type="text" placeholder="%" oninput="calcEstimate()"></div>
-      ${sysCells('gm')}
+      ${sysCells('gm', null)}
       <div class="lbl">費用（百萬）</div>
       <div class="val"><input id="estOpex" type="text" placeholder="營業費用" oninput="calcEstimate()"></div>
-      ${sysCells('opex')}
+      ${sysCells('opex', null)}
       <div class="lbl">業外（百萬）</div>
       <div class="val"><input id="estNonOp" type="text" placeholder="業外收支" oninput="calcEstimate()"></div>
-      ${sysCells('nonop')}
+      ${sysCells('nonop', null)}
       <div class="lbl">稅率（%）</div>
       <div class="val"><input id="estTax" type="text" placeholder="%" oninput="calcEstimate()"></div>
-      ${sysCells('tax')}
+      ${sysCells('tax', null)}
       <div class="lbl">歸屬權重（%）</div>
       <div class="val"><input id="estPW" type="text" placeholder="%" oninput="calcEstimate()"></div>
-      ${sysCells('pw')}
+      ${sysCells('pw', null)}
 
       <div class="sep"></div>
 
       <div class="lbl result-label">營業利益（百萬）</div>
       <div class="val"><div class="computed result-val" id="estOI">-</div></div>
-      ${sysCells('oi')}
+      ${sysCells('oi', null)}
       <div class="lbl result-label">營益率（%）</div>
       <div class="val"><div class="computed result-val" id="estOIR">-</div></div>
-      ${sysCells('oir')}
+      ${sysCells('oir', null)}
       <div class="lbl result-label">稅前淨利（百萬）</div>
       <div class="val"><div class="computed result-val" id="estPTI">-</div></div>
-      ${sysCells('pti')}
+      ${sysCells('pti', null)}
       <div class="lbl result-label">稅前淨利率（%）</div>
       <div class="val"><div class="computed result-val" id="estPTIR">-</div></div>
-      ${sysCells('ptir')}
+      ${sysCells('ptir', null)}
       <div class="lbl result-label">稅後淨利率（%）</div>
       <div class="val"><div class="computed result-val" id="estNIR">-</div></div>
-      ${sysCells('nir')}
+      ${sysCells('nir', null)}
       <div class="lbl result-label">歸屬母公司淨利（百萬）</div>
       <div class="val"><div class="computed result-val" id="estNIP">-</div></div>
-      ${sysCells('nip')}
+      ${sysCells('nip', null)}
       <div class="lbl result-label">股數（百萬）</div>
       <div class="val"><div class="computed result-val" id="estShares">${sharesDisplay}</div></div>
-      ${sysCells('shares')}
+      ${sysCells('shares', null)}
 
       <div class="sep"></div>
 
@@ -944,22 +984,28 @@ function buildEstimator(sharesMillion, sysQuarters) {
           const diff = s.eps - s.actual_eps;
           extra = `<div style="font-size:.72rem;color:#64748b">實際 ${s.actual_eps.toFixed(2)} | 差 ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</div>`;
         } else if (s.yoy_eps != null) {
-          const diff = s.eps - s.yoy_eps;
           extra = `<div style="font-size:.72rem;color:#64748b">去年 ${s.yoy_eps.toFixed(2)}</div>`;
         }
         return `<div class="sys" style="flex-direction:column;align-items:flex-start"><div style="font-size:1.05rem;font-weight:800;color:${color}">${s.epsStr}</div>${extra}</div>`;
-      }).join('')}
+      }).join('')}${ann ? (() => {
+        const color = ann.eps >= 0 ? '#0369a1' : '#dc2626';
+        let extra = '';
+        if (ann.lastEps != null) extra = `<div style="font-size:.72rem;color:#64748b">去年 ${ann.lastEps.toFixed(2)}</div>`;
+        extra += `<div style="font-size:.68rem;color:#94a3b8">${ann.nMonths}月資料</div>`;
+        return `<div class="sys ann-col" style="flex-direction:column;align-items:flex-start"><div style="font-size:1.05rem;font-weight:800;color:${color}">${ann.epsStr}</div>${extra}</div>`;
+      })() : ''}
     </div>
-    ${sysData.some(s => s.issues.length > 0 || s.rev_estimated > 0) ? `
-    <div style="margin-top:8px;font-size:.78rem;color:#94a3b8">
-      ${sysData.map(s => {
+    ${(() => {
+      const notes = [];
+      sysData.forEach(s => {
         const parts = [];
         if (s.rev_estimated > 0) parts.push(`${s.quarter}：實際 ${s.rev_actual} 月 / 預估 ${s.rev_estimated} 月`);
         if (s.issues.length) parts.push(s.issues.join('、'));
-        return parts.length ? parts.join('；') : '';
-      }).filter(Boolean).join(' | ')}
-      <span style="margin-left:8px">* 為預估營收</span>
-    </div>` : ''}
+        if (parts.length) notes.push(parts.join('；'));
+      });
+      if (ann && ann.issues.length) notes.push(`${ann.target}：${ann.issues.join('、')}`);
+      return notes.length ? `<div style="margin-top:8px;font-size:.78rem;color:#94a3b8">${notes.join(' | ')}<span style="margin-left:8px">* 為預估營收</span></div>` : '';
+    })()}
 
     <!-- 年度 EPS 彙總 -->
     <div class="est-annual">
