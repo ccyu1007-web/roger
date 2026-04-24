@@ -3135,7 +3135,7 @@ def _batch_system_estimate():
 
 # ── 系統 EPS 估算核心 ─────────────────────────────────────────
 def _get_est_common_data(code):
-    """取得估算所需的共用資料（季度財報 + 月營收）"""
+    """取得估算所需的共用資料（季度財報 + 月營收 + 年度財報）"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     hist = [dict(r) for r in conn.execute("""
@@ -3149,11 +3149,15 @@ def _get_est_common_data(code):
         WHERE code = ? ORDER BY year DESC, month DESC LIMIT 48
     """, (code,)).fetchall()
     rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
+    ann_rows = [dict(r) for r in conn.execute("""
+        SELECT * FROM financial_annual WHERE code = ?
+        ORDER BY year DESC LIMIT 5
+    """, (code,)).fetchall()]
     conn.close()
-    return hist, rev_map, rev_rows
+    return hist, rev_map, rev_rows, ann_rows
 
 
-def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
+def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, ann_rows=None):
     """
     估算單一季度 EPS 的核心邏輯。
     回傳 dict（含 quarter, est_eps, confidence, details）或含 error 的 dict。
@@ -3198,7 +3202,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
     if est_rev_total <= 0:
         return {"error": "無營收資料"}
 
-    # --- Step 2: 毛利率（近4季加權平均，近季權重高） ---
+    # --- Step 2: 毛利率（年度×0.7 + 季度×0.3 錨定） ---
     recent = [r for r in hist[:4] if r.get('revenue') and r['revenue'] > 0
               and r.get('gross_profit') is not None]
 
@@ -3210,37 +3214,44 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
     if len(gm_pool) >= 2:
         weights = [0.4, 0.3, 0.2, 0.1][:len(gm_pool)]
         wsum = sum(weights)
-        est_gm = sum(gm_pool[i] * weights[i] for i in range(len(weights))) / wsum
+        gm_q = sum(gm_pool[i] * weights[i] for i in range(len(weights))) / wsum
+        # 年度錨定
+        ann_gm = None
+        if ann_rows:
+            for ar in ann_rows:
+                if ar.get('revenue') and ar['revenue'] > 0 and ar.get('gross_profit') is not None:
+                    ann_gm = ar['gross_profit'] / ar['revenue']
+                    break
+        est_gm = gm_q * 0.3 + ann_gm * 0.7 if ann_gm is not None else gm_q
     else:
         est_gm = gm_pool[0]
 
     est_gross_profit = est_rev_total * est_gm
 
-    # --- Step 3: 營業費用（固定+變動回歸 + 近期費用率保底） ---
+    # --- Step 3: 營業費用（年度×0.7 + 季度×0.3 錨定） ---
     opex_data = [(r['operating_expense'], r['revenue'])
                  for r in hist[:8]
                  if r.get('operating_expense') is not None
                  and r.get('revenue') and r['revenue'] > 0]
 
     if len(opex_data) >= 2:
-        opex_vals = [x[0] for x in opex_data]
-        rev_vals = [x[1] for x in opex_data]
-        n = len(opex_data)
-        mean_rev = sum(rev_vals) / n
-        mean_opex = sum(opex_vals) / n
-        ss_xy = sum((rev_vals[i] - mean_rev) * (opex_vals[i] - mean_opex) for i in range(n))
-        ss_xx = sum((rev_vals[i] - mean_rev) ** 2 for i in range(n))
-        if ss_xx > 0:
-            vr = max(0, min(ss_xy / ss_xx, 0.5))
-            fx = max(0, mean_opex - vr * mean_rev)
-            est_opex_reg = fx + vr * est_rev_total
+        # 季度費用率（近4季加權）
+        q_opex_rates = [opex_data[i][0] / opex_data[i][1] for i in range(min(4, len(opex_data)))]
+        w = [0.4, 0.3, 0.2, 0.1][:len(q_opex_rates)]
+        q_rate = sum(q_opex_rates[i] * w[i] for i in range(len(w))) / sum(w)
+
+        # 年度費用率錨定
+        ann_opex_rate = None
+        if ann_rows:
+            for ar in ann_rows:
+                if ar.get('operating_expense') and ar.get('revenue') and ar['revenue'] > 0:
+                    ann_opex_rate = ar['operating_expense'] / ar['revenue']
+                    break
+        if ann_opex_rate is not None:
+            est_opex_rate = ann_opex_rate * 0.7 + q_rate * 0.3
         else:
-            est_opex_reg = mean_opex
-        # 近 2 季平均費用率保底
-        recent_rates = [opex_data[i][0] / opex_data[i][1]
-                        for i in range(min(2, len(opex_data)))]
-        est_opex_rate = statistics.mean(recent_rates) * est_rev_total
-        est_opex = max(est_opex_reg, est_opex_rate)
+            est_opex_rate = q_rate
+        est_opex = est_opex_rate * est_rev_total
     elif opex_data:
         est_opex = opex_data[0][0]
     else:
@@ -3284,7 +3295,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
 
     est_pti = est_oi + est_nonop
 
-    # --- Step 5: 稅率（近 4 季累計，限 5~40%） ---
+    # --- Step 5: 稅率（年度×0.7 + 季度累計×0.3，限 5~40%） ---
     tax_sum = pti_sum = 0
     for r in hist[:4]:
         pti = r.get('pretax_income')
@@ -3294,7 +3305,18 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
                 pti_sum += pti; tax_sum += tax
             elif r.get('net_income_parent') is not None:
                 pti_sum += pti; tax_sum += pti - r['net_income_parent']
-    est_tax_rate = max(0.05, min(tax_sum / pti_sum, 0.40)) if pti_sum > 0 else 0.20
+    q_tax_rate = tax_sum / pti_sum if pti_sum > 0 else 0.20
+    # 年度稅率錨定
+    ann_tax_rate = None
+    if ann_rows:
+        for ar in ann_rows:
+            if ar.get('pretax_income') and ar['pretax_income'] > 0 and ar.get('tax'):
+                ann_tax_rate = ar['tax'] / ar['pretax_income']
+                break
+    if ann_tax_rate is not None:
+        est_tax_rate = max(0.05, min(ann_tax_rate * 0.7 + q_tax_rate * 0.3, 0.40))
+    else:
+        est_tax_rate = max(0.05, min(q_tax_rate, 0.40))
     est_ni = est_pti * (1 - est_tax_rate) if est_pti > 0 else est_pti * 0.80
 
     # --- Step 6: 歸屬母公司權重 ---
@@ -3361,15 +3383,14 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year):
 
 def estimate_system_eps(code):
     """單季估算（向下相容，用於批次 stocks 表更新）"""
-    hist, rev_map, rev_rows = _get_est_common_data(code)
+    hist, rev_map, rev_rows, ann_rows = _get_est_common_data(code)
     if len(hist) < 4:
         return {"error": "季度資料不足（需至少 4 季）", "confidence": "N/A"}
 
-    # 估算最近一季：最新季報的下一季
     latest = hist[0]['quarter']
     ly, lq = int(latest.split('Q')[0]), int(latest.split('Q')[1])
     ny, nq = (ly + 1, 1) if lq == 4 else (ly, lq + 1)
-    return _estimate_quarter_core(hist, rev_map, rev_rows, ny, nq, ny + 1911)
+    return _estimate_quarter_core(hist, rev_map, rev_rows, ny, nq, ny + 1911, ann_rows)
 
 
 def estimate_system_eps_multi(code):
@@ -3381,7 +3402,7 @@ def estimate_system_eps_multi(code):
     - 有 10~12 月 → Q1 + Q2 + Q3 + Q4
     - 實際季報公布 15 天後 → 移除該欄
     """
-    hist, rev_map, rev_rows = _get_est_common_data(code)
+    hist, rev_map, rev_rows, ann_rows = _get_est_common_data(code)
     if len(hist) < 4:
         return {"quarters": [], "error": "季度資料不足"}
 
@@ -3389,7 +3410,6 @@ def estimate_system_eps_multi(code):
     west_year = now.year
     roc_year = west_year - 1911
 
-    # 計算當年度有幾個月營收
     available_months = sum(1 for m in range(1, 13) if rev_map.get((west_year, m)))
 
     estimates = []
@@ -3412,7 +3432,7 @@ def estimate_system_eps_multi(code):
             except:
                 pass
 
-        result = _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, qn, west_year)
+        result = _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, qn, west_year, ann_rows)
         if 'error' not in result:
             # 附加實際 vs 預估對照
             if actual_q and actual_q.get('eps') is not None:
@@ -3562,7 +3582,7 @@ def estimate_annual_eps(code):
                     anomaly = True
                     break
 
-    # === Step 2: 毛利率（近4季加權平均，近季權重高） ===
+    # === Step 2: 毛利率（年度×0.7 + 季度×0.3） ===
     gm_list = []
     for r in q_rows[:4]:
         if r.get('revenue') and r['revenue'] > 0 and r.get('gross_profit') is not None:
@@ -3570,7 +3590,13 @@ def estimate_annual_eps(code):
     if len(gm_list) >= 2:
         weights = [0.4, 0.3, 0.2, 0.1][:len(gm_list)]
         wsum = sum(weights)
-        est_gm = sum(gm_list[i] * weights[i] for i in range(len(weights))) / wsum
+        gm_q = sum(gm_list[i] * weights[i] for i in range(len(weights))) / wsum
+        ann_gm = None
+        for ar in ann_rows:
+            if ar.get('revenue') and ar['revenue'] > 0 and ar.get('gross_profit') is not None:
+                ann_gm = ar['gross_profit'] / ar['revenue']
+                break
+        est_gm = gm_q * 0.3 + ann_gm * 0.7 if ann_gm is not None else gm_q
     elif gm_list:
         est_gm = gm_list[0]
     else:
@@ -3639,7 +3665,7 @@ def estimate_annual_eps(code):
 
     est_pti = est_oi + est_nonop
 
-    # === Step 5: 稅率（季度近 4 季累計） ===
+    # === Step 5: 稅率（年度×0.7 + 季度累計×0.3） ===
     tax_sum = pti_sum = 0
     for r in q_rows[:4]:
         pti = r.get('pretax_income')
@@ -3649,7 +3675,16 @@ def estimate_annual_eps(code):
                 pti_sum += pti; tax_sum += tax
             elif r.get('net_income_parent') is not None:
                 pti_sum += pti; tax_sum += pti - r['net_income_parent']
-    est_tax_rate = max(0.05, min(tax_sum / pti_sum, 0.40)) if pti_sum > 0 else 0.20
+    q_tax_rate = tax_sum / pti_sum if pti_sum > 0 else 0.20
+    ann_tax_rate = None
+    for ar in ann_rows:
+        if ar.get('pretax_income') and ar['pretax_income'] > 0 and ar.get('tax'):
+            ann_tax_rate = ar['tax'] / ar['pretax_income']
+            break
+    if ann_tax_rate is not None:
+        est_tax_rate = max(0.05, min(ann_tax_rate * 0.7 + q_tax_rate * 0.3, 0.40))
+    else:
+        est_tax_rate = max(0.05, min(q_tax_rate, 0.40))
     est_ni = est_pti * (1 - est_tax_rate) if est_pti > 0 else est_pti * 0.80
 
     # === Step 6: 歸屬母公司權重 ===
