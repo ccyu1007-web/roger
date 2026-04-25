@@ -339,6 +339,35 @@ def refresh_institutional():
     threading.Thread(target=do_inst, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新三大法人資料"})
 
+@app.route("/api/sync/annual", methods=["POST"])
+def sync_annual():
+    """本機 push 年度 EPS + 股利 + 財務等級到 Render"""
+    if not request.is_json or not request.json.get('data'):
+        return jsonify({"status": "error", "msg": "no data"}), 400
+    rows = request.json['data']
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    updated = 0
+    for r in rows:
+        fields = []
+        vals = []
+        for i in range(1, 7):
+            for prefix in [f'eps_y{i}', f'eps_y{i}_label',
+                           f'div_c{i}', f'div_s{i}', f'div_{i}_label',
+                           f'fin_grade_{i}', f'fin_grade_{i}y']:
+                if prefix in r:
+                    fields.append(f'{prefix}=?')
+                    vals.append(r[prefix])
+        if fields:
+            vals.append(r['code'])
+            c.execute(f"UPDATE stocks SET {', '.join(fields)} WHERE code=?", vals)
+            if c.rowcount:
+                updated += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 # ── 背景更新佇列 ─────────────────────────────────────────
 _bg_updating = set()  # 正在背景更新的股票代碼
 

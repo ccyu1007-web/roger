@@ -1359,6 +1359,11 @@ def run(scheduled=True):
     except:
         pass
 
+    # 自動 push 年度資料到 Render（僅本機）
+    if not os.environ.get('DATABASE_URL'):
+        try: _push_annual_to_render()
+        except: pass
+
     print(f"\n完成！共更新 {len(all_rows)} 筆")
     print(f"  營收年增率：{rev_hit} 筆")
     print(f"  EPS 資料：{eps_hit} 筆")
@@ -1431,8 +1436,9 @@ def _post_process_after_save():
     # ── 股利補充（BWIBBU 殖利率反推，不依賴 FinMind）──
     _fill_dividends_from_bwibbu()
 
-    # ── 從 quarterly_financial 同步 EPS 到 stocks 表 ──
+    # ── 從 quarterly_financial 同步 EPS + 合約負債 到 stocks 表 ──
     _sync_eps_from_quarterly()
+    _sync_contract_from_quarterly()
 
     # ── 財務等級重算（各自管理 DB 連線）──
     _refresh_fin_grades()
@@ -1700,6 +1706,35 @@ def _check_quarterly_completeness():
     conn.close()
 
     print(f"[季報確認] {check_quarter} 完成：{have_data}/{total} 支有資料，{missing} 支缺漏")
+
+
+def _sync_contract_from_quarterly():
+    """從 quarterly_financial 的合約負債同步到 stocks 表的 contract_1~3"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    codes = [r[0] for r in c.execute('SELECT code FROM stocks WHERE close IS NOT NULL ORDER BY code').fetchall()]
+
+    updated = 0
+    for code in codes:
+        rows = c.execute('''SELECT quarter, contract_liability FROM quarterly_financial
+                           WHERE code=? AND contract_liability IS NOT NULL
+                           ORDER BY CAST(SUBSTR(quarter,1,INSTR(quarter,"Q")-1) AS INTEGER) DESC,
+                                    CAST(SUBSTR(quarter,INSTR(quarter,"Q")+1) AS INTEGER) DESC
+                           LIMIT 3''', (code,)).fetchall()
+        if not rows:
+            c.execute('UPDATE stocks SET contract_1=NULL, contract_1q=NULL, contract_2=NULL, contract_2q=NULL, contract_3=NULL, contract_3q=NULL WHERE code=?', (code,))
+            continue
+        for i, r in enumerate(rows, 1):
+            c.execute(f'UPDATE stocks SET contract_{i}=?, contract_{i}q=? WHERE code=?',
+                      (r[1], r[0], code))
+        for i in range(len(rows) + 1, 4):
+            c.execute(f'UPDATE stocks SET contract_{i}=NULL, contract_{i}q=NULL WHERE code=?', (code,))
+        updated += 1
+
+    conn.commit()
+    conn.close()
+    if updated:
+        print(f"  [合約負債同步] 從 quarterly_financial 同步 {updated} 支到 stocks 表")
 
 
 def _sync_eps_from_quarterly():
@@ -3296,6 +3331,45 @@ def fetch_institutional():
         msg += f"，{skipped_date} 支日期不符跳過"
     print(msg)
     return updated
+
+
+def _push_annual_to_render():
+    """本機年度 EPS + 股利 + 財務等級 push 到 Render"""
+    if os.environ.get('DATABASE_URL'):
+        return  # Render 不 push 自己
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""SELECT code,
+            eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
+            eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+            div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
+            div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
+            div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
+            fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
+            fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
+            fin_grade_5, fin_grade_5y, fin_grade_6, fin_grade_6y
+            FROM stocks WHERE close IS NOT NULL""").fetchall()
+        conn.close()
+
+        cols = ['code',
+            'eps_y1','eps_y1_label','eps_y2','eps_y2_label','eps_y3','eps_y3_label',
+            'eps_y4','eps_y4_label','eps_y5','eps_y5_label','eps_y6','eps_y6_label',
+            'div_c1','div_s1','div_1_label','div_c2','div_s2','div_2_label',
+            'div_c3','div_s3','div_3_label','div_c4','div_s4','div_4_label',
+            'div_c5','div_s5','div_5_label','div_c6','div_s6','div_6_label',
+            'fin_grade_1','fin_grade_1y','fin_grade_2','fin_grade_2y',
+            'fin_grade_3','fin_grade_3y','fin_grade_4','fin_grade_4y',
+            'fin_grade_5','fin_grade_5y','fin_grade_6','fin_grade_6y']
+        data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
+
+        for i in range(0, len(data), 200):
+            batch = data[i:i+200]
+            requests.post(f'{RENDER_URL}/api/sync/annual',
+                         json={'data': batch}, timeout=30)
+        print(f"[年度同步] 已 push {len(data)} 支到 Render")
+    except Exception as e:
+        print(f"[年度同步] 失敗: {e}")
 
 
 def _push_institutional_to_render():
