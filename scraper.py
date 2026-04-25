@@ -1978,7 +1978,7 @@ def fetch_company_financials(code):
         except:
             pass
 
-    c.execute("SELECT * FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 5", (code,))
+    c.execute("SELECT * FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 6", (code,))
     rows = [dict(r) for r in c.fetchall()]
     conn.close()
     return rows if rows else None

@@ -361,7 +361,7 @@ def get_financials(code):
     from datetime import datetime, timedelta
 
     rows = query_db(
-        "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 5",
+        "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 6",
         (code,)
     )
 
@@ -388,7 +388,7 @@ def get_financials(code):
             except:
                 pass
             rows = query_db(
-                "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 5",
+                "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 6",
                 (code,)
             )
 
