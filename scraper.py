@@ -1,12 +1,16 @@
 """
 爬蟲模組：從證交所 & 櫃買中心抓取上市/上櫃股票資料
 資料來源：
-  - 上市股價：https://openapi.twse.com.tw
-  - 上櫃股價：https://www.tpex.org.tw/openapi
+  - 上市公司代碼+名稱：證交所 TWSE（t187ap03_L）
+  - 上櫃公司代碼+名稱：櫃買中心 TPEX（tpex_mainboard_peratio_analysis）
+  - 上市批次收盤價：證交所 TWSE OpenAPI（STOCK_DAY_ALL）
+  - 上櫃批次收盤價：櫃買中心 TPEX OpenAPI（tpex_mainboard_quotes）
+  - 即時股價（上市+上櫃）：證交所 MIS（mis.twse.com.tw，上市用 tse_ 前綴、上櫃用 otc_ 前綴）
   - 上櫃歷史：TPEX 每日收盤行情批次 API
-  - 營收：FinMind TaiwanStockMonthRevenue
+  - 營收：政府API t187ap05（主要）/ FinMind TaiwanStockMonthRevenue（補充）
   - EPS：FinMind TaiwanStockFinancialStatements
   - 最新累計EPS：TWSE/TPEX t187ap14（批次，無限制）
+  - 三大法人：群益證券 zcl（每天17:10後抓取）
 """
 
 import requests
@@ -253,7 +257,10 @@ def date_to_quarter_label(date_str):
         return None
 
 
-# ── 上市股票（TWSE）────────────────────────────────────────
+# ── 上市股票（TWSE 證交所）──────────────────────────────────
+# 公司代碼+名稱：t187ap03_L（白名單）
+# 批次收盤價：STOCK_DAY_ALL（含 code, name, close, change, open, high, low, volume）
+# 新上市公司會自動出現在 API 回傳中，save_to_db() 會自動 INSERT
 def fetch_twse():
     print("[TWSE] 抓取上市公司清單...")
     company_list = fetch_json("https://openapi.twse.com.tw/v1/openData/t187ap03_L")
@@ -296,7 +303,10 @@ def fetch_twse():
     return rows
 
 
-# ── 上櫃股票（TPEX）────────────────────────────────────────
+# ── 上櫃股票（TPEX 櫃買中心）──────────────────────────────────
+# 公司代碼+名稱：tpex_mainboard_peratio_analysis（白名單）
+# 批次收盤價：tpex_mainboard_quotes（含 code, name, close, change, open, high, low, volume）
+# 新上櫃公司會自動出現在 API 回傳中，save_to_db() 會自動 INSERT
 def fetch_tpex():
     print("[TPEX] 抓取上櫃公司清單...")
     company_list = fetch_json("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis")
@@ -3084,7 +3094,9 @@ def refresh_prices():
 
 
 def _refresh_realtime():
-    """盤中即時報價更新（TWSE mis API）"""
+    """盤中即時報價更新（證交所 MIS API：mis.twse.com.tw）
+    上市用 tse_{code}.tw、上櫃用 otc_{code}.tw，同一個 API 統一處理
+    取價優先：z（成交價）> b（買價第一檔）> 跳過"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT code, market FROM stocks WHERE close IS NOT NULL")
