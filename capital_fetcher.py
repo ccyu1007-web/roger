@@ -479,9 +479,11 @@ def fetch_capital_dividend(code):
         if re.match(r'20\d{2}$', texts[i]) and i + 8 < len(texts):
             row = texts[i:i + 9]
             year = int(row[0])
-            cash_div = _parse_num(row[1])  # 盈餘發放(現金)
-            # row[2] = 公積發放, row[3] = 小計(現金)
-            stock_div_total = _parse_num(row[6])  # 小計(股票)
+            # row[1]=盈餘發放, row[2]=公積發放, row[3]=小計(現金)
+            # row[4]=盈餘配股, row[5]=公積配股, row[6]=小計(股票)
+            # 必須用小計（含公積發放），不能只讀盈餘發放（如台泥114年公積發放0.8會漏掉）
+            cash_div = _parse_num(row[3])  # 小計(現金) = 盈餘發放 + 公積發放
+            stock_div_total = _parse_num(row[6])  # 小計(股票) = 盈餘配股 + 公積配股
 
             if cash_div is not None or stock_div_total is not None:
                 try:
