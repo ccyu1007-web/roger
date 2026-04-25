@@ -2108,12 +2108,10 @@ function render() {
         : r.revenue_date;
     }
 
-    // EPS 更新日期（最近一季有新 quarter 更新→紅色醒目）
+    // EPS 更新日期（當天更新→紅色醒目，隔天恢復原色）
     let epsDateHtml = '－';
     if (r.eps_date) {
-      // 判斷是否為最新季度（比大多數公司更早公布）
-      const isNewQuarter = r.eps_1q && r.eps_1q > _prevailingQuarter;
-      epsDateHtml = isNewQuarter
+      epsDateHtml = r.eps_date === TODAY
         ? `<span style="color:#ef4444;font-weight:700">${r.eps_date}</span>`
         : r.eps_date;
     }
