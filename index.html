@@ -149,6 +149,7 @@
 
   /* 欄位群組分隔線 */
   .col-div { border-left: 2px solid #e2e8f0 !important; }
+  .col-div-r { border-right: 2px solid #e2e8f0 !important; }
 
   /* 市場標籤 */
   .badge {
@@ -458,7 +459,7 @@
           <th class="g-est" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
           <th class="g-est" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
-          <th class="g-est" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
+          <th class="g-est col-div-r" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
           <!-- 系統估算 -->
           <th class="g-sys" onclick="sortBy('sys_ann_eps')">系統EPS<span class="sort-icon" id="si_sys_ann_eps">↕</span></th>
           <th class="g-sys" onclick="sortBy('sys_ann_pe')">系統PE<span class="sort-icon" id="si_sys_ann_pe">↕</span></th>
@@ -2166,7 +2167,7 @@ function render() {
       <td class="g-est">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
-      <td class="g-est">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
+      <td class="g-est col-div-r">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
       <!-- 系統估算 -->
       <td class="g-sys"${r.sys_ann_eps != null && r.sys_ann_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.sys_ann_eps != null ? r.sys_ann_eps.toFixed(2) : '－'}</td>
       <td class="g-sys">${r.sys_ann_pe != null ? r.sys_ann_pe.toFixed(2) : '－'}</td>
