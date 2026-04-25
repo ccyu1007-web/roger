@@ -83,10 +83,6 @@
     <select id="etfFilter">
       <option value="">全部 ETF</option>
     </select>
-    <label>區間</label>
-    <input type="date" id="dateFrom">
-    <span style="color:#94a3b8">~</span>
-    <input type="date" id="dateTo">
     <label style="margin-left:8px"><input type="checkbox" id="hideNoChange" onchange="render()"> 隱藏無異動</label>
   </div>
   <div class="summary" id="summary"></div>
@@ -100,12 +96,6 @@ async function load() {
   try {
     const res = await fetch('/api/etf/changes-report?limit=5000');
     allData = await res.json();
-
-    if (allData.length) {
-      const dates = allData.map(g => g.change_date).sort();
-      document.getElementById('dateFrom').value = dates[0];
-      document.getElementById('dateTo').value = dates[dates.length - 1];
-    }
 
     buildFilter();
     render();
@@ -125,8 +115,6 @@ function buildFilter() {
     sel.appendChild(opt);
   });
   sel.onchange = render;
-  document.getElementById('dateFrom').onchange = render;
-  document.getElementById('dateTo').onchange = render;
 }
 
 function stockTags(list, cls) {
@@ -138,16 +126,11 @@ function stockTags(list, cls) {
 
 function render() {
   const etfVal = document.getElementById('etfFilter').value;
-  const from = document.getElementById('dateFrom').value;
-  const to = document.getElementById('dateTo').value;
   const hideNoChange = document.getElementById('hideNoChange').checked;
   const today = new Date().toISOString().split('T')[0];
 
-  // 篩選區間內的資料
   let data = allData;
   if (etfVal) data = data.filter(g => g.etf_code === etfVal);
-  if (from) data = data.filter(g => g.change_date >= from);
-  if (to) data = data.filter(g => g.change_date <= to);
 
   // 按 ETF 分組，彙整今日 + 區間
   const etfMap = {};
@@ -201,13 +184,20 @@ function render() {
   document.getElementById('summary').textContent =
     `今日：納入 ${todayAdd} 支、剔除 ${todayRemove} 支｜區間：納入 ${totalAdd} 支、剔除 ${totalRemove} 支`;
 
+  const dates = data.map(g => g.change_date).sort();
+  const earliest = dates.length ? dates[0] : '';
+  const latest = dates.length ? dates[dates.length - 1] : '';
+  const rangeLabel = earliest && latest && earliest !== latest
+    ? `歷史累計 (${earliest} ~ ${latest})`
+    : earliest ? `歷史累計 (${earliest})` : '歷史累計';
+
   let html = `<table>
     <thead>
       <tr>
         <th rowspan="2" style="width:120px">ETF</th>
         <th rowspan="2">成分股</th>
-        <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">今日異動</th>
-        <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">區間異動 (${from || '?'} ~ ${to || '?'})</th>
+        <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">今日異動 (${today})</th>
+        <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">${rangeLabel}</th>
       </tr>
       <tr>
         <th class="col-group">納入</th>
