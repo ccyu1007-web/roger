@@ -1268,11 +1268,11 @@ function calcDerived(r) {
     if (wesum > 0) r.weighted_eps = Math.round(weps * 100) / 100;
   }
 
-  // 加權配息率 = 加權各年度配息率（而非 加權股息/加權EPS）
+  // 加權配息率 = 加權各年度配息率（而非 加權股息/加權EPS），只用最新5年
   r.weighted_payout = null;
   {
     let wpSum = 0, wSum = 0;
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 5; i++) {
       const p = r[`payout_${i}`];
       const w = ws[i - 1] || 0;
       if (p != null && w > 0) {
