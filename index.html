@@ -1213,12 +1213,12 @@ function calcDerived(r) {
   // 歷年配息率 = (現金股利 + 股票股利) / 對應年度 EPS
   // 建立年度 EPS 查找表
   const epsMap = {};
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     const lbl = r[`eps_y${i}_label`];
     const val = r[`eps_y${i}`];
     if (lbl && val) epsMap[lbl] = val;
   }
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     const lbl = r[`div_${i}_label`];
     const cash = r[`div_c${i}`] || 0;
     const stock = r[`div_s${i}`] || 0;
@@ -1272,7 +1272,7 @@ function calcDerived(r) {
   r.weighted_payout = null;
   {
     let wpSum = 0, wSum = 0;
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 6; i++) {
       const p = r[`payout_${i}`];
       const w = ws[i - 1] || 0;
       if (p != null && w > 0) {
@@ -1398,6 +1398,8 @@ function calcDerived(r) {
   r._po = {};    // 配息率: {'114': 24.15, ...}
   for (let i = 1; i <= 5; i++) {
     if (r[`eps_${i}q`] != null) r._qeps[r[`eps_${i}q`]] = r[`eps_${i}`];
+  }
+  for (let i = 1; i <= 6; i++) {
     if (r[`eps_y${i}_label`] != null) r._yeps[r[`eps_y${i}_label`]] = r[`eps_y${i}`];
     if (r[`div_${i}_label`] != null) {
       r._div[r[`div_${i}_label`]] = { c: r[`div_c${i}`] || 0, s: r[`div_s${i}`] || 0 };
@@ -1882,10 +1884,10 @@ function sortBy(col) {
    'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
    'revenue_date','revenue_cum_yoy','revenue_yoy','revenue_mom',
    'eps_date','eps_1','eps_2','eps_3','eps_4','eps_5',
-   'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
+   'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5','eps_y6',
    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
-   'div_c4','div_s4','div_c5','div_s5',
-   'payout_1','payout_2','payout_3','payout_4','payout_5',
+   'div_c4','div_s4','div_c5','div_s5','div_c6','div_s6',
+   'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
    'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
    'contract_1','contract_2','contract_3','contract_chg',
@@ -1906,10 +1908,10 @@ function applySort() {
                    'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
                    'revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
-                   'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5',
+                   'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5','eps_y6',
                    'div_c1','div_s1','div_c2','div_s2','div_c3','div_s3',
-                   'div_c4','div_s4','div_c5','div_s5',
-                   'payout_1','payout_2','payout_3','payout_4','payout_5',
+                   'div_c4','div_s4','div_c5','div_s5','div_c6','div_s6',
+                   'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
                    'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
                    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
                    'contract_1','contract_2','contract_3','contract_chg',

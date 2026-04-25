@@ -113,6 +113,8 @@ def init_db():
         ("eps_y4_label",    "TEXT"),
         ("eps_y5",          "REAL"),
         ("eps_y5_label",    "TEXT"),
+        ("eps_y6",          "REAL"),
+        ("eps_y6_label",    "TEXT"),
         ("eps_ytd",         "REAL"),
         ("eps_ytd_label",   "TEXT"),
         ("div_c1",          "REAL"),
@@ -130,6 +132,9 @@ def init_db():
         ("div_c5",          "REAL"),
         ("div_s5",          "REAL"),
         ("div_5_label",     "TEXT"),
+        ("div_c6",          "REAL"),
+        ("div_s6",          "REAL"),
+        ("div_6_label",     "TEXT"),
         ("contract_1",      "REAL"),
         ("contract_1q",     "TEXT"),
         ("contract_2",      "REAL"),
@@ -677,16 +682,16 @@ def fetch_dividends_bulk():
         print(f"  {label} t187ap45 補充：{cnt} 筆")
     print(f"[股利] 完成，共 {len(div_map)} 支")
 
-    # 轉成每支股票最近 5 年
+    # 轉成每支股票最近 6 年
     results = {}
     for code, yearly in div_map.items():
-        years_sorted = sorted(yearly.keys(), reverse=True)[:5]
+        years_sorted = sorted(yearly.keys(), reverse=True)[:6]
         r = {}
         for i, y in enumerate(years_sorted, 1):
             r[f'div_c{i}']       = yearly[y]['cash']
             r[f'div_s{i}']       = yearly[y]['stock']
             r[f'div_{i}_label']  = y
-        for i in range(len(years_sorted) + 1, 6):
+        for i in range(len(years_sorted) + 1, 7):
             r[f'div_c{i}']      = None
             r[f'div_s{i}']      = None
             r[f'div_{i}_label'] = None
@@ -973,15 +978,15 @@ def _calc_eps_metrics(records):
         result['eps_ytd'] = None
         result['eps_ytd_label'] = None
 
-    # 最近 5 個完整年度（4 季齊全）
+    # 最近 6 個完整年度（4 季齊全）
     full_years = sorted(
         [y for y, qs in yearly.items() if len(qs) == 4 and y != cur_roc_year],
         reverse=True
-    )[:5]
+    )[:6]
     for i, y in enumerate(full_years, 1):
         result[f'eps_y{i}'] = round(sum(yearly[y].values()), 2)
         result[f'eps_y{i}_label'] = str(y)
-    for i in range(len(full_years) + 1, 6):
+    for i in range(len(full_years) + 1, 7):
         result[f'eps_y{i}'] = None
         result[f'eps_y{i}_label'] = None
 
@@ -995,7 +1000,7 @@ def fetch_eps(codes, old_meta):
     eps_keys = (
         ['eps_date']
         + [f'eps_{i}' for i in range(1,6)] + [f'eps_{i}q' for i in range(1,6)]
-        + [f'eps_y{i}' for i in range(1,6)] + [f'eps_y{i}_label' for i in range(1,6)]
+        + [f'eps_y{i}' for i in range(1,7)] + [f'eps_y{i}_label' for i in range(1,7)]
         + ['eps_ytd', 'eps_ytd_label']
     )
 
@@ -1106,10 +1111,11 @@ def save_to_db(rows):
         'eps_3', 'eps_3q', 'eps_4', 'eps_4q', 'eps_5', 'eps_5q',
         'eps_y1', 'eps_y1_label', 'eps_y2', 'eps_y2_label',
         'eps_y3', 'eps_y3_label', 'eps_y4', 'eps_y4_label',
-        'eps_y5', 'eps_y5_label', 'eps_ytd', 'eps_ytd_label',
+        'eps_y5', 'eps_y5_label', 'eps_y6', 'eps_y6_label',
+        'eps_ytd', 'eps_ytd_label',
         'div_c1', 'div_s1', 'div_1_label', 'div_c2', 'div_s2', 'div_2_label',
         'div_c3', 'div_s3', 'div_3_label', 'div_c4', 'div_s4', 'div_4_label',
-        'div_c5', 'div_s5', 'div_5_label',
+        'div_c5', 'div_s5', 'div_5_label', 'div_c6', 'div_s6', 'div_6_label',
         'contract_1', 'contract_1q', 'contract_2', 'contract_2q',
         'contract_3', 'contract_3q',
         'updated_at',
@@ -1236,6 +1242,7 @@ def run(scheduled=True):
         for i in range(1, 6):
             r[f'eps_{i}']  = eps.get(f'eps_{i}')
             r[f'eps_{i}q'] = eps.get(f'eps_{i}q')
+        for i in range(1, 7):
             r[f'eps_y{i}']       = eps.get(f'eps_y{i}')
             r[f'eps_y{i}_label'] = eps.get(f'eps_y{i}_label')
         r['eps_ytd']       = eps.get('eps_ytd')
@@ -1269,7 +1276,7 @@ def run(scheduled=True):
                 merged[yr] = eps_val
 
         # 第四層：FinMind（最後補齊）
-        for i in range(1, 6):
+        for i in range(1, 7):
             if r.get(f'eps_y{i}_label') and r.get(f'eps_y{i}') is not None:
                 yr = r[f'eps_y{i}_label']
                 if yr not in merged:
@@ -1278,18 +1285,18 @@ def run(scheduled=True):
         if not r.get('eps_date') and merged:
             r['eps_date'] = today_str
 
-        # 寫回最近 5 年
-        sorted_yrs = sorted(merged.keys(), reverse=True)[:5]
+        # 寫回最近 6 年
+        sorted_yrs = sorted(merged.keys(), reverse=True)[:6]
         for i, yr in enumerate(sorted_yrs, 1):
             r[f'eps_y{i}'] = merged[yr]
             r[f'eps_y{i}_label'] = yr
-        for i in range(len(sorted_yrs) + 1, 6):
+        for i in range(len(sorted_yrs) + 1, 7):
             r[f'eps_y{i}'] = None
             r[f'eps_y{i}_label'] = None
 
         # 股利
         div = div_map.get(r['code'], {})
-        for i in range(1, 6):
+        for i in range(1, 7):
             r[f'div_c{i}']      = div.get(f'div_c{i}')
             r[f'div_s{i}']      = div.get(f'div_s{i}')
             r[f'div_{i}_label'] = div.get(f'div_{i}_label')
@@ -1408,7 +1415,7 @@ def _post_process_after_save():
     for code, years in hist.items():
         for yr, eps_val in years.items():
             # 只填空的年度
-            for i in range(1, 6):
+            for i in range(1, 7):
                 c.execute(f"SELECT eps_y{i}_label FROM stocks WHERE code=?", (code,))
                 r = c.fetchone()
                 if r and r[0] == yr: break  # 已有
@@ -1440,8 +1447,10 @@ def _post_process_after_save():
     try: cross_validate_financial()
     except: pass
 
-    # ── 年報公告截止後：確認年度 EPS 到齊 ──
+    # ── 年報公告截止後：確認年度 EPS + 股利到齊 ──
     try: _check_annual_eps_completeness()
+    except: pass
+    try: _check_annual_dividend_completeness()
     except: pass
 
     # ── 系統 EPS 估算（季+年，批次更新所有股票）──
@@ -1453,7 +1462,7 @@ def _post_process_after_save():
 def _check_annual_eps_completeness():
     """
     年報公告截止後半個月（每年 4/15 起），檢查所有股票是否都有最新年度 EPS。
-    缺漏的從群益 zcqa 補抓，確保 eps_y1~eps_y5 維持最近 5 年完整資料。
+    缺漏的從群益 zcqa 補抓，確保 eps_y1~eps_y6 維持最近 6 年完整資料。
     年報法定截止日：3/31（上市櫃公司須公告前一年度財報）
     """
     now = datetime.now()
@@ -1492,26 +1501,27 @@ def _check_annual_eps_completeness():
         if expected_year not in cap:
             continue
 
-        # 從群益取最近 5 年，更新 eps_y1~eps_y5
-        sorted_yrs = sorted(cap.keys(), reverse=True)[:5]
+        # 從群益取最近 6 年，更新 eps_y1~eps_y6
+        sorted_yrs = sorted(cap.keys(), reverse=True)[:6]
         vals = {}
         for i, yr in enumerate(sorted_yrs, 1):
             vals[f'eps_y{i}'] = cap[yr]
             vals[f'eps_y{i}_label'] = yr
-        for i in range(len(sorted_yrs) + 1, 6):
+        for i in range(len(sorted_yrs) + 1, 7):
             vals[f'eps_y{i}'] = None
             vals[f'eps_y{i}_label'] = None
 
         c.execute("""UPDATE stocks SET
             eps_y1=?, eps_y1_label=?, eps_y2=?, eps_y2_label=?,
             eps_y3=?, eps_y3_label=?, eps_y4=?, eps_y4_label=?,
-            eps_y5=?, eps_y5_label=?,
+            eps_y5=?, eps_y5_label=?, eps_y6=?, eps_y6_label=?,
             eps_date=? WHERE code=?""",
             (vals['eps_y1'], vals['eps_y1_label'],
              vals['eps_y2'], vals['eps_y2_label'],
              vals['eps_y3'], vals['eps_y3_label'],
              vals['eps_y4'], vals['eps_y4_label'],
              vals['eps_y5'], vals['eps_y5_label'],
+             vals['eps_y6'], vals['eps_y6_label'],
              now.strftime('%Y-%m-%d'), code))
         if c.rowcount:
             updated += 1
@@ -1520,6 +1530,73 @@ def _check_annual_eps_completeness():
     conn.close()
     still_missing = len(missing_codes) - updated
     print(f"[年度EPS檢查] 補齊 {updated} 支" +
+          (f"，仍有 {still_missing} 支缺漏（可能尚未公告）" if still_missing else ""))
+
+
+def _check_annual_dividend_completeness():
+    """
+    股利公告截止後（每年 8/31 起），檢查所有股票是否都有最新年度股利。
+    股利公告通常在年報之後，約 5~8 月陸續公布。
+    缺漏的從群益 zcc 補抓，確保 div_c1~div_c6 維持最近 6 年完整資料。
+    """
+    now = datetime.now()
+    cur_roc = now.year - 1911
+    expected_year = str(cur_roc - 1)  # 預期最新股利年度（如 115）
+
+    # 只在 9/1 ~ 12/31 期間執行
+    if now.month < 9:
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # 找出 div_1_label 不是最新年度的股票
+    c.execute("""SELECT code FROM stocks
+                 WHERE close IS NOT NULL
+                 AND (div_1_label IS NULL OR div_1_label != ?)""",
+              (expected_year,))
+    missing_codes = [r[0] for r in c.fetchall()]
+    conn.close()
+
+    if not missing_codes:
+        print(f"[年度股利檢查] 所有股票 {expected_year} 年股利已到齊")
+        return
+
+    print(f"[年度股利檢查] {len(missing_codes)} 支缺少 {expected_year} 年股利，從群益補抓...")
+
+    from capital_fetcher import fetch_capital_dividend
+    updated = 0
+    for i, code in enumerate(missing_codes):
+        try:
+            fetch_capital_dividend(code)
+        except:
+            pass
+        if (i + 1) % 50 == 0:
+            print(f"  股利補抓進度：{i+1}/{len(missing_codes)}")
+            time.sleep(0.5)
+
+    # 從 financial_annual 同步到 stocks 表
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    for code in missing_codes:
+        rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
+                           WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
+                           ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+        if not rows:
+            continue
+        for i, r in enumerate(rows, 1):
+            roc_yr = str(r[0] - 1911)
+            c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
+                      (r[1], r[2], roc_yr, code))
+        for i in range(len(rows) + 1, 7):
+            c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
+                      (code,))
+        updated += 1
+
+    conn.commit()
+    conn.close()
+    still_missing = len(missing_codes) - updated
+    print(f"[年度股利檢查] 補齊 {updated} 支" +
           (f"，仍有 {still_missing} 支缺漏（可能尚未公告）" if still_missing else ""))
 
 
@@ -1588,10 +1665,10 @@ def _fill_dividends_from_bwibbu():
     c = conn.cursor()
 
     # 收集現有股利年度
-    c.execute("SELECT code, div_1_label, div_2_label, div_3_label, div_4_label, div_5_label FROM stocks")
+    c.execute("SELECT code, div_1_label, div_2_label, div_3_label, div_4_label, div_5_label, div_6_label FROM stocks")
     existing = {}
     for r in c.fetchall():
-        existing[r[0]] = set(r[i] for i in range(1, 6) if r[i])
+        existing[r[0]] = set(r[i] for i in range(1, 7) if r[i])
 
     from collections import defaultdict
     all_divs = defaultdict(dict)
@@ -1658,23 +1735,23 @@ def _fill_dividends_from_bwibbu():
     for code, years_data in all_divs.items():
         c.execute('''SELECT div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
                             div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
-                            div_c5, div_s5, div_5_label FROM stocks WHERE code=?''', (code,))
+                            div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label FROM stocks WHERE code=?''', (code,))
         r = c.fetchone()
         if not r: continue
         merged = {}
-        for i in range(5):
+        for i in range(6):
             lbl = r[i * 3 + 2]
             if lbl: merged[lbl] = {'cash': r[i * 3] or 0, 'stock': r[i * 3 + 1] or 0}
         for yr, val in years_data.items():
             if yr not in merged:
                 merged[yr] = {'cash': val, 'stock': 0}
-        sorted_years = sorted(merged.keys(), reverse=True)[:5]
+        sorted_years = sorted(merged.keys(), reverse=True)[:6]
         updates = {}
         for i, y in enumerate(sorted_years, 1):
             updates[f'div_c{i}'] = merged[y]['cash']
             updates[f'div_s{i}'] = merged[y]['stock']
             updates[f'div_{i}_label'] = y
-        for i in range(len(sorted_years) + 1, 6):
+        for i in range(len(sorted_years) + 1, 7):
             updates[f'div_c{i}'] = None
             updates[f'div_s{i}'] = None
             updates[f'div_{i}_label'] = None
@@ -2001,12 +2078,12 @@ def _fetch_financials_finmind(code):
         c = conn.cursor()
         c.execute("""SELECT div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
                             div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
-                            div_c5, div_s5, div_5_label
+                            div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label
                      FROM stocks WHERE code = ?""", (code,))
         row = c.fetchone()
         conn.close()
         if row:
-            for i in range(5):
+            for i in range(6):
                 lbl = row[i * 3 + 2]
                 if lbl:
                     try:
@@ -2507,6 +2584,7 @@ def quick_update():
                     continue  # 已有此年度，跳過
                 c.execute("""
                     UPDATE stocks SET
+                        eps_y6 = eps_y5, eps_y6_label = eps_y5_label,
                         eps_y5 = eps_y4, eps_y5_label = eps_y4_label,
                         eps_y4 = eps_y3, eps_y4_label = eps_y3_label,
                         eps_y3 = eps_y2, eps_y3_label = eps_y2_label,
@@ -3528,6 +3606,7 @@ def fetch_mops_quarterly_eps():
                                 cur_y = c.execute("SELECT eps_y1_label FROM stocks WHERE code=?", (code,)).fetchone()
                                 if cur_y and str(cur_y[0]) != str(yr):
                                     c.execute("""UPDATE stocks SET
+                                        eps_y6=eps_y5, eps_y6_label=eps_y5_label,
                                         eps_y5=eps_y4, eps_y5_label=eps_y4_label,
                                         eps_y4=eps_y3, eps_y4_label=eps_y3_label,
                                         eps_y3=eps_y2, eps_y3_label=eps_y2_label,
