@@ -152,6 +152,8 @@ def init_db():
         ("fin_grade_4y",    "TEXT"),
         ("fin_grade_5",     "TEXT"),
         ("fin_grade_5y",    "TEXT"),
+        ("fin_grade_6",     "TEXT"),
+        ("fin_grade_6y",    "TEXT"),
         ("price_pos",       "INTEGER"),
         ("fair_low",        "REAL"),
         ("fair_high",       "REAL"),
@@ -2874,7 +2876,7 @@ def _refresh_fin_grades():
         c.execute("""SELECT year, revenue, operating_income, net_income,
                             total_equity, operating_cf, capex
                      FROM financial_annual WHERE code = ?
-                     ORDER BY year DESC LIMIT 5""", (code,))
+                     ORDER BY year DESC LIMIT 6""", (code,))
         rows = c.fetchall()
         if not rows:
             continue
@@ -2896,7 +2898,7 @@ def _refresh_fin_grades():
             updates[f'fin_grade_{i}'] = grade
             updates[f'fin_grade_{i}y'] = str(row['year'] - 1911)
 
-        for i in range(len(rows) + 1, 6):
+        for i in range(len(rows) + 1, 7):
             updates[f'fin_grade_{i}'] = None
             updates[f'fin_grade_{i}y'] = None
 

@@ -92,6 +92,7 @@ def get_stocks():
                        fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
                        fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
                        fin_grade_5, fin_grade_5y,
+                       fin_grade_6, fin_grade_6y,
                        price_pos, fair_low, fair_high,
                        inst_foreign, inst_trust, inst_dealer,
                        revenue_note,

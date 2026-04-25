@@ -1385,7 +1385,7 @@ function calcDerived(r) {
 
   // 財務等級映射
   r._fg = {};
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     const y = r[`fin_grade_${i}y`];
     const g = r[`fin_grade_${i}`];
     if (y && g) r._fg[y] = g;
@@ -1891,7 +1891,7 @@ function sortBy(col) {
    'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
    'contract_1','contract_2','contract_3','contract_chg',
-   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5'].forEach(c => {
+   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'].forEach(c => {
     const el = document.getElementById(`si_${c}`);
     if (el) el.textContent = '↕';
   });
@@ -1915,7 +1915,7 @@ function applySort() {
                    'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
                    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
                    'contract_1','contract_2','contract_3','contract_chg',
-                   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5'];
+                   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'];
   filtered.sort((a, b) => {
     let av, bv;
     // 動態欄位：從映射表取值
@@ -2063,7 +2063,8 @@ function render() {
     _fixedY.forEach((y, i) => {
       const th = document.createElement('th');
       th.className = 'dyn-fg g-fg' + (i === 0 ? ' col-div' : '');
-      th.innerHTML = `${y}年等級<span class="sort-icon">↕</span>`;
+      const west = parseInt(y) + 1911;
+      th.innerHTML = `${y}等級<br><small style="color:#9ca3af">${west}</small><span class="sort-icon">↕</span>`;
       th.onclick = () => sortBy('_fg_' + y);
       fgFrag.appendChild(th);
     });
