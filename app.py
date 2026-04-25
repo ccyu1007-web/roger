@@ -454,7 +454,8 @@ def get_financials(code):
         # ROE
         d['roe'] = round(ni / te * 100, 2) if te and ni is not None else None
         # 盈餘品質率
-        d['earnings_quality'] = round(ocf / ni * 100, 2) if ni and ni != 0 and ocf is not None else None
+        # 稅後淨利為負時不計算盈餘品質率（無意義）
+        d['earnings_quality'] = round(ocf / ni * 100, 2) if ni and ni > 0 and ocf is not None else None
         # 自由現金流（capex 為負值）
         d['fcf'] = round(ocf + capex, 2) if ocf is not None and capex is not None else None
         # 加權平均股數（千股，從 EPS 反算）
