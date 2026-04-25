@@ -2970,14 +2970,22 @@ def _fetch_inst_one(code):
                     foreign = _parse_inst_val(cells[1])
                     trust   = _parse_inst_val(cells[2])
                     dealer  = _parse_inst_val(cells[3])
-                    return code, foreign, trust, dealer
-        return code, None, None, None
+                    return code, foreign, trust, dealer, date_str
+        return code, None, None, None, None
     except:
-        return code, None, None, None
+        return code, None, None, None, None
+
+
+def _today_roc_date():
+    """取得今天的民國日期字串，格式: 115/04/25"""
+    now = date.today()
+    roc_year = now.year - 1911
+    return f"{roc_year}/{now.month:02d}/{now.day:02d}"
 
 
 def fetch_institutional():
-    """從群益證券抓取全部個股的三大法人當日買賣超，批次寫入 DB"""
+    """從群益證券抓取全部個股的三大法人當日買賣超，批次寫入 DB
+    含日期驗證：群益回傳的日期必須是今天，否則視為尚未更新，不寫入"""
     t0 = time.time()
     init_db()
     conn = sqlite3.connect(DB_PATH)
@@ -2995,10 +3003,29 @@ def fetch_institutional():
         for f in as_completed(futures):
             results.append(f.result())
 
+    # 日期驗證：檢查群益回傳的資料日期是否為今天
+    today_roc = _today_roc_date()
+    date_counter = {}
+    for code, foreign, trust, dealer, inst_date in results:
+        if inst_date:
+            date_counter[inst_date] = date_counter.get(inst_date, 0) + 1
+
+    if date_counter:
+        most_common_date = max(date_counter, key=date_counter.get)
+        print(f"[法人] 資料日期分布: {date_counter}（今天: {today_roc}）")
+        if most_common_date != today_roc:
+            print(f"[法人] 警告：多數資料日期為 {most_common_date}，非今天 {today_roc}，跳過寫入！")
+            return 0
+
     conn = sqlite3.connect(DB_PATH)
     updated = 0
-    for code, foreign, trust, dealer in results:
+    skipped_date = 0
+    for code, foreign, trust, dealer, inst_date in results:
         if foreign is not None or trust is not None or dealer is not None:
+            # 個別筆也要是今天的才寫入
+            if inst_date and inst_date != today_roc:
+                skipped_date += 1
+                continue
             conn.execute(
                 "UPDATE stocks SET inst_foreign=?, inst_trust=?, inst_dealer=? WHERE code=?",
                 (foreign, trust, dealer, code)
@@ -3006,7 +3033,10 @@ def fetch_institutional():
             updated += 1
     conn.commit()
     conn.close()
-    print(f"[法人] 完成：更新 {updated}/{len(codes)} 支，耗時 {time.time()-t0:.1f}s")
+    msg = f"[法人] 完成：更新 {updated}/{len(codes)} 支，耗時 {time.time()-t0:.1f}s"
+    if skipped_date:
+        msg += f"，{skipped_date} 支日期不符跳過"
+    print(msg)
     return updated
 
 
