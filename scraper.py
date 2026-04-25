@@ -1440,10 +1440,87 @@ def _post_process_after_save():
     try: cross_validate_financial()
     except: pass
 
+    # ── 年報公告截止後：確認年度 EPS 到齊 ──
+    try: _check_annual_eps_completeness()
+    except: pass
+
     # ── 系統 EPS 估算（季+年，批次更新所有股票）──
     _batch_system_estimate()
     _batch_annual_estimate()
     print("  後處理完成")
+
+
+def _check_annual_eps_completeness():
+    """
+    年報公告截止後半個月（每年 4/15 起），檢查所有股票是否都有最新年度 EPS。
+    缺漏的從群益 zcqa 補抓，確保 eps_y1~eps_y5 維持最近 5 年完整資料。
+    年報法定截止日：3/31（上市櫃公司須公告前一年度財報）
+    """
+    now = datetime.now()
+    cur_roc = now.year - 1911  # 今年民國年（如 116）
+    expected_year = str(cur_roc - 1)  # 預期最新年度（如 115）
+
+    # 只在 4/15 ~ 6/30 期間執行（年報截止後半個月到年中）
+    if not (now.month >= 4 and now.day >= 15 or now.month >= 5) or now.month > 6:
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # 找出 eps_y1_label 不是最新年度的股票（代表還沒更新）
+    c.execute("""SELECT code FROM stocks
+                 WHERE close IS NOT NULL
+                 AND (eps_y1_label IS NULL OR eps_y1_label != ?)""",
+              (expected_year,))
+    missing_codes = [r[0] for r in c.fetchall()]
+    conn.close()
+
+    if not missing_codes:
+        print(f"[年度EPS檢查] 所有股票 {expected_year} 年 EPS 已到齊")
+        return
+
+    print(f"[年度EPS檢查] {len(missing_codes)} 支缺少 {expected_year} 年 EPS，從群益補抓...")
+
+    from capital_fetcher import fetch_capital_annual_eps_batch
+    cap_data = fetch_capital_annual_eps_batch(missing_codes)
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    updated = 0
+    for code in missing_codes:
+        cap = cap_data.get(code, {})
+        if expected_year not in cap:
+            continue
+
+        # 從群益取最近 5 年，更新 eps_y1~eps_y5
+        sorted_yrs = sorted(cap.keys(), reverse=True)[:5]
+        vals = {}
+        for i, yr in enumerate(sorted_yrs, 1):
+            vals[f'eps_y{i}'] = cap[yr]
+            vals[f'eps_y{i}_label'] = yr
+        for i in range(len(sorted_yrs) + 1, 6):
+            vals[f'eps_y{i}'] = None
+            vals[f'eps_y{i}_label'] = None
+
+        c.execute("""UPDATE stocks SET
+            eps_y1=?, eps_y1_label=?, eps_y2=?, eps_y2_label=?,
+            eps_y3=?, eps_y3_label=?, eps_y4=?, eps_y4_label=?,
+            eps_y5=?, eps_y5_label=?,
+            eps_date=? WHERE code=?""",
+            (vals['eps_y1'], vals['eps_y1_label'],
+             vals['eps_y2'], vals['eps_y2_label'],
+             vals['eps_y3'], vals['eps_y3_label'],
+             vals['eps_y4'], vals['eps_y4_label'],
+             vals['eps_y5'], vals['eps_y5_label'],
+             now.strftime('%Y-%m-%d'), code))
+        if c.rowcount:
+            updated += 1
+
+    conn.commit()
+    conn.close()
+    still_missing = len(missing_codes) - updated
+    print(f"[年度EPS檢查] 補齊 {updated} 支" +
+          (f"，仍有 {still_missing} 支缺漏（可能尚未公告）" if still_missing else ""))
 
 
 def _sync_eps_from_quarterly():
