@@ -1425,6 +1425,10 @@ def _post_process_after_save():
     # ── 稅務資料修正 ──
     _fix_tax_data()
 
+    # ── 交叉驗證 ──
+    try: cross_validate_financial()
+    except: pass
+
     # ── 系統 EPS 估算（季+年，批次更新所有股票）──
     _batch_system_estimate()
     _batch_annual_estimate()
@@ -1432,7 +1436,7 @@ def _post_process_after_save():
 
 
 def _sync_eps_from_quarterly():
-    """從 quarterly_financial 正確排序後回寫 stocks 表的 eps_1~eps_5"""
+    """從 quarterly_financial 正確排序後回寫 stocks 表的 eps_1~eps_5 + eps_ytd"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""SELECT code, quarter, eps FROM quarterly_financial
@@ -1446,6 +1450,9 @@ def _sync_eps_from_quarterly():
         if len(qf[r[0]]) < 5:
             qf[r[0]].append((r[1], r[2]))
 
+    # 當前民國年
+    cur_roc = datetime.now().year - 1911
+
     updated = 0
     for code, quarters in qf.items():
         vals = {}
@@ -1455,12 +1462,28 @@ def _sync_eps_from_quarterly():
         for i in range(len(quarters) + 1, 6):
             vals[f'eps_{i}'] = None
             vals[f'eps_{i}q'] = None
+
+        # 計算當年累計 eps_ytd：找最新年度的所有季度加總
+        latest_q = quarters[0][0]  # e.g. '115Q1'
+        latest_year = int(latest_q.split('Q')[0])
+        # 用最新年度做累計（如果是 115Q1，ytd=Q1；如果是 114Q4，ytd=全年）
+        ytd_year = latest_year
+        ytd_sum = sum(eps for q, eps in quarters if q.startswith(f'{ytd_year}Q'))
+        if ytd_sum != 0 or any(q.startswith(f'{ytd_year}Q') for q, _ in quarters):
+            vals['eps_ytd'] = round(ytd_sum, 2)
+            vals['eps_ytd_label'] = str(ytd_year)
+        else:
+            vals['eps_ytd'] = None
+            vals['eps_ytd_label'] = None
+
         c.execute("""UPDATE stocks SET
             eps_1=?, eps_1q=?, eps_2=?, eps_2q=?, eps_3=?, eps_3q=?,
-            eps_4=?, eps_4q=?, eps_5=?, eps_5q=? WHERE code=?""",
+            eps_4=?, eps_4q=?, eps_5=?, eps_5q=?,
+            eps_ytd=?, eps_ytd_label=? WHERE code=?""",
             (vals['eps_1'], vals['eps_1q'], vals['eps_2'], vals['eps_2q'],
              vals['eps_3'], vals['eps_3q'], vals['eps_4'], vals['eps_4q'],
-             vals['eps_5'], vals['eps_5q'], code))
+             vals['eps_5'], vals['eps_5q'],
+             vals.get('eps_ytd'), vals.get('eps_ytd_label'), code))
         if c.rowcount:
             updated += 1
 
@@ -3429,6 +3452,121 @@ def fetch_mops_quarterly_eps():
     if total_updated > 0:
         _sync_eps_from_quarterly()
     return total_updated
+
+
+def cross_validate_financial():
+    """
+    交叉驗證財報資料：比對 quarterly_financial（群益/MOPS）vs stocks（政府API）。
+    差異 > 5% 的記錄到 data_validation_log 表。
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # 建表
+    c.execute("""CREATE TABLE IF NOT EXISTS data_validation_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        check_date  TEXT NOT NULL,
+        code        TEXT NOT NULL,
+        field       TEXT NOT NULL,
+        source_a    TEXT,
+        value_a     REAL,
+        source_b    TEXT,
+        value_b     REAL,
+        diff_pct    REAL,
+        resolved    INTEGER DEFAULT 0
+    )""")
+
+    now_str = datetime.now().strftime('%Y-%m-%d')
+
+    # 清除今天已有的（避免重複）
+    c.execute("DELETE FROM data_validation_log WHERE check_date=?", (now_str,))
+
+    issues = 0
+    # 1. 比對 quarterly_financial EPS vs stocks 表 eps_1
+    rows = conn.execute("""
+        SELECT q.code, q.quarter, q.eps as q_eps, s.eps_1, s.eps_1q, s.name
+        FROM quarterly_financial q
+        JOIN stocks s ON q.code = s.code AND q.quarter = s.eps_1q
+        WHERE q.eps IS NOT NULL AND s.eps_1 IS NOT NULL
+    """).fetchall()
+
+    for r in rows:
+        q_eps = r[2]
+        s_eps = r[3]
+        if q_eps == 0 and s_eps == 0:
+            continue
+        base = max(abs(q_eps), abs(s_eps), 0.01)
+        diff = abs(q_eps - s_eps) / base * 100
+        if diff > 5:
+            c.execute("""INSERT INTO data_validation_log
+                (check_date, code, field, source_a, value_a, source_b, value_b, diff_pct)
+                VALUES (?,?,?,?,?,?,?,?)""",
+                (now_str, r[0], 'EPS', '季度財報', q_eps, '總表', s_eps, round(diff, 2)))
+            issues += 1
+
+    # 2. 比對 quarterly_financial 各季營收加總 vs financial_annual 年營收
+    roc_year = datetime.now().year - 1911
+    for yr in [roc_year - 1, roc_year - 2]:
+        q_revs = conn.execute("""
+            SELECT code, SUM(revenue) as q_total
+            FROM quarterly_financial
+            WHERE quarter LIKE ? AND revenue IS NOT NULL
+            GROUP BY code
+        """, (f'{yr}Q%',)).fetchall()
+
+        for qr in q_revs:
+            a_rev = conn.execute("""
+                SELECT revenue FROM financial_annual
+                WHERE code=? AND year=?
+            """, (qr[0], yr + 1911)).fetchone()
+            if not a_rev or not a_rev[0]:
+                continue
+            q_total = qr[1]
+            a_total = a_rev[0]
+            base = max(abs(q_total), abs(a_total), 1)
+            diff = abs(q_total - a_total) / base * 100
+            if diff > 5:
+                c.execute("""INSERT INTO data_validation_log
+                    (check_date, code, field, source_a, value_a, source_b, value_b, diff_pct)
+                    VALUES (?,?,?,?,?,?,?,?)""",
+                    (now_str, qr[0], f'{yr}年營收', '季度加總', round(q_total),
+                     '年度財報', round(a_total), round(diff, 2)))
+                issues += 1
+
+    # 3. 比對 quarterly_financial 各季 EPS 加總 vs financial_annual 年 EPS
+    for yr in [roc_year - 1, roc_year - 2]:
+        q_eps_sum = conn.execute("""
+            SELECT code, SUM(eps) as q_total, COUNT(*) as q_cnt
+            FROM quarterly_financial
+            WHERE quarter LIKE ? AND eps IS NOT NULL
+            GROUP BY code HAVING q_cnt = 4
+        """, (f'{yr}Q%',)).fetchall()
+
+        for qr in q_eps_sum:
+            a_eps = conn.execute("""
+                SELECT eps FROM financial_annual WHERE code=? AND year=?
+            """, (qr[0], yr + 1911)).fetchone()
+            if not a_eps or a_eps[0] is None:
+                continue
+            q_total = round(qr[1], 2)
+            a_total = a_eps[0]
+            base = max(abs(q_total), abs(a_total), 0.01)
+            diff = abs(q_total - a_total) / base * 100
+            if diff > 10:  # EPS 容差大一點
+                c.execute("""INSERT INTO data_validation_log
+                    (check_date, code, field, source_a, value_a, source_b, value_b, diff_pct)
+                    VALUES (?,?,?,?,?,?,?,?)""",
+                    (now_str, qr[0], f'{yr}年EPS', '季度加總', q_total,
+                     '年度財報', a_total, round(diff, 2)))
+                issues += 1
+
+    conn.commit()
+    conn.close()
+    if issues:
+        print(f"  [交叉驗證] 發現 {issues} 筆差異")
+    else:
+        print(f"  [交叉驗證] 全部一致")
+    return issues
 
 
 def _fix_tax_data():

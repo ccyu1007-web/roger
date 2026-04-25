@@ -20,7 +20,8 @@ from scraper import (run as scraper_run, refresh_prices, init_db, init_financial
                      fetch_company_monthly_revenue, fetch_company_quarterly,
                      fetch_pe_history, _calc_fin_grade, fetch_institutional,
                      quick_update, estimate_system_eps, estimate_system_eps_multi,
-                     estimate_annual_eps, _log_estimate, _fix_tax_data)
+                     estimate_annual_eps, _log_estimate, _fix_tax_data,
+                     cross_validate_financial)
 from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
 
@@ -814,6 +815,21 @@ def get_cross_validate():
     """取得最近一次校驗結果"""
     result = get_latest_validation()
     return jsonify(result or {"checked": 0, "ok": 0, "mismatches": []})
+
+@app.route("/api/financial-validation")
+def get_financial_validation():
+    """取得財報交叉驗證結果"""
+    rows = query_db("""SELECT v.*, s.name FROM data_validation_log v
+        LEFT JOIN stocks s ON v.code = s.code
+        WHERE v.resolved = 0
+        ORDER BY v.diff_pct DESC LIMIT 100""")
+    if not rows:
+        return jsonify({"issues": [], "count": 0})
+    return jsonify({
+        "issues": [dict(r) for r in rows],
+        "count": len(rows)
+    })
+
 
 @app.route("/api/providers")
 def providers():
