@@ -3349,9 +3349,16 @@ def _backfill_actual_eps():
 def fetch_mops_quarterly_eps():
     """
     從公開資訊觀測站抓取最新一季的 EPS（比政府 API 快數天）。
-    注意：MOPS 的 EPS/營收/業外/淨利都是「累計值」，需轉成單季。
-    Q1：累計=單季。Q2/Q3/Q4：單季 = 本季累計 - 前季累計。
+
+    重要防呆（累計→單季轉換）：
+    - MOPS 回傳的所有數值都是「累計值」，不是單季值！
+    - Q1：累計=單季，直接使用
+    - Q2/Q3：單季 = 本季累計 - DB中前季累計。若DB缺前季資料 → 跳過不寫入
+    - Q4：沒有前3季 → 只存年度EPS，不存季度（避免累計值汙染單季欄位）
+    - 曾因此 bug 導致累計EPS被當成單季寫入，造成數據嚴重錯誤
+
     寫入 quarterly_financial + 同步 stocks 表。
+    後續由群益 zce 覆蓋更正確的單季數據，FinMind 最後補齊。
     """
     from bs4 import BeautifulSoup
 
@@ -3411,6 +3418,10 @@ def fetch_mops_quarterly_eps():
                         cum_ni = parse_k(cells[8])
 
                         # === 累計→單季轉換 ===
+                        # 重要：MOPS 回傳的是累計值，必須減去前季累計才是單季
+                        # Q1：累計=單季，直接用
+                        # Q2/Q3/Q4：單季 = 本季累計 - 前季累計
+                        # 防呆：若 DB 缺前季資料無法轉換，跳過不寫入（避免累計值被當成單季值）
                         single_eps = cum_eps
                         single_rev = cum_revenue
                         single_oi = cum_oi
@@ -3450,6 +3461,9 @@ def fetch_mops_quarterly_eps():
                                          date.today().strftime('%Y-%m-%d'), code))
                                     count += 1
                                 continue  # Q4 不寫 quarterly_financial 的 eps
+                            else:
+                                # Q2/Q3 缺前季資料，無法從累計轉單季 → 跳過，避免累計值被當成單季值寫入
+                                continue
 
                         # 寫入 quarterly_financial（單季值）
                         c.execute("""INSERT INTO quarterly_financial
