@@ -93,12 +93,12 @@ async function load() {
     const res = await fetch('/api/etf/changes-report?limit=2000');
     allData = await res.json();
 
-    // 預設日期區間：最近 30 天
-    const today = new Date();
-    const d30 = new Date(today);
-    d30.setDate(d30.getDate() - 30);
-    document.getElementById('dateTo').value = today.toISOString().split('T')[0];
-    document.getElementById('dateFrom').value = d30.toISOString().split('T')[0];
+    // 預設日期區間：資料的最早到最晚日期
+    if (allData.length) {
+      const dates = allData.map(g => g.change_date).sort();
+      document.getElementById('dateFrom').value = dates[0];
+      document.getElementById('dateTo').value = dates[dates.length - 1];
+    }
 
     buildFilter();
     render();
