@@ -1205,13 +1205,17 @@ def run(scheduled=True):
     # 5. 合約負債（FinMind）
     contract_map = fetch_contract_liabilities(all_codes, old_meta)
 
-    # 6. EPS 年度（政府 API，批次無限制）
+    # 6. EPS 年度 — 群益優先，政府API+BWIBBU反推驗證，FinMind補齊
+    from capital_fetcher import fetch_capital_annual_eps_batch
+    eps_capital = fetch_capital_annual_eps_batch(all_codes)  # 群益年度EPS（最優先）
+
+    # 6b. EPS 年度（政府 API，批次無限制）— 驗證用
     eps_annual = fetch_eps_annual_bulk()
 
-    # 6b. EPS 年度歷史（TWSE/TPEX 本益比反推，批次無限制）
+    # 6c. EPS 年度歷史（TWSE/TPEX 本益比反推，批次無限制）— 驗證+補齊
     eps_annual_hist = fetch_eps_annual_history()
 
-    # 7. EPS 季度+歷史年度（FinMind，有速率限制）
+    # 7. EPS 季度+歷史年度（FinMind，有速率限制）— 最後補齊
     eps_map = fetch_eps(all_codes, old_meta)
 
     # 6. 合併所有資料
@@ -1237,45 +1241,42 @@ def run(scheduled=True):
         r['eps_ytd']       = eps.get('eps_ytd')
         r['eps_ytd_label'] = eps.get('eps_ytd_label')
 
-        # 多源仲裁 + 合併年度 EPS（t187ap14 + BWIBBU反推 + FinMind）
-        annual = eps_annual.get(r['code'])
-        hist = eps_annual_hist.get(r['code'], {})
+        # 多源合併年度 EPS：群益優先 → 政府API+BWIBBU驗證 → FinMind補齊
+        cap = eps_capital.get(r['code'], {})   # 群益（最優先）
+        annual = eps_annual.get(r['code'])      # 政府API t187ap14（驗證）
+        hist = eps_annual_hist.get(r['code'], {})  # BWIBBU反推（驗證+補齊）
 
-        # 收集各來源同年度的 EPS 值
         merged = {}  # {year_label: eps_value}
-        for i in range(1, 6):
-            if r.get(f'eps_y{i}_label') and r.get(f'eps_y{i}') is not None:
-                yr = r[f'eps_y{i}_label']
-                # 同年度有多來源 → 仲裁
-                sources = {'FinMind': r[f'eps_y{i}']}
-                if annual and annual['year'] == yr:
-                    sources['t187ap14'] = annual['eps']
-                if yr in hist:
-                    sources['BWIBBU反推'] = hist[yr]
-                if len(sources) > 1:
-                    arb = arbitrate_values(sources)
-                    merged[yr] = arb['best_value']
-                else:
-                    merged[yr] = r[f'eps_y{i}']
 
-        # t187ap14 補充（FinMind 無資料時）
-        if annual and annual['year'] not in merged:
+        # 第一層：群益年度 EPS（直接覆蓋）
+        for yr, eps_val in cap.items():
+            merged[yr] = eps_val
+
+        # 第二層：政府API 驗證（群益已有的年度做比對，沒有的補齊）
+        if annual:
             yr = annual['year']
-            sources = {'t187ap14': annual['eps']}
-            if yr in hist:
-                sources['BWIBBU反推'] = hist[yr]
-            if len(sources) > 1:
-                arb = arbitrate_values(sources)
-                merged[yr] = arb['best_value']
+            if yr in merged:
+                # 群益已有 → 比對差異，差異 > 5% 印警告
+                diff = abs(merged[yr] - annual['eps'])
+                if merged[yr] != 0 and diff / abs(merged[yr]) > 0.05:
+                    print(f"[年度EPS警告] {r['code']} {yr}年: 群益={merged[yr]} vs 政府API={annual['eps']}，差異 {diff:.2f}")
             else:
                 merged[yr] = annual['eps']
-            if not r.get('eps_date'):
-                r['eps_date'] = today_str
 
-        # BWIBBU 反推填補缺漏年度
+        # 第三層：BWIBBU 反推（補齊群益和政府API都沒有的年度）
         for yr, eps_val in hist.items():
             if yr not in merged:
                 merged[yr] = eps_val
+
+        # 第四層：FinMind（最後補齊）
+        for i in range(1, 6):
+            if r.get(f'eps_y{i}_label') and r.get(f'eps_y{i}') is not None:
+                yr = r[f'eps_y{i}_label']
+                if yr not in merged:
+                    merged[yr] = r[f'eps_y{i}']
+
+        if not r.get('eps_date') and merged:
+            r['eps_date'] = today_str
 
         # 寫回最近 5 年
         sorted_yrs = sorted(merged.keys(), reverse=True)[:5]

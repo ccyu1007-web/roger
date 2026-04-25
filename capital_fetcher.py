@@ -561,6 +561,82 @@ def fetch_capital_cashflow(code):
     return saved
 
 
+# ── 年度損益表（群益 zcqa）── 年度 EPS 最優先來源 ─────────
+
+def fetch_capital_annual_eps(code):
+    """從群益年度損益表抓取個股近 8 年每股盈餘，回傳 {民國年: eps}"""
+    try:
+        url = f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}"
+        r = _session.get(url, timeout=15)
+        r.encoding = 'big5'
+        soup = BeautifulSoup(r.text, 'html.parser')
+    except:
+        return {}
+
+    spans = soup.find_all('span', class_=lambda c: c and 'table-cell' in c)
+    if not spans:
+        return {}
+
+    # 第一列是「期別, 2025, 2024, ...」，取得年份列表
+    years = []
+    for sp in spans[1:9]:  # 最多 8 年
+        txt = sp.get_text(strip=True)
+        try:
+            west_year = int(txt)
+            roc_year = west_year - 1911
+            years.append(str(roc_year))
+        except:
+            years.append(None)
+
+    if not years:
+        return {}
+
+    # 每 (1+len(years)) 個 span 一列，找「每股盈餘」（排除完全稀釋）
+    cols = 1 + len(years)
+    result = {}
+    for i in range(0, len(spans), cols):
+        row = spans[i:i+cols]
+        if len(row) < cols:
+            continue
+        label = row[0].get_text(strip=True)
+        if label == '每股盈餘':
+            for j, yr in enumerate(years):
+                if yr is None:
+                    continue
+                val = _parse_num(row[j + 1].get_text(strip=True))
+                if val is not None:
+                    result[yr] = val
+            break
+
+    return result
+
+
+def fetch_capital_annual_eps_batch(codes):
+    """批次抓取群益年度 EPS，回傳 {code: {民國年: eps}}
+    用於年度 EPS 主要來源 + 公告期結束後批次驗證"""
+    print(f"[群益年度EPS] 開始抓取 {len(codes)} 支...")
+    t0 = time.time()
+    result = {}
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {}
+        for i, code in enumerate(codes):
+            futures[pool.submit(fetch_capital_annual_eps, code)] = code
+            if (i + 1) % 8 == 0:
+                time.sleep(0.5)
+        for f in as_completed(futures):
+            code = futures[f]
+            try:
+                data = f.result()
+                if data:
+                    result[code] = data
+            except:
+                pass
+
+    print(f"[群益年度EPS] 完成：{len(result)}/{len(codes)} 支有資料，耗時 {time.time()-t0:.1f}s")
+    return result
+
+
 # ── 月營收（群益 zch）────────────────────────────────────
 
 def fetch_capital_monthly_revenue(code):
