@@ -58,11 +58,17 @@ if [ "$ROW_COUNT" -lt 100 ]; then
     exit 1
 fi
 
-# ── 4. 每週 VACUUM（重整資料庫，釋放空頁面）──
+# ── 4. 每週 VACUUM + 營收交叉校驗（週日）──
 if [ "$(date +%u)" = "7" ]; then
     /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -c "
 import sqlite3; conn = sqlite3.connect('$DB_FILE'); conn.execute('VACUUM'); conn.close()
 " 2>/dev/null && echo "[$NOW] VACUUM 完成" >> "$LOG_FILE"
+
+    # 營收交叉校驗：政府API vs 群益，抽樣30支
+    /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -c "
+from guardian import cross_validate_revenue
+result = cross_validate_revenue(sample_size=30)
+" >> "$LOG_FILE" 2>&1 && echo "[$NOW] 營收交叉校驗完成" >> "$LOG_FILE"
 fi
 
 # ── 5. 每日正常備份（本機保留 7 天）──

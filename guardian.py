@@ -1126,6 +1126,125 @@ def cross_validate(sample_size=20):
     }
 
 
+def cross_validate_revenue(sample_size=30):
+    """
+    營收交叉校驗：抽樣比對 monthly_revenue（政府API）vs 群益 zch 的月營收。
+    設計為每週日執行，驗證過去一週政府 API 寫入的營收資料是否正確。
+    差異 > 1% 的記入 data_validation_log 並印警告。
+    """
+    import requests
+    from bs4 import BeautifulSoup
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 抽樣：從 monthly_revenue 取最近一個月有資料的股票
+    rows = conn.execute("""
+        SELECT DISTINCT code FROM monthly_revenue
+        WHERE revenue IS NOT NULL AND revenue > 0
+        ORDER BY RANDOM() LIMIT ?
+    """, (sample_size,)).fetchall()
+    codes = [r['code'] for r in rows]
+
+    # 取得最近一筆營收的年月（用來跟群益比對）
+    rev_map = {}
+    for code in codes:
+        r = conn.execute("""
+            SELECT year, month, revenue FROM monthly_revenue
+            WHERE code=? AND revenue IS NOT NULL
+            ORDER BY year DESC, month DESC LIMIT 1
+        """, (code,)).fetchone()
+        if r:
+            rev_map[code] = {'year': r['year'], 'month': r['month'], 'revenue': r['revenue']}
+    conn.close()
+
+    if not rev_map:
+        print("[營收校驗] 無資料可比對")
+        return {'checked': 0, 'ok': 0, 'mismatches': []}
+
+    # 從群益 zch 逐支抓取營收比對
+    mismatches = []
+    ok_count = 0
+    checked = 0
+    session = requests.Session()
+    session.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+
+    for code, db_data in rev_map.items():
+        try:
+            url = f"https://stock.capital.com.tw/z/zc/zch/zch.djhtm?a={code}"
+            r = session.get(url, timeout=15)
+            r.encoding = 'big5'
+            soup = BeautifulSoup(r.text, 'html.parser')
+
+            target_ym = f"{db_data['year'] - 1911}/{db_data['month']:02d}"
+            capital_revenue = None
+
+            for t in soup.find_all('table'):
+                for row in t.find_all('tr'):
+                    cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+                    if not cells or len(cells) < 2:
+                        continue
+                    if cells[0] == target_ym:
+                        # 群益營收單位是仟元
+                        rev_str = cells[1].replace(',', '').strip()
+                        try:
+                            capital_revenue = float(rev_str) * 1000  # 轉為元
+                        except:
+                            pass
+                        break
+                if capital_revenue is not None:
+                    break
+
+            if capital_revenue is None:
+                continue
+
+            checked += 1
+            db_revenue = db_data['revenue']
+
+            # 政府 API 單位是仟元，群益也轉成元了，比對差異
+            if db_revenue > 0 and capital_revenue > 0:
+                diff_pct = abs(db_revenue - capital_revenue) / db_revenue * 100
+                if diff_pct > 1:
+                    mismatches.append({
+                        'code': code,
+                        'year_month': target_ym,
+                        'db_revenue': db_revenue,
+                        'capital_revenue': capital_revenue,
+                        'diff_pct': round(diff_pct, 2),
+                    })
+                    print(f"[營收校驗] {code} {target_ym} 差異 {diff_pct:.2f}%"
+                          f"（政府API: {db_revenue:,.0f} vs 群益: {capital_revenue:,.0f}）")
+                else:
+                    ok_count += 1
+        except:
+            pass
+
+        # 避免太快被擋
+        import time
+        time.sleep(0.3)
+
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # 寫入校驗記錄
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
+            details TEXT)""")
+        c.execute("INSERT INTO cross_validation (checked_at, sample_size, ok_count, mismatch_count, details) VALUES (?,?,?,?,?)",
+                  (now_str, checked, ok_count, len(mismatches),
+                   json.dumps({'type': 'revenue', 'mismatches': mismatches}, ensure_ascii=False)))
+        conn.commit()
+        conn.close()
+    except:
+        pass
+
+    print(f"[營收校驗] 完成：抽查 {checked} 支，{ok_count} 支一致，{len(mismatches)} 支有差異")
+    return {'checked': checked, 'ok': ok_count, 'mismatches': mismatches}
+
+
 def get_latest_validation():
     """取得最近一次交叉校驗結果"""
     try:
