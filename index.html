@@ -2007,20 +2007,10 @@ function render() {
     }
   });
   _fixedY = [];
-  for (let i = 0; i < 5; i++) _fixedY.push(String(dataMaxYear - i));
+  for (let i = 0; i < 6; i++) _fixedY.push(String(dataMaxYear - i));
 
-  // 股利年度：有新股利資料就加欄，年底才剔除最舊欄位
-  let dataMaxDivYear = parseInt(latestFullYear);
-  allData.forEach(r => {
-    if (r.div_1_label) {
-      const y = parseInt(r.div_1_label);
-      if (y > dataMaxDivYear) dataMaxDivYear = y;
-    }
-  });
-  // 年底（12月）才讓最新年度往前推並剔除最舊
-  const divBaseYear = (curM === 12) ? Math.max(dataMaxDivYear, parseInt(latestFullYear)) : dataMaxDivYear;
-  _fixedD = [];
-  for (let i = 0; i < 5; i++) _fixedD.push(String(divBaseYear - i));
+  // 股利年度：與 EPS 年度對齊（股利年度 = 盈餘年度，應一致）
+  _fixedD = [..._fixedY];
 
   // 動態生成表頭（用 DOM 插入 <th>）
   const anchor = document.getElementById('dynColAnchor');
