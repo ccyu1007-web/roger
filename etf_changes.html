@@ -148,7 +148,7 @@ function render() {
     <thead><tr>
       <th style="width:130px">ETF</th>
       <th style="width:100px">偵測日期</th>
-      <th style="width:80px;text-align:center">成分股數</th>
+      <th>成分股</th>
       <th>成分股納入</th>
       <th>成分股剔除</th>
     </tr></thead><tbody>`;
@@ -163,13 +163,18 @@ function render() {
         + `<span class="count-badge count-remove">-${g.remove.length}</span>`
       : '<span style="color:#cbd5e1">－</span>';
 
+    const holdingsHtml = g.holdings.length
+      ? `<span style="font-size:.78rem;color:#64748b;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'inline':'none';this.textContent=this.nextElementSibling.style.display==='none'?'展開 ${g.holdings.length} 支':'收合'">${'展開 ' + g.holdings.length + ' 支'}</span>`
+        + `<span style="display:none">${g.holdings.map(s => `<a class="stock-tag" style="background:#f1f5f9;color:#334155" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')}</span>`
+      : '<span style="color:#cbd5e1">－</span>';
+
     html += `<tr>
       <td>
         <span class="etf-code">${g.etf_code}</span><br>
         <span class="etf-name">${g.etf_name}</span>
       </td>
       <td class="date-cell">${g.change_date}</td>
-      <td style="text-align:center;font-weight:600;color:#475569">${g.holding_count || '－'}</td>
+      <td>${holdingsHtml}</td>
       <td>${addHtml}</td>
       <td>${removeHtml}</td>
     </tr>`;

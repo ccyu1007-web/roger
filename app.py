@@ -1220,12 +1220,13 @@ def etf_changes_report():
         ORDER BY c.change_date DESC, c.etf_code, c.action
         LIMIT ?
     """, [limit])
-    # 各 ETF 目前成分股數
-    hcounts = {}
-    for h in query_db("SELECT etf_code, COUNT(*) as cnt FROM etf_holdings GROUP BY etf_code"):
-        hcounts[h['etf_code']] = h['cnt']
+    # 各 ETF 目前完整成分股
+    holdings_map = {}
+    for h in query_db("SELECT etf_code, stock_code, stock_name FROM etf_holdings ORDER BY etf_code, weight DESC"):
+        holdings_map.setdefault(h['etf_code'], []).append(
+            {'code': h['stock_code'], 'name': h['stock_name'] or h['stock_code']})
 
-    # 分組：{etf_code + change_date} → {etf_code, etf_name, change_date, holding_count, add:[], remove:[]}
+    # 分組：{etf_code + change_date} → {etf_code, etf_name, change_date, holdings, add:[], remove:[]}
     groups = {}
     for r in rows:
         key = f"{r['etf_code']}_{r['change_date']}"
@@ -1234,7 +1235,7 @@ def etf_changes_report():
                 'etf_code': r['etf_code'],
                 'etf_name': r['etf_name'],
                 'change_date': r['change_date'],
-                'holding_count': hcounts.get(r['etf_code'], 0),
+                'holdings': holdings_map.get(r['etf_code'], []),
                 'add': [], 'remove': []
             }
         item = {'code': r['stock_code'], 'name': r['stock_name'] or r['stock_code']}
