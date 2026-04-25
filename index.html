@@ -2030,14 +2030,16 @@ function render() {
     const frag = document.createDocumentFragment();
     // 季度EPS
     _fixedQ.forEach((q, i) => { const th = makeTh(q, '_qeps_' + q, 'g-qeps'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
+    // 民國年→西元年轉換（顯示用）
+    const rocToWest = y => String(parseInt(y) + 1911);
     // 年度EPS
-    _fixedY.forEach((y, i) => { const th = makeTh(y + '年EPS', '_yeps_' + y, 'g-yeps'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
+    _fixedY.forEach((y, i) => { const th = makeTh(y + '年EPS<br><small style="color:#9ca3af">' + rocToWest(y) + '</small>', '_yeps_' + y, 'g-yeps'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
     // 現金股利
-    _fixedD.forEach((y, i) => { const th = makeTh(y + '現金', '_divc_' + y, 'g-divc'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
+    _fixedD.forEach((y, i) => { const th = makeTh(y + '現金<br><small style="color:#9ca3af">' + rocToWest(y) + '</small>', '_divc_' + y, 'g-divc'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
     // 股票股利
-    _fixedD.forEach((y, i) => { const th = makeTh(y + '股票', '_divs_' + y, 'g-divs'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
+    _fixedD.forEach((y, i) => { const th = makeTh(y + '股票<br><small style="color:#9ca3af">' + rocToWest(y) + '</small>', '_divs_' + y, 'g-divs'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
     // 配息率
-    _fixedD.forEach((y, i) => { const th = makeTh(y + '配息率', '_po_' + y, 'g-po'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
+    _fixedD.forEach((y, i) => { const th = makeTh(y + '配息率<br><small style="color:#9ca3af">' + rocToWest(y) + '</small>', '_po_' + y, 'g-po'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
 
     tr.insertBefore(frag, anchor);
   }
