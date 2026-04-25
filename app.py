@@ -594,13 +594,14 @@ def get_quarterly(code):
         # 歸屬母公司權重
         d['parent_weight'] = round(nip / ci * 100, 2) if ci and ci != 0 and nip is not None else None
         # 加權平均股數（從 EPS 反算，單位：千股）
-        if eps_val and eps_val != 0 and nip is not None:
+        # EPS=0 時無法反算 → 用前後季的股數補（稍後處理）
+        if eps_val is not None and eps_val != 0 and nip is not None:
             shares = nip / eps_val  # 元 / (元/股) = 股
             d['weighted_shares'] = round(shares / 1000, 0)  # 千股
         else:
             d['weighted_shares'] = None
         # 每股盈餘-本業
-        shares_raw = nip / eps_val if eps_val and eps_val != 0 and nip is not None else None
+        shares_raw = nip / eps_val if eps_val is not None and eps_val != 0 and nip is not None else None
         eff_tax = tax / pti if pti and pti != 0 and tax is not None else None
         if oi is not None and shares_raw and eff_tax is not None:
             d['eps_core'] = round(oi * (1 - eff_tax) / shares_raw, 2)
