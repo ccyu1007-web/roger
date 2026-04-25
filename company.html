@@ -580,7 +580,11 @@ function calcFinGrade(d) {
 }
 
 function renderFinTable(data) {
-  const years = data.map(d => d.year_label + '年');
+  const years = data.map(d => {
+    const roc = d.year_label;
+    const west = parseInt(roc) + 1911;
+    return `${roc}年<br><small style="color:#9ca3af">${west}</small>`;
+  });
 
   const fmtM = v => {
     if (v == null) return '<td class="v-empty">-</td>';
