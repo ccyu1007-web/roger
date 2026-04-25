@@ -28,43 +28,27 @@ _session.headers.update({
     'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
 })
 
-# 追蹤的 ETF 清單
+# 追蹤的 ETF 清單（依規模×換股頻率×幅度篩選，2026/4 更新）
 TRACKED_ETFS = {
-    # ── 市值型 ──
-    '0050':   {'name': '元大台灣50',       'issuer': 'yuanta'},
-    '006208': {'name': '富邦台50',         'issuer': 'fubon'},
-    '006203': {'name': '元大MSCI台灣',     'issuer': 'yuanta'},
-    '0051':   {'name': '元大中型100',      'issuer': 'yuanta'},
-    # ── 高股息 ──
-    '0056':   {'name': '元大高股息',       'issuer': 'yuanta'},
-    '00878':  {'name': '國泰永續高股息',   'issuer': 'cathay'},
-    '00713':  {'name': '元大台灣高息低波', 'issuer': 'yuanta'},
-    '00919':  {'name': '群益台灣精選高息', 'issuer': 'megaetf'},
-    '00929':  {'name': '復華台灣科技優息', 'issuer': 'fhfund'},
-    '00940':  {'name': '元大台灣價值高息', 'issuer': 'yuanta'},
-    '00939':  {'name': '統一台灣高息動能', 'issuer': 'usite'},
-    '00934':  {'name': '中信成長高股息',   'issuer': 'ctbc'},
-    '00936':  {'name': '台新永續高息中小', 'issuer': 'tsit'},
-    '00915':  {'name': '凱基優選高股息30', 'issuer': 'kgi'},
-    '00918':  {'name': '大華優利高填息30', 'issuer': 'dh'},
-    '00900':  {'name': '富邦特選高股息30', 'issuer': 'fubon'},
-    '00927':  {'name': '群益半導體收益',   'issuer': 'megaetf'},
-    '00944':  {'name': '野村臺灣趨勢動能高股息', 'issuer': 'nomura'},
-    '00946':  {'name': '群益台灣科技高息成長', 'issuer': 'megaetf'},
-    # ── 主題型/產業型 ──
-    '00881':  {'name': '國泰台灣5G+',     'issuer': 'cathay'},
-    '00850':  {'name': '元大臺灣ESG永續', 'issuer': 'yuanta'},
-    '00692':  {'name': '富邦公司治理',     'issuer': 'fubon'},
-    '0052':   {'name': '富邦科技',         'issuer': 'fubon'},
-    '00733':  {'name': '富邦臺灣中小A級動能50', 'issuer': 'fubon'},
-    '00891':  {'name': '中信關鍵半導體',   'issuer': 'ctbc'},
-    '00892':  {'name': '富邦台灣半導體',   'issuer': 'fubon'},
-    '00830':  {'name': '國泰費城半導體',   'issuer': 'cathay'},
-    '00757':  {'name': '統一FANG+',        'issuer': 'usite'},
-    '00912':  {'name': '中信臺灣智慧50',   'issuer': 'ctbc'},
-    '00922':  {'name': '國泰台灣領袖50',   'issuer': 'cathay'},
-    '00923':  {'name': '群益台ESG低碳50',  'issuer': 'megaetf'},
-    '00935':  {'name': '野村臺灣新科技50', 'issuer': 'nomura'},
+    # ── 主動式（每日揭露持股）──
+    '00981A': {'name': '統一台股增長',         'issuer': 'usite',   'category': '主動式'},
+    '00992A': {'name': '群益科技創新',         'issuer': 'megaetf', 'category': '主動式'},
+    '00982A': {'name': '群益台灣強棒',         'issuer': 'megaetf', 'category': '主動式'},
+    '00991A': {'name': '復華未來50',           'issuer': 'fhfund',  'category': '主動式'},
+    # ── 高股息（季調，高換股幅度）──
+    '00919':  {'name': '群益台灣精選高息',     'issuer': 'megaetf', 'category': '高股息'},
+    '00929':  {'name': '復華台灣科技優息',     'issuer': 'fhfund',  'category': '高股息'},
+    '00934':  {'name': '中信成長高股息',       'issuer': 'ctbc',    'category': '高股息'},
+    '00918':  {'name': '大華優利高填息30',     'issuer': 'dh',      'category': '高股息'},
+    '00940':  {'name': '元大台灣價值高息',     'issuer': 'yuanta',  'category': '高股息'},
+    '00900':  {'name': '富邦特選高股息30',     'issuer': 'fubon',   'category': '高股息'},
+    # ── 指標型（規模大，頻率低但具參考價值）──
+    '0056':   {'name': '元大高股息',           'issuer': 'yuanta',  'category': '指標型'},
+    '00878':  {'name': '國泰永續高股息',       'issuer': 'cathay',  'category': '指標型'},
+    '0050':   {'name': '元大台灣50',           'issuer': 'yuanta',  'category': '指標型'},
+    # ── 國際指數（僅展示成分股，不追蹤異動）──
+    'MSCI_TW':   {'name': 'MSCI台灣指數',     'issuer': 'msci',    'category': '國際指數', 'track_changes': False},
+    'FTSE_TW50': {'name': 'FTSE台灣50指數',   'issuer': 'ftse',    'category': '國際指數', 'track_changes': False},
 }
 
 
@@ -103,9 +87,15 @@ def init_etf_db():
             code       TEXT PRIMARY KEY,
             name       TEXT,
             issuer     TEXT,
+            category   TEXT,
             last_fetch TEXT
         )
     """)
+    # 舊表可能沒有 category 欄位，嘗試補上
+    try:
+        c.execute("ALTER TABLE etf_info ADD COLUMN category TEXT")
+    except:
+        pass
 
     conn.commit()
     conn.close()
@@ -356,6 +346,9 @@ def _save_holdings(etf_code, holdings):
     old_codes = {row[0]: row[1] for row in c.fetchall()}
     new_codes = {h['stock_code']: h.get('stock_name', '') for h in holdings}
 
+    # 是否追蹤異動（國際指數等設定 track_changes=False 的不追蹤）
+    track = TRACKED_ETFS.get(etf_code, {}).get('track_changes', True)
+
     # 計算異動（只在已有基準線時才記錄，第一次跑不記）
     added = set(new_codes.keys()) - set(old_codes.keys())
     removed = set(old_codes.keys()) - set(new_codes.keys())
@@ -367,7 +360,7 @@ def _save_holdings(etf_code, holdings):
         conn.close()
         return len(old_codes)
 
-    if old_codes:  # 有舊資料才是真正的異動
+    if track and old_codes:  # 有舊資料才是真正的異動
         for code in added:
             c.execute("""INSERT INTO etf_changes (etf_code, stock_code, stock_name, action, change_date, created_at)
                          VALUES (?, ?, ?, 'add', ?, ?)""",
@@ -379,8 +372,10 @@ def _save_holdings(etf_code, holdings):
                          VALUES (?, ?, ?, 'remove', ?, ?)""",
                       (etf_code, code, old_codes.get(code, ''), today, now))
             print(f"  [異動] {etf_code} 剔除成分股: {code} {old_codes.get(code, '')}")
-    elif added:
+    elif added and track:
         print(f"  [{etf_code}] 首次建立基準線，{len(added)} 筆持股（不記為異動）")
+    elif added and not track:
+        print(f"  [{etf_code}] 僅展示，寫入 {len(added)} 筆持股（不追蹤異動）")
 
     # 全量覆蓋持股
     c.execute("DELETE FROM etf_holdings WHERE etf_code=?", (etf_code,))
@@ -392,9 +387,10 @@ def _save_holdings(etf_code, holdings):
 
     # 更新 ETF info
     etf_info = TRACKED_ETFS.get(etf_code, {})
-    c.execute("""INSERT OR REPLACE INTO etf_info (code, name, issuer, last_fetch)
-                 VALUES (?, ?, ?, ?)""",
-              (etf_code, etf_info.get('name', ''), etf_info.get('issuer', ''), now))
+    c.execute("""INSERT OR REPLACE INTO etf_info (code, name, issuer, category, last_fetch)
+                 VALUES (?, ?, ?, ?, ?)""",
+              (etf_code, etf_info.get('name', ''), etf_info.get('issuer', ''),
+               etf_info.get('category', ''), now))
 
     conn.commit()
     conn.close()
@@ -403,6 +399,68 @@ def _save_holdings(etf_code, holdings):
           f"{f', 新增 {len(added)}' if added else ''}"
           f"{f', 剔除 {len(removed)}' if removed else ''}")
     return len(holdings)
+
+
+# ── 來源 3：MSCI 台灣指數（群益權值計算機）───────────────────
+def _fetch_msci_tw():
+    """從群益權值計算機抓取 MSCI 台灣指數成分股"""
+    try:
+        url = 'https://stock.capital.com.tw/z/zm/zmd/zmdc.djhtm?MSCI=0'
+        r = _session.get(url, timeout=20)
+        r.encoding = 'big5'
+        if r.status_code != 200:
+            print(f"  [MSCI] HTTP {r.status_code}")
+            return []
+
+        soup = BeautifulSoup(r.text, 'html.parser')
+        holdings = []
+        seen = set()
+
+        # 連結格式: javascript:Link2Stk('2330')，文字: 2330台積電
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag.get('href', '')
+            m = re.search(r"Link2Stk\('(\d{4,6})'\)", href)
+            if m:
+                code = m.group(1)
+                if code in seen:
+                    continue
+                seen.add(code)
+                text = a_tag.get_text(strip=True)
+                # 文字格式: "2330台積電" → 去掉前面的代號
+                name = re.sub(r'^\d{4,6}', '', text).strip()
+                holdings.append({
+                    'stock_code': code,
+                    'stock_name': name,
+                    'weight': None,
+                    'shares': None,
+                })
+
+        if holdings:
+            print(f"  [MSCI] 解析出 {len(holdings)} 筆成分股")
+        else:
+            print("  [MSCI] 無法解析成分股")
+        return holdings
+
+    except Exception as e:
+        print(f"  [MSCI] 失敗: {e}")
+        return []
+
+
+# ── 來源 4：FTSE 台灣50（同步自 0050）─────────────────────────
+def _fetch_ftse_tw50():
+    """FTSE 台灣50 跟 0050 追蹤同一指數，直接同步"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT stock_code, stock_name, weight, shares FROM etf_holdings WHERE etf_code='0050'")
+    rows = c.fetchall()
+    conn.close()
+    if rows:
+        holdings = [dict(r) for r in rows]
+        print(f"  [FTSE TW50] 同步自 0050，{len(holdings)} 筆")
+        return holdings
+    print("  [FTSE TW50] 0050 尚無持股資料，跳過")
+    return []
 
 
 # ── 主抓取邏輯 ──────────────────────────────────────────────
@@ -414,6 +472,19 @@ def fetch_etf_holdings(etf_code):
 
     holdings = []
 
+    # 國際指數：專用來源
+    if etf_code == 'MSCI_TW':
+        holdings = _fetch_msci_tw()
+        if holdings:
+            return _save_holdings(etf_code, holdings)
+        return 0
+
+    if etf_code == 'FTSE_TW50':
+        holdings = _fetch_ftse_tw50()
+        if holdings:
+            return _save_holdings(etf_code, holdings)
+        return 0
+
     # 元大系列：Nuxt SSR 解析（完整持股）
     if issuer == 'yuanta':
         holdings = _fetch_yuanta(etf_code)
@@ -422,20 +493,6 @@ def fetch_etf_holdings(etf_code):
     if not holdings:
         print(f"  發行商來源無資料，嘗試 MoneyDJ...")
         holdings = _fetch_moneydj(etf_code)
-
-    # 同指數 ETF 同步：006208 跟 0050 追蹤同一個臺灣50指數
-    SAME_INDEX = {'006208': '0050'}
-    if not holdings and etf_code in SAME_INDEX:
-        ref = SAME_INDEX[etf_code]
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT stock_code, stock_name, weight, shares FROM etf_holdings WHERE etf_code=?", (ref,))
-        rows = c.fetchall()
-        conn.close()
-        if rows:
-            holdings = [dict(r) for r in rows]
-            print(f"  [{etf_code}] 同步自 {ref}（同指數），{len(holdings)} 筆")
 
     if holdings:
         return _save_holdings(etf_code, holdings)
@@ -451,7 +508,10 @@ def run(target_etf=None):
     if target_etf:
         codes = [target_etf]
     else:
-        codes = list(TRACKED_ETFS.keys())
+        # FTSE_TW50 依賴 0050 資料，確保排在最後
+        codes = [c for c in TRACKED_ETFS.keys() if c != 'FTSE_TW50']
+        if 'FTSE_TW50' in TRACKED_ETFS:
+            codes.append('FTSE_TW50')
 
     total = 0
     for code in codes:

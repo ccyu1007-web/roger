@@ -1214,9 +1214,10 @@ def etf_changes_report():
     limit = int(request.args.get("limit", 500))
     rows = query_db("""
         SELECT c.etf_code, COALESCE(i.name, c.etf_code) as etf_name,
+               i.category as etf_category,
                c.stock_code, c.stock_name, c.action, c.change_date
         FROM etf_changes c
-        LEFT JOIN etf_info i ON c.etf_code = i.code
+        INNER JOIN etf_info i ON c.etf_code = i.code
         ORDER BY c.change_date DESC, c.etf_code, c.action
         LIMIT ?
     """, [limit])
@@ -1227,6 +1228,11 @@ def etf_changes_report():
             {'code': h['stock_code'], 'name': h['stock_name'] or h['stock_code']})
 
     # 分組：{etf_code + change_date} → {etf_code, etf_name, change_date, holdings, add:[], remove:[]}
+    # 取得所有 ETF 的 category 對照
+    category_map = {}
+    for ei in query_db("SELECT code, category FROM etf_info"):
+        category_map[ei['code']] = ei.get('category') or ''
+
     groups = {}
     for r in rows:
         key = f"{r['etf_code']}_{r['change_date']}"
@@ -1234,6 +1240,7 @@ def etf_changes_report():
             groups[key] = {
                 'etf_code': r['etf_code'],
                 'etf_name': r['etf_name'],
+                'category': category_map.get(r['etf_code'], ''),
                 'change_date': r['change_date'],
                 'holdings': holdings_map.get(r['etf_code'], []),
                 'add': [], 'remove': []
@@ -1242,13 +1249,14 @@ def etf_changes_report():
         groups[key][r['action']].append(item)
 
     # 所有追蹤的 ETF（含無異動的）
-    all_etfs = query_db("SELECT code, name FROM etf_info ORDER BY code")
+    all_etfs = query_db("SELECT code, name, category FROM etf_info ORDER BY code")
     tracked_codes = {g['etf_code'] for g in groups.values()}
     for etf in all_etfs:
         if etf['code'] not in tracked_codes:
             groups[f"{etf['code']}_none"] = {
                 'etf_code': etf['code'],
                 'etf_name': etf['name'] or etf['code'],
+                'category': etf.get('category') or '',
                 'change_date': None,
                 'holdings': holdings_map.get(etf['code'], []),
                 'add': [], 'remove': []
@@ -1260,7 +1268,7 @@ def etf_changes_report():
 def etf_list():
     """取得所有追蹤的 ETF 清單及其持股數"""
     rows = query_db("""
-        SELECT i.code, i.name, i.issuer, i.last_fetch,
+        SELECT i.code, i.name, i.issuer, i.category, i.last_fetch,
                COUNT(h.stock_code) as holding_count
         FROM etf_info i
         LEFT JOIN etf_holdings h ON i.code = h.etf_code

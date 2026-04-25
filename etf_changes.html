@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ETF 成分股變動報告</title>
+<title>ETF 專區</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
@@ -31,6 +31,11 @@
   td.col-group { border-left: 2px solid #e2e8f0; }
   .etf-code { font-weight: 700; color: #1e3a5f; white-space: nowrap; }
   .etf-name { color: #475569; font-size: .8rem; }
+  .etf-cat { font-size: .72rem; color: #fff; padding: 1px 6px; border-radius: 3px; display: inline-block; margin-top: 2px; }
+  .cat-主動式 { background: #7c3aed; }
+  .cat-高股息 { background: #dc2626; }
+  .cat-指標型 { background: #2563eb; }
+  .cat-國際指數 { background: #059669; }
   .stock-tag {
     display: inline-block; padding: 2px 7px; margin: 2px 2px; border-radius: 4px;
     font-size: .78rem; cursor: pointer; text-decoration: none;
@@ -57,14 +62,19 @@
   .dash { color: #cbd5e1; }
   .toggle-link { font-size:.78rem; color:#64748b; cursor:pointer; }
   .toggle-link:hover { color:#2563eb; }
-  .th-group-label { text-align: center; font-size: .78rem; color: #94a3b8; padding: 4px 12px; border-bottom: 1px solid #e2e8f0; }
+  .section-title {
+    font-size: 1rem; font-weight: 700; color: #1e3a5f; margin: 28px 0 12px;
+    padding-bottom: 6px; border-bottom: 2px solid #2563eb;
+  }
+  .section-title:first-of-type { margin-top: 0; }
+  .ref-note { font-size: .78rem; color: #94a3b8; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
 <header>
   <div>
-    <h1>ETF 成分股變動報告</h1>
+    <h1>ETF 專區</h1>
   </div>
   <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
     <a href="/">回總表</a>
@@ -76,10 +86,13 @@
 <div class="container">
   <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.82rem;color:#92400e;line-height:1.6">
     <strong>說明：</strong>本報告的異動資料來自系統定期比對各 ETF 持股清單的差異，並非直接取自臺灣指數公司或投信的官方公告。
-    偵測日期與公告生效日可能有 1~2 天的時間差（例如 ETF 公告 4/20 生效，投信官網可能 4/21 才更新持股清單）。
+    偵測日期與公告生效日可能有 1~2 天的時間差。
     資料來源：元大系列為投信官網完整持股，其餘為 MoneyDJ 前 10 大持股。
   </div>
   <div class="filter-bar">
+    <select id="catFilter">
+      <option value="">全部分類</option>
+    </select>
     <select id="etfFilter">
       <option value="">全部 ETF</option>
     </select>
@@ -92,11 +105,13 @@
 <script>
 let allData = [];
 
+// 分類排序順序
+const CAT_ORDER = ['主動式', '高股息', '指標型', '國際指數'];
+
 async function load() {
   try {
     const res = await fetch('/api/etf/changes-report?limit=5000');
     allData = await res.json();
-
     buildFilter();
     render();
   } catch (e) {
@@ -105,40 +120,105 @@ async function load() {
 }
 
 function buildFilter() {
-  const sel = document.getElementById('etfFilter');
-  const etfs = [...new Set(allData.map(g => g.etf_code))].sort();
-  etfs.forEach(code => {
-    const name = allData.find(g => g.etf_code === code)?.etf_name || code;
+  // 分類篩選
+  const catSel = document.getElementById('catFilter');
+  const cats = [...new Set(allData.map(g => g.category || '').filter(Boolean))];
+  cats.sort((a, b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
+  cats.forEach(cat => {
     const opt = document.createElement('option');
-    opt.value = code;
-    opt.textContent = `${code} ${name}`;
-    sel.appendChild(opt);
+    opt.value = cat;
+    opt.textContent = cat;
+    catSel.appendChild(opt);
   });
+  catSel.onchange = () => {
+    // 重建 ETF 篩選下拉
+    rebuildEtfFilter();
+    render();
+  };
+
+  // ETF 篩選
+  rebuildEtfFilter();
+}
+
+function rebuildEtfFilter() {
+  const sel = document.getElementById('etfFilter');
+  const catVal = document.getElementById('catFilter').value;
+  sel.innerHTML = '<option value="">全部 ETF</option>';
+
+  let filtered = allData;
+  if (catVal) filtered = filtered.filter(g => g.category === catVal);
+
+  const seen = new Set();
+  const etfs = [];
+  filtered.forEach(g => {
+    if (!seen.has(g.etf_code)) {
+      seen.add(g.etf_code);
+      etfs.push({ code: g.etf_code, name: g.etf_name, category: g.category || '' });
+    }
+  });
+  etfs.sort((a, b) => a.code.localeCompare(b.code));
+
+  // 按分類分組
+  const grouped = {};
+  etfs.forEach(e => {
+    const cat = e.category || '其他';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(e);
+  });
+
+  CAT_ORDER.forEach(cat => {
+    if (!grouped[cat]) return;
+    const og = document.createElement('optgroup');
+    og.label = cat;
+    grouped[cat].forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.code;
+      opt.textContent = `${e.code} ${e.name}`;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+  // 未分類
+  if (grouped['其他']) {
+    const og = document.createElement('optgroup');
+    og.label = '其他';
+    grouped['其他'].forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.code;
+      opt.textContent = `${e.code} ${e.name}`;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  }
+
   sel.onchange = render;
 }
 
 function stockTags(list, cls) {
-  if (!list.length) return '<span class="dash">－</span>';
+  if (!list.length) return '<span class="dash">-</span>';
   return list.map(s =>
     `<a class="stock-tag ${cls}" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`
   ).join('') + `<span class="count-badge ${cls === 'tag-add' ? 'count-add' : 'count-remove'}">${cls === 'tag-add' ? '+' : '-'}${list.length}</span>`;
 }
 
 function render() {
+  const catVal = document.getElementById('catFilter').value;
   const etfVal = document.getElementById('etfFilter').value;
   const hideNoChange = document.getElementById('hideNoChange').checked;
   const today = new Date().toISOString().split('T')[0];
 
   let data = allData;
+  if (catVal) data = data.filter(g => g.category === catVal);
   if (etfVal) data = data.filter(g => g.etf_code === etfVal);
 
-  // 按 ETF 分組，彙整今日 + 區間
+  // 按 ETF 分組
   const etfMap = {};
   data.forEach(g => {
     if (!etfMap[g.etf_code]) {
       etfMap[g.etf_code] = {
         etf_code: g.etf_code,
         etf_name: g.etf_name,
+        category: g.category || '',
         holdings: g.holdings || [],
         today_add: [], today_remove: [],
         range_add: [], range_remove: [],
@@ -147,19 +227,21 @@ function render() {
       };
     }
     const e = etfMap[g.etf_code];
-    // 今日
     if (g.change_date === today) {
       g.add.forEach(s => { if (!e._today_add_set.has(s.code)) { e._today_add_set.add(s.code); e.today_add.push(s); }});
       g.remove.forEach(s => { if (!e._today_remove_set.has(s.code)) { e._today_remove_set.add(s.code); e.today_remove.push(s); }});
     }
-    // 區間（含今日）
     g.add.forEach(s => { if (!e._range_add_set.has(s.code)) { e._range_add_set.add(s.code); e.range_add.push(s); }});
     g.remove.forEach(s => { if (!e._range_remove_set.has(s.code)) { e._range_remove_set.add(s.code); e.range_remove.push(s); }});
   });
 
   let etfs = Object.values(etfMap);
-  // 有異動的排前面
   etfs.sort((a, b) => {
+    // 先按分類排序
+    const catA = CAT_ORDER.indexOf(a.category);
+    const catB = CAT_ORDER.indexOf(b.category);
+    if (catA !== catB) return (catA < 0 ? 99 : catA) - (catB < 0 ? 99 : catB);
+    // 同分類內有異動的排前面
     const aHas = a.range_add.length + a.range_remove.length;
     const bHas = b.range_add.length + b.range_remove.length;
     if (bHas !== aHas) return bHas - aHas;
@@ -191,33 +273,44 @@ function render() {
     ? `歷史累計 (${earliest} ~ ${latest})`
     : earliest ? `歷史累計 (${earliest})` : '歷史累計';
 
-  let html = `<table>
-    <thead>
-      <tr>
-        <th rowspan="2" style="width:120px">ETF</th>
-        <th rowspan="2">成分股</th>
-        <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">今日異動 (${today})</th>
-        <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">${rangeLabel}</th>
-      </tr>
-      <tr>
-        <th class="col-group">納入</th>
-        <th>剔除</th>
-        <th class="col-group">納入</th>
-        <th>剔除</th>
-      </tr>
-    </thead><tbody>`;
+  let html = '';
+  let currentCat = null;
 
   etfs.forEach(e => {
+    // 分類標題
+    if (e.category !== currentCat) {
+      currentCat = e.category;
+      if (html) html += '</tbody></table>';
+      html += `<div class="section-title">${currentCat || '其他'}</div>`;
+      html += `<table>
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:140px">ETF</th>
+            <th rowspan="2">成分股</th>
+            <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">今日異動 (${today})</th>
+            <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">${rangeLabel}</th>
+          </tr>
+          <tr>
+            <th class="col-group">納入</th>
+            <th>剔除</th>
+            <th class="col-group">納入</th>
+            <th>剔除</th>
+          </tr>
+        </thead><tbody>`;
+    }
+
     const hasChange = e.range_add.length + e.range_remove.length > 0;
     const trCls = hasChange ? '' : ' class="no-change"';
 
     const holdingsHtml = e.holdings.length
       ? `<span class="toggle-link" onclick="const t=this.nextElementSibling;t.style.display=t.style.display==='none'?'inline':'none';this.textContent=t.style.display==='none'?'展開 ${e.holdings.length} 支':'收合'">展開 ${e.holdings.length} 支</span>`
         + `<span style="display:none">${e.holdings.map(s => `<a class="stock-tag tag-hold" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')}</span>`
-      : '<span class="dash">－</span>';
+      : '<span class="dash">-</span>';
+
+    const catBadge = e.category ? `<span class="etf-cat cat-${e.category}">${e.category}</span>` : '';
 
     html += `<tr${trCls}>
-      <td><span class="etf-code">${e.etf_code}</span><br><span class="etf-name">${e.etf_name}</span></td>
+      <td><span class="etf-code">${e.etf_code}</span><br><span class="etf-name">${e.etf_name}</span><br>${catBadge}</td>
       <td>${holdingsHtml}</td>
       <td class="col-group">${stockTags(e.today_add, 'tag-add')}</td>
       <td>${stockTags(e.today_remove, 'tag-remove')}</td>
@@ -226,7 +319,7 @@ function render() {
     </tr>`;
   });
 
-  html += '</tbody></table>';
+  if (html) html += '</tbody></table>';
   box.innerHTML = html;
 }
 
