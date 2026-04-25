@@ -2028,10 +2028,15 @@ function render() {
     };
 
     const frag = document.createDocumentFragment();
-    // 季度EPS
-    _fixedQ.forEach((q, i) => { const th = makeTh(q, '_qeps_' + q, 'g-qeps'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
     // 民國年→西元年轉換（顯示用）
     const rocToWest = y => String(parseInt(y) + 1911);
+    // 季度EPS（114Q4 → 2025）
+    _fixedQ.forEach((q, i) => {
+      const rocYr = q.split('Q')[0];
+      const th = makeTh(q + '<br><small style="color:#9ca3af">' + rocToWest(rocYr) + '</small>', '_qeps_' + q, 'g-qeps');
+      if (i === 0) th.classList.add('col-div');
+      frag.appendChild(th);
+    });
     // 年度EPS
     _fixedY.forEach((y, i) => { const th = makeTh(y + '年EPS<br><small style="color:#9ca3af">' + rocToWest(y) + '</small>', '_yeps_' + y, 'g-yeps'); if (i === 0) th.classList.add('col-div'); frag.appendChild(th); });
     // 現金股利
