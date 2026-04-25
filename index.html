@@ -2027,9 +2027,9 @@ function render() {
       return th;
     };
 
-    const frag = document.createDocumentFragment();
     // 民國年→西元年轉換（顯示用）
     const rocToWest = y => String(parseInt(y) + 1911);
+    const frag = document.createDocumentFragment();
     // 季度EPS（114Q4 → 2025）
     _fixedQ.forEach((q, i) => {
       const rocYr = q.split('Q')[0];
@@ -2055,9 +2055,10 @@ function render() {
     const el1 = document.getElementById('hdr_cl1');
     const el2 = document.getElementById('hdr_cl2');
     const el3 = document.getElementById('hdr_cl3');
-    if (el1 && sampleCL.contract_1q) el1.textContent = sampleCL.contract_1q;
-    if (el2 && sampleCL.contract_2q) el2.textContent = sampleCL.contract_2q;
-    if (el3 && sampleCL.contract_3q) el3.textContent = sampleCL.contract_3q;
+    const r2w = y => String(parseInt(y) + 1911);
+    if (el1 && sampleCL.contract_1q) { const ry = sampleCL.contract_1q.split('Q')[0]; el1.innerHTML = sampleCL.contract_1q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
+    if (el2 && sampleCL.contract_2q) { const ry = sampleCL.contract_2q.split('Q')[0]; el2.innerHTML = sampleCL.contract_2q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
+    if (el3 && sampleCL.contract_3q) { const ry = sampleCL.contract_3q.split('Q')[0]; el3.innerHTML = sampleCL.contract_3q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
   }
   // 動態生成財務等級表頭（用 _fixedY）
   const fgAnchor = document.getElementById('dynFgAnchor');
