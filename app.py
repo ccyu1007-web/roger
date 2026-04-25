@@ -1208,6 +1208,33 @@ def etf_changes():
     limit = int(request.args.get("limit", 50))
     return jsonify(get_etf_changes(etf_code, limit))
 
+@app.route("/api/etf/changes-report")
+def etf_changes_report():
+    """ETF 成分股異動報告（按 ETF+日期分組，納入/剔除分開）"""
+    limit = int(request.args.get("limit", 500))
+    rows = query_db("""
+        SELECT c.etf_code, COALESCE(i.name, c.etf_code) as etf_name,
+               c.stock_code, c.stock_name, c.action, c.change_date
+        FROM etf_changes c
+        LEFT JOIN etf_info i ON c.etf_code = i.code
+        ORDER BY c.change_date DESC, c.etf_code, c.action
+        LIMIT ?
+    """, [limit])
+    # 分組：{etf_code + change_date} → {etf_code, etf_name, change_date, add:[], remove:[]}
+    groups = {}
+    for r in rows:
+        key = f"{r['etf_code']}_{r['change_date']}"
+        if key not in groups:
+            groups[key] = {
+                'etf_code': r['etf_code'],
+                'etf_name': r['etf_name'],
+                'change_date': r['change_date'],
+                'add': [], 'remove': []
+            }
+        item = {'code': r['stock_code'], 'name': r['stock_name'] or r['stock_code']}
+        groups[key][r['action']].append(item)
+    return jsonify(sorted(groups.values(), key=lambda g: (g['change_date'], g['etf_code']), reverse=True))
+
 @app.route("/api/etf/list")
 def etf_list():
     """取得所有追蹤的 ETF 清單及其持股數"""

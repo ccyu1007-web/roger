@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ETF 成分股變動報告</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+  .loading { text-align: center; padding: 60px 0; color: #94a3b8; font-size: .95rem; }
+  .empty-msg { text-align: center; padding: 40px 0; color: #94a3b8; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+  thead th {
+    background: #f8fafc; color: #475569; font-size: .82rem; font-weight: 700;
+    padding: 12px 16px; text-align: left; border-bottom: 2px solid #e2e8f0;
+    position: sticky; top: 0; z-index: 1;
+  }
+  tbody tr { border-bottom: 1px solid #f1f5f9; }
+  tbody tr:hover { background: #f8fafc; }
+  td { padding: 12px 16px; vertical-align: top; font-size: .88rem; }
+  .etf-code { font-weight: 700; color: #1e3a5f; white-space: nowrap; }
+  .etf-name { color: #475569; font-size: .82rem; }
+  .date-cell { white-space: nowrap; color: #334155; font-weight: 600; }
+  .stock-tag {
+    display: inline-block; padding: 2px 8px; margin: 2px 3px; border-radius: 4px;
+    font-size: .82rem; cursor: pointer; text-decoration: none;
+  }
+  .stock-tag:hover { opacity: .8; }
+  .tag-add { background: #dcfce7; color: #166534; }
+  .tag-remove { background: #fee2e2; color: #991b1b; }
+  .count-badge {
+    display: inline-block; padding: 1px 7px; border-radius: 10px;
+    font-size: .75rem; font-weight: 700; margin-left: 4px;
+  }
+  .count-add { background: #bbf7d0; color: #166534; }
+  .count-remove { background: #fecaca; color: #991b1b; }
+  .filter-bar {
+    display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .filter-bar select, .filter-bar input {
+    padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .85rem; background: #fff;
+  }
+  .summary { font-size: .85rem; color: #64748b; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>ETF 成分股變動報告</h1>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <a href="/">回總表</a>
+    <a href="/daily.html">新聞報告</a>
+    <a href="/valuation.html">評價報告</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="filter-bar">
+    <select id="etfFilter">
+      <option value="">全部 ETF</option>
+    </select>
+    <input type="date" id="dateFrom" title="起始日期">
+    <span style="color:#94a3b8">~</span>
+    <input type="date" id="dateTo" title="結束日期">
+  </div>
+  <div class="summary" id="summary"></div>
+  <div id="content"><div class="loading">載入中...</div></div>
+</div>
+
+<script>
+let allData = [];
+
+async function load() {
+  try {
+    const res = await fetch('/api/etf/changes-report?limit=2000');
+    allData = await res.json();
+    buildFilter();
+    render();
+  } catch (e) {
+    document.getElementById('content').innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+function buildFilter() {
+  const sel = document.getElementById('etfFilter');
+  const etfs = [...new Set(allData.map(g => g.etf_code))].sort();
+  etfs.forEach(code => {
+    const name = allData.find(g => g.etf_code === code)?.etf_name || code;
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = `${code} ${name}`;
+    sel.appendChild(opt);
+  });
+  sel.onchange = render;
+  document.getElementById('dateFrom').onchange = render;
+  document.getElementById('dateTo').onchange = render;
+}
+
+function render() {
+  const etfVal = document.getElementById('etfFilter').value;
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+
+  let data = allData;
+  if (etfVal) data = data.filter(g => g.etf_code === etfVal);
+  if (from) data = data.filter(g => g.change_date >= from);
+  if (to) data = data.filter(g => g.change_date <= to);
+
+  const box = document.getElementById('content');
+  if (!data.length) {
+    box.innerHTML = '<div class="empty-msg">無異動紀錄</div>';
+    document.getElementById('summary').textContent = '';
+    return;
+  }
+
+  const totalAdd = data.reduce((s, g) => s + g.add.length, 0);
+  const totalRemove = data.reduce((s, g) => s + g.remove.length, 0);
+  document.getElementById('summary').textContent =
+    `共 ${data.length} 筆異動，納入 ${totalAdd} 支、剔除 ${totalRemove} 支`;
+
+  let html = `<table>
+    <thead><tr>
+      <th style="width:140px">ETF</th>
+      <th style="width:110px">調整日期</th>
+      <th>成分股納入</th>
+      <th>成分股剔除</th>
+    </tr></thead><tbody>`;
+
+  data.forEach(g => {
+    const addHtml = g.add.length
+      ? g.add.map(s => `<a class="stock-tag tag-add" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')
+      : '<span style="color:#cbd5e1">－</span>';
+    const removeHtml = g.remove.length
+      ? g.remove.map(s => `<a class="stock-tag tag-remove" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')
+      : '<span style="color:#cbd5e1">－</span>';
+
+    html += `<tr>
+      <td>
+        <span class="etf-code">${g.etf_code}</span><br>
+        <span class="etf-name">${g.etf_name}</span>
+      </td>
+      <td class="date-cell">${g.change_date}</td>
+      <td>${addHtml}${g.add.length ? `<span class="count-badge count-add">+${g.add.length}</span>` : ''}</td>
+      <td>${removeHtml}${g.remove.length ? `<span class="count-badge count-remove">-${g.remove.length}</span>` : ''}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  box.innerHTML = html;
+}
+
+load();
+</script>
+</body>
+</html>
