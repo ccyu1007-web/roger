@@ -566,7 +566,7 @@ def fetch_capital_cashflow(code):
 # ── 年度損益表（群益 zcqa）── 年度 EPS 最優先來源 ─────────
 
 def fetch_capital_annual_eps(code):
-    """從群益年度損益表抓取個股近 8 年每股盈餘，回傳 {民國年: eps}"""
+    """從群益年度損益表抓取個股近 8 年每股盈餘+加權股數，回傳 {民國年: eps}"""
     try:
         url = f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}"
         r = _session.get(url, timeout=15)
@@ -593,9 +593,10 @@ def fetch_capital_annual_eps(code):
     if not years:
         return {}
 
-    # 每 (1+len(years)) 個 span 一列，找「每股盈餘」（排除完全稀釋）
+    # 每 (1+len(years)) 個 span 一列，找「每股盈餘」和「加權平均股數」
     cols = 1 + len(years)
     result = {}
+    shares_map = {}  # {民國年: 加權股數（千股）}
     for i in range(0, len(spans), cols):
         row = spans[i:i+cols]
         if len(row) < cols:
@@ -608,7 +609,34 @@ def fetch_capital_annual_eps(code):
                 val = _parse_num(row[j + 1].get_text(strip=True))
                 if val is not None:
                     result[yr] = val
-            break
+        elif label == '加權平均股數':
+            for j, yr in enumerate(years):
+                if yr is None:
+                    continue
+                val = _parse_num(row[j + 1].get_text(strip=True))
+                if val is not None:
+                    # 群益單位是百萬股，轉為千股
+                    shares_map[yr] = val * 1000
+
+    # 存加權股數到 financial_annual
+    if shares_map:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            # 確保欄位存在
+            try:
+                c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
+                conn.commit()
+            except:
+                pass
+            for yr, shares in shares_map.items():
+                west_year = int(yr) + 1911
+                c.execute("UPDATE financial_annual SET weighted_shares=? WHERE code=? AND year=?",
+                          (shares, code, west_year))
+            conn.commit()
+            conn.close()
+        except:
+            pass
 
     return result
 
