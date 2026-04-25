@@ -184,7 +184,7 @@ function render() {
   document.getElementById('summary').textContent =
     `今日：納入 ${todayAdd} 支、剔除 ${todayRemove} 支｜區間：納入 ${totalAdd} 支、剔除 ${totalRemove} 支`;
 
-  const dates = data.map(g => g.change_date).sort();
+  const dates = data.map(g => g.change_date).filter(Boolean).sort();
   const earliest = dates.length ? dates[0] : '';
   const latest = dates.length ? dates[dates.length - 1] : '';
   const rangeLabel = earliest && latest && earliest !== latest

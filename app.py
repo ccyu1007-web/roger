@@ -1240,7 +1240,21 @@ def etf_changes_report():
             }
         item = {'code': r['stock_code'], 'name': r['stock_name'] or r['stock_code']}
         groups[key][r['action']].append(item)
-    return jsonify(sorted(groups.values(), key=lambda g: (g['change_date'], g['etf_code']), reverse=True))
+
+    # 所有追蹤的 ETF（含無異動的）
+    all_etfs = query_db("SELECT code, name FROM etf_info ORDER BY code")
+    tracked_codes = {g['etf_code'] for g in groups.values()}
+    for etf in all_etfs:
+        if etf['code'] not in tracked_codes:
+            groups[f"{etf['code']}_none"] = {
+                'etf_code': etf['code'],
+                'etf_name': etf['name'] or etf['code'],
+                'change_date': None,
+                'holdings': holdings_map.get(etf['code'], []),
+                'add': [], 'remove': []
+            }
+
+    return jsonify(sorted(groups.values(), key=lambda g: (g['change_date'] or '', g['etf_code']), reverse=True))
 
 @app.route("/api/etf/list")
 def etf_list():
