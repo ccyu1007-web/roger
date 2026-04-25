@@ -64,10 +64,10 @@ if [ "$(date +%u)" = "7" ]; then
 import sqlite3; conn = sqlite3.connect('$DB_FILE'); conn.execute('VACUUM'); conn.close()
 " 2>/dev/null && echo "[$NOW] VACUUM 完成" >> "$LOG_FILE"
 
-    # 營收交叉校驗：政府API vs 群益，抽樣30支
+    # 營收交叉校驗：政府API vs 群益，全量比對
     /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -c "
 from guardian import cross_validate_revenue
-result = cross_validate_revenue(sample_size=30)
+result = cross_validate_revenue()
 " >> "$LOG_FILE" 2>&1 && echo "[$NOW] 營收交叉校驗完成" >> "$LOG_FILE"
 fi
 

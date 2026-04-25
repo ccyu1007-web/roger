@@ -1126,11 +1126,11 @@ def cross_validate(sample_size=20):
     }
 
 
-def cross_validate_revenue(sample_size=30):
+def cross_validate_revenue():
     """
-    營收交叉校驗：抽樣比對 monthly_revenue（政府API）vs 群益 zch 的月營收。
-    設計為每週日執行，驗證過去一週政府 API 寫入的營收資料是否正確。
-    差異 > 1% 的記入 data_validation_log 並印警告。
+    營收交叉校驗：全量比對 monthly_revenue（政府API）vs 群益 zch 的月營收。
+    每週日執行，驗證政府 API 寫入的營收資料是否正確。
+    差異 > 1% 的記入 cross_validation 並印警告。
     """
     import requests
     from bs4 import BeautifulSoup
@@ -1138,12 +1138,11 @@ def cross_validate_revenue(sample_size=30):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
-    # 抽樣：從 monthly_revenue 取最近一個月有資料的股票
+    # 全量：從 monthly_revenue 取所有有資料的股票
     rows = conn.execute("""
         SELECT DISTINCT code FROM monthly_revenue
         WHERE revenue IS NOT NULL AND revenue > 0
-        ORDER BY RANDOM() LIMIT ?
-    """, (sample_size,)).fetchall()
+    """).fetchall()
     codes = [r['code'] for r in rows]
 
     # 取得最近一筆營收的年月（用來跟群益比對）
@@ -1241,7 +1240,7 @@ def cross_validate_revenue(sample_size=30):
     except:
         pass
 
-    print(f"[營收校驗] 完成：抽查 {checked} 支，{ok_count} 支一致，{len(mismatches)} 支有差異")
+    print(f"[營收校驗] 完成：共 {checked} 支，{ok_count} 支一致，{len(mismatches)} 支有差異")
     return {'checked': checked, 'ok': ok_count, 'mismatches': mismatches}
 
 
