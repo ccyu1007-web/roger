@@ -3827,8 +3827,8 @@ def fetch_mops_quarterly_eps():
                                  date.today().strftime('%Y-%m-%d'), code))
                             count += 1
                         elif cur and cur[0] == quarter_key:
-                            c.execute("UPDATE stocks SET eps_1=?, eps_date=? WHERE code=?",
-                                      (single_eps, date.today().strftime('%Y-%m-%d'), code))
+                            c.execute("UPDATE stocks SET eps_1=? WHERE code=?",
+                                      (single_eps, code))
 
                 conn.commit()
                 conn.close()
