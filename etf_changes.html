@@ -28,7 +28,7 @@
   td { padding: 12px 16px; vertical-align: top; font-size: .88rem; }
   .etf-code { font-weight: 700; color: #1e3a5f; white-space: nowrap; }
   .etf-name { color: #475569; font-size: .82rem; }
-  .date-cell { white-space: nowrap; color: #334155; font-weight: 600; }
+  .date-cell { white-space: nowrap; color: #334155; font-weight: 600; font-size: .85rem; }
   .stock-tag {
     display: inline-block; padding: 2px 8px; margin: 2px 3px; border-radius: 4px;
     font-size: .82rem; cursor: pointer; text-decoration: none;
@@ -49,6 +49,7 @@
     padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
     font-size: .85rem; background: #fff;
   }
+  .filter-bar label { font-size: .82rem; color: #64748b; }
   .summary { font-size: .85rem; color: #64748b; margin-bottom: 12px; }
 </style>
 </head>
@@ -70,9 +71,10 @@
     <select id="etfFilter">
       <option value="">全部 ETF</option>
     </select>
-    <input type="date" id="dateFrom" title="起始日期">
+    <label>偵測日期</label>
+    <input type="date" id="dateFrom">
     <span style="color:#94a3b8">~</span>
-    <input type="date" id="dateTo" title="結束日期">
+    <input type="date" id="dateTo">
   </div>
   <div class="summary" id="summary"></div>
   <div id="content"><div class="loading">載入中...</div></div>
@@ -85,6 +87,14 @@ async function load() {
   try {
     const res = await fetch('/api/etf/changes-report?limit=2000');
     allData = await res.json();
+
+    // 預設日期區間：最近 30 天
+    const today = new Date();
+    const d30 = new Date(today);
+    d30.setDate(d30.getDate() - 30);
+    document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+    document.getElementById('dateFrom').value = d30.toISOString().split('T')[0];
+
     buildFilter();
     render();
   } catch (e) {
@@ -131,8 +141,8 @@ function render() {
 
   let html = `<table>
     <thead><tr>
-      <th style="width:140px">ETF</th>
-      <th style="width:110px">調整日期</th>
+      <th style="width:130px">ETF</th>
+      <th style="width:100px">偵測日期</th>
       <th>成分股納入</th>
       <th>成分股剔除</th>
     </tr></thead><tbody>`;
@@ -140,9 +150,11 @@ function render() {
   data.forEach(g => {
     const addHtml = g.add.length
       ? g.add.map(s => `<a class="stock-tag tag-add" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')
+        + `<span class="count-badge count-add">+${g.add.length}</span>`
       : '<span style="color:#cbd5e1">－</span>';
     const removeHtml = g.remove.length
       ? g.remove.map(s => `<a class="stock-tag tag-remove" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')
+        + `<span class="count-badge count-remove">-${g.remove.length}</span>`
       : '<span style="color:#cbd5e1">－</span>';
 
     html += `<tr>
@@ -151,8 +163,8 @@ function render() {
         <span class="etf-name">${g.etf_name}</span>
       </td>
       <td class="date-cell">${g.change_date}</td>
-      <td>${addHtml}${g.add.length ? `<span class="count-badge count-add">+${g.add.length}</span>` : ''}</td>
-      <td>${removeHtml}${g.remove.length ? `<span class="count-badge count-remove">-${g.remove.length}</span>` : ''}</td>
+      <td>${addHtml}</td>
+      <td>${removeHtml}</td>
     </tr>`;
   });
 
