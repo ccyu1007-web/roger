@@ -148,6 +148,7 @@ function render() {
     <thead><tr>
       <th style="width:130px">ETF</th>
       <th style="width:100px">偵測日期</th>
+      <th style="width:80px;text-align:center">成分股數</th>
       <th>成分股納入</th>
       <th>成分股剔除</th>
     </tr></thead><tbody>`;
@@ -168,6 +169,7 @@ function render() {
         <span class="etf-name">${g.etf_name}</span>
       </td>
       <td class="date-cell">${g.change_date}</td>
+      <td style="text-align:center;font-weight:600;color:#475569">${g.holding_count || '－'}</td>
       <td>${addHtml}</td>
       <td>${removeHtml}</td>
     </tr>`;
