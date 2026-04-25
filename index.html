@@ -832,6 +832,13 @@ function autoWatchCheck() {
   });
 
   saveWatch();
+
+  // 批次同步到 DB（挑選結果整批寫入，清除舊的再寫入新的）
+  fetch('/api/user-lists/watch', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action: 'sync', codes: [...watchSet]})
+  }).catch(() => {});
+
   render();
 
   // 顯示結果 + 排除原因統計
