@@ -33,6 +33,7 @@ TRACKED_ETFS = {
     # ── 市值型 ──
     '0050':   {'name': '元大台灣50',       'issuer': 'yuanta'},
     '006208': {'name': '富邦台50',         'issuer': 'fubon'},
+    '006203': {'name': '元大MSCI台灣',     'issuer': 'yuanta'},
     '0051':   {'name': '元大中型100',      'issuer': 'yuanta'},
     # ── 高股息 ──
     '0056':   {'name': '元大高股息',       'issuer': 'yuanta'},
@@ -48,11 +49,22 @@ TRACKED_ETFS = {
     '00918':  {'name': '大華優利高填息30', 'issuer': 'dh'},
     '00900':  {'name': '富邦特選高股息30', 'issuer': 'fubon'},
     '00927':  {'name': '群益半導體收益',   'issuer': 'megaetf'},
-    # ── 主題型 ──
+    '00944':  {'name': '野村臺灣趨勢動能高股息', 'issuer': 'nomura'},
+    '00946':  {'name': '群益台灣科技高息成長', 'issuer': 'megaetf'},
+    # ── 主題型/產業型 ──
     '00881':  {'name': '國泰台灣5G+',     'issuer': 'cathay'},
     '00850':  {'name': '元大臺灣ESG永續', 'issuer': 'yuanta'},
     '00692':  {'name': '富邦公司治理',     'issuer': 'fubon'},
     '0052':   {'name': '富邦科技',         'issuer': 'fubon'},
+    '00733':  {'name': '富邦臺灣中小A級動能50', 'issuer': 'fubon'},
+    '00891':  {'name': '中信關鍵半導體',   'issuer': 'ctbc'},
+    '00892':  {'name': '富邦台灣半導體',   'issuer': 'fubon'},
+    '00830':  {'name': '國泰費城半導體',   'issuer': 'cathay'},
+    '00757':  {'name': '統一FANG+',        'issuer': 'usite'},
+    '00912':  {'name': '中信臺灣智慧50',   'issuer': 'ctbc'},
+    '00922':  {'name': '國泰台灣領袖50',   'issuer': 'cathay'},
+    '00923':  {'name': '群益台ESG低碳50',  'issuer': 'megaetf'},
+    '00935':  {'name': '野村臺灣新科技50', 'issuer': 'nomura'},
 }
 
 
