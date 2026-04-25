@@ -348,6 +348,13 @@ def _save_holdings(etf_code, holdings):
     added = set(new_codes.keys()) - set(old_codes.keys())
     removed = set(old_codes.keys()) - set(new_codes.keys())
 
+    # 防止部分來源（如 MoneyDJ 前10大）覆蓋完整持股造成假異動
+    # 新資料筆數不到舊資料的一半 → 判定為不完整資料，不記異動也不覆蓋
+    if old_codes and len(new_codes) < len(old_codes) * 0.5:
+        print(f"  [{etf_code}] 新資料 {len(new_codes)} 筆遠少於舊資料 {len(old_codes)} 筆，疑似不完整，跳過覆蓋")
+        conn.close()
+        return len(old_codes)
+
     if old_codes:  # 有舊資料才是真正的異動
         for code in added:
             c.execute("""INSERT INTO etf_changes (etf_code, stock_code, stock_name, action, change_date, created_at)
