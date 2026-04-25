@@ -1997,19 +1997,26 @@ function render() {
   _fixedQ = [latestQ];
   for (let i = 0; i < 4; i++) _fixedQ.push(prevQ(_fixedQ[_fixedQ.length - 1]));
 
-  // 年度 EPS：法定期限為基準，但如果資料中有更新的年度就往前推
+  // 年度 EPS：從資料中找出實際涵蓋的年度範圍（最多 6 年）
   const latestFullYear = latestQ.includes('Q4') ? latestQ.split('Q')[0] : String(parseInt(latestQ.split('Q')[0]) - 1);
   let dataMaxYear = parseInt(latestFullYear);
+  let dataMinYear = dataMaxYear;
   allData.forEach(r => {
-    if (r.eps_y1_label) {
-      const y = parseInt(r.eps_y1_label);
-      if (y > dataMaxYear) dataMaxYear = y;
+    for (let i = 1; i <= 6; i++) {
+      const lbl = r[`eps_y${i}_label`];
+      if (lbl) {
+        const y = parseInt(lbl);
+        if (y > dataMaxYear) dataMaxYear = y;
+        if (y < dataMinYear || dataMinYear === parseInt(latestFullYear)) dataMinYear = y;
+      }
     }
   });
+  // 欄數 = 實際涵蓋的年度數，最多 6 年
+  const yearCount = Math.min(6, dataMaxYear - dataMinYear + 1);
   _fixedY = [];
-  for (let i = 0; i < 6; i++) _fixedY.push(String(dataMaxYear - i));
+  for (let i = 0; i < yearCount; i++) _fixedY.push(String(dataMaxYear - i));
 
-  // 股利年度：與 EPS 年度對齊（股利年度 = 盈餘年度，應一致）
+  // 股利年度：與 EPS 年度完全對齊
   _fixedD = [..._fixedY];
 
   // 動態生成表頭（用 DOM 插入 <th>）
