@@ -346,6 +346,46 @@
   .val-result-table .grade-long { background: #f0fdf4; color: #166534; font-weight: 600; }
   .val-global-note { font-size: .76rem; color: #94a3b8; margin-top: 4px; }
 
+  /* ── 股利折現模式 ── */
+  .ddm-wrap {
+    border-top: 3px solid #0369a1; background: #fff; padding: 24px 28px;
+    border-radius: 10px; margin-top: 16px;
+  }
+  .ddm-title { font-size: 1.05rem; font-weight: 700; color: #0369a1; margin-bottom: 14px; }
+  .ddm-inputs {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .ddm-inp-group {
+    display: flex; align-items: center; gap: 6px; font-size: .85rem;
+  }
+  .ddm-inp-group label {
+    background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 5px;
+    font-weight: 600; font-size: .8rem; white-space: nowrap;
+  }
+  .ddm-inp-group input {
+    width: 90px; padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .85rem; text-align: right; outline: none;
+  }
+  .ddm-inp-group input:focus { border-color: #0369a1; box-shadow: 0 0 0 3px rgba(3,105,161,.12); }
+  .ddm-table { border-collapse: collapse; font-size: .85rem; width: 100%; }
+  .ddm-table th, .ddm-table td {
+    padding: 8px 14px; border: 1px solid #e2e8f0; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .ddm-table thead th {
+    background: #0369a1; color: #fff; font-weight: 600; text-align: center;
+  }
+  .ddm-table .row-label { text-align: left; font-weight: 600; color: #334155; background: #f8fafc; white-space: nowrap; }
+  .ddm-table .summary-row td { border-top: 2px solid #0369a1; }
+  .ddm-table .highlight { color: #0369a1; font-weight: 700; }
+  .ddm-table .danger { color: #dc2626; }
+  .ddm-table .safe { color: #16a34a; }
+  .ddm-table input {
+    width: 80px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 5px;
+    font-size: .85rem; text-align: right; outline: none;
+  }
+  .ddm-table input:focus { border-color: #0369a1; }
+
   /* ── 月營收表格 ── */
   .rev-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   .rev-table th, .rev-table td {
@@ -1171,6 +1211,23 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div id="vmResultContainer"></div>
     </div>
 
+    <!-- 股利折現模式 -->
+    <div class="ddm-wrap">
+      <div class="ddm-title">股利折現模式</div>
+      <div class="ddm-inputs">
+        <div class="ddm-inp-group"><label>三年後預估的EPS</label><input id="ddmEps" type="text" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>三年後賣出之本益比倍數</label><input id="ddmPE" type="text" value="14" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>折現率</label><input id="ddmRate" type="text" value="0.10" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>安全邊際</label><input id="ddmMargin" type="text" value="0.90" oninput="calcDDM()"></div>
+      </div>
+      <div class="ddm-inputs" style="margin-bottom:8px">
+        <div class="ddm-inp-group"><label>第1年現金股利</label><input id="ddmDiv1" type="text" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>第2年現金股利</label><input id="ddmDiv2" type="text" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>第3年現金股利</label><input id="ddmDiv3" type="text" oninput="calcDDM()"></div>
+      </div>
+      <div id="ddmResult"></div>
+    </div>
+
     <!-- 質性研究筆記 -->
     <div class="notes-wrap">
       <div class="notes-header">
@@ -1256,6 +1313,14 @@ async function initEstimator(sharesMillion) {
       if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
       if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
       if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+      // DDM
+      if (d.ddmEps) document.getElementById('ddmEps').value = d.ddmEps;
+      if (d.ddmPE) document.getElementById('ddmPE').value = d.ddmPE;
+      if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
+      if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
+      if (d.ddmDiv1) document.getElementById('ddmDiv1').value = d.ddmDiv1;
+      if (d.ddmDiv2) document.getElementById('ddmDiv2').value = d.ddmDiv2;
+      if (d.ddmDiv3) document.getElementById('ddmDiv3').value = d.ddmDiv3;
       if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
       calcEstimate();
       calcAnnual();
@@ -1267,6 +1332,7 @@ async function initEstimator(sharesMillion) {
   }
   loadPEHistory();
   calcValMethod();
+  calcDDM();
   renderMatrix();
 
   // 載入筆記
@@ -1610,6 +1676,131 @@ function applyPE(high, low) {
   document.getElementById('peHigh').value = high;
   document.getElementById('peLow').value = low;
   calcPERange();
+}
+
+function calcDDM() {
+  const el = document.getElementById('ddmResult');
+  if (!el) return;
+
+  const eps = parseNum('ddmEps');
+  const pe = parseNum('ddmPE');
+  const rate = parseNum('ddmRate');
+  const margin = parseNum('ddmMargin');
+
+  const div1 = parseNum('ddmDiv1');
+  const div2 = parseNum('ddmDiv2');
+  const div3 = parseNum('ddmDiv3');
+
+  if (!eps || !pe || !rate || !margin) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const curPrice = _estPrice || 0;
+  const sellPrice = eps * pe;
+
+  // 折現水準
+  const df1 = 1 / Math.pow(1 + rate, 1);
+  const df2 = 1 / Math.pow(1 + rate, 2);
+  const df3 = 1 / Math.pow(1 + rate, 3);
+
+  // 折現值：(賣出值+現金股利)×折現水準，第1、2年賣出值為0
+  const pv1 = (0 + (div1 || 0)) * df1;
+  const pv2 = (0 + (div2 || 0)) * df2;
+  const pv3 = (sellPrice + (div3 || 0)) * df3;
+
+  const intrinsic = pv1 + pv2 + pv3;
+  const safePrice = intrinsic * margin;
+
+  // 目標價 = 賣出價 + 三年股利總和（未折現）
+  const totalDiv = (div1 || 0) + (div2 || 0) + (div3 || 0);
+  const targetPrice = sellPrice + totalDiv;
+
+  // 潛在報酬與年報酬
+  const calcReturn = (base) => {
+    if (!base || base <= 0) return { ret: null, annRet: null };
+    const ret = (targetPrice - base) / base;
+    const annRet = Math.pow(1 + ret, 1/3) - 1;
+    return { ret, annRet };
+  };
+
+  const rIntrinsic = calcReturn(intrinsic);
+  const rSafe = calcReturn(safePrice);
+  const rCur = calcReturn(curPrice);
+
+  const f = (v) => v != null && !isNaN(v) ? v.toFixed(2) : '-';
+  const f4 = (v) => v != null && !isNaN(v) ? v.toFixed(4) : '-';
+  const fPct = (v) => v != null && !isNaN(v) ? (v * 100).toFixed(2) + '%' : '-';
+  const cls = (v) => v != null && v > 0 ? 'safe' : (v != null && v < 0 ? 'danger' : '');
+
+  el.innerHTML = `<table class="ddm-table">
+    <thead>
+      <tr><th style="width:90px">年度</th><th>1</th><th>2</th><th>3</th><th style="min-width:80px"></th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="row-label">賣出價</td>
+        <td>-</td><td>-</td>
+        <td class="highlight">${f(sellPrice)}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="row-label">折現水準</td>
+        <td>${f4(df1)}</td><td>${f4(df2)}</td><td>${f4(df3)}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="row-label">折現值</td>
+        <td>${f(pv1)}</td><td>${f(pv2)}</td><td>${f(pv3)}</td>
+        <td></td>
+      </tr>
+    </tbody>
+    <tbody>
+      <tr class="summary-row">
+        <td class="row-label"></td>
+        <td style="text-align:center;font-weight:600;color:#64748b"></td>
+        <td style="text-align:center;font-weight:600;color:#64748b">潛在報酬</td>
+        <td style="text-align:center;font-weight:600;color:#64748b">潛在年報酬</td>
+        <td style="text-align:center;font-weight:600;color:#64748b">目標價</td>
+      </tr>
+      <tr>
+        <td class="row-label">內含價值</td>
+        <td class="highlight">${f(intrinsic)}</td>
+        <td class="${cls(rIntrinsic.ret)}">${fPct(rIntrinsic.ret)}</td>
+        <td class="${cls(rIntrinsic.annRet)}">${fPct(rIntrinsic.annRet)}</td>
+        <td class="highlight">${f(targetPrice)}</td>
+      </tr>
+      <tr>
+        <td class="row-label">安全邊際價</td>
+        <td class="highlight">${f(safePrice)}</td>
+        <td class="${cls(rSafe.ret)}">${fPct(rSafe.ret)}</td>
+        <td class="${cls(rSafe.annRet)}">${fPct(rSafe.annRet)}</td>
+        <td>${f(targetPrice)}</td>
+      </tr>
+      <tr>
+        <td class="row-label">現價</td>
+        <td>${curPrice ? f(curPrice) : '-'}</td>
+        <td class="${cls(rCur.ret)}">${fPct(rCur.ret)}</td>
+        <td class="${cls(rCur.annRet)}">${fPct(rCur.annRet)}</td>
+        <td>${f(targetPrice)}</td>
+      </tr>
+    </tbody>
+  </table>`;
+
+  saveDDM();
+}
+
+function saveDDM() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  saved.ddmEps = document.getElementById('ddmEps')?.value || '';
+  saved.ddmPE = document.getElementById('ddmPE')?.value || '';
+  saved.ddmRate = document.getElementById('ddmRate')?.value || '';
+  saved.ddmMargin = document.getElementById('ddmMargin')?.value || '';
+  saved.ddmDiv1 = document.getElementById('ddmDiv1')?.value || '';
+  saved.ddmDiv2 = document.getElementById('ddmDiv2')?.value || '';
+  saved.ddmDiv3 = document.getElementById('ddmDiv3')?.value || '';
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
 }
 
 function calcValMethod() {
