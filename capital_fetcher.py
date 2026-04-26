@@ -502,6 +502,21 @@ def fetch_capital_dividend(code):
             i += 1
 
     conn.commit()
+
+    # 自動同步到 stocks 表的 div_c1~c6（不再依賴 scraper 的月份限制）
+    if saved > 0:
+        rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
+                           WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
+                           ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+        for i, r in enumerate(rows, 1):
+            roc_yr = str(r[0] - 1911)
+            c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
+                      (r[1], r[2], roc_yr, code))
+        for i in range(len(rows) + 1, 7):
+            c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
+                      (code,))
+        conn.commit()
+
     conn.close()
     return saved
 

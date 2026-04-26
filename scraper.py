@@ -1555,9 +1555,7 @@ def _check_annual_dividend_completeness():
     cur_roc = now.year - 1911
     expected_year = str(cur_roc - 1)  # 預期最新股利年度（如 115）
 
-    # 只在 9/1 ~ 12/31 期間執行
-    if now.month < 9:
-        return
+    # 全年都可執行（股利公告不限 9~12 月）
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
