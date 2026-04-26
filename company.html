@@ -554,20 +554,24 @@ async function loadDecision() {
   const panel = document.getElementById('panel');
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入決策表...</div></div>';
   try {
-    const [qRes, fRes, sRes] = await Promise.all([
+    const [qRes, fRes, sRes, aeRes, qeRes] = await Promise.all([
       fetch(`/api/stocks/${CODE}/quarterly`),
       fetch(`/api/stocks/${CODE}/financials`),
-      fetch(`/api/stocks?exact=${CODE}`)
+      fetch(`/api/stocks?exact=${CODE}`),
+      fetch(`/api/stocks/${CODE}/system-estimate-annual`),
+      fetch(`/api/stocks/${CODE}/system-estimate`)
     ]);
     const qData = await qRes.json();
     const fData = await fRes.json();
     const sData = await sRes.json();
+    const annEst = await aeRes.json();
+    const qEst = await qeRes.json();
 
-    const quarters = (Array.isArray(qData) ? qData : qData.data || []).slice(0, 4);
+    const quarters = (Array.isArray(qData) ? qData : qData.data || qData.quarters || []).slice(0, 4);
     const annuals = (fData.data || []).slice(0, 5);
     const stock = (sData.data || [])[0] || {};
-    const annEst = fData.annual_estimate || {};
     const annDet = annEst.details || {};
+    const qEstDet = qEst.details || {};
 
     // 使用者自行估算（從 localStorage）
     let userEst = {};
@@ -598,24 +602,39 @@ async function loadDecision() {
       { label: '每股盈餘-業外', key: 'eps_nonop', fmt: fmt2 },
     ];
 
-    // 系統預估季 EPS
-    const sysQEps = stock.sys_est_eps;
-    const sysQQuarter = stock.sys_est_quarter;
+    // 季度系統預估欄位對照
+    const sysQMap = {
+      'revenue': qEstDet.est_revenue,
+      'gross_profit': qEstDet.est_gross_profit,
+      'gross_margin': qEstDet.est_gm,
+      'operating_expense': qEstDet.est_opex,
+      'operating_income': qEstDet.est_oi,
+      'non_operating': qEstDet.est_nonop,
+      'pretax_income': qEstDet.est_pti,
+      'tax_rate': qEstDet.est_tax_rate,
+      'net_income_parent': qEstDet.est_ni,
+      'parent_weight': qEstDet.est_pw,
+      'eps': qEst.est_eps,
+      'eps_core': qEstDet.est_eps_core,
+      'eps_nonop': qEstDet.est_eps_nonop,
+    };
+    const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
 
     let html = '<div class="dec-section"><div class="dec-title">季度資料（最近四季）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
     html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
     qHeaders.forEach((h, i) => {
       const cls = i === 0 ? 'col-est' : (i === 1 ? 'col-sys' : '');
-      html += `<th class="${cls}">${h}</th>`;
+      const label = i === 1 ? `系統預估<br><small>${sysQQuarter}</small>` : h;
+      html += `<th class="${cls}">${label}</th>`;
     });
     html += '</tr></thead><tbody>';
 
     qRows.forEach(row => {
-      // 自行估算值
+      // 自行估算值（從 localStorage 季估計表）
       let userVal = '-';
       // 系統預估值
-      let sysVal = '-';
-      if (row.key === 'eps' && sysQEps != null) sysVal = fmt2(sysQEps);
+      const sysRaw = sysQMap[row.key];
+      let sysVal = sysRaw != null ? row.fmt(sysRaw) : '-';
 
       html += `<tr><td class="row-label">${row.label}</td>`;
       html += `<td class="col-est">${userVal}</td>`;
@@ -640,7 +659,7 @@ async function loadDecision() {
       { label: '營業利益', key: 'operating_income', fmt: fmtM, est: 'est_oi' },
       { label: '業外收支', key: 'non_operating', fmt: fmtM, est: 'est_nonop' },
       { label: '稅前淨利', key: 'pretax_income', fmt: fmtM, est: 'est_pti' },
-      { label: '稅率', key: null, fmt: fmtP, calc: d => d.pretax_income > 0 && d.tax != null ? d.tax/d.pretax_income*100 : null, est: 'est_tax_rate', estFmt: v => fmtP(v*100) },
+      { label: '稅率', key: null, fmt: fmtP, calc: d => d.pretax_income > 0 && d.tax != null ? d.tax/d.pretax_income*100 : null, est: 'est_tax_rate', estFmt: v => fmtP(v * 100) },
       { label: '繼續營業單位損益', key: 'net_income', fmt: fmtM, est: 'est_ni' },
       { label: 'EPS', key: 'eps', fmt: fmt2, estTop: true },
       { label: '現金股利', key: 'cash_dividend', fmt: fmt2, est: 'est_div' },
