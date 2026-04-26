@@ -1091,7 +1091,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
   const hasAnn = annData && !annData.error;
   const totalSysCols = n + (hasAnn ? 1 : 0);
   const sysCols = totalSysCols > 0 ? ' ' + Array(totalSysCols).fill('140px').join(' ') : '';
-  const gridStyle = `grid-template-columns: 180px 200px${sysCols}`;
+  const gridStyle = `grid-template-columns: 180px 200px 200px${sysCols}`;
 
   const confMap = {A:{color:'#059669',label:'高'}, B:{color:'#d97706',label:'中'}, C:{color:'#dc2626',label:'低'}};
   const fM = v => v != null ? (v / 1000000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '-';
@@ -1182,71 +1182,94 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     </div>
     <div class="est-grid" style="${gridStyle}">
       <div class="lbl"></div>
-      <div class="val-hdr">自行估算</div>
+      <div class="val-hdr">自行估算(季)</div>
+      <div class="val-hdr">自行估算(年)</div>
       ${sysHdrs}
 
       <div class="lbl">自訂營收（仟元）</div>
       <div class="val"><input id="estRev1" type="text" placeholder="月營收 1" oninput="calcEstimate()"></div>
+      <div class="val"><input id="estRevYear" type="text" placeholder="年營收" oninput="calcEstimateYear()"></div>
       ${sysCells('rev1', '')}
       <div class="lbl">自訂營收（仟元）</div>
       <div class="val"><input id="estRev2" type="text" placeholder="月營收 2" oninput="calcEstimate()"></div>
+      <div class="val"></div>
       ${sysCells('rev2', '')}
       <div class="lbl">自訂營收（仟元）</div>
       <div class="val"><input id="estRev3" type="text" placeholder="月營收 3" oninput="calcEstimate()"></div>
+      <div class="val"></div>
       ${sysCells('rev3', ann ? `<span style="font-size:.75rem;color:#0369a1">成長率 ${ann.revGrowth}</span><br><span style="font-size:.68rem;color:#94a3b8">調整後 ${ann.adjGrowth}</span>` : '')}
+      <div class="lbl">成長率（%）</div>
+      <div class="val"></div>
+      <div class="val"><input id="estGrowthRate" type="text" placeholder="%" oninput="calcEstimateYear()"></div>
+      ${sysData.map(() => '<div class="sys">-</div>').join('')}${ann ? '<div class="sys ann-col">-</div>' : ''}
       <div class="lbl">累計營收（仟元）</div>
       <div class="val"><div class="computed" id="estCumRevK">-</div></div>
+      <div class="val"><div class="computed" id="estCumRevKYear">-</div></div>
       ${sysCells('cumRevK', null)}
       <div class="lbl">累計營收（百萬）</div>
       <div class="val"><div class="computed" id="estCumRevM">-</div></div>
+      <div class="val"><div class="computed" id="estCumRevMYear">-</div></div>
       ${sysCells('cumRevM', null)}
 
       <div class="sep"></div>
 
       <div class="lbl">毛利率（%）</div>
       <div class="val"><input id="estGM" type="text" placeholder="%" oninput="calcEstimate()"></div>
+      <div class="val"><input id="estGMYear" type="text" placeholder="%" oninput="calcEstimateYear()"></div>
       ${sysCells('gm', null)}
       <div class="lbl">費用（百萬）</div>
       <div class="val"><input id="estOpex" type="text" placeholder="營業費用" oninput="calcEstimate()"></div>
+      <div class="val"><input id="estOpexYear" type="text" placeholder="營業費用" oninput="calcEstimateYear()"></div>
       ${sysCells('opex', null)}
       <div class="lbl">業外（百萬）</div>
       <div class="val"><input id="estNonOp" type="text" placeholder="業外收支" oninput="calcEstimate()"></div>
+      <div class="val"><input id="estNonOpYear" type="text" placeholder="業外收支" oninput="calcEstimateYear()"></div>
       ${sysCells('nonop', null)}
       <div class="lbl">稅率（%）</div>
       <div class="val"><input id="estTax" type="text" placeholder="%" oninput="calcEstimate()"></div>
+      <div class="val"><input id="estTaxYear" type="text" placeholder="%" oninput="calcEstimateYear()"></div>
       ${sysCells('tax', null)}
       <div class="lbl">歸屬權重（%）</div>
       <div class="val"><input id="estPW" type="text" placeholder="%" oninput="calcEstimate()"></div>
+      <div class="val"><input id="estPWYear" type="text" placeholder="%" oninput="calcEstimateYear()"></div>
       ${sysCells('pw', null)}
 
       <div class="sep"></div>
 
       <div class="lbl result-label">營業利益（百萬）</div>
       <div class="val"><div class="computed result-val" id="estOI">-</div></div>
+      <div class="val"><div class="computed result-val" id="estOIYear">-</div></div>
       ${sysCells('oi', null)}
       <div class="lbl result-label">營益率（%）</div>
       <div class="val"><div class="computed result-val" id="estOIR">-</div></div>
+      <div class="val"><div class="computed result-val" id="estOIRYear">-</div></div>
       ${sysCells('oir', null)}
       <div class="lbl result-label">稅前淨利（百萬）</div>
       <div class="val"><div class="computed result-val" id="estPTI">-</div></div>
+      <div class="val"><div class="computed result-val" id="estPTIYear">-</div></div>
       ${sysCells('pti', null)}
       <div class="lbl result-label">稅前淨利率（%）</div>
       <div class="val"><div class="computed result-val" id="estPTIR">-</div></div>
+      <div class="val"><div class="computed result-val" id="estPTIRYear">-</div></div>
       ${sysCells('ptir', null)}
       <div class="lbl result-label">稅後淨利率（%）</div>
       <div class="val"><div class="computed result-val" id="estNIR">-</div></div>
+      <div class="val"><div class="computed result-val" id="estNIRYear">-</div></div>
       ${sysCells('nir', null)}
       <div class="lbl result-label">歸屬母公司淨利（百萬）</div>
       <div class="val"><div class="computed result-val" id="estNIP">-</div></div>
+      <div class="val"><div class="computed result-val" id="estNIPYear">-</div></div>
       ${sysCells('nip', null)}
       <div class="lbl result-label">股數（百萬）</div>
       <div class="val"><div class="computed result-val" id="estShares">${sharesDisplay}</div></div>
+      <div class="val"><div class="computed result-val" id="estSharesYear">${sharesDisplay}</div></div>
       ${sysCells('shares', null)}
 
       <div class="sep"></div>
 
       <div class="lbl result-label">估計 EPS</div>
       <div class="val"><div class="computed result-highlight" id="estEPS">-</div></div>
+      <div class="val"><div class="computed result-highlight" id="estEPSYear">-</div></div>
       ${sysData.map(s => {
         const color = s.eps >= 0 ? '#059669' : '#dc2626';
         let extra = '';
@@ -1267,9 +1290,11 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
 
       <div class="lbl result-label">估計 EPS-本業</div>
       <div class="val"><div class="computed result-val" id="estEPScore">-</div></div>
+      <div class="val"><div class="computed result-val" id="estEPScoreYear">-</div></div>
       ${sysCells('epsCore', null)}
       <div class="lbl result-label">估計 EPS-業外</div>
       <div class="val"><div class="computed result-val" id="estEPSnonop">-</div></div>
+      <div class="val"><div class="computed result-val" id="estEPSnonopYear">-</div></div>
       ${sysCells('epsNonop', null)}
     </div>
     ${(() => {
@@ -1728,6 +1753,13 @@ async function initEstimator(sharesMillion) {
       if (d.nonop) document.getElementById('estNonOp').value = d.nonop;
       if (d.tax) document.getElementById('estTax').value = d.tax;
       if (d.pw) document.getElementById('estPW').value = d.pw;
+      if (d.revYear) document.getElementById('estRevYear').value = d.revYear;
+      if (d.growthRate) document.getElementById('estGrowthRate').value = d.growthRate;
+      if (d.gmYear) document.getElementById('estGMYear').value = d.gmYear;
+      if (d.opexYear) document.getElementById('estOpexYear').value = d.opexYear;
+      if (d.nonopYear) document.getElementById('estNonOpYear').value = d.nonopYear;
+      if (d.taxYear) document.getElementById('estTaxYear').value = d.taxYear;
+      if (d.pwYear) document.getElementById('estPWYear').value = d.pwYear;
       if (d.q1) document.getElementById('estQ1').value = d.q1;
       if (d.q2) document.getElementById('estQ2').value = d.q2;
       if (d.q3) document.getElementById('estQ3').value = d.q3;
@@ -1747,6 +1779,7 @@ async function initEstimator(sharesMillion) {
       if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
       if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
       calcEstimate();
+      calcEstimateYear();
       calcAnnual();
       calcPERange();
       calcYldRange();
@@ -1840,6 +1873,51 @@ function calcEstimate() {
   // 估計 EPS
   const eps = (nip != null && _estSharesMillion && _estSharesMillion !== 0) ? nip / _estSharesMillion : null;
   document.getElementById('estEPS').textContent = fmtNum(eps, 2);
+}
+
+function calcEstimateYear() {
+  const rev = parseNum('estRevYear');
+  const gr = parseNum('estGrowthRate');
+  const gm = parseNum('estGMYear');
+  const opex = parseNum('estOpexYear');
+  const nonop = parseNum('estNonOpYear');
+  const taxRate = parseNum('estTaxYear');
+  const pw = parseNum('estPWYear');
+
+  // 累計營收 = 自訂營收 * (1 + 成長率%)
+  const cumK = (rev != null && gr != null) ? rev * (1 + gr / 100) : (rev != null ? rev : null);
+  const cumM = cumK != null ? cumK / 1000 : null;
+  document.getElementById('estCumRevKYear').textContent = fmtNum(cumK, 0);
+  document.getElementById('estCumRevMYear').textContent = fmtNum(cumM, 2);
+
+  const oi = (cumM != null && gm != null && opex != null) ? cumM * gm / 100 - opex : null;
+  document.getElementById('estOIYear').textContent = fmtNum(oi, 2);
+
+  const oir = (oi != null && cumM && cumM !== 0) ? oi / cumM * 100 : null;
+  document.getElementById('estOIRYear').textContent = fmtNum(oir, 2);
+
+  const pti = (oi != null && nonop != null) ? oi + nonop : null;
+  document.getElementById('estPTIYear').textContent = fmtNum(pti, 2);
+
+  const ptir = (pti != null && cumM && cumM !== 0) ? pti / cumM * 100 : null;
+  document.getElementById('estPTIRYear').textContent = fmtNum(ptir, 2);
+
+  const ni = (pti != null && taxRate != null) ? pti * (1 - taxRate / 100) : null;
+  const nir = (ni != null && cumM && cumM !== 0) ? ni / cumM * 100 : null;
+  document.getElementById('estNIRYear').textContent = fmtNum(nir, 2);
+
+  const nip = (ni != null && pw != null) ? ni * pw / 100 : null;
+  document.getElementById('estNIPYear').textContent = fmtNum(nip, 2);
+
+  const eps = (nip != null && _estSharesMillion && _estSharesMillion !== 0) ? nip / _estSharesMillion : null;
+  document.getElementById('estEPSYear').textContent = fmtNum(eps, 2);
+
+  // EPS-本業 = 營業利益 * (1-稅率) * 歸屬權重 / 股數
+  const epsCore = (oi != null && taxRate != null && pw != null && _estSharesMillion) ? oi * (1 - taxRate / 100) * pw / 100 / _estSharesMillion : null;
+  document.getElementById('estEPScoreYear').textContent = fmtNum(epsCore, 2);
+
+  const epsNonop = (eps != null && epsCore != null) ? eps - epsCore : null;
+  document.getElementById('estEPSnonopYear').textContent = fmtNum(epsNonop, 2);
 }
 
 // ── 年度 EPS 彙總 ──
@@ -2273,6 +2351,13 @@ function saveEstimate() {
     nonop: document.getElementById('estNonOp').value,
     tax: document.getElementById('estTax').value,
     pw: document.getElementById('estPW').value,
+    revYear: document.getElementById('estRevYear').value,
+    growthRate: document.getElementById('estGrowthRate').value,
+    gmYear: document.getElementById('estGMYear').value,
+    opexYear: document.getElementById('estOpexYear').value,
+    nonopYear: document.getElementById('estNonOpYear').value,
+    taxYear: document.getElementById('estTaxYear').value,
+    pwYear: document.getElementById('estPWYear').value,
     q1: document.getElementById('estQ1').value,
     q2: document.getElementById('estQ2').value,
     q3: document.getElementById('estQ3').value,
@@ -2297,6 +2382,7 @@ function clearEstimate() {
   localStorage.removeItem('estimate_' + CODE);
   // 清空所有輸入框
   ['estRev1','estRev2','estRev3','estGM','estOpex','estNonOp','estTax','estPW',
+   'estRevYear','estGrowthRate','estGMYear','estOpexYear','estNonOpYear','estTaxYear','estPWYear',
    'estQ1','estQ2','estQ3','estQ4','annPR','annDiv','peHigh','peLow',
    'yldHigh','yldMax','vmEps','vmDiv','vmLtDiv',
    'ddmEps','ddmPE','ddmRate','ddmMargin','ddmDiv1','ddmDiv2','ddmDiv3'
