@@ -1177,7 +1177,8 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="est-title">
       <span>EPS 估算</span>
       <button class="est-save" onclick="saveEstimate()">儲存</button>
-      <button class="est-save" onclick="clearEstimate()" style="background:#ef4444">清除</button>
+      <button class="est-save" onclick="clearEstimateQ()" style="background:#ef4444">清除(季)</button>
+      <button class="est-save" onclick="clearEstimateY()" style="background:#ef4444">清除(年)</button>
       <span class="est-date" id="estDate"></span>
     </div>
     <div class="est-grid" style="${gridStyle}">
@@ -2377,19 +2378,28 @@ function saveEstimate() {
   document.getElementById('estDate').textContent = '已儲存：' + now;
 }
 
-function clearEstimate() {
-  if (!confirm('確定清除此股票的所有估算資料？')) return;
-  localStorage.removeItem('estimate_' + CODE);
-  // 清空所有輸入框
-  ['estRev1','estRev2','estRev3','estGM','estOpex','estNonOp','estTax','estPW',
-   'estRevYear','estGrowthRate','estGMYear','estOpexYear','estNonOpYear','estTaxYear','estPWYear',
-   'estQ1','estQ2','estQ3','estQ4','annPR','annDiv','peHigh','peLow',
-   'yldHigh','yldMax','vmEps','vmDiv','vmLtDiv',
-   'ddmEps','ddmPE','ddmRate','ddmMargin','ddmDiv1','ddmDiv2','ddmDiv3'
-  ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  document.getElementById('estDate').textContent = '';
-  // 重新載入預設值
-  location.reload();
+function clearEstimateQ() {
+  if (!confirm('確定清除季估算資料？')) return;
+  const qFields = ['estRev1','estRev2','estRev3','estGM','estOpex','estNonOp','estTax','estPW'];
+  qFields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  // 從 localStorage 移除季欄位
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  ['rev1','rev2','rev3','gm','opex','nonop','tax','pw'].forEach(k => delete saved[k]);
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  calcEstimate();
+}
+
+function clearEstimateY() {
+  if (!confirm('確定清除年估算資料？')) return;
+  const yFields = ['estRevYear','estGrowthRate','estGMYear','estOpexYear','estNonOpYear','estTaxYear','estPWYear'];
+  yFields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  // 從 localStorage 移除年欄位
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  ['revYear','growthRate','gmYear','opexYear','nonopYear','taxYear','pwYear'].forEach(k => delete saved[k]);
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  calcEstimateYear();
 }
 
 function applyPE(hi, lo) {
