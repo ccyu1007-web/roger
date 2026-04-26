@@ -1407,7 +1407,7 @@ async function initEstimator(sharesMillion) {
 
   // 取得目前股價
   try {
-    const res = await fetch(`/api/stocks?q=${CODE}`);
+    const res = await fetch(`/api/stocks?exact=${CODE}`);
     const json = await res.json();
     const stock = json.data.find(s => s.code === CODE);
     if (stock && stock.close) {

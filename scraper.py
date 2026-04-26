@@ -18,13 +18,13 @@ import db as sqlite3
 from datetime import datetime, date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-
-SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
-SYNC_HEADERS = {'X-Sync-Token': SYNC_TOKEN}
 import random
 import re
 import os
 from bs4 import BeautifulSoup
+
+SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
+SYNC_HEADERS = {'X-Sync-Token': SYNC_TOKEN}
 from guardian import (backup_raw_response, cleanup_old_backups,
                       validate_batch, get_breaker, get_priority_queue,
                       track_finmind_call, should_skip_finmind,
@@ -3380,6 +3380,7 @@ def _push_financial_annual_to_render():
                               inventory, contract_liability, operating_cf, capex, eps,
                               weighted_shares, cash_dividend, stock_dividend, updated_at
                               FROM financial_annual
+                              WHERE updated_at >= date('now', '-7 days')
                               ORDER BY code, year""").fetchall()
         conn.close()
 
@@ -4044,6 +4045,56 @@ def cross_validate_financial():
                     (now_str, qr[0], f'{yr}年EPS', '季度加總', q_total,
                      '年度財報', a_total, round(diff, 2)))
                 issues += 1
+
+    # 4. 季報內部一致性：毛利 - 營業費用 = 營業利益
+    rows = conn.execute("""
+        SELECT code, quarter, gross_profit, operating_expense, operating_income
+        FROM quarterly_financial
+        WHERE gross_profit IS NOT NULL AND operating_expense IS NOT NULL AND operating_income IS NOT NULL
+        AND quarter LIKE ?
+    """, (f'{roc_year}Q%',)).fetchall()
+    for r in rows:
+        expected_oi = r[2] - r[3]
+        actual_oi = r[4]
+        if abs(expected_oi - actual_oi) > 1000000:  # 容差 1M
+            diff_pct = abs(expected_oi - actual_oi) / max(abs(actual_oi), 1) * 100
+            c.execute("""INSERT INTO data_validation_log
+                (check_date, code, field, source_a, value_a, source_b, value_b, diff_pct)
+                VALUES (?,?,?,?,?,?,?,?)""",
+                (now_str, r[0], f'{r[1]}營業利益', '毛利-費用', round(expected_oi),
+                 'DB值', round(actual_oi), round(diff_pct, 2)))
+            issues += 1
+
+    # 5. 季報內部一致性：稅前淨利 > 稅後淨利（正常情況）
+    rows = conn.execute("""
+        SELECT code, quarter, pretax_income, net_income_parent
+        FROM quarterly_financial
+        WHERE pretax_income IS NOT NULL AND net_income_parent IS NOT NULL
+        AND net_income_parent > pretax_income * 1.1 AND pretax_income > 0
+        AND quarter LIKE ?
+    """, (f'{roc_year}Q%',)).fetchall()
+    for r in rows:
+        diff_pct = (r[3] - r[2]) / r[2] * 100
+        c.execute("""INSERT INTO data_validation_log
+            (check_date, code, field, source_a, value_a, source_b, value_b, diff_pct)
+            VALUES (?,?,?,?,?,?,?,?)""",
+            (now_str, r[0], f'{r[1]}稅後>稅前', '稅前淨利', round(r[2]),
+             '稅後淨利', round(r[3]), round(diff_pct, 2)))
+        issues += 1
+
+    # 6. stocks 表 div_label 排序正確性（最新年度在 div_1）
+    rows = conn.execute("""
+        SELECT code, div_1_label, div_2_label FROM stocks
+        WHERE div_1_label IS NOT NULL AND div_2_label IS NOT NULL
+        AND CAST(div_1_label AS INTEGER) < CAST(div_2_label AS INTEGER)
+    """).fetchall()
+    for r in rows:
+        c.execute("""INSERT INTO data_validation_log
+            (check_date, code, field, source_a, value_a, source_b, value_b, diff_pct)
+            VALUES (?,?,?,?,?,?,?,?)""",
+            (now_str, r[0], '股利排序錯誤', 'div_1_label', int(r[1]),
+             'div_2_label', int(r[2]), 0))
+        issues += 1
 
     conn.commit()
     conn.close()

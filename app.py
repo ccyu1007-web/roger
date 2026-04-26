@@ -63,6 +63,103 @@ def query_db(sql, args=()):
     conn.close()
     return rows
 
+# ── 沈董EPS/股利/綜合股利 後端計算 ────────────────────────────
+DEFAULT_WEIGHTS = [30, 30, 20, 10, 10]
+
+def _calc_shen_fields(r, cur_roc):
+    """計算沈董EPS、沈董股利、綜合股利，寫入 row dict"""
+    # 沈董EPS
+    all_eps = []
+    for i in range(1, 6):
+        q = r.get(f'eps_{i}q')
+        v = r.get(f'eps_{i}')
+        if q and v is not None:
+            all_eps.append((q, v))
+    cur_year = [(q, v) for q, v in all_eps if q and int(q.split('Q')[0]) == cur_roc]
+    n = len(cur_year)
+    is_fallback = False
+    if n >= 4:
+        r['shen_eps'] = round(sum(v for _, v in cur_year), 2)
+    elif n > 0:
+        s = sum(v for _, v in cur_year)
+        r['shen_eps'] = round(s / n * 4, 2)
+    else:
+        eps4 = [r.get(f'eps_{i}') for i in range(1, 5)]
+        eps4 = [v for v in eps4 if v is not None]
+        r['shen_eps'] = round(sum(eps4), 2) if len(eps4) == 4 else (r.get('eps_y1') or r.get('eps_ytd'))
+        is_fallback = True
+
+    shen_eps = r.get('shen_eps')
+
+    # 配息率（同年度 EPS × 股利配對）
+    eps_map = {}
+    div_map = {}
+    for i in range(1, 7):
+        el = r.get(f'eps_y{i}_label')
+        ev = r.get(f'eps_y{i}')
+        if el and ev: eps_map[str(el)] = ev
+        dl = r.get(f'div_{i}_label')
+        dc = r.get(f'div_c{i}') or 0
+        ds = r.get(f'div_s{i}') or 0
+        if dl and (dc + ds) > 0: div_map[str(dl)] = dc + ds
+
+    # 加權股利
+    ws = DEFAULT_WEIGHTS
+    wdiv = wsum = 0
+    for i in range(1, 7):
+        dc = r.get(f'div_c{i}') or 0
+        ds = r.get(f'div_s{i}') or 0
+        w = ws[i - 1] if i <= 5 else 0
+        if (dc + ds) > 0 and w > 0:
+            wdiv += (dc + ds) * w / 100
+            wsum += w
+    r['weighted_div'] = round(wdiv * 100) / 100 if wsum > 0 else None
+
+    # 加權配息率
+    sorted_years = sorted(eps_map.keys(), key=lambda x: int(x), reverse=True)
+    payout_pairs = []
+    for yr in sorted_years:
+        if yr in div_map and eps_map[yr] > 0:
+            payout_pairs.append(min(div_map[yr] / eps_map[yr], 1.0))
+        if len(payout_pairs) >= 5:
+            break
+    wpS = wpW = 0
+    for i, p in enumerate(payout_pairs):
+        w = ws[i] if i < 5 else 0
+        if w > 0:
+            wpS += p * w
+            wpW += w
+    weighted_payout = wpS / wpW if wpW > 0 else None
+
+    # 沈董股利
+    r['shen_div'] = None
+    if shen_eps and shen_eps > 0:
+        if is_fallback:
+            lbl = str(r.get('eps_y1_label') or '')
+            if lbl in div_map:
+                r['shen_div'] = round(div_map[lbl] * 100) / 100
+        if r['shen_div'] is None and weighted_payout is not None:
+            r['shen_div'] = round(shen_eps * weighted_payout * 100) / 100
+        if r['shen_div'] is None:
+            for i in range(1, 7):
+                dc = r.get(f'div_c{i}')
+                if dc and dc > 0:
+                    r['shen_div'] = dc
+                    break
+
+    # 綜合股利 = 沈董股利 × 60% + 加權股利 × 40%（預設，前端可覆蓋）
+    sd = r.get('shen_div')
+    wd = r.get('weighted_div')
+    if sd is not None and wd is not None:
+        r['blend_div'] = round((sd * 0.6 + wd * 0.4) * 100) / 100
+    elif sd is not None:
+        r['blend_div'] = round(sd * 100) / 100
+    elif wd is not None:
+        r['blend_div'] = round(wd * 100) / 100
+    else:
+        r['blend_div'] = None
+
+
 # ── 取得全部股票 ────────────────────────────────────────────
 @app.route("/api/stocks")
 def get_stocks():
@@ -110,7 +207,11 @@ def get_stocks():
                        sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, sys_ann_confidence
                 FROM stocks WHERE 1=1"""
     params = []
-    if q:
+    exact = request.args.get("exact", "")
+    if exact:
+        sql += " AND code = ?"
+        params.append(exact)
+    elif q:
         sql += " AND (code LIKE ? OR name LIKE ?)"
         params += [f"%{q}%", f"%{q}%"]
     if market in ("上市", "上櫃"):
@@ -119,7 +220,7 @@ def get_stocks():
     sql += " ORDER BY code ASC"
 
     # 無篩選時用記憶體快取（30秒）
-    use_cache = not q and not market
+    use_cache = not q and not market and not exact
     if use_cache and _stocks_cache and (_time.time() - _stocks_cache_time < 30):
         return jsonify(_stocks_cache)
 
@@ -144,8 +245,11 @@ def get_stocks():
     except:
         pass
 
+    # 後端統一計算沈董EPS/股利/綜合股利，避免前後端不一致
+    cur_roc = __import__('datetime').date.today().year - 1911
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
+        _calc_shen_fields(row, cur_roc)
 
     result_data = {"count": len(rows), "data": rows}
     if use_cache:

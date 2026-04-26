@@ -2055,7 +2055,8 @@ def _push_snapshot_to_render(data_date):
 
     for i in range(0, len(data), 500):
         batch = data[i:i+500]
-        _req.post(f'{RENDER_URL}/api/sync/snapshot', json={'rows': batch}, timeout=30)
+        _req.post(f'{RENDER_URL}/api/sync/snapshot', json={'rows': batch},
+                  headers={'X-Sync-Token': os.environ.get('SYNC_TOKEN', 'stock-sync-2026')}, timeout=30)
 
     print(f"[評價同步] 已 push {len(data)} 支到 Render")
 
