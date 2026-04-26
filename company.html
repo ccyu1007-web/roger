@@ -583,7 +583,7 @@ async function loadDecision() {
 
     // === 季度表 ===
     const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
-    const qHeaders = ['自行估算', sysQQuarter || '系統預估', ...quarters.map(q => q.quarter)];
+    const qHeaders = ['自行估算', (sysQQuarter || '系統') + '系統預估', ...quarters.map(q => q.quarter)];
 
     const qRows = [
       { label: '營業收入', key: 'revenue', fmt: fmtM, unit: '百萬' },
@@ -645,7 +645,7 @@ async function loadDecision() {
     html += '</tbody></table></div>';
 
     // === 年度表 ===
-    const estRocYear = annEst.target ? annEst.target.replace('年度', '年') : '預估年';
+    const estRocYear = annEst.target ? annEst.target.replace('年度', '年系統預估') : '系統預估';
     const aHeaders = [estRocYear, ...annuals.map(a => (a.year - 1911) + '年')];
 
     const aRows = [
