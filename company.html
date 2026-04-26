@@ -1427,18 +1427,25 @@ async function initEstimator(sharesMillion) {
     _shenEps = _calcShenEps(_stockData);
     _blendDiv = _calcBlendDiv(_stockData, _shenEps);
 
-    // 沈董股利（簡化：用 _calcBlendDiv 的沈董部分）
-    // 重算沈董股利
+    // 沈董股利
     if (_shenEps != null && _shenEps > 0) {
       const DEFAULT_WEIGHTS = [30, 30, 20, 10, 10];
       const ws = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || DEFAULT_WEIGHTS;
+      // 自行計算加權配息率（payout_X 不在 DB，需從 div_cX / eps_yX 算）
       let wpSum = 0, wpW = 0;
-      for (let i = 1; i <= 5; i++) {
-        const p = _stockData[`payout_${i}`];
-        const w = ws[i - 1] || 0;
-        if (p != null && w > 0) { wpSum += p * w / 100; wpW += w; }
+      for (let i = 1; i <= 6; i++) {
+        const cd = _stockData[`div_c${i}`] || 0;
+        const sd = _stockData[`div_s${i}`] || 0;
+        const ey = _stockData[`eps_y${i}`];
+        const w = (ws[i - 1] || 0);
+        if ((cd + sd) > 0 && ey && ey > 0 && w > 0) {
+          const payout = Math.min((cd + sd) / ey, 1.0);
+          wpSum += payout * w / 100;
+          wpW += w;
+        }
       }
-      const weightedPayout = wpW > 0 ? Math.round(wpSum * 100) / 100 : null;
+      const weightedPayout = wpW > 0 ? wpSum / wpW * 100 : null;
+
       const curRoc = new Date().getFullYear() - 1911;
       const hasCurYear = [1,2,3,4,5].some(i => {
         const q = _stockData[`eps_${i}q`];
@@ -1446,7 +1453,7 @@ async function initEstimator(sharesMillion) {
       });
       if (!hasCurYear) {
         const divLabel = _stockData.eps_y1_label;
-        for (let i = 1; i <= 5; i++) {
+        for (let i = 1; i <= 6; i++) {
           if (_stockData[`div_${i}_label`] == divLabel) {
             const cd = _stockData[`div_c${i}`] || 0;
             const sd = _stockData[`div_s${i}`] || 0;
@@ -1457,6 +1464,13 @@ async function initEstimator(sharesMillion) {
       }
       if (_shenDiv == null && weightedPayout != null) {
         _shenDiv = Math.round(_shenEps * weightedPayout) / 100;
+      }
+      // fallback：最近有值的現金股利
+      if (_shenDiv == null) {
+        for (let i = 1; i <= 6; i++) {
+          const cd = _stockData[`div_c${i}`];
+          if (cd != null && cd > 0) { _shenDiv = cd; break; }
+        }
       }
     }
 
