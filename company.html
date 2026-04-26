@@ -1337,8 +1337,9 @@ function _calcBlendDiv(stock, shenEps) {
   if (!stock) return null;
   const DEFAULT_WEIGHTS = [30, 30, 20, 10, 10];
   const ws = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || DEFAULT_WEIGHTS;
-  const blendShen = parseFloat(localStorage.getItem('global_blend_shen') || '50');
-  const blendWt = parseFloat(localStorage.getItem('global_blend_wt') || '50');
+  const blendRatio = JSON.parse(localStorage.getItem('blend_ratio') || 'null') || { shen: 50, wt: 50 };
+  const blendShen = blendRatio.shen || 50;
+  const blendWt = blendRatio.wt || 50;
   const bS = blendShen / 100, bW = blendWt / 100;
 
   // 加權股利（5年加權）
