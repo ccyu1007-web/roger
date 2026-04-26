@@ -1220,12 +1220,22 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div class="ddm-inp-group"><label>折現率</label><input id="ddmRate" type="text" value="0.10" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>安全邊際</label><input id="ddmMargin" type="text" value="0.90" oninput="calcDDM()"></div>
       </div>
-      <div class="ddm-inputs" style="margin-bottom:8px">
-        <div class="ddm-inp-group"><label>第1年現金股利</label><input id="ddmDiv1" type="text" oninput="calcDDM()"></div>
-        <div class="ddm-inp-group"><label>第2年現金股利</label><input id="ddmDiv2" type="text" oninput="calcDDM()"></div>
-        <div class="ddm-inp-group"><label>第3年現金股利</label><input id="ddmDiv3" type="text" oninput="calcDDM()"></div>
-      </div>
-      <div id="ddmResult"></div>
+      <table class="ddm-table" id="ddmTable">
+        <thead>
+          <tr><th style="width:90px">年度</th><th>1</th><th>2</th><th>3</th><th style="min-width:80px"></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="row-label">現金股利</td>
+            <td><input id="ddmDiv1" type="text" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv2" type="text" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv3" type="text" oninput="calcDDM()"></td>
+            <td></td>
+          </tr>
+        </tbody>
+        <tbody id="ddmCalcBody"></tbody>
+        <tbody id="ddmSummaryBody"></tbody>
+      </table>
     </div>
 
     <!-- 質性研究筆記 -->
@@ -1679,8 +1689,9 @@ function applyPE(high, low) {
 }
 
 function calcDDM() {
-  const el = document.getElementById('ddmResult');
-  if (!el) return;
+  const calcBody = document.getElementById('ddmCalcBody');
+  const summaryBody = document.getElementById('ddmSummaryBody');
+  if (!calcBody || !summaryBody) return;
 
   const eps = parseNum('ddmEps');
   const pe = parseNum('ddmPE');
@@ -1692,7 +1703,8 @@ function calcDDM() {
   const div3 = parseNum('ddmDiv3');
 
   if (!eps || !pe || !rate || !margin) {
-    el.innerHTML = '';
+    calcBody.innerHTML = '';
+    summaryBody.innerHTML = '';
     return;
   }
 
@@ -1733,11 +1745,7 @@ function calcDDM() {
   const fPct = (v) => v != null && !isNaN(v) ? (v * 100).toFixed(2) + '%' : '-';
   const cls = (v) => v != null && v > 0 ? 'safe' : (v != null && v < 0 ? 'danger' : '');
 
-  el.innerHTML = `<table class="ddm-table">
-    <thead>
-      <tr><th style="width:90px">年度</th><th>1</th><th>2</th><th>3</th><th style="min-width:80px"></th></tr>
-    </thead>
-    <tbody>
+  calcBody.innerHTML = `
       <tr>
         <td class="row-label">賣出價</td>
         <td>-</td><td>-</td>
@@ -1753,9 +1761,9 @@ function calcDDM() {
         <td class="row-label">折現值</td>
         <td>${f(pv1)}</td><td>${f(pv2)}</td><td>${f(pv3)}</td>
         <td></td>
-      </tr>
-    </tbody>
-    <tbody>
+      </tr>`;
+
+  summaryBody.innerHTML = `
       <tr class="summary-row">
         <td class="row-label"></td>
         <td style="text-align:center;font-weight:600;color:#64748b"></td>
@@ -1783,9 +1791,7 @@ function calcDDM() {
         <td class="${cls(rCur.ret)}">${fPct(rCur.ret)}</td>
         <td class="${cls(rCur.annRet)}">${fPct(rCur.annRet)}</td>
         <td>${f(targetPrice)}</td>
-      </tr>
-    </tbody>
-  </table>`;
+      </tr>`;
 
   saveDDM();
 }
