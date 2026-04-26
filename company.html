@@ -1215,7 +1215,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="ddm-wrap">
       <div class="ddm-title">股利折現模式</div>
       <div class="ddm-inputs">
-        <div class="ddm-inp-group"><label>三年後預估的EPS</label><input id="ddmEps" type="text" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>三年後預估的EPS</label><input id="ddmEps" type="text" value="${ann && ann.eps ? ann.eps.toFixed(2) : ''}" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>三年後賣出之本益比倍數</label><input id="ddmPE" type="text" value="14" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>折現率</label><input id="ddmRate" type="text" value="0.10" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>安全邊際</label><input id="ddmMargin" type="text" value="0.90" oninput="calcDDM()"></div>
@@ -1227,9 +1227,9 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <tbody>
           <tr>
             <td class="row-label">現金股利</td>
-            <td><input id="ddmDiv1" type="text" oninput="calcDDM()"></td>
-            <td><input id="ddmDiv2" type="text" oninput="calcDDM()"></td>
-            <td><input id="ddmDiv3" type="text" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv1" type="text" value="${ann && ann.div ? ann.div.toFixed(2) : ''}" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv2" type="text" value="${ann && ann.div ? ann.div.toFixed(2) : ''}" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv3" type="text" value="${ann && ann.div ? ann.div.toFixed(2) : ''}" oninput="calcDDM()"></td>
             <td></td>
           </tr>
           <tr>
