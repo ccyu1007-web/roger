@@ -767,6 +767,15 @@ async function loadDecision() {
     });
     html += '</tr></thead><tbody>';
 
+    // 財務等級（緊接表頭下方）
+    html += '<tr><td class="row-label">財務等級</td><td class="col-est">-</td><td class="col-sys">-</td>';
+    for (let i = 1; i <= 4; i++) {
+      const grade = stock[`fin_grade_${i}`] || '-';
+      const gradeColor = grade.includes('AA') ? '#dc2626' : (grade.includes('A') ? '#ea580c' : '#94a3b8');
+      html += `<td class="grade-cell" style="color:${gradeColor};font-weight:700">${grade}</td>`;
+    }
+    html += '</tr>';
+
     // 損益表
     const renderAnnRow = (row) => {
       // 自行估算(年)值
@@ -800,16 +809,6 @@ async function loadDecision() {
     };
 
     aRows.forEach(renderAnnRow);
-
-    // 財務等級
-    html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">財務等級</td></tr>';
-    html += '<tr><td class="row-label">等級</td><td class="col-est">-</td><td class="col-sys">-</td>';
-    for (let i = 1; i <= 4; i++) {
-      const grade = stock[`fin_grade_${i}`] || '-';
-      const gradeColor = grade.includes('AA') ? '#dc2626' : (grade.includes('A') ? '#ea580c' : '#94a3b8');
-      html += `<td class="grade-cell" style="color:${gradeColor}">${grade}</td>`;
-    }
-    html += '</tr>';
 
     // 資產負債表分隔
     html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">資產負債表</td></tr>';
