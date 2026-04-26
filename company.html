@@ -386,6 +386,20 @@
   }
   .ddm-table input:focus { border-color: #0369a1; }
 
+  /* ── 決策表 ── */
+  .dec-section { margin-bottom: 24px; }
+  .dec-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #2563eb; }
+  .dec-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .dec-table th, .dec-table td { padding: 7px 12px; border: 1px solid #e2e8f0; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .dec-table thead th { background: #1e3a5f; color: #fff; font-weight: 600; text-align: center; position: sticky; top: 0; }
+  .dec-table .row-label { text-align: left; font-weight: 600; color: #334155; background: #f8fafc; }
+  .dec-table .col-est { background: #eff6ff; }
+  .dec-table .col-sys { background: #f0fdf4; }
+  .dec-table .v-pos { color: #dc2626; }
+  .dec-table .v-neg { color: #16a34a; }
+  .dec-table .grade-cell { font-weight: 700; text-align: center; }
+  .dec-table .section-row td { background: #f1f5f9; font-weight: 700; color: #475569; border-top: 2px solid #cbd5e1; }
+
   /* ── 月營收表格 ── */
   .rev-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
   .rev-table th, .rev-table td {
@@ -503,6 +517,7 @@
 
 <div class="container">
   <div class="tabs">
+    <button class="tab" id="tabDecision" onclick="switchTab('decision')">決策表</button>
     <button class="tab active" id="tabFinancial" onclick="switchTab('financial')">年度財報</button>
     <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
     <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
@@ -522,14 +537,179 @@ let currentTab = 'financial';
 
 function switchTab(tab) {
   currentTab = tab;
+  document.getElementById('tabDecision').classList.toggle('active', tab === 'decision');
   document.getElementById('tabFinancial').classList.toggle('active', tab === 'financial');
   document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
   document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
-  if (tab === 'financial') loadFinancial();
+  if (tab === 'decision') loadDecision();
+  else if (tab === 'financial') loadFinancial();
   else if (tab === 'quarterly') loadQuarterly();
   else if (tab === 'revenue') loadRevenue();
   else loadIndustry();
+}
+
+// ── 載入決策表 ──
+async function loadDecision() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入決策表...</div></div>';
+  try {
+    const [qRes, fRes, sRes] = await Promise.all([
+      fetch(`/api/stocks/${CODE}/quarterly`),
+      fetch(`/api/stocks/${CODE}/financials`),
+      fetch(`/api/stocks?exact=${CODE}`)
+    ]);
+    const qData = await qRes.json();
+    const fData = await fRes.json();
+    const sData = await sRes.json();
+
+    const quarters = (Array.isArray(qData) ? qData : qData.data || []).slice(0, 4);
+    const annuals = (fData.data || []).slice(0, 5);
+    const stock = (sData.data || [])[0] || {};
+    const annEst = fData.annual_estimate || {};
+    const annDet = annEst.details || {};
+
+    // 使用者自行估算（從 localStorage）
+    let userEst = {};
+    try { userEst = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+
+    const fmtM = v => v != null ? Math.round(v / 1000000).toLocaleString('zh-TW') : '-';
+    const fmt2 = v => v != null ? Number(v).toFixed(2) : '-';
+    const fmtP = v => v != null ? Number(v).toFixed(1) + '%' : '-';
+
+    // === 季度表 ===
+    const qHeaders = ['自行估算', '系統預估', ...quarters.map(q => q.quarter)];
+
+    const qRows = [
+      { label: '營業收入', key: 'revenue', fmt: fmtM, unit: '百萬' },
+      { label: '營業成本', key: 'cost', fmt: fmtM },
+      { label: '營業毛利', key: 'gross_profit', fmt: fmtM },
+      { label: '毛利率', key: 'gross_margin', fmt: fmtP },
+      { label: '營業費用', key: 'operating_expense', fmt: fmtM },
+      { label: '營業利益', key: 'operating_income', fmt: fmtM },
+      { label: '業外收支', key: 'non_operating', fmt: fmtM },
+      { label: '稅前淨利', key: 'pretax_income', fmt: fmtM },
+      { label: '稅', key: 'tax', fmt: fmtM },
+      { label: '稅率', key: 'tax_rate', fmt: fmtP },
+      { label: '繼續營業單位損益', key: 'net_income_parent', fmt: fmtM },
+      { label: '歸屬母公司權重', key: 'parent_weight', fmt: fmtP },
+      { label: 'EPS', key: 'eps', fmt: fmt2 },
+      { label: '每股盈餘-本業', key: 'eps_core', fmt: fmt2 },
+      { label: '每股盈餘-業外', key: 'eps_nonop', fmt: fmt2 },
+    ];
+
+    // 系統預估季 EPS
+    const sysQEps = stock.sys_est_eps;
+    const sysQQuarter = stock.sys_est_quarter;
+
+    let html = '<div class="dec-section"><div class="dec-title">季度資料（最近四季）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
+    html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
+    qHeaders.forEach((h, i) => {
+      const cls = i === 0 ? 'col-est' : (i === 1 ? 'col-sys' : '');
+      html += `<th class="${cls}">${h}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    qRows.forEach(row => {
+      // 自行估算值
+      let userVal = '-';
+      // 系統預估值
+      let sysVal = '-';
+      if (row.key === 'eps' && sysQEps != null) sysVal = fmt2(sysQEps);
+
+      html += `<tr><td class="row-label">${row.label}</td>`;
+      html += `<td class="col-est">${userVal}</td>`;
+      html += `<td class="col-sys">${sysVal}</td>`;
+      quarters.forEach(q => {
+        html += `<td>${row.fmt(q[row.key])}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+
+    // === 年度表 ===
+    const estTarget = annEst.target || '預估年';
+    const aHeaders = [estTarget, ...annuals.map(a => (a.year - 1911) + '年')];
+
+    const aRows = [
+      { label: '營業收入', key: 'revenue', fmt: fmtM, est: 'est_revenue' },
+      { label: '營業成本', key: 'cost', fmt: fmtM },
+      { label: '營業毛利', key: 'gross_profit', fmt: fmtM, est: 'est_gross_profit' },
+      { label: '毛利率', key: null, fmt: fmtP, calc: d => d.revenue > 0 && d.gross_profit != null ? d.gross_profit/d.revenue*100 : null, est: 'est_gm' },
+      { label: '營業費用', key: 'operating_expense', fmt: fmtM, est: 'est_opex' },
+      { label: '營業利益', key: 'operating_income', fmt: fmtM, est: 'est_oi' },
+      { label: '業外收支', key: 'non_operating', fmt: fmtM, est: 'est_nonop' },
+      { label: '稅前淨利', key: 'pretax_income', fmt: fmtM, est: 'est_pti' },
+      { label: '稅率', key: null, fmt: fmtP, calc: d => d.pretax_income > 0 && d.tax != null ? d.tax/d.pretax_income*100 : null, est: 'est_tax_rate', estFmt: v => fmtP(v*100) },
+      { label: '繼續營業單位損益', key: 'net_income', fmt: fmtM, est: 'est_ni' },
+      { label: 'EPS', key: 'eps', fmt: fmt2, estTop: true },
+      { label: '現金股利', key: 'cash_dividend', fmt: fmt2, est: 'est_div' },
+      { label: '股票股利', key: 'stock_dividend', fmt: fmt2 },
+    ];
+
+    const bsRows = [
+      { label: '資產總額', key: 'total_assets', fmt: fmtM },
+      { label: '股東權益總額', key: 'total_equity', fmt: fmtM },
+      { label: '存貨', key: 'inventory', fmt: fmtM },
+      { label: '合約負債', key: 'contract_liability', fmt: fmtM },
+    ];
+
+    const cfRows = [
+      { label: '來自營運之現金流量', key: 'operating_cf', fmt: fmtM },
+      { label: '購置不動產廠房設備', key: 'capex', fmt: fmtM },
+    ];
+
+    html += '<div class="dec-section"><div class="dec-title">年度資料（最近五年）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
+    html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
+    aHeaders.forEach((h, i) => {
+      html += `<th class="${i === 0 ? 'col-sys' : ''}">${h}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    // 損益表
+    const renderAnnRow = (row) => {
+      // 系統預估值
+      let estVal = '-';
+      if (row.estTop && annEst.est_eps != null) estVal = fmt2(annEst.est_eps);
+      else if (row.est && annDet[row.est] != null) {
+        estVal = row.estFmt ? row.estFmt(annDet[row.est]) : row.fmt(annDet[row.est]);
+      }
+
+      html += `<tr><td class="row-label">${row.label}</td>`;
+      html += `<td class="col-sys">${estVal}</td>`;
+      annuals.forEach(a => {
+        let v = row.key ? a[row.key] : (row.calc ? row.calc(a) : null);
+        html += `<td>${row.fmt(v)}</td>`;
+      });
+      html += '</tr>';
+    };
+
+    aRows.forEach(renderAnnRow);
+
+    // 資產負債表分隔
+    html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">資產負債表</td></tr>';
+    bsRows.forEach(renderAnnRow);
+
+    // 現金流量表分隔
+    html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">現金流量表</td></tr>';
+    cfRows.forEach(renderAnnRow);
+
+    // 財務等級
+    html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">財務等級</td></tr>';
+    html += '<tr><td class="row-label">等級</td><td class="col-sys">-</td>';
+    for (let i = 1; i <= 5; i++) {
+      const grade = stock[`fin_grade_${i}`] || '-';
+      const gradeColor = grade.includes('AA') ? '#dc2626' : (grade.includes('A') ? '#ea580c' : '#94a3b8');
+      html += `<td class="grade-cell" style="color:${gradeColor}">${grade}</td>`;
+    }
+    html += '</tr>';
+
+    html += '</tbody></table></div>';
+
+    panel.innerHTML = html;
+  } catch(e) {
+    panel.innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
+  }
 }
 
 // ── 載入年度財報 ──
