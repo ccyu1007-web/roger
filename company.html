@@ -571,6 +571,8 @@ async function loadDecision() {
     const annuals = (fData.data || []).slice(0, 4);
     const stock = (sData.data || [])[0] || {};
     const annDet = annEst.details || {};
+    if (annDet.est_revenue != null && annDet.est_gross_profit != null) annDet._est_cost = annDet.est_revenue - annDet.est_gross_profit;
+    if (annDet.est_pti != null && annDet.est_tax_rate != null) annDet._est_tax = annDet.est_pti * annDet.est_tax_rate / 100;
     const qEstDet = qEst.details || {};
 
     // 使用者自行估算（從 localStorage）
@@ -731,13 +733,14 @@ async function loadDecision() {
 
     const aRows = [
       { label: '營業收入', key: 'revenue', fmt: fmtM, est: 'est_revenue' },
-      { label: '營業成本', key: 'cost', fmt: fmtM },
+      { label: '營業成本', key: 'cost', fmt: fmtM, est: '_est_cost' },
       { label: '營業毛利', key: 'gross_profit', fmt: fmtM, est: 'est_gross_profit' },
       { label: '毛利率', key: null, fmt: fmtP, calc: d => d.revenue > 0 && d.gross_profit != null ? d.gross_profit/d.revenue*100 : null, est: 'est_gm' },
       { label: '營業費用', key: 'operating_expense', fmt: fmtM, est: 'est_opex' },
       { label: '營業利益', key: 'operating_income', fmt: fmtM, est: 'est_oi' },
       { label: '業外收支', key: 'non_operating', fmt: fmtM, est: 'est_nonop' },
       { label: '稅前淨利', key: 'pretax_income', fmt: fmtM, est: 'est_pti' },
+      { label: '稅', key: 'tax', fmt: fmtM, est: '_est_tax' },
       { label: '稅率', key: null, fmt: fmtP, calc: d => d.pretax_income > 0 && d.tax != null ? d.tax/d.pretax_income*100 : null, est: 'est_tax_rate', estFmt: v => fmtP(v * 100) },
       { label: '繼續營業單位損益', key: 'net_income', fmt: fmtM, est: 'est_ni' },
       { label: 'EPS', key: 'eps', fmt: fmt2, estTop: true },
