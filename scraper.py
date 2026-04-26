@@ -2295,9 +2295,10 @@ def _fetch_financials_finmind(code):
                   pretax_income = COALESCE(pretax_income, excluded.pretax_income),
                   net_income = COALESCE(net_income, excluded.net_income),
                   eps = COALESCE(eps, excluded.eps),
-                  -- FinMind 獨有/補充欄位：優先用 FinMind 新值
-                  operating_expense = COALESCE(excluded.operating_expense, operating_expense),
-                  non_operating = COALESCE(excluded.non_operating, non_operating),
+                  -- 群益有提供的欄位：不覆蓋已有值
+                  operating_expense = COALESCE(operating_expense, excluded.operating_expense),
+                  non_operating = COALESCE(non_operating, excluded.non_operating),
+                  -- FinMind 獨有/補充欄位：群益年報無直接提供，優先用 FinMind
                   tax = COALESCE(excluded.tax, tax),
                   net_income_parent = COALESCE(excluded.net_income_parent, net_income_parent),
                   total_assets = COALESCE(excluded.total_assets, total_assets),
@@ -2472,8 +2473,9 @@ def _fetch_quarterly_finmind(code):
                 row[field] = d.get(field)
             results.append(row)
 
+            # FinMind 不覆蓋群益已有值（群益優先）
             c.execute("""
-                INSERT OR REPLACE INTO quarterly_financial
+                INSERT INTO quarterly_financial
                   (code, quarter, revenue, cost, gross_profit, operating_expense,
                    operating_income, non_operating, pretax_income, tax,
                    continuing_income, net_income_parent, eps, contract_liability,
@@ -2483,6 +2485,20 @@ def _fetch_quarterly_finmind(code):
                    :operating_income, :non_operating, :pretax_income, :tax,
                    :continuing_income, :net_income_parent, :eps, :contract_liability,
                    :updated_at)
+                ON CONFLICT(code, quarter) DO UPDATE SET
+                  revenue=COALESCE(revenue, excluded.revenue),
+                  cost=COALESCE(cost, excluded.cost),
+                  gross_profit=COALESCE(gross_profit, excluded.gross_profit),
+                  operating_expense=COALESCE(operating_expense, excluded.operating_expense),
+                  operating_income=COALESCE(operating_income, excluded.operating_income),
+                  non_operating=COALESCE(non_operating, excluded.non_operating),
+                  pretax_income=COALESCE(pretax_income, excluded.pretax_income),
+                  tax=COALESCE(tax, excluded.tax),
+                  continuing_income=COALESCE(continuing_income, excluded.continuing_income),
+                  net_income_parent=COALESCE(net_income_parent, excluded.net_income_parent),
+                  eps=COALESCE(eps, excluded.eps),
+                  contract_liability=COALESCE(contract_liability, excluded.contract_liability),
+                  updated_at=excluded.updated_at
             """, row)
         conn.commit()
         conn.close()
@@ -3799,16 +3815,17 @@ def fetch_mops_quarterly_eps():
                                 continue
 
                         # 寫入 quarterly_financial（單季值）
+                        # 群益優先：損益表欄位用 COALESCE(existing, new) 不覆蓋群益已有值
                         c.execute("""INSERT INTO quarterly_financial
                             (code, quarter, revenue, operating_income, non_operating,
                              net_income_parent, eps, updated_at)
                             VALUES (?,?,?,?,?,?,?,?)
                             ON CONFLICT(code, quarter) DO UPDATE SET
-                            revenue=COALESCE(excluded.revenue, revenue),
-                            operating_income=COALESCE(excluded.operating_income, operating_income),
-                            non_operating=COALESCE(excluded.non_operating, non_operating),
-                            net_income_parent=COALESCE(excluded.net_income_parent, net_income_parent),
-                            eps=excluded.eps,
+                            revenue=COALESCE(revenue, excluded.revenue),
+                            operating_income=COALESCE(operating_income, excluded.operating_income),
+                            non_operating=COALESCE(non_operating, excluded.non_operating),
+                            net_income_parent=COALESCE(net_income_parent, excluded.net_income_parent),
+                            eps=COALESCE(eps, excluded.eps),
                             updated_at=excluded.updated_at""",
                             (code, quarter_key, single_rev, single_oi, single_nonop,
                              single_ni, single_eps, now_str))
