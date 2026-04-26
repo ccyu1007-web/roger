@@ -1215,7 +1215,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="ddm-wrap">
       <div class="ddm-title">股利折現模式</div>
       <div class="ddm-inputs">
-        <div class="ddm-inp-group"><label>三年後預估的EPS</label><input id="ddmEps" type="text" value="${ann && ann.eps ? ann.eps.toFixed(2) : ''}" oninput="calcDDM()"></div>
+        <div class="ddm-inp-group"><label>三年後預估的EPS</label><input id="ddmEps" type="text" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>三年後賣出之本益比倍數</label><input id="ddmPE" type="text" value="14" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>折現率</label><input id="ddmRate" type="text" value="0.10" oninput="calcDDM()"></div>
         <div class="ddm-inp-group"><label>安全邊際</label><input id="ddmMargin" type="text" value="0.90" oninput="calcDDM()"></div>
@@ -1227,9 +1227,9 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <tbody>
           <tr>
             <td class="row-label">現金股利</td>
-            <td><input id="ddmDiv1" type="text" value="${ann && ann.div ? ann.div.toFixed(2) : ''}" oninput="calcDDM()"></td>
-            <td><input id="ddmDiv2" type="text" value="${ann && ann.div ? ann.div.toFixed(2) : ''}" oninput="calcDDM()"></td>
-            <td><input id="ddmDiv3" type="text" value="${ann && ann.div ? ann.div.toFixed(2) : ''}" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv1" type="text" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv2" type="text" oninput="calcDDM()"></td>
+            <td><input id="ddmDiv3" type="text" oninput="calcDDM()"></td>
             <td></td>
           </tr>
           <tr>
@@ -1313,8 +1313,42 @@ function resetYldFloor() {
   renderMatrix();
 }
 
+// 計算沈董EPS（與 index.html calcDerived 一致）
+function _calcShenEps(stock) {
+  if (!stock) return null;
+  const curRoc = new Date().getFullYear() - 1911;
+  const allEps = [];
+  for (let i = 1; i <= 5; i++) {
+    const q = stock[`eps_${i}q`], v = stock[`eps_${i}`];
+    if (q != null && v != null) allEps.push({ q, v });
+  }
+  const curYear = allEps.filter(e => parseInt(e.q.split('Q')[0]) === curRoc);
+  const n = curYear.length;
+  if (n >= 4) return Math.round(curYear.reduce((a, e) => a + e.v, 0) * 100) / 100;
+  if (n > 0) return Math.round(curYear.reduce((a, e) => a + e.v, 0) / n * 4 * 100) / 100;
+  // fallback: 近四季
+  const eps4 = [1,2,3,4].map(i => stock[`eps_${i}`]).filter(v => v != null);
+  if (eps4.length === 4) return Math.round(eps4.reduce((a,v) => a+v, 0) * 100) / 100;
+  return stock.eps_y1 || stock.eps_ytd || null;
+}
+
+// 計算綜合股利（沈董股利簡化版：沈董EPS × 最近配息率，或最近年度現金股利）
+function _calcBlendDiv(stock, shenEps) {
+  if (!stock) return null;
+  // 優先取最近年度的現金股利
+  for (let i = 1; i <= 5; i++) {
+    const cd = stock[`div_c${i}`];
+    if (cd != null && cd > 0) return cd;
+  }
+  // fallback: sys_ann_div
+  if (stock.sys_ann_div) return stock.sys_ann_div;
+  return null;
+}
+
 async function initEstimator(sharesMillion) {
   _estSharesMillion = sharesMillion;
+
+  let _stockData = null;
 
   // 取得目前股價
   try {
@@ -1326,7 +1360,39 @@ async function initEstimator(sharesMillion) {
       const el = document.getElementById('annPrice');
       if (el) el.textContent = _estPrice.toFixed(2);
     }
+    _stockData = stock;
   } catch(e) {}
+
+  // DDM 預設值（沒有 localStorage 存過才帶入）
+  const hasSaved = localStorage.getItem('estimate_' + CODE);
+  const savedObj = hasSaved ? JSON.parse(hasSaved) : {};
+  if (!savedObj.ddmEps && _stockData) {
+    // 優先級：使用者自行預估EPS(vmEps) > min(系統EPS, 沈董EPS)
+    const userEps = savedObj.vmEps ? parseFloat(savedObj.vmEps) : null;
+    const sysEps = _stockData.sys_ann_eps || null;
+    const shenEps = _calcShenEps(_stockData);
+
+    let ddmEps = null;
+    if (userEps && !isNaN(userEps) && userEps > 0) {
+      ddmEps = userEps;
+    } else if (sysEps != null && shenEps != null) {
+      ddmEps = Math.min(sysEps, shenEps);
+    } else {
+      ddmEps = sysEps || shenEps;
+    }
+    if (ddmEps != null) document.getElementById('ddmEps').value = ddmEps.toFixed(2);
+
+    // 合理本益比 = 14（預設）
+    // 已在 HTML value="14"
+
+    // 綜合股利
+    const blendDiv = _calcBlendDiv(_stockData, shenEps);
+    if (blendDiv != null) {
+      document.getElementById('ddmDiv1').value = blendDiv.toFixed ? blendDiv.toFixed(2) : blendDiv;
+      document.getElementById('ddmDiv2').value = blendDiv.toFixed ? blendDiv.toFixed(2) : blendDiv;
+      document.getElementById('ddmDiv3').value = blendDiv.toFixed ? blendDiv.toFixed(2) : blendDiv;
+    }
+  }
 
   // 從 localStorage 載入
   const saved = localStorage.getItem('estimate_' + CODE);
