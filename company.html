@@ -1232,9 +1232,40 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
             <td><input id="ddmDiv3" type="text" oninput="calcDDM()"></td>
             <td></td>
           </tr>
+          <tr>
+            <td class="row-label">賣出價</td>
+            <td>-</td><td>-</td><td id="ddmSell">-</td><td></td>
+          </tr>
+          <tr>
+            <td class="row-label">折現水準</td>
+            <td id="ddmDf1">-</td><td id="ddmDf2">-</td><td id="ddmDf3">-</td><td></td>
+          </tr>
+          <tr>
+            <td class="row-label">折現值</td>
+            <td id="ddmPv1">-</td><td id="ddmPv2">-</td><td id="ddmPv3">-</td><td></td>
+          </tr>
         </tbody>
-        <tbody id="ddmCalcBody"></tbody>
-        <tbody id="ddmSummaryBody"></tbody>
+        <tbody>
+          <tr class="summary-row">
+            <td class="row-label"></td>
+            <td style="text-align:center;font-weight:600;color:#64748b"></td>
+            <td style="text-align:center;font-weight:600;color:#64748b">潛在報酬</td>
+            <td style="text-align:center;font-weight:600;color:#64748b">潛在年報酬</td>
+            <td style="text-align:center;font-weight:600;color:#64748b">目標價</td>
+          </tr>
+          <tr>
+            <td class="row-label">內含價值</td>
+            <td id="ddmIntrinsic">-</td><td id="ddmRetI">-</td><td id="ddmAnnI">-</td><td id="ddmTarget1">-</td>
+          </tr>
+          <tr>
+            <td class="row-label">安全邊際價</td>
+            <td id="ddmSafe">-</td><td id="ddmRetS">-</td><td id="ddmAnnS">-</td><td id="ddmTarget2">-</td>
+          </tr>
+          <tr>
+            <td class="row-label">現價</td>
+            <td id="ddmCur">-</td><td id="ddmRetC">-</td><td id="ddmAnnC">-</td><td id="ddmTarget3">-</td>
+          </tr>
+        </tbody>
       </table>
     </div>
 
@@ -1689,9 +1720,7 @@ function applyPE(high, low) {
 }
 
 function calcDDM() {
-  const calcBody = document.getElementById('ddmCalcBody');
-  const summaryBody = document.getElementById('ddmSummaryBody');
-  if (!calcBody || !summaryBody) return;
+  if (!document.getElementById('ddmSell')) return;
 
   const eps = parseNum('ddmEps');
   const pe = parseNum('ddmPE');
@@ -1702,21 +1731,31 @@ function calcDDM() {
   const div2 = parseNum('ddmDiv2');
   const div3 = parseNum('ddmDiv3');
 
+  const f = (v) => v != null && !isNaN(v) ? v.toFixed(2) : '-';
+  const f4 = (v) => v != null && !isNaN(v) ? v.toFixed(4) : '-';
+  const fPct = (v) => v != null && !isNaN(v) ? (v * 100).toFixed(2) + '%' : '-';
+  const setCell = (id, text, css) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = css || '';
+  };
+
   if (!eps || !pe || !rate || !margin) {
-    calcBody.innerHTML = '';
-    summaryBody.innerHTML = '';
+    ['ddmSell','ddmDf1','ddmDf2','ddmDf3','ddmPv1','ddmPv2','ddmPv3',
+     'ddmIntrinsic','ddmRetI','ddmAnnI','ddmTarget1',
+     'ddmSafe','ddmRetS','ddmAnnS','ddmTarget2',
+     'ddmCur','ddmRetC','ddmAnnC','ddmTarget3'].forEach(id => setCell(id, '-'));
     return;
   }
 
   const curPrice = _estPrice || 0;
   const sellPrice = eps * pe;
 
-  // 折現水準
   const df1 = 1 / Math.pow(1 + rate, 1);
   const df2 = 1 / Math.pow(1 + rate, 2);
   const df3 = 1 / Math.pow(1 + rate, 3);
 
-  // 折現值：(賣出值+現金股利)×折現水準，第1、2年賣出值為0
   const pv1 = (0 + (div1 || 0)) * df1;
   const pv2 = (0 + (div2 || 0)) * df2;
   const pv3 = (sellPrice + (div3 || 0)) * df3;
@@ -1724,11 +1763,9 @@ function calcDDM() {
   const intrinsic = pv1 + pv2 + pv3;
   const safePrice = intrinsic * margin;
 
-  // 目標價 = 賣出價 + 三年股利總和（未折現）
   const totalDiv = (div1 || 0) + (div2 || 0) + (div3 || 0);
   const targetPrice = sellPrice + totalDiv;
 
-  // 潛在報酬與年報酬
   const calcReturn = (base) => {
     if (!base || base <= 0) return { ret: null, annRet: null };
     const ret = (targetPrice - base) / base;
@@ -1736,62 +1773,30 @@ function calcDDM() {
     return { ret, annRet };
   };
 
-  const rIntrinsic = calcReturn(intrinsic);
-  const rSafe = calcReturn(safePrice);
-  const rCur = calcReturn(curPrice);
+  const rI = calcReturn(intrinsic);
+  const rS = calcReturn(safePrice);
+  const rC = calcReturn(curPrice);
 
-  const f = (v) => v != null && !isNaN(v) ? v.toFixed(2) : '-';
-  const f4 = (v) => v != null && !isNaN(v) ? v.toFixed(4) : '-';
-  const fPct = (v) => v != null && !isNaN(v) ? (v * 100).toFixed(2) + '%' : '-';
-  const cls = (v) => v != null && v > 0 ? 'safe' : (v != null && v < 0 ? 'danger' : '');
+  const clsR = (v) => v != null && v > 0 ? 'safe' : (v != null && v < 0 ? 'danger' : '');
 
-  calcBody.innerHTML = `
-      <tr>
-        <td class="row-label">賣出價</td>
-        <td>-</td><td>-</td>
-        <td class="highlight">${f(sellPrice)}</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td class="row-label">折現水準</td>
-        <td>${f4(df1)}</td><td>${f4(df2)}</td><td>${f4(df3)}</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td class="row-label">折現值</td>
-        <td>${f(pv1)}</td><td>${f(pv2)}</td><td>${f(pv3)}</td>
-        <td></td>
-      </tr>`;
+  setCell('ddmSell', f(sellPrice), 'highlight');
+  setCell('ddmDf1', f4(df1)); setCell('ddmDf2', f4(df2)); setCell('ddmDf3', f4(df3));
+  setCell('ddmPv1', f(pv1)); setCell('ddmPv2', f(pv2)); setCell('ddmPv3', f(pv3));
 
-  summaryBody.innerHTML = `
-      <tr class="summary-row">
-        <td class="row-label"></td>
-        <td style="text-align:center;font-weight:600;color:#64748b"></td>
-        <td style="text-align:center;font-weight:600;color:#64748b">潛在報酬</td>
-        <td style="text-align:center;font-weight:600;color:#64748b">潛在年報酬</td>
-        <td style="text-align:center;font-weight:600;color:#64748b">目標價</td>
-      </tr>
-      <tr>
-        <td class="row-label">內含價值</td>
-        <td class="highlight">${f(intrinsic)}</td>
-        <td class="${cls(rIntrinsic.ret)}">${fPct(rIntrinsic.ret)}</td>
-        <td class="${cls(rIntrinsic.annRet)}">${fPct(rIntrinsic.annRet)}</td>
-        <td class="highlight">${f(targetPrice)}</td>
-      </tr>
-      <tr>
-        <td class="row-label">安全邊際價</td>
-        <td class="highlight">${f(safePrice)}</td>
-        <td class="${cls(rSafe.ret)}">${fPct(rSafe.ret)}</td>
-        <td class="${cls(rSafe.annRet)}">${fPct(rSafe.annRet)}</td>
-        <td>${f(targetPrice)}</td>
-      </tr>
-      <tr>
-        <td class="row-label">現價</td>
-        <td>${curPrice ? f(curPrice) : '-'}</td>
-        <td class="${cls(rCur.ret)}">${fPct(rCur.ret)}</td>
-        <td class="${cls(rCur.annRet)}">${fPct(rCur.annRet)}</td>
-        <td>${f(targetPrice)}</td>
-      </tr>`;
+  setCell('ddmIntrinsic', f(intrinsic), 'highlight');
+  setCell('ddmRetI', fPct(rI.ret), clsR(rI.ret));
+  setCell('ddmAnnI', fPct(rI.annRet), clsR(rI.annRet));
+  setCell('ddmTarget1', f(targetPrice), 'highlight');
+
+  setCell('ddmSafe', f(safePrice), 'highlight');
+  setCell('ddmRetS', fPct(rS.ret), clsR(rS.ret));
+  setCell('ddmAnnS', fPct(rS.annRet), clsR(rS.annRet));
+  setCell('ddmTarget2', f(targetPrice));
+
+  setCell('ddmCur', curPrice ? f(curPrice) : '-');
+  setCell('ddmRetC', fPct(rC.ret), clsR(rC.ret));
+  setCell('ddmAnnC', fPct(rC.annRet), clsR(rC.annRet));
+  setCell('ddmTarget3', f(targetPrice));
 
   saveDDM();
 }
