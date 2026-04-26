@@ -1111,6 +1111,8 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       rev2: mr[1] ? Math.round(mr[1].revenue / 1000).toLocaleString('zh-TW') + (mr[1].is_actual ? '' : '*') : '-',
       rev3: mr[2] ? Math.round(mr[2].revenue / 1000).toLocaleString('zh-TW') + (mr[2].is_actual ? '' : '*') : '-',
       cumRevK: fK(d.est_revenue), cumRevM: fM(d.est_revenue),
+      gp: (d.est_revenue != null && d.est_gm != null) ? fM(d.est_revenue * d.est_gm / 100) : '-',
+      cogs: (d.est_revenue != null && d.est_gm != null) ? fM(d.est_revenue * (1 - d.est_gm / 100)) : '-',
       gm: fP(d.est_gm), opex: fM(d.est_opex), nonop: fM(d.est_nonop),
       tax: fP(d.est_tax_rate), pw: fP(d.est_pw),
       oi: fM(d.est_oi),
@@ -1137,6 +1139,8 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       revGrowth: ad.rev_growth_pct != null ? (ad.rev_growth_pct >= 0 ? '+' : '') + ad.rev_growth_pct.toFixed(2) + '%' : '-',
       adjGrowth: ad.adj_growth_pct != null ? (ad.adj_growth_pct >= 0 ? '+' : '') + ad.adj_growth_pct.toFixed(2) + '%' : '-',
       cumRevK: fK(ad.est_revenue), cumRevM: fM(ad.est_revenue),
+      gp: (ad.est_revenue != null && ad.est_gm != null) ? fM(ad.est_revenue * ad.est_gm / 100) : '-',
+      cogs: (ad.est_revenue != null && ad.est_gm != null) ? fM(ad.est_revenue * (1 - ad.est_gm / 100)) : '-',
       gm: fP(ad.est_gm), opex: fM(ad.est_opex), nonop: fM(ad.est_nonop),
       tax: fP(ad.est_tax_rate), pw: fP(ad.est_pw),
       oi: fM(ad.est_oi),
@@ -1214,6 +1218,14 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
 
       <div class="sep"></div>
 
+      <div class="lbl">營業成本（百萬）</div>
+      <div class="val"><div class="computed" id="estCOGS">-</div></div>
+      <div class="val"><div class="computed" id="estCOGSYear">-</div></div>
+      ${sysCells('cogs', null)}
+      <div class="lbl">毛利（百萬）</div>
+      <div class="val"><div class="computed" id="estGP">-</div></div>
+      <div class="val"><div class="computed" id="estGPYear">-</div></div>
+      ${sysCells('gp', null)}
       <div class="lbl">毛利率（%）</div>
       <div class="val"><input id="estGM" type="text" placeholder="%" oninput="calcEstimate()"></div>
       <div class="val"><input id="estGMYear" type="text" placeholder="%" oninput="calcEstimateYear()"></div>
@@ -1844,8 +1856,16 @@ function calcEstimate() {
   document.getElementById('estCumRevK').textContent = fmtNum(cumK, 0);
   document.getElementById('estCumRevM').textContent = fmtNum(cumM, 2);
 
-  // 營業利益 = 累計營收(百萬) * 毛利率% - 費用(百萬)
-  const oi = (cumM != null && gm != null && opex != null) ? cumM * gm / 100 - opex : null;
+  // 毛利 = 累計營收(百萬) * 毛利率%
+  const gp = (cumM != null && gm != null) ? cumM * gm / 100 : null;
+  document.getElementById('estGP').textContent = fmtNum(gp, 2);
+
+  // 營業成本 = 累計營收(百萬) - 毛利
+  const cogs = (cumM != null && gp != null) ? cumM - gp : null;
+  document.getElementById('estCOGS').textContent = fmtNum(cogs, 2);
+
+  // 營業利益 = 毛利 - 費用(百萬)
+  const oi = (gp != null && opex != null) ? gp - opex : null;
   document.getElementById('estOI').textContent = fmtNum(oi, 2);
 
   // 營益率
@@ -1891,7 +1911,16 @@ function calcEstimateYear() {
   document.getElementById('estCumRevKYear').textContent = fmtNum(cumK, 0);
   document.getElementById('estCumRevMYear').textContent = fmtNum(cumM, 2);
 
-  const oi = (cumM != null && gm != null && opex != null) ? cumM * gm / 100 - opex : null;
+  // 毛利 = 累計營收(百萬) * 毛利率%
+  const gp = (cumM != null && gm != null) ? cumM * gm / 100 : null;
+  document.getElementById('estGPYear').textContent = fmtNum(gp, 2);
+
+  // 營業成本 = 累計營收(百萬) - 毛利
+  const cogs = (cumM != null && gp != null) ? cumM - gp : null;
+  document.getElementById('estCOGSYear').textContent = fmtNum(cogs, 2);
+
+  // 營業利益 = 毛利 - 費用(百萬)
+  const oi = (gp != null && opex != null) ? gp - opex : null;
   document.getElementById('estOIYear').textContent = fmtNum(oi, 2);
 
   const oir = (oi != null && cumM && cumM !== 0) ? oi / cumM * 100 : null;
