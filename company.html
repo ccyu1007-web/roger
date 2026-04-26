@@ -1363,11 +1363,11 @@ async function initEstimator(sharesMillion) {
     _stockData = stock;
   } catch(e) {}
 
-  // DDM 預設值（沒有 localStorage 存過才帶入）
-  const hasSaved = localStorage.getItem('estimate_' + CODE);
-  const savedObj = hasSaved ? JSON.parse(hasSaved) : {};
-  if (!savedObj.ddmEps && _stockData) {
-    // 優先級：使用者自行預估EPS(vmEps) > min(系統EPS, 沈董EPS)
+  // DDM 預設值（每次載入都用最新資料重算）
+  if (_stockData) {
+    const savedObj = (() => { try { return JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) { return {}; } })();
+
+    // 三年後預估EPS：自行預估EPS(vmEps) > min(系統EPS, 沈董EPS)
     const userEps = savedObj.vmEps ? parseFloat(savedObj.vmEps) : null;
     const sysEps = _stockData.sys_ann_eps || null;
     const shenEps = _calcShenEps(_stockData);
@@ -1382,15 +1382,12 @@ async function initEstimator(sharesMillion) {
     }
     if (ddmEps != null) document.getElementById('ddmEps').value = ddmEps.toFixed(2);
 
-    // 合理本益比 = 14（預設）
-    // 已在 HTML value="14"
-
     // 綜合股利
     const blendDiv = _calcBlendDiv(_stockData, shenEps);
     if (blendDiv != null) {
-      document.getElementById('ddmDiv1').value = blendDiv.toFixed ? blendDiv.toFixed(2) : blendDiv;
-      document.getElementById('ddmDiv2').value = blendDiv.toFixed ? blendDiv.toFixed(2) : blendDiv;
-      document.getElementById('ddmDiv3').value = blendDiv.toFixed ? blendDiv.toFixed(2) : blendDiv;
+      document.getElementById('ddmDiv1').value = blendDiv.toFixed(2);
+      document.getElementById('ddmDiv2').value = blendDiv.toFixed(2);
+      document.getElementById('ddmDiv3').value = blendDiv.toFixed(2);
     }
   }
 
@@ -1420,14 +1417,10 @@ async function initEstimator(sharesMillion) {
       if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
       if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
       if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
-      // DDM
-      if (d.ddmEps) document.getElementById('ddmEps').value = d.ddmEps;
+      // DDM：EPS 和股利每次從最新資料重算，只還原使用者調過的 PE/折現率/安全邊際
       if (d.ddmPE) document.getElementById('ddmPE').value = d.ddmPE;
       if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
       if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
-      if (d.ddmDiv1) document.getElementById('ddmDiv1').value = d.ddmDiv1;
-      if (d.ddmDiv2) document.getElementById('ddmDiv2').value = d.ddmDiv2;
-      if (d.ddmDiv3) document.getElementById('ddmDiv3').value = d.ddmDiv3;
       if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
       calcEstimate();
       calcAnnual();
