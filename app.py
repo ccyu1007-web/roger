@@ -339,6 +339,50 @@ def refresh_institutional():
     threading.Thread(target=do_inst, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新三大法人資料"})
 
+@app.route("/api/sync/quarterly", methods=["POST"])
+def sync_quarterly():
+    """本機 push 季報資料到 Render"""
+    if not request.is_json or not request.json.get('data'):
+        return jsonify({"status": "error", "msg": "no data"}), 400
+    rows = request.json['data']
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    updated = 0
+    qf_cols = ['revenue','cost','gross_profit','operating_expense','operating_income',
+               'non_operating','pretax_income','tax','continuing_income',
+               'net_income_parent','eps','contract_liability','inventory']
+    for r in rows:
+        code = r.get('code')
+        quarter = r.get('quarter')
+        if not code or not quarter:
+            continue
+        fields = []
+        vals = []
+        for col in qf_cols:
+            if col in r and r[col] is not None:
+                fields.append(f'{col}=?')
+                vals.append(r[col])
+        if fields:
+            fields.append('updated_at=?')
+            vals.append(r.get('updated_at', ''))
+            vals.extend([code, quarter])
+            # 先嘗試 UPDATE
+            c.execute(f"UPDATE quarterly_financial SET {', '.join(fields)} WHERE code=? AND quarter=?", vals)
+            if c.rowcount == 0:
+                # INSERT
+                ins_cols = ['code', 'quarter'] + [f.split('=')[0] for f in fields]
+                ins_vals = [code, quarter] + vals[:-2]  # 去掉最後的 code, quarter
+                placeholders = ','.join('?' * len(ins_cols))
+                try:
+                    c.execute(f"INSERT INTO quarterly_financial ({','.join(ins_cols)}) VALUES ({placeholders})", ins_vals)
+                except:
+                    pass
+            updated += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 @app.route("/api/sync/annual", methods=["POST"])
 def sync_annual():
     """本機 push 年度 EPS + 股利 + 財務等級到 Render"""

@@ -1359,9 +1359,11 @@ def run(scheduled=True):
     except:
         pass
 
-    # 自動 push 年度資料到 Render（僅本機）
+    # 自動 push 到 Render（僅本機）
     if not os.environ.get('DATABASE_URL'):
         try: _push_annual_to_render()
+        except: pass
+        try: _push_quarterly_to_render()
         except: pass
 
     print(f"\n完成！共更新 {len(all_rows)} 筆")
@@ -3345,6 +3347,35 @@ def fetch_institutional():
         msg += f"，{skipped_date} 支日期不符跳過"
     print(msg)
     return updated
+
+
+def _push_quarterly_to_render():
+    """本機季報資料 push 到 Render"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""SELECT code, quarter, revenue, cost, gross_profit, operating_expense,
+                              operating_income, non_operating, pretax_income, tax, continuing_income,
+                              net_income_parent, eps, contract_liability, inventory, updated_at
+                              FROM quarterly_financial
+                              WHERE updated_at >= date('now', '-7 days')
+                              ORDER BY code, quarter""").fetchall()
+        conn.close()
+
+        cols = ['code','quarter','revenue','cost','gross_profit','operating_expense',
+                'operating_income','non_operating','pretax_income','tax','continuing_income',
+                'net_income_parent','eps','contract_liability','inventory','updated_at']
+        data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
+
+        for i in range(0, len(data), 200):
+            batch = data[i:i+200]
+            requests.post(f'{RENDER_URL}/api/sync/quarterly',
+                         json={'data': batch}, timeout=30)
+        print(f"[季報同步] 已 push {len(data)} 筆到 Render")
+    except Exception as e:
+        print(f"[季報同步] 失敗: {e}")
 
 
 def _push_annual_to_render():
