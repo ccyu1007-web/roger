@@ -1384,7 +1384,7 @@ function _calcBlendDiv(stock, shenEps) {
       }
     }
     if (shenDiv == null && weightedPayout != null) {
-      shenDiv = Math.round(shenEps * weightedPayout) / 100;
+      shenDiv = Math.round(shenEps * weightedPayout * 100) / 100;
     }
   }
 
@@ -1452,9 +1452,9 @@ async function initEstimator(sharesMillion) {
       let wpSum = 0, wpW = 0;
       for (let i = 0; i < payoutPairs.length; i++) {
         const w = ws[i] || 0;
-        if (w > 0) { wpSum += payoutPairs[i] * w / 100; wpW += w; }
+        if (w > 0) { wpSum += payoutPairs[i] * w; wpW += w; }
       }
-      const weightedPayout = wpW > 0 ? wpSum / wpW * 100 : null;
+      const weightedPayout = wpW > 0 ? wpSum / wpW : null;  // 0~1 的小數
 
       const curRoc = new Date().getFullYear() - 1911;
       const hasCurYear = [1,2,3,4,5].some(i => {
@@ -1473,7 +1473,7 @@ async function initEstimator(sharesMillion) {
         }
       }
       if (_shenDiv == null && weightedPayout != null) {
-        _shenDiv = Math.round(_shenEps * weightedPayout) / 100;
+        _shenDiv = Math.round(_shenEps * weightedPayout * 100) / 100;
       }
       // fallback：最近有值的現金股利
       if (_shenDiv == null) {
