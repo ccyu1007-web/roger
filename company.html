@@ -650,7 +650,7 @@ function renderFinTable(data) {
   };
 
   const highlightRows = new Set([
-    '毛利', '營業利益', '稅後淨利', '歸屬母公司業主淨利',
+    '毛利', '營業利益', '繼續營業單位損益', '歸屬母公司業主淨利',
     'ROE', '每股盈餘 (EPS)', '自由現金流（百萬元）',
   ]);
 
@@ -678,7 +678,7 @@ function renderFinTable(data) {
       ['稅前淨利',           d => d.pretax_income,     fmtM],
       ['稅',                 d => d.tax,               fmtM],
       ['稅率',               d => d.tax_rate,          fmtP],
-      ['稅後淨利',           d => d.net_income,        fmtM],
+      ['繼續營業單位損益',   d => d.net_income,        fmtM],
       ['歸屬母公司業主淨利', d => d.net_income_parent, fmtM],
       ['歸屬母公司權重',     d => d.parent_weight,     fmtP],
     ]},
