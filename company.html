@@ -677,12 +677,14 @@ async function loadDecision() {
     // 季度系統預估欄位對照
     const sysQMap = {
       'revenue': qEstDet.est_revenue,
+      'cost': (qEstDet.est_revenue != null && qEstDet.est_gross_profit != null) ? qEstDet.est_revenue - qEstDet.est_gross_profit : null,
       'gross_profit': qEstDet.est_gross_profit,
       'gross_margin': qEstDet.est_gm,
       'operating_expense': qEstDet.est_opex,
       'operating_income': qEstDet.est_oi,
       'non_operating': qEstDet.est_nonop,
       'pretax_income': qEstDet.est_pti,
+      'tax': (qEstDet.est_pti != null && qEstDet.est_tax_rate != null) ? qEstDet.est_pti * qEstDet.est_tax_rate / 100 : null,
       'tax_rate': qEstDet.est_tax_rate,
       'net_income_parent': qEstDet.est_ni,
       'parent_weight': qEstDet.est_pw,
