@@ -606,49 +606,52 @@ def get_quarterly(code):
                 tax = calc_tax
                 d['tax'] = tax
 
-        # 反算繼續營業單位損益（近似 = 稅後淨利）
+        # 繼續營業單位損益 = 合併稅後淨利（群益 net_income_parent 存的就是這個）
         if ci is None and nip is not None:
             ci = nip
             d['continuing_income'] = ci
+
+        # 加權平均股數（千股）— 從群益 zcqa 年度資料取得
+        d['weighted_shares'] = None
+        shares_raw = None  # 原始股數（股），用於本業/業外EPS計算
+        quarter = d.get('quarter', '')
+        if quarter:
+            try:
+                roc_yr = int(quarter.split('Q')[0])
+                west_yr = roc_yr + 1911
+                fa_row = query_db(
+                    "SELECT weighted_shares FROM financial_annual WHERE code=? AND year=?",
+                    (code, west_yr)
+                )
+                if fa_row and fa_row[0].get('weighted_shares'):
+                    ann_shares = fa_row[0]['weighted_shares']  # 千股
+                    d['weighted_shares'] = round(ann_shares, 0)
+                    shares_raw = ann_shares * 1000  # 轉為股
+            except:
+                pass
+        # fallback：EPS 反算（年度股數尚未入庫時）
+        if shares_raw is None and eps_val is not None and eps_val != 0 and nip is not None:
+            shares_raw = nip / eps_val
+            d['weighted_shares'] = round(shares_raw / 1000, 0)
+
+        # 歸屬母公司淨利 = EPS × 加權平均股數
+        parent_ni = round(eps_val * shares_raw, 2) if eps_val is not None and shares_raw else None
 
         # 毛利率
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
         # 營業費用占營收比率
         d['opex_ratio'] = round(opex / rev * 100, 2) if rev and opex is not None else None
-        # 稅率（邊界保護：虧損或稅前淨利接近0時不算）
+        # 稅率 = 稅 / 稅前淨利
         if pti and pti > 0 and tax is not None:
             raw_rate = tax / pti * 100
-            d['tax_rate'] = round(min(max(raw_rate, 0), 100), 2)  # 限制 0~100%
+            d['tax_rate'] = round(min(max(raw_rate, 0), 100), 2)
         else:
             d['tax_rate'] = None
-        # 歸屬母公司權重
-        d['parent_weight'] = round(nip / ci * 100, 2) if ci and ci != 0 and nip is not None else None
-        # 加權平均股數（千股）
-        # 優先：EPS 反算（最精確，因為每季股數不同）
-        # EPS=0 時 fallback：年度加權股數（群益 zcqa）
-        d['weighted_shares'] = None
-        shares_raw = None  # 原始股數（股），用於本業/業外EPS計算
-
-        if eps_val is not None and eps_val != 0 and nip is not None:
-            shares_raw = nip / eps_val  # 元 / (元/股) = 股
-            d['weighted_shares'] = round(shares_raw / 1000, 0)  # 千股
+        # 歸屬母公司權重 = 歸屬母公司淨利 / 繼續營業單位損益
+        if ci and ci != 0 and parent_ni is not None:
+            d['parent_weight'] = round(parent_ni / ci * 100, 2)
         else:
-            # EPS=0 → 從 financial_annual 取年度加權股數
-            quarter = d.get('quarter', '')
-            if quarter:
-                try:
-                    roc_yr = int(quarter.split('Q')[0])
-                    west_yr = roc_yr + 1911
-                    fa_row = query_db(
-                        "SELECT weighted_shares FROM financial_annual WHERE code=? AND year=?",
-                        (code, west_yr)
-                    )
-                    if fa_row and fa_row[0].get('weighted_shares'):
-                        ann_shares = fa_row[0]['weighted_shares']  # 千股
-                        d['weighted_shares'] = round(ann_shares, 0)
-                        shares_raw = ann_shares * 1000  # 轉為股
-                except:
-                    pass
+            d['parent_weight'] = None
 
         # 每股盈餘-本業
         eff_tax = tax / pti if pti and pti != 0 and tax is not None else None
