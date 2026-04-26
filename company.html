@@ -582,7 +582,7 @@ async function loadDecision() {
     const fmtP = v => v != null ? Number(v).toFixed(1) + '%' : '-';
 
     // === 季度表 ===
-    const qHeaders = ['自行估算', '系統預估', ...quarters.map(q => q.quarter)];
+    const qHeaders = ['自行估算', sysQQuarter || '系統預估', ...quarters.map(q => q.quarter)];
 
     const qRows = [
       { label: '營業收入', key: 'revenue', fmt: fmtM, unit: '百萬' },
@@ -624,7 +624,7 @@ async function loadDecision() {
     html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
     qHeaders.forEach((h, i) => {
       const cls = i === 0 ? 'col-est' : (i === 1 ? 'col-sys' : '');
-      const label = i === 1 ? `系統預估<br><small>${sysQQuarter}</small>` : h;
+      const label = h;
       html += `<th class="${cls}">${label}</th>`;
     });
     html += '</tr></thead><tbody>';
@@ -647,8 +647,8 @@ async function loadDecision() {
     html += '</tbody></table></div>';
 
     // === 年度表 ===
-    const estTarget = annEst.target || '預估年';
-    const aHeaders = [estTarget, ...annuals.map(a => (a.year - 1911) + '年')];
+    const estRocYear = annEst.target ? annEst.target.replace('年度', '年') : '預估年';
+    const aHeaders = [estRocYear, ...annuals.map(a => (a.year - 1911) + '年')];
 
     const aRows = [
       { label: '營業收入', key: 'revenue', fmt: fmtM, est: 'est_revenue' },
