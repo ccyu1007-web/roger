@@ -568,7 +568,7 @@ async function loadDecision() {
     const qEst = await qeRes.json();
 
     const quarters = (Array.isArray(qData) ? qData : qData.data || qData.quarters || []).slice(0, 4);
-    const annuals = (fData.data || []).slice(0, 5);
+    const annuals = (fData.data || []).slice(0, 4);
     const stock = (sData.data || [])[0] || {};
     const annDet = annEst.details || {};
     const qEstDet = qEst.details || {};
@@ -577,13 +577,84 @@ async function loadDecision() {
     let userEst = {};
     try { userEst = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
 
+    // 季估算計算
+    const _parseV = s => { if (!s) return null; const v = parseFloat(String(s).replace(/,/g, '')); return isNaN(v) ? null : v; };
+    const ueQ = {};
+    const ueR1 = _parseV(userEst.rev1), ueR2 = _parseV(userEst.rev2), ueR3 = _parseV(userEst.rev3);
+    const ueParts = [ueR1, ueR2, ueR3].filter(v => v != null);
+    ueQ.cumK = ueParts.length > 0 ? ueParts.reduce((a,b) => a+b, 0) : null;
+    ueQ.cumM = ueQ.cumK != null ? ueQ.cumK / 1000 : null;
+    ueQ.revenue = ueQ.cumM;
+    ueQ.gm = _parseV(userEst.gm);
+    ueQ.gp = (ueQ.cumM != null && ueQ.gm != null) ? ueQ.cumM * ueQ.gm / 100 : null;
+    ueQ.cogs = (ueQ.cumM != null && ueQ.gp != null) ? ueQ.cumM - ueQ.gp : null;
+    ueQ.gross_profit = ueQ.gp;
+    ueQ.gross_margin = ueQ.gm;
+    ueQ.cost = ueQ.cogs;
+    ueQ.opex = _parseV(userEst.opex);
+    ueQ.operating_expense = ueQ.opex;
+    ueQ.oi = (ueQ.gp != null && ueQ.opex != null) ? ueQ.gp - ueQ.opex : null;
+    ueQ.operating_income = ueQ.oi;
+    ueQ.nonop = _parseV(userEst.nonop);
+    ueQ.non_operating = ueQ.nonop;
+    ueQ.pti = (ueQ.oi != null && ueQ.nonop != null) ? ueQ.oi + ueQ.nonop : null;
+    ueQ.pretax_income = ueQ.pti;
+    ueQ.taxRate = _parseV(userEst.tax);
+    ueQ.tax_rate = ueQ.taxRate;
+    ueQ.taxAmt = (ueQ.pti != null && ueQ.taxRate != null) ? ueQ.pti * ueQ.taxRate / 100 : null;
+    ueQ.tax = ueQ.taxAmt;
+    ueQ.ni = (ueQ.pti != null && ueQ.taxRate != null) ? ueQ.pti * (1 - ueQ.taxRate / 100) : null;
+    ueQ.pw = _parseV(userEst.pw);
+    ueQ.parent_weight = ueQ.pw;
+    ueQ.nip = (ueQ.ni != null && ueQ.pw != null) ? ueQ.ni * ueQ.pw / 100 : null;
+    ueQ.net_income_parent = ueQ.nip;
+    const _shares = _estSharesMillion || (stock.shares ? stock.shares / 1000000 : null);
+    ueQ.eps = (ueQ.nip != null && _shares) ? ueQ.nip / _shares : null;
+    ueQ.eps_core = (ueQ.oi != null && ueQ.taxRate != null && ueQ.pw != null && _shares) ? ueQ.oi * (1 - ueQ.taxRate / 100) * ueQ.pw / 100 / _shares : null;
+    ueQ.eps_nonop = (ueQ.eps != null && ueQ.eps_core != null) ? ueQ.eps - ueQ.eps_core : null;
+
+    // 年估算計算
+    const ueY = {};
+    const ueRevY = _parseV(userEst.revYear), ueGr = _parseV(userEst.growthRate);
+    ueY.cumK = (ueRevY != null && ueGr != null) ? ueRevY * (1 + ueGr / 100) : (ueRevY != null ? ueRevY : null);
+    ueY.cumM = ueY.cumK != null ? ueY.cumK / 1000 : null;
+    ueY.revenue = ueY.cumM;
+    ueY.gm = _parseV(userEst.gmYear);
+    ueY.gp = (ueY.cumM != null && ueY.gm != null) ? ueY.cumM * ueY.gm / 100 : null;
+    ueY.cogs = (ueY.cumM != null && ueY.gp != null) ? ueY.cumM - ueY.gp : null;
+    ueY.gross_profit = ueY.gp;
+    ueY.gross_margin = ueY.gm;
+    ueY.cost = ueY.cogs;
+    ueY.opex = _parseV(userEst.opexYear);
+    ueY.operating_expense = ueY.opex;
+    ueY.oi = (ueY.gp != null && ueY.opex != null) ? ueY.gp - ueY.opex : null;
+    ueY.operating_income = ueY.oi;
+    ueY.nonop = _parseV(userEst.nonopYear);
+    ueY.non_operating = ueY.nonop;
+    ueY.pti = (ueY.oi != null && ueY.nonop != null) ? ueY.oi + ueY.nonop : null;
+    ueY.pretax_income = ueY.pti;
+    ueY.taxRate = _parseV(userEst.taxYear);
+    ueY.tax_rate = ueY.taxRate;
+    ueY.taxAmt = (ueY.pti != null && ueY.taxRate != null) ? ueY.pti * ueY.taxRate / 100 : null;
+    ueY.tax = ueY.taxAmt;
+    ueY.ni = (ueY.pti != null && ueY.taxRate != null) ? ueY.pti * (1 - ueY.taxRate / 100) : null;
+    ueY.pw = _parseV(userEst.pwYear);
+    ueY.parent_weight = ueY.pw;
+    ueY.nip = (ueY.ni != null && ueY.pw != null) ? ueY.ni * ueY.pw / 100 : null;
+    ueY.net_income_parent = ueY.nip;
+    ueY.eps = (ueY.nip != null && _shares) ? ueY.nip / _shares : null;
+    ueY.eps_core = (ueY.oi != null && ueY.taxRate != null && ueY.pw != null && _shares) ? ueY.oi * (1 - ueY.taxRate / 100) * ueY.pw / 100 / _shares : null;
+    ueY.eps_nonop = (ueY.eps != null && ueY.eps_core != null) ? ueY.eps - ueY.eps_core : null;
+    ueY.net_income = ueY.ni;
+
     const fmtM = v => v != null ? Math.round(v / 1000000).toLocaleString('zh-TW') : '-';
+    const fmtMd = v => v != null ? Math.round(v).toLocaleString('zh-TW') : '-';
     const fmt2 = v => v != null ? Number(v).toFixed(2) : '-';
     const fmtP = v => v != null ? Number(v).toFixed(1) + '%' : '-';
 
     // === 季度表 ===
     const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
-    const qHeaders = ['自行估算', (sysQQuarter || '系統') + '系統預估', ...quarters.map(q => q.quarter)];
+    const qHeaders = ['自行估算(季)', (sysQQuarter || '系統') + '系統預估', ...quarters.map(q => q.quarter)];
 
     const qRows = [
       { label: '營業收入', key: 'revenue', fmt: fmtM, unit: '百萬' },
@@ -629,7 +700,15 @@ async function loadDecision() {
 
     qRows.forEach(row => {
       // 自行估算值（從 localStorage 季估計表）
+      const ueRaw = ueQ[row.key];
       let userVal = '-';
+      if (ueRaw != null) {
+        if (row.key === 'revenue' || row.key === 'cost' || row.key === 'gross_profit' || row.key === 'operating_expense' || row.key === 'operating_income' || row.key === 'non_operating' || row.key === 'pretax_income' || row.key === 'tax' || row.key === 'net_income_parent') {
+          userVal = fmtMd(ueRaw);
+        } else {
+          userVal = row.fmt(ueRaw);
+        }
+      }
       // 系統預估值
       const sysRaw = sysQMap[row.key];
       let sysVal = sysRaw != null ? row.fmt(sysRaw) : '-';
@@ -646,7 +725,7 @@ async function loadDecision() {
 
     // === 年度表 ===
     const estRocYear = annEst.target ? annEst.target.replace('年度', '年系統預估') : '系統預估';
-    const aHeaders = [estRocYear, ...annuals.map(a => (a.year - 1911) + '年')];
+    const aHeaders = ['自行估算(年)', estRocYear, ...annuals.map(a => (a.year - 1911) + '年')];
 
     const aRows = [
       { label: '營業收入', key: 'revenue', fmt: fmtM, est: 'est_revenue' },
@@ -676,7 +755,7 @@ async function loadDecision() {
       { label: '購置不動產廠房設備', key: 'capex', fmt: fmtM },
     ];
 
-    html += '<div class="dec-section"><div class="dec-title">年度資料（最近五年）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
+    html += '<div class="dec-section"><div class="dec-title">年度資料（最近四年）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
     html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
     aHeaders.forEach(h => {
       html += `<th>${h}</th>`;
@@ -685,6 +764,19 @@ async function loadDecision() {
 
     // 損益表
     const renderAnnRow = (row) => {
+      // 自行估算(年)值
+      let ueYRaw = row.key ? ueY[row.key] : null;
+      // 毛利率、稅率等 calc 欄位
+      if (ueYRaw == null && row.calc) ueYRaw = row.calc(ueY);
+      let userYVal = '-';
+      if (ueYRaw != null) {
+        if (row.key === 'revenue' || row.key === 'cost' || row.key === 'gross_profit' || row.key === 'operating_expense' || row.key === 'operating_income' || row.key === 'non_operating' || row.key === 'pretax_income' || row.key === 'tax' || row.key === 'net_income' || row.key === 'net_income_parent') {
+          userYVal = fmtMd(ueYRaw);
+        } else {
+          userYVal = row.fmt(ueYRaw);
+        }
+      }
+
       // 系統預估值
       let estVal = '-';
       if (row.estTop && annEst.est_eps != null) estVal = fmt2(annEst.est_eps);
@@ -693,6 +785,7 @@ async function loadDecision() {
       }
 
       html += `<tr><td class="row-label">${row.label}</td>`;
+      html += `<td class="col-est">${userYVal}</td>`;
       html += `<td class="col-sys">${estVal}</td>`;
       annuals.forEach(a => {
         let v = row.key ? a[row.key] : (row.calc ? row.calc(a) : null);
@@ -713,8 +806,8 @@ async function loadDecision() {
 
     // 財務等級
     html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">財務等級</td></tr>';
-    html += '<tr><td class="row-label">等級</td><td class="col-sys">-</td>';
-    for (let i = 1; i <= 5; i++) {
+    html += '<tr><td class="row-label">等級</td><td class="col-est">-</td><td class="col-sys">-</td>';
+    for (let i = 1; i <= 4; i++) {
       const grade = stock[`fin_grade_${i}`] || '-';
       const gradeColor = grade.includes('AA') ? '#dc2626' : (grade.includes('A') ? '#ea580c' : '#94a3b8');
       html += `<td class="grade-cell" style="color:${gradeColor}">${grade}</td>`;
