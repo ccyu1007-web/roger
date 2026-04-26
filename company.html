@@ -1119,6 +1119,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       oir: d.est_revenue > 0 ? fP(d.est_oi / d.est_revenue * 100) : '-',
       pti: fM(d.est_pti),
       ptir: d.est_revenue > 0 ? fP(d.est_pti / d.est_revenue * 100) : '-',
+      taxAmt: (d.est_pti != null && d.est_tax_rate != null) ? fM(d.est_pti * d.est_tax_rate / 100) : '-',
       nir: d.est_revenue > 0 && d.est_ni != null ? fP(d.est_ni / d.est_revenue * 100) : '-',
       nip: fM(d.est_nip),
       shares: d.est_shares ? (d.est_shares / 1000000).toFixed(2) : '-',
@@ -1147,6 +1148,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       oir: ad.est_revenue > 0 ? fP(ad.est_oi / ad.est_revenue * 100) : '-',
       pti: fM(ad.est_pti),
       ptir: ad.est_revenue > 0 ? fP(ad.est_pti / ad.est_revenue * 100) : '-',
+      taxAmt: (ad.est_pti != null && ad.est_tax_rate != null) ? fM(ad.est_pti * ad.est_tax_rate / 100) : '-',
       nir: ad.est_revenue > 0 && ad.est_ni != null ? fP(ad.est_ni / ad.est_revenue * 100) : '-',
       nip: fM(ad.est_nip),
       shares: ad.est_shares ? (ad.est_shares / 1000000).toFixed(2) : '-',
@@ -1265,6 +1267,10 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div class="val"><div class="computed result-val" id="estPTIR">-</div></div>
       <div class="val"><div class="computed result-val" id="estPTIRYear">-</div></div>
       ${sysCells('ptir', null)}
+      <div class="lbl result-label">稅（百萬）</div>
+      <div class="val"><div class="computed result-val" id="estTaxAmt">-</div></div>
+      <div class="val"><div class="computed result-val" id="estTaxAmtYear">-</div></div>
+      ${sysCells('taxAmt', null)}
       <div class="lbl result-label">稅後淨利率（%）</div>
       <div class="val"><div class="computed result-val" id="estNIR">-</div></div>
       <div class="val"><div class="computed result-val" id="estNIRYear">-</div></div>
@@ -1880,6 +1886,10 @@ function calcEstimate() {
   const ptir = (pti != null && cumM && cumM !== 0) ? pti / cumM * 100 : null;
   document.getElementById('estPTIR').textContent = fmtNum(ptir, 2);
 
+  // 稅
+  const taxAmt = (pti != null && taxRate != null) ? pti * taxRate / 100 : null;
+  document.getElementById('estTaxAmt').textContent = fmtNum(taxAmt, 2);
+
   // 稅後淨利
   const ni = (pti != null && taxRate != null) ? pti * (1 - taxRate / 100) : null;
 
@@ -1931,6 +1941,9 @@ function calcEstimateYear() {
 
   const ptir = (pti != null && cumM && cumM !== 0) ? pti / cumM * 100 : null;
   document.getElementById('estPTIRYear').textContent = fmtNum(ptir, 2);
+
+  const taxAmt = (pti != null && taxRate != null) ? pti * taxRate / 100 : null;
+  document.getElementById('estTaxAmtYear').textContent = fmtNum(taxAmt, 2);
 
   const ni = (pti != null && taxRate != null) ? pti * (1 - taxRate / 100) : null;
   const nir = (ni != null && cumM && cumM !== 0) ? ni / cumM * 100 : null;
