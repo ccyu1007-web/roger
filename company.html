@@ -1332,15 +1332,68 @@ function _calcShenEps(stock) {
   return stock.eps_y1 || stock.eps_ytd || null;
 }
 
-// 計算綜合股利（沈董股利簡化版：沈董EPS × 最近配息率，或最近年度現金股利）
+// 計算綜合股利（與總表 calcDerived 一致：沈董股利 × A% + 加權股利 × B%）
 function _calcBlendDiv(stock, shenEps) {
   if (!stock) return null;
-  // 優先取最近年度的現金股利
+  const DEFAULT_WEIGHTS = [30, 30, 20, 10, 10];
+  const ws = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || DEFAULT_WEIGHTS;
+  const blendShen = parseFloat(localStorage.getItem('global_blend_shen') || '50');
+  const blendWt = parseFloat(localStorage.getItem('global_blend_wt') || '50');
+  const bS = blendShen / 100, bW = blendWt / 100;
+
+  // 加權股利（5年加權）
+  let wdiv = 0, wsum = 0;
   for (let i = 1; i <= 5; i++) {
-    const cd = stock[`div_c${i}`];
-    if (cd != null && cd > 0) return cd;
+    const cd = stock[`div_c${i}`] || 0;
+    const sd = stock[`div_s${i}`] || 0;
+    const w = ws[i - 1] || 0;
+    if ((cd + sd) > 0 && w > 0) { wdiv += (cd + sd) * w / 100; wsum += w; }
   }
-  // fallback: sys_ann_div
+  const weightedDiv = wsum > 0 ? Math.round(wdiv * 100) / 100 : null;
+
+  // 加權配息率
+  let wpSum = 0, wpW = 0;
+  for (let i = 1; i <= 5; i++) {
+    const p = stock[`payout_${i}`];
+    const w = ws[i - 1] || 0;
+    if (p != null && w > 0) { wpSum += p * w / 100; wpW += w; }
+  }
+  const weightedPayout = wpW > 0 ? Math.round(wpSum * 100) / 100 : null;
+
+  // 沈董股利
+  let shenDiv = null;
+  if (shenEps != null && shenEps > 0) {
+    // 判斷是否 fallback（當年度無季報）
+    const curRoc = new Date().getFullYear() - 1911;
+    const hasCurYear = [1,2,3,4,5].some(i => {
+      const q = stock[`eps_${i}q`];
+      return q && parseInt(q.split('Q')[0]) === curRoc;
+    });
+    if (!hasCurYear) {
+      // fallback：優先取最新年度實際股利
+      const divLabel = stock.eps_y1_label;
+      for (let i = 1; i <= 5; i++) {
+        if (stock[`div_${i}_label`] == divLabel) {
+          const cd = stock[`div_c${i}`] || 0;
+          const sd = stock[`div_s${i}`] || 0;
+          if (cd + sd > 0) shenDiv = Math.round((cd + sd) * 100) / 100;
+          break;
+        }
+      }
+    }
+    if (shenDiv == null && weightedPayout != null) {
+      shenDiv = Math.round(shenEps * weightedPayout) / 100;
+    }
+  }
+
+  // 綜合股利 = 沈董股利 × A% + 加權股利 × B%
+  if (bS + bW > 0) {
+    if (shenDiv != null && weightedDiv != null) return Math.round((shenDiv * bS + weightedDiv * bW) * 100) / 100;
+    if (shenDiv != null) return Math.round(shenDiv * 100) / 100;
+    if (weightedDiv != null) return Math.round(weightedDiv * 100) / 100;
+  }
+
+  // fallback
   if (stock.sys_ann_div) return stock.sys_ann_div;
   return null;
 }
