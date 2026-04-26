@@ -407,6 +407,54 @@ def sync_annual():
     return jsonify({"status": "ok", "updated": updated})
 
 
+@app.route("/api/sync/financial-annual", methods=["POST"])
+def sync_financial_annual():
+    """本機 push financial_annual 整表資料到 Render"""
+    if not request.is_json or not request.json.get('data'):
+        return jsonify({"status": "error", "msg": "no data"}), 400
+    rows = request.json['data']
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    updated = 0
+    fa_cols = ['revenue','cost','gross_profit','operating_expense','operating_income',
+               'non_operating','pretax_income','tax','net_income','net_income_parent',
+               'total_assets','total_equity','common_stock','inventory','contract_liability',
+               'operating_cf','capex','eps','weighted_shares','cash_dividend','stock_dividend']
+    for r in rows:
+        code = r.get('code')
+        year = r.get('year')
+        if not code or not year:
+            continue
+        fields = []
+        vals = []
+        for col in fa_cols:
+            if col in r and r[col] is not None:
+                fields.append(f'{col}=?')
+                vals.append(r[col])
+        if fields:
+            fields.append('updated_at=?')
+            vals.append(r.get('updated_at', ''))
+            vals.extend([code, year])
+            try:
+                c.execute(f"UPDATE financial_annual SET {', '.join(fields)} WHERE code=? AND year=?", vals)
+                if c.rowcount == 0:
+                    # 不存在就 INSERT
+                    ins_fields = {col: r[col] for col in fa_cols if col in r and r[col] is not None}
+                    ins_fields['code'] = code
+                    ins_fields['year'] = year
+                    ins_fields['updated_at'] = r.get('updated_at', '')
+                    col_names = ','.join(ins_fields.keys())
+                    placeholders = ','.join('?' * len(ins_fields))
+                    c.execute(f"INSERT INTO financial_annual ({col_names}) VALUES ({placeholders})",
+                              list(ins_fields.values()))
+                updated += 1
+            except Exception:
+                pass
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 # ── 背景更新佇列 ─────────────────────────────────────────
 _bg_updating = set()  # 正在背景更新的股票代碼
 

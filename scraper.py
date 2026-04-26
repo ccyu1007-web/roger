@@ -1359,12 +1359,9 @@ def run(scheduled=True):
     except:
         pass
 
-    # 自動 push 到 Render（僅本機）
+    # 自動 push 所有資料到 Render（僅本機）
     if not os.environ.get('DATABASE_URL'):
-        try: _push_annual_to_render()
-        except: pass
-        try: _push_quarterly_to_render()
-        except: pass
+        _push_all_to_render()
 
     print(f"\n完成！共更新 {len(all_rows)} 筆")
     print(f"  營收年增率：{rev_hit} 筆")
@@ -3347,6 +3344,56 @@ def fetch_institutional():
         msg += f"，{skipped_date} 支日期不符跳過"
     print(msg)
     return updated
+
+
+def _push_all_to_render():
+    """一次 push 所有資料到 Render（stocks + quarterly + financial_annual）"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    print("[全量同步] 開始 push 到 Render...")
+    try: _push_annual_to_render()      # stocks 表 EPS/股利/財務等級
+    except Exception as e: print(f"  [annual] 失敗: {e}")
+    try: _push_quarterly_to_render()   # quarterly_financial 季報
+    except Exception as e: print(f"  [quarterly] 失敗: {e}")
+    try: _push_financial_annual_to_render()  # financial_annual 年報整表
+    except Exception as e: print(f"  [financial] 失敗: {e}")
+    try: _push_institutional_to_render()  # 法人
+    except Exception as e: print(f"  [institutional] 失敗: {e}")
+    try: _push_estimates_to_render()   # 系統估算
+    except Exception as e: print(f"  [estimates] 失敗: {e}")
+    print("[全量同步] 完成")
+
+
+def _push_financial_annual_to_render():
+    """本機 financial_annual 整表 push 到 Render"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""SELECT code, year, revenue, cost, gross_profit, operating_expense,
+                              operating_income, non_operating, pretax_income, tax, net_income,
+                              net_income_parent, total_assets, total_equity, common_stock,
+                              inventory, contract_liability, operating_cf, capex, eps,
+                              weighted_shares, cash_dividend, stock_dividend, updated_at
+                              FROM financial_annual
+                              ORDER BY code, year""").fetchall()
+        conn.close()
+
+        cols = ['code','year','revenue','cost','gross_profit','operating_expense',
+                'operating_income','non_operating','pretax_income','tax','net_income',
+                'net_income_parent','total_assets','total_equity','common_stock',
+                'inventory','contract_liability','operating_cf','capex','eps',
+                'weighted_shares','cash_dividend','stock_dividend','updated_at']
+        data = [{cols[j]: r[j] for j in range(len(cols)) if r[j] is not None} for r in rows]
+
+        for i in range(0, len(data), 200):
+            batch = data[i:i+200]
+            requests.post(f'{RENDER_URL}/api/sync/financial-annual',
+                         json={'data': batch}, timeout=30)
+        print(f"[年報同步] 已 push {len(data)} 筆到 Render")
+    except Exception as e:
+        print(f"[年報同步] 失敗: {e}")
 
 
 def _push_quarterly_to_render():
