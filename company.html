@@ -582,6 +582,7 @@ async function loadDecision() {
     const fmtP = v => v != null ? Number(v).toFixed(1) + '%' : '-';
 
     // === 季度表 ===
+    const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
     const qHeaders = ['自行估算', sysQQuarter || '系統預估', ...quarters.map(q => q.quarter)];
 
     const qRows = [
@@ -618,14 +619,11 @@ async function loadDecision() {
       'eps_core': qEstDet.est_eps_core,
       'eps_nonop': qEstDet.est_eps_nonop,
     };
-    const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
 
     let html = '<div class="dec-section"><div class="dec-title">季度資料（最近四季）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
     html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
-    qHeaders.forEach((h, i) => {
-      const cls = i === 0 ? 'col-est' : (i === 1 ? 'col-sys' : '');
-      const label = h;
-      html += `<th class="${cls}">${label}</th>`;
+    qHeaders.forEach(h => {
+      html += `<th>${h}</th>`;
     });
     html += '</tr></thead><tbody>';
 
@@ -680,8 +678,8 @@ async function loadDecision() {
 
     html += '<div class="dec-section"><div class="dec-title">年度資料（最近五年）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
     html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
-    aHeaders.forEach((h, i) => {
-      html += `<th class="${i === 0 ? 'col-sys' : ''}">${h}</th>`;
+    aHeaders.forEach(h => {
+      html += `<th>${h}</th>`;
     });
     html += '</tr></thead><tbody>';
 
