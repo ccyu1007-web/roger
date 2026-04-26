@@ -356,6 +356,7 @@ def sync_quarterly():
         quarter = r.get('quarter')
         if not code or not quarter:
             continue
+        # 先 UPDATE 已存在的欄位
         fields = []
         vals = []
         for col in qf_cols:
@@ -366,18 +367,12 @@ def sync_quarterly():
             fields.append('updated_at=?')
             vals.append(r.get('updated_at', ''))
             vals.extend([code, quarter])
-            # 先嘗試 UPDATE
-            c.execute(f"UPDATE quarterly_financial SET {', '.join(fields)} WHERE code=? AND quarter=?", vals)
-            if c.rowcount == 0:
-                # INSERT
-                ins_cols = ['code', 'quarter'] + [f.split('=')[0] for f in fields]
-                ins_vals = [code, quarter] + vals[:-2]  # 去掉最後的 code, quarter
-                placeholders = ','.join('?' * len(ins_cols))
-                try:
-                    c.execute(f"INSERT INTO quarterly_financial ({','.join(ins_cols)}) VALUES ({placeholders})", ins_vals)
-                except:
-                    pass
-            updated += 1
+            try:
+                c.execute(f"UPDATE quarterly_financial SET {', '.join(fields)} WHERE code=? AND quarter=?", vals)
+                if c.rowcount > 0:
+                    updated += 1
+            except Exception:
+                pass
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
