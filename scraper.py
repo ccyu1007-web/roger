@@ -18,6 +18,9 @@ import db as sqlite3
 from datetime import datetime, date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+
+SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
+SYNC_HEADERS = {'X-Sync-Token': SYNC_TOKEN}
 import random
 import re
 import os
@@ -2876,7 +2879,7 @@ def _push_news_to_render():
         data = [dict(r) for r in rows]
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
-            requests.post(f'{RENDER_URL}/api/sync/news', json={'rows': batch}, timeout=30)
+            requests.post(f'{RENDER_URL}/api/sync/news', json={'rows': batch}, headers=SYNC_HEADERS, timeout=30)
         print(f"[新聞同步] 已 push {len(data)} 筆到 Render")
     except Exception as e:
         print(f"[新聞同步] 失敗: {e}")
@@ -3390,7 +3393,7 @@ def _push_financial_annual_to_render():
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
             requests.post(f'{RENDER_URL}/api/sync/financial-annual',
-                         json={'data': batch}, timeout=30)
+                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
         print(f"[年報同步] 已 push {len(data)} 筆到 Render")
     except Exception as e:
         print(f"[年報同步] 失敗: {e}")
@@ -3419,7 +3422,7 @@ def _push_quarterly_to_render():
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
             requests.post(f'{RENDER_URL}/api/sync/quarterly',
-                         json={'data': batch}, timeout=30)
+                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
         print(f"[季報同步] 已 push {len(data)} 筆到 Render")
     except Exception as e:
         print(f"[季報同步] 失敗: {e}")
@@ -3458,7 +3461,7 @@ def _push_annual_to_render():
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
             requests.post(f'{RENDER_URL}/api/sync/annual',
-                         json={'data': batch}, timeout=30)
+                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
         print(f"[年度同步] 已 push {len(data)} 支到 Render")
     except Exception as e:
         print(f"[年度同步] 失敗: {e}")
@@ -3475,7 +3478,7 @@ def _push_institutional_to_render():
         for i in range(0, len(data), 500):
             batch = data[i:i+500]
             requests.post(f'{RENDER_URL}/api/refresh/institutional',
-                         json={'data': batch}, timeout=30)
+                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
         print(f"[法人同步] 已 push {len(data)} 支到 Render")
     except Exception as e:
         print(f"[法人同步] 失敗: {e}")
@@ -3710,7 +3713,7 @@ def _push_estimates_to_render():
         import requests
         resp = requests.post(
             "https://tock-system.onrender.com/api/sync/estimates",
-            json={"data": data}, timeout=30
+            json={"data": data}, headers=SYNC_HEADERS, timeout=30
         )
         if resp.status_code == 200:
             print(f"  估算 push 到 Render：{len(data)} 支")

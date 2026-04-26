@@ -29,6 +29,16 @@ app = Flask(__name__, static_folder=".", static_url_path="")
 app.config['COMPRESS_MIMETYPES'] = ['application/json']
 DB_PATH = "stocks.db"
 
+# ── Sync API Token 驗證 ─────────────────────────────────────
+SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
+
+def check_sync_token():
+    """驗證 sync/refresh API 的 token"""
+    token = request.headers.get('X-Sync-Token') or request.args.get('token')
+    if token != SYNC_TOKEN:
+        return False
+    return True
+
 # ── 回應壓縮 ──────────────────────────────────────────────
 try:
     from flask_compress import Compress
@@ -199,6 +209,8 @@ def refresh_status():
 @app.route("/api/sync/snapshot", methods=["POST"])
 def sync_snapshot():
     """接收本機 push 過來的 stock_state 評價資料"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
     from datetime import datetime
     data = request.json
     if not data or 'rows' not in data:
@@ -255,6 +267,8 @@ def sync_snapshot():
 @app.route("/api/sync/estimates", methods=["POST"])
 def sync_estimates():
     """接收本機 push 過來的系統估算結果"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
     data = request.json
     if not data or 'data' not in data:
         return jsonify({"error": "missing data"}), 400
@@ -286,6 +300,8 @@ def sync_estimates():
 @app.route("/api/sync/news", methods=["POST"])
 def sync_news():
     """接收本機 push 過來的新聞"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
     from datetime import datetime
     data = request.json
     if not data or 'rows' not in data:
@@ -342,6 +358,8 @@ def refresh_institutional():
 @app.route("/api/sync/quarterly", methods=["POST"])
 def sync_quarterly():
     """本機 push 季報資料到 Render"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
     if not request.is_json or not request.json.get('data'):
         return jsonify({"status": "error", "msg": "no data"}), 400
     rows = request.json['data']
@@ -381,6 +399,8 @@ def sync_quarterly():
 @app.route("/api/sync/annual", methods=["POST"])
 def sync_annual():
     """本機 push 年度 EPS + 股利 + 財務等級到 Render"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
     if not request.is_json or not request.json.get('data'):
         return jsonify({"status": "error", "msg": "no data"}), 400
     rows = request.json['data']
@@ -410,6 +430,8 @@ def sync_annual():
 @app.route("/api/sync/financial-annual", methods=["POST"])
 def sync_financial_annual():
     """本機 push financial_annual 整表資料到 Render"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
     if not request.is_json or not request.json.get('data'):
         return jsonify({"status": "error", "msg": "no data"}), 400
     rows = request.json['data']
