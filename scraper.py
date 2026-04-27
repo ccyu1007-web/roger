@@ -3435,7 +3435,7 @@ def _push_annual_to_render():
     RENDER_URL = "https://tock-system.onrender.com"
     try:
         conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code,
+        rows = conn.execute("""SELECT code, eps_date,
             eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
             eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
             div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
@@ -3447,7 +3447,7 @@ def _push_annual_to_render():
             FROM stocks WHERE close IS NOT NULL""").fetchall()
         conn.close()
 
-        cols = ['code',
+        cols = ['code', 'eps_date',
             'eps_y1','eps_y1_label','eps_y2','eps_y2_label','eps_y3','eps_y3_label',
             'eps_y4','eps_y4_label','eps_y5','eps_y5_label','eps_y6','eps_y6_label',
             'div_c1','div_s1','div_1_label','div_c2','div_s2','div_2_label',

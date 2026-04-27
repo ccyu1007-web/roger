@@ -514,6 +514,9 @@ def sync_annual():
     for r in rows:
         fields = []
         vals = []
+        if 'eps_date' in r:
+            fields.append('eps_date=?')
+            vals.append(r['eps_date'])
         for i in range(1, 7):
             for prefix in [f'eps_y{i}', f'eps_y{i}_label',
                            f'div_c{i}', f'div_s{i}', f'div_{i}_label',
