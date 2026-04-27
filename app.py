@@ -1162,6 +1162,58 @@ def db_status():
         "last_check": last_check,
     })
 
+@app.route("/api/bulk/revenue")
+def bulk_revenue():
+    """批次月營收+季營收（供沈董系統雲端使用）"""
+    from datetime import date as dt
+    current_year = dt.today().year
+    last_year = current_year - 1
+    cur_roc = current_year - 1911
+    last_roc = last_year - 1911
+
+    # 當年度月營收
+    monthly = query_db(
+        "SELECT code, month, revenue FROM monthly_revenue WHERE year = ?",
+        (current_year,)
+    )
+    monthly_map = {}
+    for r in monthly:
+        monthly_map.setdefault(r['code'], {})[str(r['month'])] = r['revenue']
+    months = sorted(set(r['month'] for r in monthly))
+
+    # 季營收+EPS（去年+今年，用民國年 quarter 格式）
+    quarterly = query_db(
+        "SELECT code, quarter, revenue, eps FROM quarterly_financial WHERE quarter LIKE ? OR quarter LIKE ?",
+        (f"{last_roc}Q%", f"{cur_roc}Q%")
+    )
+    qrev_map = {}
+    qeps_map = {}
+    all_q = set()
+    for r in quarterly:
+        q = r['quarter']
+        roc_yr = int(q.split('Q')[0])
+        west_yr = roc_yr + 1911
+        qn = q.split('Q')[1]
+        key = f"{west_yr}Q{qn}"
+        all_q.add((west_yr, int(qn), key))
+        if r['revenue'] is not None:
+            qrev_map.setdefault(r['code'], {})[key] = r['revenue']
+        if r['eps'] is not None:
+            qeps_map.setdefault(r['code'], {})[key] = r['eps']
+
+    sorted_q = sorted(all_q, key=lambda x: (x[0], x[1]))
+    q_cols = [k[2] for k in sorted_q]
+
+    return jsonify({
+        'months': months,
+        'monthly': monthly_map,
+        'quarterly_cols': q_cols,
+        'quarterly_revenue': qrev_map,
+        'quarterly_eps': qeps_map,
+        'current_year': current_year,
+        'last_year': last_year,
+    })
+
 @app.route("/api/daily-briefing")
 def daily_briefing():
     return jsonify(get_daily_briefing())
