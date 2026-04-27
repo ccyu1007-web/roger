@@ -476,15 +476,21 @@ def sync_quarterly():
     try: conn.commit()
     except: pass
     updated = 0
-    qf_cols = ['revenue','cost','gross_profit','operating_expense','operating_income',
+    errors = 0
+    # 查詢實際存在的欄位，只用存在的欄位做 UPDATE/INSERT
+    try:
+        c.execute("SELECT * FROM quarterly_financial LIMIT 0")
+        existing_cols = set(desc[0] for desc in c.description)
+    except:
+        existing_cols = set()
+    qf_cols = [col for col in ['revenue','cost','gross_profit','operating_expense','operating_income',
                'non_operating','pretax_income','tax','continuing_income',
-               'net_income_parent','eps','contract_liability','inventory']
+               'net_income_parent','eps','contract_liability','inventory'] if col in existing_cols]
     for r in rows:
         code = r.get('code')
         quarter = r.get('quarter')
         if not code or not quarter:
             continue
-        # 先 UPDATE 已存在的欄位
         fields = []
         vals = []
         for col in qf_cols:
@@ -500,14 +506,15 @@ def sync_quarterly():
                 if c.rowcount > 0:
                     updated += 1
                 else:
-                    # 記錄不存在，INSERT
                     ins_cols = ['code', 'quarter'] + [col for col in qf_cols if col in r and r[col] is not None] + ['updated_at']
                     ins_vals = [code, quarter] + [r[col] for col in qf_cols if col in r and r[col] is not None] + [r.get('updated_at', '')]
                     placeholders = ','.join(['?'] * len(ins_cols))
                     c.execute(f"INSERT INTO quarterly_financial ({','.join(ins_cols)}) VALUES ({placeholders})", ins_vals)
                     updated += 1
-            except Exception:
-                pass
+            except Exception as e:
+                errors += 1
+                if errors <= 3:
+                    print(f"[sync_quarterly] {code} {quarter} 失敗: {e}")
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})

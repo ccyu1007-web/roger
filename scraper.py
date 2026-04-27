@@ -3367,7 +3367,7 @@ def _push_all_to_render():
 
 
 def _push_financial_annual_to_render():
-    """本機 financial_annual 整表 push 到 Render"""
+    """本機 financial_annual 整表 push 到 Render（只推當天更新的）"""
     if os.environ.get('DATABASE_URL'):
         return
     RENDER_URL = "https://tock-system.onrender.com"
@@ -3376,25 +3376,39 @@ def _push_financial_annual_to_render():
         rows = conn.execute("""SELECT code, year, revenue, cost, gross_profit, operating_expense,
                               operating_income, non_operating, pretax_income, tax, net_income,
                               net_income_parent, total_assets, total_equity, common_stock,
-                              inventory, contract_liability, operating_cf, capex, eps,
+                              contract_liability, operating_cf, capex, eps,
                               weighted_shares, cash_dividend, stock_dividend, updated_at
                               FROM financial_annual
-                              WHERE updated_at >= date('now', '-7 days')
+                              WHERE DATE(updated_at) = DATE('now')
                               ORDER BY code, year""").fetchall()
         conn.close()
 
         cols = ['code','year','revenue','cost','gross_profit','operating_expense',
                 'operating_income','non_operating','pretax_income','tax','net_income',
                 'net_income_parent','total_assets','total_equity','common_stock',
-                'inventory','contract_liability','operating_cf','capex','eps',
+                'contract_liability','operating_cf','capex','eps',
                 'weighted_shares','cash_dividend','stock_dividend','updated_at']
         data = [{cols[j]: r[j] for j in range(len(cols)) if r[j] is not None} for r in rows]
 
+        if not data:
+            print("[年報同步] 今天沒有更新的年報")
+            return
+
+        failed = 0
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
-            requests.post(f'{RENDER_URL}/api/sync/financial-annual',
-                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
-        print(f"[年報同步] 已 push {len(data)} 筆到 Render")
+            try:
+                resp = requests.post(f'{RENDER_URL}/api/sync/financial-annual',
+                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
+                if resp.status_code != 200:
+                    failed += len(batch)
+            except Exception as e:
+                print(f"  [年報同步] batch {i//200+1} 失敗: {e}")
+                failed += len(batch)
+        msg = f"[年報同步] 已 push {len(data)} 筆到 Render"
+        if failed:
+            msg += f"（{failed} 筆失敗）"
+        print(msg)
     except Exception as e:
         print(f"[年報同步] 失敗: {e}")
 
