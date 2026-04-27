@@ -165,6 +165,9 @@
   .col-toggle { display: inline-flex; gap: 4px; flex-wrap: wrap; }
   .col-btn { padding: 4px 10px; border-radius: 5px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-size: .78rem; color: #64748b; transition: all .15s; }
   .col-btn.on { border-color: #2563eb; background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+  .preset-btn { padding: 4px 12px; border-radius: 5px; border: 2px solid #7c3aed; background: #fff; cursor: pointer; font-size: .78rem; color: #7c3aed; font-weight: 600; transition: all .15s; }
+  .preset-btn:hover { background: #f5f3ff; }
+  .preset-btn.on { border-color: #7c3aed; background: #7c3aed; color: #fff; }
   body.hide-g-qeps .g-qeps,
   body.hide-g-ytd .g-ytd,
   body.hide-g-yeps .g-yeps,
@@ -352,6 +355,8 @@
 
   <div style="display:flex;align-items:center;gap:8px;padding:6px 18px;margin-bottom:4px;font-size:.82rem">
     <span style="color:#64748b;font-weight:600;white-space:nowrap">欄位：</span>
+    <div id="presetBar" style="display:inline-flex;gap:4px;margin-right:6px"></div>
+    <span style="color:#e2e8f0">|</span>
     <div class="col-toggle" id="colToggleBar"></div>
   </div>
 
@@ -568,7 +573,27 @@ COL_GROUPS.forEach(g => {
   if (_colVisible[g.key] === undefined) _colVisible[g.key] = g.default;
 });
 
+// ── 欄位預設組合（Preset）──────────────────────────────────────
+const COL_PRESETS = [
+  {
+    key: 'decision', label: '決策表',
+    on: ['g-val','g-inst','g-grades','g-shen','g-blend','g-est','g-sys','g-divc','g-divs'],
+    off: ['g-mkt','g-rev','g-wt','g-trail','g-fg','g-ytd','g-qeps','g-yeps','g-po','g-cl','g-etf']
+  },
+  {
+    key: 'default', label: '預設',
+    restore: true   // 特殊：恢復 COL_GROUPS 的 default 值
+  }
+];
+let _activePreset = localStorage.getItem('col_preset') || null;
+
 function initColToggle() {
+  // preset 按鈕
+  const pbar = document.getElementById('presetBar');
+  pbar.innerHTML = COL_PRESETS.map(p =>
+    `<button class="preset-btn ${_activePreset === p.key ? 'on' : ''}" data-preset="${p.key}" onclick="applyPreset('${p.key}',this)">${p.label}</button>`
+  ).join('');
+  // 欄位 toggle 按鈕
   const bar = document.getElementById('colToggleBar');
   bar.innerHTML = COL_GROUPS.map(g =>
     `<button class="col-btn ${_colVisible[g.key] ? 'on' : ''}" data-group="${g.key}" onclick="toggleColGroup('${g.key}',this)">${g.label}</button>`
@@ -576,9 +601,58 @@ function initColToggle() {
   applyColVisibility();
 }
 
+function applyPreset(key, btn) {
+  const preset = COL_PRESETS.find(p => p.key === key);
+  if (!preset) return;
+
+  // 如果正在使用同一 preset，再點就取消（回到點擊前的手動狀態）
+  if (_activePreset === key) {
+    const prev = JSON.parse(localStorage.getItem('col_visible_before_preset') || 'null');
+    if (prev) {
+      _colVisible = prev;
+      localStorage.removeItem('col_visible_before_preset');
+    }
+    _activePreset = null;
+    localStorage.removeItem('col_preset');
+  } else {
+    // 儲存切換前的狀態（僅第一次進入 preset 時保存）
+    if (!_activePreset) {
+      localStorage.setItem('col_visible_before_preset', JSON.stringify({..._colVisible}));
+    }
+    if (preset.restore) {
+      // 恢復預設值
+      COL_GROUPS.forEach(g => { _colVisible[g.key] = g.default; });
+      localStorage.removeItem('col_visible_before_preset');
+      _activePreset = null;
+      localStorage.removeItem('col_preset');
+    } else {
+      preset.on.forEach(k => { _colVisible[k] = true; });
+      preset.off.forEach(k => { _colVisible[k] = false; });
+      _activePreset = key;
+      localStorage.setItem('col_preset', key);
+    }
+  }
+
+  localStorage.setItem('col_visible', JSON.stringify(_colVisible));
+  // 同步所有 toggle 按鈕狀態
+  document.querySelectorAll('#colToggleBar .col-btn').forEach(b => {
+    const g = b.dataset.group;
+    b.classList.toggle('on', !!_colVisible[g]);
+  });
+  // 同步 preset 按鈕狀態
+  document.querySelectorAll('#presetBar .preset-btn').forEach(b => {
+    b.classList.toggle('on', b.dataset.preset === _activePreset);
+  });
+  applyColVisibility();
+}
+
 function toggleColGroup(key, btn) {
   _colVisible[key] = !_colVisible[key];
   btn.classList.toggle('on', _colVisible[key]);
+  // 手動切換欄位時，清除 preset 狀態
+  _activePreset = null;
+  localStorage.removeItem('col_preset');
+  document.querySelectorAll('#presetBar .preset-btn').forEach(b => b.classList.remove('on'));
   localStorage.setItem('col_visible', JSON.stringify(_colVisible));
   applyColVisibility();
 }
