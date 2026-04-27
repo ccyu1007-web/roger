@@ -493,6 +493,13 @@ def sync_quarterly():
                 c.execute(f"UPDATE quarterly_financial SET {', '.join(fields)} WHERE code=? AND quarter=?", vals)
                 if c.rowcount > 0:
                     updated += 1
+                else:
+                    # 記錄不存在，INSERT
+                    ins_cols = ['code', 'quarter'] + [col for col in qf_cols if col in r and r[col] is not None] + ['updated_at']
+                    ins_vals = [code, quarter] + [r[col] for col in qf_cols if col in r and r[col] is not None] + [r.get('updated_at', '')]
+                    placeholders = ','.join(['?'] * len(ins_cols))
+                    c.execute(f"INSERT INTO quarterly_financial ({','.join(ins_cols)}) VALUES ({placeholders})", ins_vals)
+                    updated += 1
             except Exception:
                 pass
     conn.commit()
