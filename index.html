@@ -455,7 +455,7 @@
           <th class="g-rev" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
           <th class="g-rev" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 等級排列：預估→沈董→綜合→近四季→加權 -->
-          <th class="g-grades col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
+          <th class="g-est col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
           <th class="g-est" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
           <th class="g-est" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
@@ -467,7 +467,7 @@
           <th class="g-sys" onclick="sortBy('sys_ann_div')">系統股利<span class="sort-icon" id="si_sys_ann_div">↕</span></th>
           <th class="g-sys" onclick="sortBy('sys_ann_confidence')">信心<span class="sort-icon" id="si_sys_ann_confidence">↕</span></th>
           <!-- 沈董 -->
-          <th class="g-grades col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
+          <th class="g-shen col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_pe')">沈董PE<span class="sort-icon" id="si_shen_pe">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_yld')">沈董殖利率<span class="sort-icon" id="si_shen_yld">↕</span></th>
           <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
@@ -2164,7 +2164,7 @@ function render() {
       <td class="g-rev">${fmtPct(r.revenue_mom, 10)}</td>
       <!-- 結論 -->
       <!-- 預估 -->
-      <td class="g-grades col-div">${gradeHtml(r.est_grade)}</td>
+      <td class="g-est col-div">${gradeHtml(r.est_grade)}</td>
       <td class="g-est">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>
       <td class="g-est">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
@@ -2176,7 +2176,7 @@ function render() {
       <td class="g-sys">${r.sys_ann_div != null ? r.sys_ann_div.toFixed(2) : '－'}</td>
       <td class="g-sys"><span style="padding:1px 6px;border-radius:8px;font-size:.78rem;font-weight:600;color:#fff;background:${r.sys_ann_confidence === 'A' ? '#059669' : r.sys_ann_confidence === 'B' ? '#d97706' : r.sys_ann_confidence === 'C' ? '#dc2626' : r.sys_ann_confidence === 'N/A' ? '#94a3b8' : '#94a3b8'}">${r.sys_ann_confidence || '－'}</span></td>
       <!-- 沈董 -->
-      <td class="g-grades col-div">${gradeHtml(r.shen_grade)}</td>
+      <td class="g-shen col-div">${gradeHtml(r.shen_grade)}</td>
       <td class="g-shen">${r.shen_pe != null ? r.shen_pe.toFixed(2) : '－'}</td>
       <td class="g-shen">${r.shen_yld != null ? r.shen_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-shen"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
