@@ -68,14 +68,25 @@
   }
   .section-title:first-of-type { margin-top: 0; }
   .ref-note { font-size: .78rem; color: #94a3b8; margin-bottom: 8px; }
+  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; }
+  .tab-btn {
+    padding: 10px 20px; font-size: .9rem; font-weight: 600; cursor: pointer;
+    border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
+  }
+  .tab-btn:first-child { border-radius: 8px 0 0 8px; }
+  .tab-btn:last-child { border-radius: 0 8px 8px 0; }
+  .tab-btn.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+  .signal-card { background: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+  .signal-strong { border-left: 4px solid #dc2626; }
+  .signal-normal { border-left: 4px solid #f59e0b; }
+  .holdings-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .weight-bar { display: inline-block; height: 4px; border-radius: 2px; background: #3b82f6; margin-right: 4px; vertical-align: middle; }
 </style>
 </head>
 <body>
 
 <header>
-  <div>
-    <h1>ETF 專區</h1>
-  </div>
+  <div><h1>ETF 專區</h1></div>
   <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
     <a href="/">回總表</a>
     <a href="/daily.html">新聞報告</a>
@@ -85,18 +96,20 @@
 
 <div class="container">
   <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.82rem;color:#92400e;line-height:1.6">
-    <strong>說明：</strong>本報告的異動資料來自系統定期比對各 ETF 持股清單的差異，並非直接取自臺灣指數公司或投信的官方公告。
-    偵測日期與公告生效日可能有 1~2 天的時間差。
+    <strong>說明：</strong>異動資料來自系統定期比對各 ETF 持股清單差異，偵測日期與公告生效日可能有 1~2 天時間差。
     資料來源：元大系列為投信官網完整持股，其餘為 MoneyDJ 前 10 大持股。
   </div>
-  <div class="filter-bar">
-    <select id="catFilter">
-      <option value="">全部分類</option>
-    </select>
-    <select id="etfFilter">
-      <option value="">全部 ETF</option>
-    </select>
-    <label style="margin-left:8px"><input type="checkbox" id="hideNoChange" onchange="render()"> 隱藏無異動</label>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('changes',this)">成分股異動</button>
+    <button class="tab-btn" onclick="switchTab('holdings',this)">持股總覽</button>
+    <button class="tab-btn" onclick="switchTab('cross',this)">跨ETF分析</button>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <select id="catFilter"><option value="">全部分類</option></select>
+    <select id="etfFilter"><option value="">全部 ETF</option></select>
+    <label style="margin-left:8px"><input type="checkbox" id="hideNoChange" onchange="renderCurrentTab()"> 隱藏無異動</label>
   </div>
   <div class="summary" id="summary"></div>
   <div id="content"><div class="loading">載入中...</div></div>
@@ -104,39 +117,53 @@
 
 <script>
 let allData = [];
-
-// 分類排序順序
+let holdingsData = {};
+let _currentTab = 'changes';
 const CAT_ORDER = ['主動式', '高股息', '指標型', '國際指數'];
 
 async function load() {
   try {
-    const res = await fetch('/api/etf/changes-report?limit=5000');
-    allData = await res.json();
+    const [chgRes, listRes] = await Promise.all([
+      fetch('/api/etf/changes-report?limit=5000'),
+      fetch('/api/etf/list'),
+    ]);
+    allData = await chgRes.json();
+    const etfList = await listRes.json();
+    // 預載所有 ETF 持股
+    etfList.forEach(e => { holdingsData[e.code] = e; });
     buildFilter();
-    render();
+    renderCurrentTab();
   } catch (e) {
     document.getElementById('content').innerHTML = '<div class="empty-msg">載入失敗</div>';
   }
 }
 
+function switchTab(tab, btn) {
+  _currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // 異動 tab 顯示篩選列，其他隱藏部分篩選
+  const hideChk = document.getElementById('hideNoChange');
+  hideChk.parentElement.style.display = tab === 'changes' ? '' : 'none';
+  renderCurrentTab();
+}
+
+function renderCurrentTab() {
+  if (_currentTab === 'changes') renderChanges();
+  else if (_currentTab === 'holdings') renderHoldings();
+  else renderCrossAnalysis();
+}
+
 function buildFilter() {
-  // 分類篩選
   const catSel = document.getElementById('catFilter');
   const cats = [...new Set(allData.map(g => g.category || '').filter(Boolean))];
   cats.sort((a, b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
   cats.forEach(cat => {
     const opt = document.createElement('option');
-    opt.value = cat;
-    opt.textContent = cat;
+    opt.value = cat; opt.textContent = cat;
     catSel.appendChild(opt);
   });
-  catSel.onchange = () => {
-    // 重建 ETF 篩選下拉
-    rebuildEtfFilter();
-    render();
-  };
-
-  // ETF 篩選
+  catSel.onchange = () => { rebuildEtfFilter(); renderCurrentTab(); };
   rebuildEtfFilter();
 }
 
@@ -144,54 +171,30 @@ function rebuildEtfFilter() {
   const sel = document.getElementById('etfFilter');
   const catVal = document.getElementById('catFilter').value;
   sel.innerHTML = '<option value="">全部 ETF</option>';
-
   let filtered = allData;
   if (catVal) filtered = filtered.filter(g => g.category === catVal);
-
   const seen = new Set();
   const etfs = [];
   filtered.forEach(g => {
-    if (!seen.has(g.etf_code)) {
-      seen.add(g.etf_code);
-      etfs.push({ code: g.etf_code, name: g.etf_name, category: g.category || '' });
-    }
+    if (!seen.has(g.etf_code)) { seen.add(g.etf_code); etfs.push({ code: g.etf_code, name: g.etf_name, category: g.category || '' }); }
   });
   etfs.sort((a, b) => a.code.localeCompare(b.code));
-
-  // 按分類分組
   const grouped = {};
-  etfs.forEach(e => {
-    const cat = e.category || '其他';
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(e);
-  });
-
+  etfs.forEach(e => { const cat = e.category || '其他'; if (!grouped[cat]) grouped[cat] = []; grouped[cat].push(e); });
   CAT_ORDER.forEach(cat => {
     if (!grouped[cat]) return;
     const og = document.createElement('optgroup');
     og.label = cat;
-    grouped[cat].forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.code;
-      opt.textContent = `${e.code} ${e.name}`;
-      og.appendChild(opt);
-    });
+    grouped[cat].forEach(e => { const opt = document.createElement('option'); opt.value = e.code; opt.textContent = `${e.code} ${e.name}`; og.appendChild(opt); });
     sel.appendChild(og);
   });
-  // 未分類
   if (grouped['其他']) {
     const og = document.createElement('optgroup');
     og.label = '其他';
-    grouped['其他'].forEach(e => {
-      const opt = document.createElement('option');
-      opt.value = e.code;
-      opt.textContent = `${e.code} ${e.name}`;
-      og.appendChild(opt);
-    });
+    grouped['其他'].forEach(e => { const opt = document.createElement('option'); opt.value = e.code; opt.textContent = `${e.code} ${e.name}`; og.appendChild(opt); });
     sel.appendChild(og);
   }
-
-  sel.onchange = render;
+  sel.onchange = renderCurrentTab;
 }
 
 function stockTags(list, cls) {
@@ -201,7 +204,10 @@ function stockTags(list, cls) {
   ).join('') + `<span class="count-badge ${cls === 'tag-add' ? 'count-add' : 'count-remove'}">${cls === 'tag-add' ? '+' : '-'}${list.length}</span>`;
 }
 
-function render() {
+// ══════════════════════════════════════
+// Tab 1: 成分股異動
+// ══════════════════════════════════════
+function renderChanges() {
   const catVal = document.getElementById('catFilter').value;
   const etfVal = document.getElementById('etfFilter').value;
   const hideNoChange = document.getElementById('hideNoChange').checked;
@@ -211,115 +217,214 @@ function render() {
   if (catVal) data = data.filter(g => g.category === catVal);
   if (etfVal) data = data.filter(g => g.etf_code === etfVal);
 
-  // 按 ETF 分組
   const etfMap = {};
   data.forEach(g => {
     if (!etfMap[g.etf_code]) {
-      etfMap[g.etf_code] = {
-        etf_code: g.etf_code,
-        etf_name: g.etf_name,
-        category: g.category || '',
-        holdings: g.holdings || [],
-        today_add: [], today_remove: [],
-        range_add: [], range_remove: [],
-        _today_add_set: new Set(), _today_remove_set: new Set(),
-        _range_add_set: new Set(), _range_remove_set: new Set()
-      };
+      etfMap[g.etf_code] = { etf_code: g.etf_code, etf_name: g.etf_name, category: g.category || '',
+        holdings: g.holdings || [], today_add: [], today_remove: [], range_add: [], range_remove: [],
+        _ta: new Set(), _tr: new Set(), _ra: new Set(), _rr: new Set() };
     }
     const e = etfMap[g.etf_code];
     if (g.change_date === today) {
-      g.add.forEach(s => { if (!e._today_add_set.has(s.code)) { e._today_add_set.add(s.code); e.today_add.push(s); }});
-      g.remove.forEach(s => { if (!e._today_remove_set.has(s.code)) { e._today_remove_set.add(s.code); e.today_remove.push(s); }});
+      g.add.forEach(s => { if (!e._ta.has(s.code)) { e._ta.add(s.code); e.today_add.push(s); }});
+      g.remove.forEach(s => { if (!e._tr.has(s.code)) { e._tr.add(s.code); e.today_remove.push(s); }});
     }
-    g.add.forEach(s => { if (!e._range_add_set.has(s.code)) { e._range_add_set.add(s.code); e.range_add.push(s); }});
-    g.remove.forEach(s => { if (!e._range_remove_set.has(s.code)) { e._range_remove_set.add(s.code); e.range_remove.push(s); }});
+    g.add.forEach(s => { if (!e._ra.has(s.code)) { e._ra.add(s.code); e.range_add.push(s); }});
+    g.remove.forEach(s => { if (!e._rr.has(s.code)) { e._rr.add(s.code); e.range_remove.push(s); }});
   });
 
   let etfs = Object.values(etfMap);
   etfs.sort((a, b) => {
-    // 先按分類排序
-    const catA = CAT_ORDER.indexOf(a.category);
-    const catB = CAT_ORDER.indexOf(b.category);
+    const catA = CAT_ORDER.indexOf(a.category), catB = CAT_ORDER.indexOf(b.category);
     if (catA !== catB) return (catA < 0 ? 99 : catA) - (catB < 0 ? 99 : catB);
-    // 同分類內有異動的排前面
-    const aHas = a.range_add.length + a.range_remove.length;
-    const bHas = b.range_add.length + b.range_remove.length;
+    const aHas = a.range_add.length + a.range_remove.length, bHas = b.range_add.length + b.range_remove.length;
     if (bHas !== aHas) return bHas - aHas;
     return a.etf_code.localeCompare(b.etf_code);
   });
-
-  if (hideNoChange) {
-    etfs = etfs.filter(e => e.range_add.length + e.range_remove.length > 0);
-  }
+  if (hideNoChange) etfs = etfs.filter(e => e.range_add.length + e.range_remove.length > 0);
 
   const box = document.getElementById('content');
-  if (!etfs.length) {
-    box.innerHTML = '<div class="empty-msg">無異動紀錄</div>';
-    document.getElementById('summary').textContent = '';
-    return;
-  }
+  if (!etfs.length) { box.innerHTML = '<div class="empty-msg">無異動紀錄</div>'; document.getElementById('summary').textContent = ''; return; }
 
   const totalAdd = etfs.reduce((s, e) => s + e.range_add.length, 0);
   const totalRemove = etfs.reduce((s, e) => s + e.range_remove.length, 0);
   const todayAdd = etfs.reduce((s, e) => s + e.today_add.length, 0);
   const todayRemove = etfs.reduce((s, e) => s + e.today_remove.length, 0);
-  document.getElementById('summary').textContent =
-    `今日：納入 ${todayAdd} 支、剔除 ${todayRemove} 支｜區間：納入 ${totalAdd} 支、剔除 ${totalRemove} 支`;
+  document.getElementById('summary').textContent = `今日：納入 ${todayAdd} 支、剔除 ${todayRemove} 支｜區間：納入 ${totalAdd} 支、剔除 ${totalRemove} 支`;
 
   const dates = data.map(g => g.change_date).filter(Boolean).sort();
-  const earliest = dates.length ? dates[0] : '';
-  const latest = dates.length ? dates[dates.length - 1] : '';
-  const rangeLabel = earliest && latest && earliest !== latest
-    ? `歷史累計 (${earliest} ~ ${latest})`
-    : earliest ? `歷史累計 (${earliest})` : '歷史累計';
+  const earliest = dates[0] || '', latest = dates[dates.length - 1] || '';
+  const rangeLabel = earliest && latest && earliest !== latest ? `歷史累計 (${earliest} ~ ${latest})` : earliest ? `歷史累計 (${earliest})` : '歷史累計';
 
-  let html = '';
-  let currentCat = null;
-
+  let html = '', currentCat = null;
   etfs.forEach(e => {
-    // 分類標題
     if (e.category !== currentCat) {
       currentCat = e.category;
       if (html) html += '</tbody></table>';
-      html += `<div class="section-title">${currentCat || '其他'}</div>`;
-      html += `<table>
-        <thead>
-          <tr>
-            <th rowspan="2" style="width:140px">ETF</th>
-            <th rowspan="2">成分股</th>
-            <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">今日異動 (${today})</th>
-            <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">${rangeLabel}</th>
-          </tr>
-          <tr>
-            <th class="col-group">納入</th>
-            <th>剔除</th>
-            <th class="col-group">納入</th>
-            <th>剔除</th>
-          </tr>
-        </thead><tbody>`;
+      html += `<div class="section-title">${currentCat || '其他'}</div>
+        <table><thead><tr>
+          <th rowspan="2" style="width:140px">ETF</th><th rowspan="2">成分股</th>
+          <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">今日異動 (${today})</th>
+          <th colspan="2" class="col-group" style="text-align:center;border-bottom:1px solid #e2e8f0">${rangeLabel}</th>
+        </tr><tr><th class="col-group">納入</th><th>剔除</th><th class="col-group">納入</th><th>剔除</th></tr></thead><tbody>`;
     }
-
     const hasChange = e.range_add.length + e.range_remove.length > 0;
-    const trCls = hasChange ? '' : ' class="no-change"';
-
     const holdingsHtml = e.holdings.length
-      ? `<span class="toggle-link" onclick="const t=this.nextElementSibling;t.style.display=t.style.display==='none'?'inline':'none';this.textContent=t.style.display==='none'?'展開 ${e.holdings.length} 支':'收合'">展開 ${e.holdings.length} 支</span>`
-        + `<span style="display:none">${e.holdings.map(s => `<a class="stock-tag tag-hold" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')}</span>`
+      ? `<span class="toggle-link" onclick="const t=this.nextElementSibling;t.style.display=t.style.display==='none'?'inline':'none';this.textContent=t.style.display==='none'?'展開 ${e.holdings.length} 支':'收合'">展開 ${e.holdings.length} 支</span><span style="display:none">${e.holdings.map(s => `<a class="stock-tag tag-hold" href="/company.html?code=${s.code}" target="_blank">${s.code} ${s.name}</a>`).join('')}</span>`
       : '<span class="dash">-</span>';
-
     const catBadge = e.category ? `<span class="etf-cat cat-${e.category}">${e.category}</span>` : '';
-
-    html += `<tr${trCls}>
+    html += `<tr${hasChange ? '' : ' class="no-change"'}>
       <td><span class="etf-code">${e.etf_code}</span><br><span class="etf-name">${e.etf_name}</span><br>${catBadge}</td>
       <td>${holdingsHtml}</td>
-      <td class="col-group">${stockTags(e.today_add, 'tag-add')}</td>
-      <td>${stockTags(e.today_remove, 'tag-remove')}</td>
-      <td class="col-group">${stockTags(e.range_add, 'tag-add')}</td>
-      <td>${stockTags(e.range_remove, 'tag-remove')}</td>
+      <td class="col-group">${stockTags(e.today_add, 'tag-add')}</td><td>${stockTags(e.today_remove, 'tag-remove')}</td>
+      <td class="col-group">${stockTags(e.range_add, 'tag-add')}</td><td>${stockTags(e.range_remove, 'tag-remove')}</td>
     </tr>`;
   });
-
   if (html) html += '</tbody></table>';
+  box.innerHTML = html;
+}
+
+// ══════════════════════════════════════
+// Tab 2: 持股總覽
+// ══════════════════════════════════════
+async function renderHoldings() {
+  const catVal = document.getElementById('catFilter').value;
+  const etfVal = document.getElementById('etfFilter').value;
+  document.getElementById('summary').textContent = '';
+  const box = document.getElementById('content');
+  box.innerHTML = '<div class="loading">載入持股資料中...</div>';
+
+  // 從 changes-report 取得各 ETF 持股（已在 allData 裡）
+  const etfMap = {};
+  allData.forEach(g => {
+    if (!etfMap[g.etf_code] && g.holdings && g.holdings.length) {
+      etfMap[g.etf_code] = { code: g.etf_code, name: g.etf_name, category: g.category || '', holdings: g.holdings };
+    }
+  });
+
+  let etfs = Object.values(etfMap);
+  if (catVal) etfs = etfs.filter(e => e.category === catVal);
+  if (etfVal) etfs = etfs.filter(e => e.code === etfVal);
+  etfs.sort((a, b) => {
+    const ca = CAT_ORDER.indexOf(a.category), cb = CAT_ORDER.indexOf(b.category);
+    if (ca !== cb) return (ca < 0 ? 99 : ca) - (cb < 0 ? 99 : cb);
+    return a.code.localeCompare(b.code);
+  });
+
+  if (!etfs.length) { box.innerHTML = '<div class="empty-msg">無持股資料</div>'; return; }
+
+  let html = '';
+  etfs.forEach(e => {
+    const catBadge = e.category ? `<span class="etf-cat cat-${e.category}">${e.category}</span>` : '';
+    const maxWeight = Math.max(...e.holdings.map(s => s.weight || 0), 1);
+    html += `<div class="signal-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span class="etf-code" style="font-size:1rem">${e.code}</span>
+        <span class="etf-name" style="font-size:.9rem">${e.name}</span>
+        ${catBadge}
+        <span style="margin-left:auto;font-size:.82rem;color:#94a3b8">${e.holdings.length} 檔成分股</span>
+      </div>
+      <div class="holdings-grid">`;
+    e.holdings.forEach((s, i) => {
+      const barW = Math.max(Math.round((s.weight || 0) / maxWeight * 40), 2);
+      const weightStr = s.weight ? s.weight.toFixed(2) + '%' : '';
+      html += `<a href="/company.html?code=${s.code}" target="_blank" class="stock-tag tag-hold" style="min-width:120px" title="${s.name} ${weightStr}">
+        <span class="weight-bar" style="width:${barW}px"></span>${s.code} ${s.name}${weightStr ? ' <span style="color:#94a3b8;font-size:.7rem">' + weightStr + '</span>' : ''}
+      </a>`;
+    });
+    html += '</div></div>';
+  });
+
+  box.innerHTML = html;
+}
+
+// ══════════════════════════════════════
+// Tab 3: 跨ETF分析
+// ══════════════════════════════════════
+function renderCrossAnalysis() {
+  document.getElementById('summary').textContent = '';
+  const box = document.getElementById('content');
+
+  // 統計每支股票被幾檔 ETF 持有
+  const stockMap = {}; // code -> { name, etfs: [{code, name, category}] }
+  const etfSeen = {};
+  allData.forEach(g => {
+    if (!g.holdings || etfSeen[g.etf_code]) return;
+    etfSeen[g.etf_code] = true;
+    g.holdings.forEach(s => {
+      if (!stockMap[s.code]) stockMap[s.code] = { name: s.name, etfs: [] };
+      stockMap[s.code].etfs.push({ code: g.etf_code, name: g.etf_name, category: g.category || '' });
+    });
+  });
+
+  // 統計異動（被多檔 ETF 同時新增或剔除）
+  const addMap = {}, removeMap = {};
+  allData.forEach(g => {
+    (g.add || []).forEach(s => {
+      if (!addMap[s.code]) addMap[s.code] = { name: s.name, etfs: [] };
+      if (!addMap[s.code].etfs.find(e => e.code === g.etf_code))
+        addMap[s.code].etfs.push({ code: g.etf_code, name: g.etf_name, category: g.category });
+    });
+    (g.remove || []).forEach(s => {
+      if (!removeMap[s.code]) removeMap[s.code] = { name: s.name, etfs: [] };
+      if (!removeMap[s.code].etfs.find(e => e.code === g.etf_code))
+        removeMap[s.code].etfs.push({ code: g.etf_code, name: g.etf_name, category: g.category });
+    });
+  });
+
+  let html = '';
+
+  // 多 ETF 同時剔除（強訊號）
+  const multiRemove = Object.entries(removeMap).filter(([_, v]) => v.etfs.length >= 2).sort((a, b) => b[1].etfs.length - a[1].etfs.length);
+  if (multiRemove.length) {
+    html += '<div class="section-title" style="color:#991b1b;border-color:#dc2626">多檔 ETF 同時剔除（留意訊號）</div>';
+    multiRemove.forEach(([code, v]) => {
+      html += `<div class="signal-card signal-strong">
+        <a href="/company.html?code=${code}" target="_blank" style="font-weight:700;color:#1e3a5f;text-decoration:none;font-size:.95rem">${code} ${v.name}</a>
+        <span style="font-size:.82rem;color:#991b1b;margin-left:10px">被 ${v.etfs.length} 檔 ETF 剔除</span>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          ${v.etfs.map(e => `<span style="font-size:.78rem;padding:2px 8px;background:#fee2e2;color:#991b1b;border-radius:4px">${e.code} ${e.name}</span>`).join('')}
+        </div>
+      </div>`;
+    });
+  }
+
+  // 多 ETF 同時納入（正面訊號）
+  const multiAdd = Object.entries(addMap).filter(([_, v]) => v.etfs.length >= 2).sort((a, b) => b[1].etfs.length - a[1].etfs.length);
+  if (multiAdd.length) {
+    html += '<div class="section-title" style="color:#166534;border-color:#059669">多檔 ETF 同時納入（正面訊號）</div>';
+    multiAdd.forEach(([code, v]) => {
+      html += `<div class="signal-card signal-normal" style="border-left-color:#059669">
+        <a href="/company.html?code=${code}" target="_blank" style="font-weight:700;color:#1e3a5f;text-decoration:none;font-size:.95rem">${code} ${v.name}</a>
+        <span style="font-size:.82rem;color:#059669;margin-left:10px">被 ${v.etfs.length} 檔 ETF 納入</span>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          ${v.etfs.map(e => `<span style="font-size:.78rem;padding:2px 8px;background:#dcfce7;color:#166534;border-radius:4px">${e.code} ${e.name}</span>`).join('')}
+        </div>
+      </div>`;
+    });
+  }
+
+  // 被最多 ETF 持有的股票 Top 20
+  const topHeld = Object.entries(stockMap).sort((a, b) => b[1].etfs.length - a[1].etfs.length).slice(0, 30);
+  if (topHeld.length) {
+    html += '<div class="section-title">被最多 ETF 持有的股票（前 30）</div>';
+    html += '<table><thead><tr><th style="width:60px">代碼</th><th style="width:100px">名稱</th><th style="width:60px;text-align:center">ETF數</th><th>持有的 ETF</th></tr></thead><tbody>';
+    topHeld.forEach(([code, v]) => {
+      const etfTags = v.etfs.map(e => {
+        const catCls = e.category ? ` cat-${e.category}` : '';
+        return `<span style="font-size:.75rem;padding:1px 6px;border-radius:3px;margin:1px 2px;display:inline-block;background:#f1f5f9;color:#334155">${e.code}</span>`;
+      }).join('');
+      html += `<tr>
+        <td><a href="/company.html?code=${code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${code}</a></td>
+        <td>${v.name}</td>
+        <td style="text-align:center;font-weight:700;color:${v.etfs.length >= 5 ? '#dc2626' : v.etfs.length >= 3 ? '#d97706' : '#334155'}">${v.etfs.length}</td>
+        <td>${etfTags}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  if (!html) html = '<div class="empty-msg">暫無跨 ETF 分析資料</div>';
   box.innerHTML = html;
 }
 
