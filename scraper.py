@@ -1287,8 +1287,7 @@ def run(scheduled=True):
                 if yr not in merged:
                     merged[yr] = r[f'eps_y{i}']
 
-        if not r.get('eps_date') and merged:
-            r['eps_date'] = today_str
+        # eps_date 只在季度 EPS (eps_1q) 真正變更時才更新，年度 EPS 合併不觸發
 
         # 寫回最近 6 年
         sorted_yrs = sorted(merged.keys(), reverse=True)[:6]
@@ -1528,15 +1527,15 @@ def _check_annual_eps_completeness():
         c.execute("""UPDATE stocks SET
             eps_y1=?, eps_y1_label=?, eps_y2=?, eps_y2_label=?,
             eps_y3=?, eps_y3_label=?, eps_y4=?, eps_y4_label=?,
-            eps_y5=?, eps_y5_label=?, eps_y6=?, eps_y6_label=?,
-            eps_date=? WHERE code=?""",
+            eps_y5=?, eps_y5_label=?, eps_y6=?, eps_y6_label=?
+            WHERE code=?""",
             (vals['eps_y1'], vals['eps_y1_label'],
              vals['eps_y2'], vals['eps_y2_label'],
              vals['eps_y3'], vals['eps_y3_label'],
              vals['eps_y4'], vals['eps_y4_label'],
              vals['eps_y5'], vals['eps_y5_label'],
              vals['eps_y6'], vals['eps_y6_label'],
-             now.strftime('%Y-%m-%d'), code))
+             code))
         if c.rowcount:
             updated += 1
 
