@@ -399,6 +399,25 @@
   .dec-table .v-neg { color: #16a34a; }
   .dec-table .grade-cell { font-weight: 700; text-align: center; }
   .dec-table .section-row td { background: #f1f5f9; font-weight: 700; color: #475569; border-top: 2px solid #cbd5e1; }
+  /* 決策摘要卡片 */
+  .dec-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .dec-card { flex: 1; min-width: 220px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; }
+  .dec-card-title { font-size: .78rem; color: #64748b; font-weight: 600; margin-bottom: 8px; }
+  .dec-card-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: .85rem; }
+  .dec-card-label { color: #475569; }
+  .dec-card-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .val-hit { padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+  .val-aa { background: #fee2e2; color: #dc2626; }
+  .val-a1 { background: #fef3c7; color: #92400e; }
+  .val-a2 { background: #fef3c7; color: #92400e; }
+  .val-a { background: #dbeafe; color: #1d4ed8; }
+  .val-lt6 { background: #dcfce7; color: #166534; }
+  .grade-tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.78rem; font-weight:700; }
+  .grade-A { background:#fee2e2; color:#dc2626; }
+  .grade-B { background:#fff7ed; color:#ea580c; }
+  .grade-C { background:#f1f5f9; color:#94a3b8; }
+  .inst-pos { color: #dc2626; font-weight: 600; }
+  .inst-neg { color: #16a34a; font-weight: 600; }
 
   /* ── 月營收表格 ── */
   .rev-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
@@ -653,6 +672,191 @@ async function loadDecision() {
     const fmtMd = v => v != null ? Math.round(v).toLocaleString('zh-TW') : '-';
     const fmt2 = v => v != null ? Number(v).toFixed(2) : '-';
     const fmtP = v => v != null ? Number(v).toFixed(1) + '%' : '-';
+
+    // === 衍生欄位計算（評價/等級/明細）===
+    const _gv = JSON.parse(localStorage.getItem('global_val_params') || 'null') || { peHigh: 18, peLow: 10, yldFloor: 5, yldHigh: 5.5, yldMax: 6 };
+    const _dw = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || [30, 30, 20, 10, 10];
+    const _bs = JSON.parse(localStorage.getItem('blend_weights') || 'null') || { shen: 50, wt: 50 };
+
+    // 個股參數覆蓋
+    let _peHi = _gv.peHigh, _peLo = _gv.peLow, _yHigh = _gv.yldHigh, _yMax = _gv.yldMax, _yFloor = _gv.yldFloor;
+    let userEps, userDiv;
+    try {
+      const saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}');
+      if (saved.peHigh) _peHi = parseFloat(saved.peHigh);
+      if (saved.peLow) _peLo = parseFloat(saved.peLow);
+      if (saved.yldHigh) _yHigh = parseFloat(saved.yldHigh);
+      if (saved.yldMax) _yMax = parseFloat(saved.yldMax);
+      const qs = [saved.q1, saved.q2, saved.q3, saved.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
+      if (qs.length > 0) userEps = Math.round(qs.reduce((a,b) => a+b, 0) * 100) / 100;
+      if (saved.div) userDiv = parseFloat(saved.div);
+    } catch(e) {}
+
+    // 等級矩陣計算
+    function _calcGrade(pe, yld) {
+      if (pe == null || pe <= 0 || yld == null || yld <= 0) return 'X';
+      if (!_peHi || !_peLo || !_yHigh || !_yMax) return null;
+      const peFair = (_peHi + _peLo) / 2, peAbove = (_peHi + peFair) / 2, peBelow = (peFair + _peLo) / 2;
+      const peCols = [[-Infinity,_peLo],[_peLo,peBelow],[peBelow,peFair],[peFair,peAbove],[peAbove,_peHi],[_peHi,Infinity]];
+      const yRows = [[_yMax,Infinity],[_yHigh,_yMax],[_yFloor,_yHigh],[-Infinity,_yFloor]];
+      const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
+      const col = peCols.findIndex(c => pe >= c[0] && pe < c[1]);
+      const row = yRows.findIndex(y => yld >= y[0] && yld < y[1]);
+      return (col >= 0 && row >= 0) ? grades[row][col] : null;
+    }
+    function _gradeHtml(g) {
+      if (!g) return '-';
+      const cls = ['AA','A1','A2','A','BA1','BA2','B1A','B2A'].includes(g) ? 'grade-A' : ['B1','B2','BA1','BA2'].includes(g) ? 'grade-B' : 'grade-C';
+      return `<span class="grade-tag ${cls}">${g}</span>`;
+    }
+
+    const close = stock.close;
+    const shen_eps = stock.shen_eps;
+    const shen_div = stock.shen_div;
+    const shen_pe = (shen_eps > 0 && close) ? Math.round(close / shen_eps * 100) / 100 : null;
+    const shen_yld = (shen_div > 0 && close > 0) ? Math.round(shen_div / close * 10000) / 100 : null;
+    const shen_grade = (shen_eps != null && shen_eps <= 0) ? 'X' : (shen_pe && shen_yld) ? _calcGrade(shen_pe, shen_yld) : null;
+
+    // 加權 EPS
+    let weighted_eps = null;
+    { let we = 0, ws2 = 0;
+      for (let i = 1; i <= 5; i++) { const e = stock[`eps_y${i}`], w = _dw[i-1] || 0; if (e != null && w > 0) { we += e * w / 100; ws2 += w; } }
+      if (ws2 > 0) weighted_eps = Math.round(we * 100) / 100;
+    }
+    const weighted_div = stock.weighted_div;
+    const weighted_pe = (weighted_eps > 0 && close) ? Math.round(close / weighted_eps * 100) / 100 : null;
+    const weighted_yld = (weighted_div > 0 && close > 0) ? Math.round(weighted_div / close * 10000) / 100 : null;
+
+    // 綜合
+    const bS = (_bs.shen || 50) / 100, bW = (_bs.wt || 50) / 100;
+    let blend_eps = null;
+    if (shen_eps != null && weighted_eps != null) blend_eps = Math.round((shen_eps * bS + weighted_eps * bW) * 100) / 100;
+    else if (shen_eps != null) blend_eps = shen_eps;
+    else if (weighted_eps != null) blend_eps = weighted_eps;
+    const blend_div = stock.blend_div;
+    const blend_pe = (blend_eps > 0 && close) ? Math.round(close / blend_eps * 100) / 100 : null;
+    const blend_yld = (blend_div > 0 && close > 0) ? Math.round(blend_div / close * 10000) / 100 : null;
+    const blend_grade = (blend_eps != null && blend_eps <= 0) ? 'X' : (blend_pe && blend_yld) ? _calcGrade(blend_pe, blend_yld) : null;
+
+    // 預估
+    let est_eps = userEps || (stock.sys_ann_eps != null ? stock.sys_ann_eps : null);
+    let est_div = userDiv || (stock.sys_ann_div != null ? stock.sys_ann_div : null);
+    const est_pe = (est_eps > 0 && close) ? Math.round(close / est_eps * 100) / 100 : null;
+    const est_yld = (est_div > 0 && close > 0) ? Math.round(est_div / close * 10000) / 100 : null;
+    const est_grade = (est_eps != null && est_eps <= 0) ? 'X' : (est_pe && est_yld) ? _calcGrade(est_pe, est_yld) : null;
+
+    // 評價門檻
+    function _calcVal(peVal, yldVal) {
+      const eps = est_eps != null ? est_eps : shen_eps;
+      const div = est_div != null ? est_div : shen_div;
+      const bDiv = blend_div;
+      if (eps == null || eps <= 0 || div == null || div <= 0) return null;
+      const v1 = eps * peVal, v2 = div / (yldVal / 100);
+      const candidates = [v1, v2];
+      if (bDiv != null && bDiv > 0) candidates.push(bDiv / 0.06 + div);
+      return Math.round(Math.min(...candidates) * 100) / 100;
+    }
+    const peBias = ((_peHi + _peLo) / 2 + _peLo) / 2;
+    const val_aa = _calcVal(_peLo, _yMax);
+    const val_a1 = _calcVal(_peLo, _yHigh);
+    const val_a2 = _calcVal(peBias, _yMax);
+    const val_a  = _calcVal(peBias, _yHigh);
+    const val_lt6 = (blend_div > 0) ? Math.round(blend_div / 0.06 * 100) / 100 : null;
+
+    // 判斷目前落在哪個等級
+    let curLevel = null;
+    if (close != null) {
+      if (val_aa != null && close <= val_aa + 0.005) curLevel = 'aa';
+      else if (val_a1 != null && close <= val_a1 + 0.005) curLevel = 'a1';
+      else if (val_a2 != null && close <= val_a2 + 0.005) curLevel = 'a2';
+      else if (val_a != null && close <= val_a + 0.005) curLevel = 'a';
+      else if (val_lt6 != null && close <= val_lt6 + 0.005) curLevel = 'lt6';
+    }
+
+    const fmtV = v => v != null ? v.toFixed(2) : '-';
+    const fmtInst = v => { if (v == null) return '-'; const cls = v > 0 ? 'inst-pos' : v < 0 ? 'inst-neg' : ''; return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toLocaleString('zh-TW')}</span>`; };
+    const chg = stock.change;
+    const chgStr = chg != null ? `<span style="color:${chg > 0 ? '#dc2626' : chg < 0 ? '#16a34a' : '#64748b'};font-weight:600">${chg > 0 ? '+' : ''}${chg.toFixed(2)}</span>` : '-';
+
+    // === 評價摘要區 ===
+    let html = '<div class="dec-cards">';
+    // 卡片1：股價 + 評價門檻
+    html += '<div class="dec-card">';
+    html += '<div class="dec-card-title">個股評價</div>';
+    html += `<div class="dec-card-row"><span class="dec-card-label">收盤價</span><span class="dec-card-val" style="font-size:1.1rem">${fmtV(close)} ${chgStr}</span></div>`;
+    const valLevels = [
+      { key: 'aa', label: '評價AA', val: val_aa, cls: 'val-aa' },
+      { key: 'a1', label: '評價A1', val: val_a1, cls: 'val-a1' },
+      { key: 'a2', label: '評價A2', val: val_a2, cls: 'val-a2' },
+      { key: 'a',  label: '評價A',  val: val_a,  cls: 'val-a' },
+      { key: 'lt6', label: '長期6%', val: val_lt6, cls: 'val-lt6' },
+    ];
+    valLevels.forEach(lv => {
+      const hit = curLevel === lv.key;
+      html += `<div class="dec-card-row"><span class="dec-card-label">${lv.label}</span><span class="dec-card-val${hit ? ' val-hit ' + lv.cls : ''}">${fmtV(lv.val)}</span></div>`;
+    });
+    html += '</div>';
+
+    // 卡片2：法人買賣
+    html += '<div class="dec-card">';
+    html += '<div class="dec-card-title">法人買賣超（張）</div>';
+    html += `<div class="dec-card-row"><span class="dec-card-label">外資</span><span class="dec-card-val">${fmtInst(stock.inst_foreign)}</span></div>`;
+    html += `<div class="dec-card-row"><span class="dec-card-label">投信</span><span class="dec-card-val">${fmtInst(stock.inst_trust)}</span></div>`;
+    html += `<div class="dec-card-row"><span class="dec-card-label">自營商</span><span class="dec-card-val">${fmtInst(stock.inst_dealer)}</span></div>`;
+    const instTotal = [stock.inst_foreign, stock.inst_trust, stock.inst_dealer].filter(v => v != null);
+    if (instTotal.length > 0) {
+      const total = instTotal.reduce((a,b) => a+b, 0);
+      html += `<div class="dec-card-row" style="border-top:1px solid #e2e8f0;margin-top:4px;padding-top:6px"><span class="dec-card-label">合計</span><span class="dec-card-val">${fmtInst(total)}</span></div>`;
+    }
+    html += '</div>';
+
+    // 卡片3：系統估算
+    html += '<div class="dec-card">';
+    html += '<div class="dec-card-title">系統估算</div>';
+    html += `<div class="dec-card-row"><span class="dec-card-label">系統EPS</span><span class="dec-card-val">${fmtV(stock.sys_ann_eps)}</span></div>`;
+    html += `<div class="dec-card-row"><span class="dec-card-label">系統PE</span><span class="dec-card-val">${fmtV(stock.sys_ann_pe)}</span></div>`;
+    html += `<div class="dec-card-row"><span class="dec-card-label">系統殖利率</span><span class="dec-card-val">${stock.sys_ann_yld != null ? stock.sys_ann_yld.toFixed(2) + '%' : '-'}</span></div>`;
+    html += `<div class="dec-card-row"><span class="dec-card-label">系統股利</span><span class="dec-card-val">${fmtV(stock.sys_ann_div)}</span></div>`;
+    const confColor = stock.sys_ann_confidence === 'A' ? '#059669' : stock.sys_ann_confidence === 'B' ? '#d97706' : stock.sys_ann_confidence === 'C' ? '#dc2626' : '#94a3b8';
+    html += `<div class="dec-card-row"><span class="dec-card-label">信心度</span><span class="dec-card-val" style="padding:2px 8px;border-radius:8px;color:#fff;background:${confColor}">${stock.sys_ann_confidence || '-'}</span></div>`;
+    html += '</div>';
+    html += '</div>';
+
+    // === 各方法比較表 ===
+    html += '<div class="dec-section"><div class="dec-title">評估方法比較</div>';
+    html += '<table class="dec-table"><thead><tr><th style="width:100px">方法</th><th>等級</th><th>EPS</th><th>PE</th><th>殖利率</th><th>股利</th></tr></thead><tbody>';
+    const methods = [
+      { name: '預估', grade: est_grade, eps: est_eps, pe: est_pe, yld: est_yld, div: est_div },
+      { name: '沈董', grade: shen_grade, eps: shen_eps, pe: shen_pe, yld: shen_yld, div: shen_div },
+      { name: '綜合', grade: blend_grade, eps: blend_eps, pe: blend_pe, yld: blend_yld, div: blend_div },
+      { name: '加權', grade: null, eps: weighted_eps, pe: weighted_pe, yld: weighted_yld, div: weighted_div },
+      { name: '系統', grade: null, eps: stock.sys_ann_eps, pe: stock.sys_ann_pe, yld: stock.sys_ann_yld, div: stock.sys_ann_div },
+    ];
+    methods.forEach(m => {
+      html += `<tr><td class="row-label">${m.name}</td>`;
+      html += `<td style="text-align:center">${_gradeHtml(m.grade)}</td>`;
+      html += `<td>${fmtV(m.eps)}</td><td>${fmtV(m.pe)}</td>`;
+      html += `<td>${m.yld != null ? m.yld.toFixed(2) + '%' : '-'}</td>`;
+      html += `<td>${fmtV(m.div)}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+
+    // === 股利歷史表 ===
+    const divLabels = [];
+    for (let i = 1; i <= 6; i++) { const l = stock[`div_${i}_label`]; if (l) divLabels.push({ idx: i, label: l }); }
+    if (divLabels.length > 0) {
+      html += '<div class="dec-section"><div class="dec-title">股利歷史</div>';
+      html += '<table class="dec-table"><thead><tr><th style="width:100px">項目</th>';
+      divLabels.forEach(d => { html += `<th>${d.label}年</th>`; });
+      html += '</tr></thead><tbody>';
+      html += '<tr><td class="row-label">現金股利</td>';
+      divLabels.forEach(d => { const v = stock[`div_c${d.idx}`]; html += `<td>${v != null ? v.toFixed(2) : '-'}</td>`; });
+      html += '</tr><tr><td class="row-label">股票股利</td>';
+      divLabels.forEach(d => { const v = stock[`div_s${d.idx}`]; html += `<td>${v != null ? v.toFixed(2) : '-'}</td>`; });
+      html += '</tr><tr><td class="row-label">合計</td>';
+      divLabels.forEach(d => { const c = stock[`div_c${d.idx}`] || 0, s = stock[`div_s${d.idx}`] || 0; html += `<td style="font-weight:600">${(c+s) > 0 ? (c+s).toFixed(2) : '-'}</td>`; });
+      html += '</tr></tbody></table></div>';
+    }
 
     // === 季度表 ===
     const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
