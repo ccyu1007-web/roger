@@ -779,7 +779,7 @@ async function loadDecision() {
     const chgStr = chg != null ? `<span style="color:${chg > 0 ? '#dc2626' : chg < 0 ? '#16a34a' : '#64748b'};font-weight:600">${chg > 0 ? '+' : ''}${chg.toFixed(2)}</span>` : '-';
 
     // === 評價摘要區 ===
-    let html = '<div class="dec-cards">';
+    let html = '<div class="dec-cards">';  // 決策表統一用這個 html 變數
     // 卡片1：股價 + 評價門檻
     html += '<div class="dec-card">';
     html += '<div class="dec-card-title">個股評價</div>';
@@ -899,7 +899,7 @@ async function loadDecision() {
       'eps_nonop': qEstDet.est_eps_nonop,
     };
 
-    let html = '<div class="dec-section"><div class="dec-title">季度資料（最近四季）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
+    html += '<div class="dec-section"><div class="dec-title">季度資料（最近四季）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
     html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
     qHeaders.forEach(h => {
       html += `<th>${h}</th>`;
