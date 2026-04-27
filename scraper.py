@@ -3436,6 +3436,7 @@ def _push_annual_to_render():
     try:
         conn = sqlite3.connect(DB_PATH)
         rows = conn.execute("""SELECT code, eps_date,
+            eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
             eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
             eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
             div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
@@ -3448,6 +3449,7 @@ def _push_annual_to_render():
         conn.close()
 
         cols = ['code', 'eps_date',
+            'eps_1','eps_1q','eps_2','eps_2q','eps_3','eps_3q','eps_4','eps_4q','eps_5','eps_5q',
             'eps_y1','eps_y1_label','eps_y2','eps_y2_label','eps_y3','eps_y3_label',
             'eps_y4','eps_y4_label','eps_y5','eps_y5_label','eps_y6','eps_y6_label',
             'div_c1','div_s1','div_1_label','div_c2','div_s2','div_2_label',

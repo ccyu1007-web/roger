@@ -517,6 +517,12 @@ def sync_annual():
         if 'eps_date' in r:
             fields.append('eps_date=?')
             vals.append(r['eps_date'])
+        # 季度 EPS（eps_1~eps_5, eps_1q~eps_5q）
+        for i in range(1, 6):
+            for prefix in [f'eps_{i}', f'eps_{i}q']:
+                if prefix in r:
+                    fields.append(f'{prefix}=?')
+                    vals.append(r[prefix])
         for i in range(1, 7):
             for prefix in [f'eps_y{i}', f'eps_y{i}_label',
                            f'div_c{i}', f'div_s{i}', f'div_{i}_label',
