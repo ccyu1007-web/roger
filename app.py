@@ -571,10 +571,17 @@ def sync_financial_annual():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     updated = 0
-    fa_cols = ['revenue','cost','gross_profit','operating_expense','operating_income',
+    errors = 0
+    # 查詢實際存在的欄位
+    try:
+        c.execute("SELECT * FROM financial_annual LIMIT 0")
+        existing_cols = set(desc[0] for desc in c.description)
+    except:
+        existing_cols = set()
+    fa_cols = [col for col in ['revenue','cost','gross_profit','operating_expense','operating_income',
                'non_operating','pretax_income','tax','net_income','net_income_parent',
                'total_assets','total_equity','common_stock','inventory','contract_liability',
-               'operating_cf','capex','eps','weighted_shares','cash_dividend','stock_dividend']
+               'operating_cf','capex','eps','weighted_shares','cash_dividend','stock_dividend'] if col in existing_cols]
     for r in rows:
         code = r.get('code')
         year = r.get('year')
@@ -593,7 +600,6 @@ def sync_financial_annual():
             try:
                 c.execute(f"UPDATE financial_annual SET {', '.join(fields)} WHERE code=? AND year=?", vals)
                 if c.rowcount == 0:
-                    # 不存在就 INSERT
                     ins_fields = {col: r[col] for col in fa_cols if col in r and r[col] is not None}
                     ins_fields['code'] = code
                     ins_fields['year'] = year
@@ -603,8 +609,10 @@ def sync_financial_annual():
                     c.execute(f"INSERT INTO financial_annual ({col_names}) VALUES ({placeholders})",
                               list(ins_fields.values()))
                 updated += 1
-            except Exception:
-                pass
+            except Exception as e:
+                errors += 1
+                if errors <= 3:
+                    print(f"[sync_financial_annual] {code} {year} 失敗: {e}")
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
