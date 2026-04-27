@@ -573,18 +573,20 @@ async function loadDecision() {
   const panel = document.getElementById('panel');
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入決策表...</div></div>';
   try {
-    const [qRes, fRes, sRes, aeRes, qeRes] = await Promise.all([
+    const [qRes, fRes, sRes, aeRes, qeRes, peRes] = await Promise.all([
       fetch(`/api/stocks/${CODE}/quarterly`),
       fetch(`/api/stocks/${CODE}/financials`),
       fetch(`/api/stocks?exact=${CODE}`),
       fetch(`/api/stocks/${CODE}/system-estimate-annual`),
-      fetch(`/api/stocks/${CODE}/system-estimate`)
+      fetch(`/api/stocks/${CODE}/system-estimate`),
+      fetch(`/api/stocks/${CODE}/pe-history`)
     ]);
     const qData = await qRes.json();
     const fData = await fRes.json();
     const sData = await sRes.json();
     const annEst = await aeRes.json();
     const qEst = await qeRes.json();
+    const peData = await peRes.json();
 
     const quarters = (Array.isArray(qData) ? qData : qData.data || qData.quarters || []).slice(0, 4);
     const annuals = (fData.data || []).slice(0, 4);
@@ -840,6 +842,32 @@ async function loadDecision() {
       html += `<td>${fmtV(m.div)}</td></tr>`;
     });
     html += '</tbody></table></div>';
+
+    // === 歷史本益比 ===
+    const peHist = peData.data || [];
+    const peEst = peData.estimate || {};
+    if (peHist.length > 0) {
+      html += '<div class="dec-section"><div class="dec-title">歷史本益比（近 ' + peHist.length + ' 年）</div>';
+      html += '<table class="dec-table"><thead><tr><th style="width:100px">年度</th>';
+      peHist.forEach(d => { html += `<th>${d.year - 1911}</th>`; });
+      html += '</tr></thead><tbody>';
+      html += '<tr><td class="row-label">最高</td>';
+      peHist.forEach(d => { html += `<td style="color:#dc2626">${d.pe_high != null ? d.pe_high.toFixed(1) : '-'}</td>`; });
+      html += '</tr><tr><td class="row-label">最低</td>';
+      peHist.forEach(d => { html += `<td style="color:#16a34a">${d.pe_low != null ? d.pe_low.toFixed(1) : '-'}</td>`; });
+      html += '</tr></tbody></table>';
+      if (peEst.avg_high) {
+        html += '<div style="display:flex;gap:12px;align-items:center;margin-top:8px;font-size:.82rem;flex-wrap:wrap">';
+        html += '<span style="color:#64748b">統計：</span>';
+        html += `<span style="color:#475569">平均 <b style="color:#dc2626">${peEst.avg_high}</b> / <b style="color:#16a34a">${peEst.avg_low}</b></span>`;
+        html += `<span style="color:#475569">中位數 <b style="color:#dc2626">${peEst.median_high}</b> / <b style="color:#16a34a">${peEst.median_low}</b></span>`;
+        if (peEst.trimmed_avg_high) {
+          html += `<span style="color:#475569">去極值 <b style="color:#dc2626">${peEst.trimmed_avg_high}</b> / <b style="color:#16a34a">${peEst.trimmed_avg_low}</b></span>`;
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
 
     // === 股利歷史表 ===
     const divLabels = [];
