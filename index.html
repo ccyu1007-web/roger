@@ -1475,13 +1475,30 @@ function calcDerived(r) {
   }
 
   // 建立映射表（固定欄位用）
-  r._qeps = {};  // 季度EPS: {'115Q1': 5.0, '114Q4': 19.51, ...}
+  r._qeps = {};  // 季EPS(累計): {'115Q1': 5.0, '114Q4': 66.26, ...}
   r._yeps = {};  // 年度EPS: {'114': 66.26, '113': 45.26, ...}
   r._div = {};   // 股利: {'114': {c:16, s:0}, ...}
   r._po = {};    // 配息率: {'114': 24.15, ...}
+  // 先收集單季 EPS，再按年度累計
+  const _singleQ = {};
   for (let i = 1; i <= 5; i++) {
-    if (r[`eps_${i}q`] != null) r._qeps[r[`eps_${i}q`]] = r[`eps_${i}`];
+    const q = r[`eps_${i}q`], v = r[`eps_${i}`];
+    if (q != null && v != null) _singleQ[q] = v;
   }
+  // 按年度分組，再依季度排序累加
+  const _qByYear = {};
+  Object.entries(_singleQ).forEach(([q, v]) => {
+    const m = q.match(/^(\d+)Q(\d)$/);
+    if (!m) return;
+    const yr = m[1], qn = parseInt(m[2]);
+    if (!_qByYear[yr]) _qByYear[yr] = [];
+    _qByYear[yr].push({ q, qn, v });
+  });
+  Object.values(_qByYear).forEach(arr => {
+    arr.sort((a, b) => a.qn - b.qn);
+    let cum = 0;
+    arr.forEach(item => { cum += item.v; r._qeps[item.q] = Math.round(cum * 100) / 100; });
+  });
   for (let i = 1; i <= 6; i++) {
     if (r[`eps_y${i}_label`] != null) r._yeps[r[`eps_y${i}_label`]] = r[`eps_y${i}`];
     if (r[`div_${i}_label`] != null) {
