@@ -469,6 +469,12 @@ def sync_quarterly():
     rows = request.json['data']
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # 確保欄位存在（Render PostgreSQL 可能缺少新欄位）
+    for col, typ in [('inventory', 'REAL'), ('continuing_income', 'REAL')]:
+        try: c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} {typ}")
+        except: pass
+    try: conn.commit()
+    except: pass
     updated = 0
     qf_cols = ['revenue','cost','gross_profit','operating_expense','operating_income',
                'non_operating','pretax_income','tax','continuing_income',
