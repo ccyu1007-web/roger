@@ -1248,6 +1248,53 @@ def bulk_revenue():
         'last_year': last_year,
     })
 
+# ── 沈董系統用的儲存 API ─────────────────────────────────────
+@app.route("/api/shendong/estimates/<code>", methods=["GET"])
+def shendong_get_estimate(code):
+    rows = query_db("SELECT data FROM shendong_estimates WHERE code=?", (code,))
+    import json
+    return jsonify(json.loads(rows[0]['data']) if rows else {})
+
+@app.route("/api/shendong/estimates/<code>", methods=["POST"])
+def shendong_save_estimate(code):
+    import json
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("CREATE TABLE IF NOT EXISTS shendong_estimates (code TEXT PRIMARY KEY, data TEXT, updated_at TEXT)")
+    conn.execute("INSERT OR REPLACE INTO shendong_estimates (code, data, updated_at) VALUES (?, ?, datetime('now'))", (code, json.dumps(request.json)))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+@app.route("/api/shendong/estimates", methods=["GET"])
+def shendong_get_all_estimates():
+    import json
+    try:
+        rows = query_db("SELECT code, data FROM shendong_estimates")
+        return jsonify({r['code']: json.loads(r['data']) for r in rows})
+    except:
+        return jsonify({})
+
+@app.route("/api/shendong/watchlist", methods=["GET"])
+def shendong_get_watchlist():
+    try:
+        rows = query_db("SELECT code FROM shendong_watchlist ORDER BY added_at")
+        return jsonify([r['code'] for r in rows])
+    except:
+        return jsonify([])
+
+@app.route("/api/shendong/watchlist", methods=["POST"])
+def shendong_save_watchlist():
+    codes = request.json.get('codes', [])
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("CREATE TABLE IF NOT EXISTS shendong_watchlist (code TEXT PRIMARY KEY, added_at TEXT)")
+    conn.execute("DELETE FROM shendong_watchlist")
+    for code in codes:
+        conn.execute("INSERT OR IGNORE INTO shendong_watchlist (code, added_at) VALUES (?, datetime('now'))", (code,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+
 @app.route("/api/daily-briefing")
 def daily_briefing():
     return jsonify(get_daily_briefing())
