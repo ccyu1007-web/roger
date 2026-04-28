@@ -541,8 +541,10 @@
     <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
     <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
     <button class="tab" id="tabIndustry" onclick="switchTab('industry')">同業比較</button>
-    <button class="tab" id="tabDetail" onclick="switchTab('detail')">損益表</button>
-    <button class="tab" id="tabBS" onclick="switchTab('bs')">資產負債表</button>
+    <button class="tab" id="tabISA" onclick="switchTab('is_annual')">損益表(年)</button>
+    <button class="tab" id="tabISQ" onclick="switchTab('is_quarterly')">損益表(季)</button>
+    <button class="tab" id="tabBSA" onclick="switchTab('bs_annual')">資產負債表(年)</button>
+    <button class="tab" id="tabBSQ" onclick="switchTab('bs_quarterly')">資產負債表(季)</button>
   </div>
   <div class="panel" id="panel">
     <div class="loading"><div class="spinner"></div><div>載入資料中...</div></div>
@@ -563,14 +565,18 @@ function switchTab(tab) {
   document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
   document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
-  document.getElementById('tabDetail').classList.toggle('active', tab === 'detail');
-  document.getElementById('tabBS').classList.toggle('active', tab === 'bs');
+  document.getElementById('tabISA').classList.toggle('active', tab === 'is_annual');
+  document.getElementById('tabISQ').classList.toggle('active', tab === 'is_quarterly');
+  document.getElementById('tabBSA').classList.toggle('active', tab === 'bs_annual');
+  document.getElementById('tabBSQ').classList.toggle('active', tab === 'bs_quarterly');
   if (tab === 'decision') loadDecision();
   else if (tab === 'financial') loadFinancial();
   else if (tab === 'quarterly') loadQuarterly();
   else if (tab === 'revenue') loadRevenue();
-  else if (tab === 'detail') loadDetail('income_statement');
-  else if (tab === 'bs') loadDetail('balance_sheet');
+  else if (tab === 'is_annual') loadDetail('income_statement', 'annual');
+  else if (tab === 'is_quarterly') loadDetail('income_statement', 'quarterly');
+  else if (tab === 'bs_annual') loadDetail('balance_sheet', 'annual');
+  else if (tab === 'bs_quarterly') loadDetail('balance_sheet', 'quarterly');
   else loadIndustry();
 }
 
@@ -2845,9 +2851,12 @@ let indSort = { key: 'pe', asc: true };
 
 // ── 損益表 / 資產負債表 ──
 let _financialDetailCache = null;
-async function loadDetail(reportType) {
+
+async function loadDetail(reportType, periodType) {
   const panel = document.getElementById('panel');
-  const label = reportType === 'income_statement' ? '損益表' : '資產負債表';
+  const labels = { income_statement: '損益表', balance_sheet: '資產負債表' };
+  const ptLabels = { annual: '年度', quarterly: '季度' };
+  const label = `${ptLabels[periodType]}${labels[reportType]}`;
   panel.innerHTML = `<div class="loading"><div class="spinner"></div><div>載入${label}...</div></div>`;
 
   try {
@@ -2855,98 +2864,218 @@ async function loadDetail(reportType) {
       const res = await fetch(`/api/stocks/${CODE}/financial-detail`);
       _financialDetailCache = await res.json();
     }
-    const data = _financialDetailCache[reportType];
-    if (!data) { panel.innerHTML = `<div class="loading">無${label}資料</div>`; return; }
-    renderFinancialDetail(data, reportType, label);
+    const periodData = (_financialDetailCache[reportType] || {})[periodType] || {};
+    if (!Object.keys(periodData).length) {
+      panel.innerHTML = `<div class="loading">無${label}資料，請稍候重新整理</div>`;
+      return;
+    }
+    renderFinancialDetail(periodData, reportType, periodType, label);
   } catch(e) {
     panel.innerHTML = `<div class="loading" style="color:#ef4444">載入失敗</div>`;
   }
 }
 
-function renderFinancialDetail(data, reportType, label) {
+function renderFinancialDetail(periodData, reportType, periodType, title) {
   const panel = document.getElementById('panel');
+  const isQ = periodType === 'quarterly';
 
-  // 損益表欄位順序
-  const isOrder = ['營業收入','營業成本','營業毛利','推銷費用','管理費用','研究發展費','營業費用','營業利益',
-    '營業外收支','稅前淨利','所得稅','繼續營業損益','歸屬母公司淨利','非控制權益淨利','本期淨利','EPS','EBIT','EBITDA'];
-  // 資產負債表欄位順序
-  const bsOrder = ['現金及約當現金','應收帳款','存貨','流動資產','不動產廠房設備','使用權資產','非流動資產','資產總額',
-    '短期借款','應付帳款','合約負債','流動負債','應付公司債','長期銀行借款','非流動負債','負債總額',
-    '股本','資本公積','保留盈餘','母公司權益','股東權益總額'];
-  const order = reportType === 'income_statement' ? isOrder : bsOrder;
-  // 分隔線位置（小計行之後）
-  const isSeparators = new Set(['營業毛利','營業費用','營業利益','稅前淨利','本期淨利']);
-  const bsSeparators = new Set(['流動資產','資產總額','流動負債','負債總額','股東權益總額']);
-  const separators = reportType === 'income_statement' ? isSeparators : bsSeparators;
-  // 粗體行
-  const isBold = new Set(['營業收入','營業毛利','營業利益','稅前淨利','歸屬母公司淨利','EPS']);
-  const bsBold = new Set(['流動資產','非流動資產','資產總額','流動負債','非流動負債','負債總額','股東權益總額']);
-  const boldSet = reportType === 'income_statement' ? isBold : bsBold;
+  // 損益表欄位定義: [顯示名, DB key, 層級(0=小計,1=明細), 分組]
+  const isItems = [
+    ['營業收入', '營業收入', 0, 'rev'],
+    ['營業成本', '營業成本', 1, 'rev'],
+    ['營業毛利', '營業毛利', 0, 'rev'],
+    ['推銷費用', '推銷費用', 1, 'exp'],
+    ['管理費用', '管理費用', 1, 'exp'],
+    ['研究發展費', '研究發展費', 1, 'exp'],
+    ['營業費用', '營業費用', 0, 'exp'],
+    ['營業利益', '營業利益', 0, 'oi'],
+    ['營業外收支', '營業外收支', 1, 'oi'],
+    ['稅前淨利', '稅前淨利', 0, 'tax'],
+    ['所得稅', '所得稅', 1, 'tax'],
+    ['繼續營業損益', '繼續營業損益', 1, 'ni'],
+    ['歸屬母公司淨利', '歸屬母公司淨利', 0, 'ni'],
+    ['非控制權益淨利', '非控制權益淨利', 1, 'ni'],
+    ['本期淨利', '本期淨利', 0, 'ni'],
+    ['EPS (元)', 'EPS', 0, 'eps'],
+    ['EBIT', 'EBIT', 1, 'other'],
+    ['EBITDA', 'EBITDA', 1, 'other'],
+  ];
 
-  function renderTable(periodData, periods, title, isQuarterly) {
-    // 取最近 8 期
-    const sortedPeriods = periods.sort((a, b) => {
-      if (isQuarterly) {
-        const [ya, qa] = a.replace('Q', ' ').split(' ').map(Number);
-        const [yb, qb] = b.replace('Q', ' ').split(' ').map(Number);
-        return (yb * 10 + qb) - (ya * 10 + qa);
-      }
-      return parseInt(b) - parseInt(a);
-    }).slice(0, 8);
+  const bsItems = [
+    ['現金及約當現金', '現金及約當現金', 1, 'ca'],
+    ['應收帳款', '應收帳款', 1, 'ca'],
+    ['存貨', '存貨', 1, 'ca'],
+    ['流動資產合計', '流動資產', 0, 'ca'],
+    ['不動產廠房設備', '不動產廠房設備', 1, 'nca'],
+    ['使用權資產', '使用權資產', 1, 'nca'],
+    ['非流動資產合計', '非流動資產', 0, 'nca'],
+    ['資產總額', '資產總額', 0, 'total_a'],
+    ['短期借款', '短期借款', 1, 'cl'],
+    ['應付帳款', '應付帳款', 1, 'cl'],
+    ['合約負債', '合約負債', 1, 'cl'],
+    ['流動負債合計', '流動負債', 0, 'cl'],
+    ['應付公司債', '應付公司債', 1, 'ncl'],
+    ['長期銀行借款', '長期銀行借款', 1, 'ncl'],
+    ['非流動負債合計', '非流動負債', 0, 'ncl'],
+    ['負債總額', '負債總額', 0, 'total_l'],
+    ['股本', '股本', 1, 'eq'],
+    ['資本公積', '資本公積', 1, 'eq'],
+    ['保留盈餘', '保留盈餘', 1, 'eq'],
+    ['母公司權益', '母公司權益', 0, 'eq'],
+    ['股東權益總額', '股東權益總額', 0, 'total_eq'],
+  ];
 
-    if (!sortedPeriods.length) return '';
+  const items = reportType === 'income_statement' ? isItems : bsItems;
 
-    const fmtM = v => {
-      if (v == null) return '<td class="v-empty">-</td>';
-      const m = v / 1000000;
-      const cls = m < 0 ? 'v-neg' : 'v-neutral';
-      return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
-    };
-    const fmtEps = v => {
-      if (v == null) return '<td class="v-empty">-</td>';
-      const cls = v < 0 ? 'v-neg' : 'v-neutral';
-      return `<td class="${cls}">${v.toFixed(2)}</td>`;
-    };
+  // 分組標題
+  const isGroupTitles = { rev: '營業收入', exp: '營業費用', oi: '營業損益', tax: '稅務', ni: '淨利', eps: '每股盈餘', other: '其他指標' };
+  const bsGroupTitles = { ca: '流動資產', nca: '非流動資產', total_a: '', cl: '流動負債', ncl: '非流動負債', total_l: '', eq: '股東權益', total_eq: '' };
+  const groupTitles = reportType === 'income_statement' ? isGroupTitles : bsGroupTitles;
 
-    let html = `<div class="dec-section"><div class="dec-title">${title}　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元（EPS 除外）</span></div>`;
-    html += '<div style="overflow-x:auto"><table class="fin-table"><thead><tr><th style="min-width:120px">項目</th>';
-    sortedPeriods.forEach(p => {
-      const displayP = isQuarterly ? p : `${p} 年`;
-      html += `<th>${displayP}</th>`;
-    });
-    html += '</tr></thead><tbody>';
+  // 排序期間
+  const periods = Object.keys(periodData).sort((a, b) => {
+    if (isQ) {
+      const [ya, qa] = a.replace('Q', ' ').split(' ').map(Number);
+      const [yb, qb] = b.replace('Q', ' ').split(' ').map(Number);
+      return (yb * 10 + qb) - (ya * 10 + qa);
+    }
+    return parseInt(b) - parseInt(a);
+  }).slice(0, 8);
 
-    order.forEach(item => {
-      // 檢查是否有資料
-      const hasData = sortedPeriods.some(p => periodData[p] && periodData[p][item] != null);
-      if (!hasData) return;
-
-      const isBoldRow = boldSet.has(item);
-      const rowStyle = isBoldRow ? ' style="font-weight:700;background:#f8fafc"' : '';
-      html += `<tr${rowStyle}><td${isBoldRow ? ' style="font-weight:700"' : ''}>${item}</td>`;
-      sortedPeriods.forEach(p => {
-        const val = periodData[p] ? periodData[p][item] : null;
-        html += item === 'EPS' ? fmtEps(val) : fmtM(val);
-      });
-      html += '</tr>';
-      if (separators.has(item)) {
-        html += `<tr style="height:4px;background:#e2e8f0"><td colspan="${sortedPeriods.length + 1}"></td></tr>`;
-      }
-    });
-
-    html += '</tbody></table></div></div>';
-    return html;
+  if (!periods.length) {
+    panel.innerHTML = `<div class="loading">無資料</div>`;
+    return;
   }
 
-  let html = '';
-  // 年度
-  const annualPeriods = Object.keys(data.annual || {});
-  html += renderTable(data.annual || {}, annualPeriods, `年度${label}`, false);
-  // 季度
-  const quarterlyPeriods = Object.keys(data.quarterly || {});
-  html += renderTable(data.quarterly || {}, quarterlyPeriods, `季度${label}`, true);
+  // 格式化
+  const fmtM = v => {
+    if (v == null) return '-';
+    const m = v / 1_000_000;
+    return m.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+  };
+  const fmtEps = v => v == null ? '-' : v.toFixed(2);
 
-  if (!html) html = `<div class="loading">無${label}資料，請稍候重新整理</div>`;
+  // 計算毛利率/營益率
+  const calcRate = (period, num, den) => {
+    const n = periodData[period]?.[num];
+    const d = periodData[period]?.[den];
+    if (n == null || !d) return null;
+    return (n / d * 100).toFixed(1) + '%';
+  };
+
+  let html = `<div style="margin-bottom:8px;font-size:.82rem;color:#94a3b8">金額單位：百萬元${reportType === 'income_statement' ? '（EPS 除外）' : ''}</div>`;
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08);font-size:.85rem">';
+
+  // 表頭
+  html += '<thead><tr style="background:#1e3a5f;color:#fff">';
+  html += '<th style="padding:12px 16px;text-align:left;font-weight:600;min-width:140px;position:sticky;left:0;background:#1e3a5f;z-index:2">項目</th>';
+  periods.forEach(p => {
+    const display = isQ ? p : `${p} 年`;
+    html += `<th style="padding:12px 14px;text-align:right;font-weight:600;white-space:nowrap">${display}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  // 利率行
+  if (reportType === 'income_statement') {
+    // 毛利率
+    html += '<tr style="background:#f0fdf4">';
+    html += '<td style="padding:6px 16px;font-size:.8rem;color:#059669;font-weight:600">毛利率</td>';
+    periods.forEach(p => {
+      const rate = calcRate(p, '營業毛利', '營業收入');
+      html += `<td style="padding:6px 14px;text-align:right;font-size:.8rem;color:#059669;font-weight:600">${rate || '-'}</td>`;
+    });
+    html += '</tr>';
+    // 營益率
+    html += '<tr style="background:#eff6ff">';
+    html += '<td style="padding:6px 16px;font-size:.8rem;color:#2563eb;font-weight:600">營益率</td>';
+    periods.forEach(p => {
+      const rate = calcRate(p, '營業利益', '營業收入');
+      html += `<td style="padding:6px 14px;text-align:right;font-size:.8rem;color:#2563eb;font-weight:600">${rate || '-'}</td>`;
+    });
+    html += '</tr>';
+    // 淨利率
+    html += '<tr style="background:#fefce8;border-bottom:2px solid #e2e8f0">';
+    html += '<td style="padding:6px 16px;font-size:.8rem;color:#a16207;font-weight:600">淨利率</td>';
+    periods.forEach(p => {
+      const ni = periodData[p]?.['歸屬母公司淨利'] ?? periodData[p]?.['本期淨利'];
+      const rev = periodData[p]?.['營業收入'];
+      const rate = ni != null && rev ? (ni / rev * 100).toFixed(1) + '%' : '-';
+      html += `<td style="padding:6px 14px;text-align:right;font-size:.8rem;color:#a16207;font-weight:600">${rate}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  let lastGroup = null;
+  items.forEach(([label, key, level, group]) => {
+    const hasData = periods.some(p => periodData[p]?.[key] != null);
+    if (!hasData) return;
+
+    // 分組標題行
+    if (group !== lastGroup && groupTitles[group]) {
+      lastGroup = group;
+      html += `<tr><td colspan="${periods.length + 1}" style="padding:8px 16px 4px;font-size:.76rem;color:#94a3b8;font-weight:700;text-transform:uppercase;border-top:2px solid #e2e8f0">${groupTitles[group]}</td></tr>`;
+    }
+    lastGroup = group;
+
+    const isTotal = level === 0;
+    const bg = isTotal ? '#f8fafc' : '#fff';
+    const fw = isTotal ? '700' : '400';
+    const indent = isTotal ? '16px' : '28px';
+    const borderB = isTotal ? '1px solid #e2e8f0' : '1px solid #f1f5f9';
+
+    html += `<tr style="background:${bg};border-bottom:${borderB}">`;
+    html += `<td style="padding:8px ${indent};font-weight:${fw};white-space:nowrap;position:sticky;left:0;background:${bg};z-index:1">${label}</td>`;
+
+    periods.forEach((p, pi) => {
+      const val = periodData[p]?.[key];
+      const formatted = key === 'EPS' ? fmtEps(val) : fmtM(val);
+      const isNeg = val != null && val < 0;
+      const color = isNeg ? '#ef4444' : (isTotal ? '#1e293b' : '#475569');
+
+      // YoY 成長率（和上一期比）
+      let yoyHtml = '';
+      if (pi < periods.length - 1 && val != null) {
+        const prevVal = periodData[periods[pi + 1]]?.[key];
+        if (prevVal != null && prevVal !== 0 && key !== 'EPS') {
+          const yoy = ((val - prevVal) / Math.abs(prevVal) * 100).toFixed(1);
+          const yoyColor = yoy > 0 ? '#059669' : yoy < 0 ? '#ef4444' : '#94a3b8';
+          yoyHtml = `<div style="font-size:.7rem;color:${yoyColor}">${yoy > 0 ? '+' : ''}${yoy}%</div>`;
+        }
+      }
+
+      html += `<td style="padding:8px 14px;text-align:right;color:${color};font-weight:${fw}">
+        <div>${formatted}</div>${yoyHtml}
+      </td>`;
+    });
+    html += '</tr>';
+  });
+
+  // 資產負債表加計算比率
+  if (reportType === 'balance_sheet') {
+    html += `<tr><td colspan="${periods.length + 1}" style="padding:8px 16px 4px;font-size:.76rem;color:#94a3b8;font-weight:700;border-top:2px solid #e2e8f0">財務比率</td></tr>`;
+    // 負債比
+    html += '<tr style="background:#fef2f2;border-bottom:1px solid #f1f5f9">';
+    html += '<td style="padding:6px 16px;font-size:.82rem;color:#dc2626;font-weight:600">負債比率</td>';
+    periods.forEach(p => {
+      const tl = periodData[p]?.['負債總額'];
+      const ta = periodData[p]?.['資產總額'];
+      const rate = tl != null && ta ? (tl / ta * 100).toFixed(1) + '%' : '-';
+      html += `<td style="padding:6px 14px;text-align:right;font-size:.82rem;color:#dc2626;font-weight:600">${rate}</td>`;
+    });
+    html += '</tr>';
+    // 流動比
+    html += '<tr style="background:#eff6ff;border-bottom:1px solid #f1f5f9">';
+    html += '<td style="padding:6px 16px;font-size:.82rem;color:#2563eb;font-weight:600">流動比率</td>';
+    periods.forEach(p => {
+      const ca = periodData[p]?.['流動資產'];
+      const cl = periodData[p]?.['流動負債'];
+      const rate = ca != null && cl ? (ca / cl * 100).toFixed(1) + '%' : '-';
+      html += `<td style="padding:6px 14px;text-align:right;font-size:.82rem;color:#2563eb;font-weight:600">${rate}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
   panel.innerHTML = html;
 }
 
