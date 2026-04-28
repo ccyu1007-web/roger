@@ -3367,7 +3367,47 @@ def _push_all_to_render():
     except Exception as e: print(f"  [estimates] 失敗: {e}")
     try: _push_financial_detail_to_render()  # 完整財報明細
     except Exception as e: print(f"  [detail] 失敗: {e}")
+    try: _push_pe_history_to_render()  # 歷史本益比
+    except Exception as e: print(f"  [pe_history] 失敗: {e}")
     print("[全量同步] 完成")
+
+
+def _push_pe_history_to_render():
+    """本機歷史本益比 push 到 Render"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute(
+            "SELECT code, year, pe_high, pe_low, updated_at FROM pe_history"
+        ).fetchall()
+        conn.close()
+
+        if not rows:
+            print("[PE歷史同步] 無資料")
+            return
+
+        cols = ['code', 'year', 'pe_high', 'pe_low', 'updated_at']
+        data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
+
+        failed = 0
+        for i in range(0, len(data), 500):
+            batch = data[i:i+500]
+            try:
+                resp = requests.post(f'{RENDER_URL}/api/sync/pe-history',
+                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
+                if resp.status_code != 200:
+                    failed += len(batch)
+            except Exception as e:
+                print(f"  [PE歷史同步] batch {i//500+1} 失敗: {e}")
+                failed += len(batch)
+        msg = f"[PE歷史同步] 已 push {len(data)} 筆到 Render"
+        if failed:
+            msg += f"（{failed} 筆失敗）"
+        print(msg)
+    except Exception as e:
+        print(f"[PE歷史同步] 失敗: {e}")
 
 
 def _push_financial_detail_to_render():

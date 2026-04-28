@@ -2522,7 +2522,7 @@ async function loadPEHistory() {
     const res = await fetch(`/api/stocks/${CODE}/pe-history`);
     const json = await res.json();
     if (!json.data || !json.data.length) {
-      el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">無歷史本益比資料（FinMind 額度不足時請稍後再試）</div>';
+      el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">無歷史本益比資料</div>';
       return;
     }
     renderPEHistory(json.data, json.estimate);

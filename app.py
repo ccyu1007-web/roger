@@ -581,6 +581,42 @@ def sync_quarterly():
     return jsonify({"status": "ok", "updated": updated})
 
 
+@app.route("/api/sync/pe-history", methods=["POST"])
+def sync_pe_history():
+    """本機 push 歷史本益比到 Render"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    if not request.is_json or not request.json.get('data'):
+        return jsonify({"status": "error", "msg": "no data"}), 400
+    rows = request.json['data']
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # 確保表存在
+    c.execute("""CREATE TABLE IF NOT EXISTS pe_history (
+        code TEXT NOT NULL, year INTEGER NOT NULL,
+        pe_high REAL, pe_low REAL, updated_at TEXT,
+        PRIMARY KEY (code, year))""")
+    updated = 0
+    for r in rows:
+        code = r.get('code')
+        year = r.get('year')
+        if not code or not year:
+            continue
+        try:
+            c.execute("""INSERT INTO pe_history (code, year, pe_high, pe_low, updated_at)
+                VALUES (?,?,?,?,?)
+                ON CONFLICT(code, year) DO UPDATE SET
+                pe_high=excluded.pe_high, pe_low=excluded.pe_low,
+                updated_at=excluded.updated_at""",
+                (code, year, r.get('pe_high'), r.get('pe_low'), r.get('updated_at')))
+            updated += 1
+        except:
+            pass
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 @app.route("/api/sync/prices", methods=["POST"])
 def sync_prices():
     """本機 push 股價到 Render"""
