@@ -463,9 +463,10 @@
           <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
           <th class="g-est col-div-r" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
           <!-- 系統估算 -->
-          <th class="g-sys" onclick="sortBy('sys_ann_eps')">系統EPS<span class="sort-icon" id="si_sys_ann_eps">↕</span></th>
+          <th class="g-sys col-div" onclick="sortBy('sys_grade')">系統等級<span class="sort-icon" id="si_sys_grade">↕</span></th>
           <th class="g-sys" onclick="sortBy('sys_ann_pe')">系統PE<span class="sort-icon" id="si_sys_ann_pe">↕</span></th>
           <th class="g-sys" onclick="sortBy('sys_ann_yld')">系統殖利率<span class="sort-icon" id="si_sys_ann_yld">↕</span></th>
+          <th class="g-sys" onclick="sortBy('sys_ann_eps')">系統EPS<span class="sort-icon" id="si_sys_ann_eps">↕</span></th>
           <th class="g-sys" onclick="sortBy('sys_ann_div')">系統股利<span class="sort-icon" id="si_sys_ann_div">↕</span></th>
           <th class="g-sys" onclick="sortBy('sys_ann_confidence')">信心<span class="sort-icon" id="si_sys_ann_confidence">↕</span></th>
           <!-- 沈董 -->
@@ -1571,6 +1572,14 @@ function calcDerived(r) {
     if (r.est_pe == null && r.sys_ann_pe) r.est_pe = r.sys_ann_pe;
   }
 
+  // 系統預估等級：用系統PE和系統殖利率算
+  r.sys_grade = null;
+  if (r.sys_ann_eps != null && r.sys_ann_eps <= 0) {
+    r.sys_grade = 'X';
+  } else if (r.sys_ann_pe != null && r.sys_ann_yld != null && r.sys_ann_pe > 0 && r.sys_ann_yld > 0) {
+    r.sys_grade = _calcMatrixGrade(r.sys_ann_pe, r.sys_ann_yld, r.code);
+  }
+
   // 近四季股利/殖利率/評等（必須在 weighted_payout 之後）
   if (r.eps_4q_sum != null && r.eps_4q_sum > 0) {
     // 判斷近四季是否全為去年度（跟沈董 fallback 同條件）
@@ -2000,7 +2009,7 @@ function sortBy(col) {
   syncUserSettings();
   ['code','name','close','change','change_240d','trailing_pe',
    'eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
-   'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
+   'sys_grade','sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
    'revenue_date','revenue_cum_yoy','revenue_yoy','revenue_mom',
    'eps_date','eps_1','eps_2','eps_3','eps_4','eps_5',
    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5','eps_y6',
@@ -2024,7 +2033,7 @@ function applySort() {
   const numCols = ['close','change','open','high','low','volume',
                    'inst_foreign','inst_trust','inst_dealer',
                    'change_240d','eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld',
-                   'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
+                   'sys_grade','sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
                    'revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
                    'eps_ytd','eps_y1','eps_y2','eps_y3','eps_y4','eps_y5','eps_y6',
@@ -2284,9 +2293,10 @@ function render() {
       <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est col-div-r">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
       <!-- 系統估算 -->
-      <td class="g-sys"${r.sys_ann_eps != null && r.sys_ann_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.sys_ann_eps != null ? r.sys_ann_eps.toFixed(2) : '－'}</td>
+      <td class="g-sys col-div">${gradeHtml(r.sys_grade)}</td>
       <td class="g-sys">${r.sys_ann_pe != null ? r.sys_ann_pe.toFixed(2) : '－'}</td>
       <td class="g-sys">${r.sys_ann_yld != null ? r.sys_ann_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-sys"${r.sys_ann_eps != null && r.sys_ann_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.sys_ann_eps != null ? r.sys_ann_eps.toFixed(2) : '－'}</td>
       <td class="g-sys">${r.sys_ann_div != null ? r.sys_ann_div.toFixed(2) : '－'}</td>
       <td class="g-sys"><span style="padding:1px 6px;border-radius:8px;font-size:.78rem;font-weight:600;color:#fff;background:${r.sys_ann_confidence === 'A' ? '#059669' : r.sys_ann_confidence === 'B' ? '#d97706' : r.sys_ann_confidence === 'C' ? '#dc2626' : r.sys_ann_confidence === 'N/A' ? '#94a3b8' : '#94a3b8'}">${r.sys_ann_confidence || '－'}</span></td>
       <!-- 沈董 -->

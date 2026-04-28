@@ -1097,17 +1097,20 @@ def get_pe_history(code):
     # 統計推估
     est = {}
     if len(data) >= 3:
-        highs = [d['pe_high'] for d in data]
-        lows  = [d['pe_low'] for d in data]
-        est['avg_high'] = round(sum(highs) / len(highs), 2)
-        est['avg_low']  = round(sum(lows) / len(lows), 2)
-        est['median_high'] = round(statistics.median(highs), 2)
-        est['median_low']  = round(statistics.median(lows), 2)
+        highs = [d['pe_high'] for d in data if d.get('pe_high') is not None]
+        lows  = [d['pe_low'] for d in data if d.get('pe_low') is not None]
+        if highs:
+            est['avg_high'] = round(sum(highs) / len(highs), 2)
+            est['median_high'] = round(statistics.median(highs), 2)
+        if lows:
+            est['avg_low']  = round(sum(lows) / len(lows), 2)
+            est['median_low']  = round(statistics.median(lows), 2)
         # 去極值平均（去掉最高和最低各一個）
         if len(highs) >= 5:
             trimmed_h = sorted(highs)[1:-1]
-            trimmed_l = sorted(lows)[1:-1]
             est['trimmed_avg_high'] = round(sum(trimmed_h) / len(trimmed_h), 2)
+        if len(lows) >= 5:
+            trimmed_l = sorted(lows)[1:-1]
             est['trimmed_avg_low']  = round(sum(trimmed_l) / len(trimmed_l), 2)
 
     stock_info = query_db("SELECT name FROM stocks WHERE code = ?", (code,))
