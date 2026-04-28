@@ -3363,7 +3363,47 @@ def _push_all_to_render():
     except Exception as e: print(f"  [institutional] 失敗: {e}")
     try: _push_estimates_to_render()   # 系統估算
     except Exception as e: print(f"  [estimates] 失敗: {e}")
+    try: _push_financial_detail_to_render()  # 完整財報明細
+    except Exception as e: print(f"  [detail] 失敗: {e}")
     print("[全量同步] 完成")
+
+
+def _push_financial_detail_to_render():
+    """本機完整財報明細 push 到 Render（只推當天更新的）"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""SELECT code, period, period_type, report_type, item, value, updated_at
+                              FROM financial_detail
+                              WHERE DATE(updated_at) = DATE('now')""").fetchall()
+        conn.close()
+
+        if not rows:
+            print("[財報明細同步] 今天沒有更新")
+            return
+
+        cols = ['code', 'period', 'period_type', 'report_type', 'item', 'value', 'updated_at']
+        data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
+
+        failed = 0
+        for i in range(0, len(data), 500):
+            batch = data[i:i+500]
+            try:
+                resp = requests.post(f'{RENDER_URL}/api/sync/financial-detail',
+                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
+                if resp.status_code != 200:
+                    failed += len(batch)
+            except Exception as e:
+                print(f"  [財報明細同步] batch {i//500+1} 失敗: {e}")
+                failed += len(batch)
+        msg = f"[財報明細同步] 已 push {len(data)} 筆到 Render"
+        if failed:
+            msg += f"（{failed} 筆失敗）"
+        print(msg)
+    except Exception as e:
+        print(f"[財報明細同步] 失敗: {e}")
 
 
 def _push_financial_annual_to_render():

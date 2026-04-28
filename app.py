@@ -460,6 +460,40 @@ def refresh_institutional():
     threading.Thread(target=do_inst, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新三大法人資料"})
 
+@app.route("/api/sync/financial-detail", methods=["POST"])
+def sync_financial_detail():
+    """本機 push 完整財報明細到 Render"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    if not request.is_json or not request.json.get('data'):
+        return jsonify({"status": "error", "msg": "no data"}), 400
+    rows = request.json['data']
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("""CREATE TABLE IF NOT EXISTS financial_detail (
+            code TEXT NOT NULL, period TEXT NOT NULL, period_type TEXT NOT NULL,
+            report_type TEXT NOT NULL, item TEXT NOT NULL, value REAL, updated_at TEXT,
+            PRIMARY KEY (code, period, report_type, item))""")
+        conn.commit()
+    except:
+        pass
+    updated = 0
+    for r in rows:
+        try:
+            c.execute("""INSERT INTO financial_detail (code, period, period_type, report_type, item, value, updated_at)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(code, period, report_type, item) DO UPDATE SET
+                value=excluded.value, period_type=excluded.period_type, updated_at=excluded.updated_at""",
+                (r['code'], r['period'], r['period_type'], r['report_type'], r['item'], r['value'], r.get('updated_at', '')))
+            updated += 1
+        except:
+            pass
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 @app.route("/api/sync/quarterly", methods=["POST"])
 def sync_quarterly():
     """本機 push 季報資料到 Render"""
