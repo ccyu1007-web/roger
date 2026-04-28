@@ -612,17 +612,23 @@ def sync_table():
     if not columns or not rows:
         return jsonify({"status": "ok", "updated": 0, "msg": "no data"})
 
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    c = conn.cursor()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+    except Exception as e:
+        return jsonify({"status": "error", "msg": f"db connect: {e}"}), 500
 
     # 自動建表（如果有提供 CREATE SQL）
     if create_sql:
         try:
             c.execute(create_sql)
+            conn.commit()
         except:
-            pass
+            try: conn.rollback()
+            except: pass
 
     updated = 0
+    errors = []
     if pk:
         # UPSERT: INSERT ON CONFLICT UPDATE
         non_pk = [col for col in columns if col not in pk]
@@ -638,26 +644,42 @@ def sync_table():
                 vals = [r.get(col) for col in columns]
                 c.execute(sql, vals)
                 updated += 1
-            except:
-                pass
+            except Exception as e:
+                if len(errors) < 3:
+                    errors.append(str(e))
+                try: conn.rollback()
+                except: pass
     else:
         # 無主鍵：先清空再插入（整表替換）
         try:
             c.execute(f"DELETE FROM {table}")
+            conn.commit()
         except:
-            pass
+            try: conn.rollback()
+            except: pass
         placeholders = ','.join(['?'] * len(columns))
         for r in rows:
             try:
                 vals = [r.get(col) for col in columns]
                 c.execute(f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders})", vals)
                 updated += 1
-            except:
-                pass
+            except Exception as e:
+                if len(errors) < 3:
+                    errors.append(str(e))
+                try: conn.rollback()
+                except: pass
 
-    conn.commit()
+    try:
+        conn.commit()
+    except Exception as e:
+        errors.append(f"commit: {e}")
+        try: conn.rollback()
+        except: pass
     conn.close()
-    return jsonify({"status": "ok", "updated": updated})
+    result = {"status": "ok", "updated": updated}
+    if errors:
+        result["errors"] = errors
+    return jsonify(result)
 
 
 @app.route("/api/sync/pe-history", methods=["POST"])
