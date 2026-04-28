@@ -105,15 +105,47 @@ let _hideLoVol = false;
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
-  if (['AA','A1','A2','B1A','B2A'].includes(g)) return 'grade-a';
-  if (['B1','B2','BA1','BA2'].includes(g)) return 'grade-b';
+  if (['AA','A1','A2','A'].includes(g)) return 'grade-a';
+  if (['BA1','BA2','B1','B2'].includes(g)) return 'grade-b';
   return 'grade-c';
 };
 
+// 沈董等級矩陣（與 index.html 一致）
+function _calcShenGrade(pe, yld) {
+  if (pe == null || pe <= 0 || yld == null || yld <= 0) return 'X';
+  const peHi=18, peLo=10, yFloor=5, yHigh=5.5, yMax=6;
+  const peFair=(peHi+peLo)/2, peAbove=(peHi+peFair)/2, peBelow=(peFair+peLo)/2;
+  const peCols=[[-Infinity,peLo],[peLo,peBelow],[peBelow,peFair],[peFair,peAbove],[peAbove,peHi],[peHi,Infinity]];
+  const yRows=[[yMax,Infinity],[yHigh,yMax],[yFloor,yHigh],[-Infinity,yFloor]];
+  const grades=[['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
+  const col=peCols.findIndex(c=>pe>=c[0]&&pe<c[1]);
+  const row=yRows.findIndex(y=>yld>=y[0]&&yld<y[1]);
+  return (col>=0&&row>=0)?grades[row][col]:null;
+}
+
 async function load() {
   try {
-    const res = await fetch('/api/daily-briefing');
-    _data = await res.json();
+    const [briefRes, stocksRes] = await Promise.all([
+      fetch('/api/daily-briefing'),
+      fetch('/api/stocks'),
+    ]);
+    _data = await briefRes.json();
+    const stocksData = await stocksRes.json();
+
+    // 建立 code → shen 資料的映射
+    const shenMap = {};
+    (stocksData.data || []).forEach(s => {
+      if (s.shen_pe != null && s.shen_yld != null) {
+        shenMap[s.code] = _calcShenGrade(s.shen_pe, s.shen_yld);
+      } else if (s.shen_eps != null && s.shen_eps <= 0) {
+        shenMap[s.code] = 'X';
+      }
+    });
+
+    // 把沈董等級寫入 cheap_list 和 changes
+    (_data.val_cheap_list || []).forEach(c => { c.shen_grade = shenMap[c.code] || null; });
+    (_data.val_level_changes || []).forEach(c => { c.shen_grade = shenMap[c.code] || null; });
+
     if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
     renderStats();
     updateCounts();
@@ -168,7 +200,7 @@ function renderList(mode) {
   });
 
   // 等級排序
-  const gradeOrder = ['AA','A1','A2','B1A','B2A','B1','B2','BA1','BA2','C','D','X','未分級'];
+  const gradeOrder = ['AA','A1','A2','A','BA1','BA2','B1','B2','觀察','臨界點','X','未分級'];
   const sortedGrades = Object.keys(groups).sort((a, b) => {
     const ia = gradeOrder.indexOf(a), ib = gradeOrder.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
