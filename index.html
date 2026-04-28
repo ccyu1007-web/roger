@@ -580,6 +580,7 @@ function toggleColGroup(key, btn) {
   _colVisible[key] = !_colVisible[key];
   btn.classList.toggle('on', _colVisible[key]);
   localStorage.setItem('col_visible', JSON.stringify(_colVisible));
+  syncUserSettings();
   applyColVisibility();
 }
 
@@ -593,6 +594,53 @@ function applyColVisibility() {
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
 let watchSet = new Set(JSON.parse(localStorage.getItem('watchList') || '[]'));
 let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
+
+// ── 使用者設定同步（DB ↔ localStorage）──────────────────
+const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings',
+  'col_visible','global_div_weights','blend_ratio','global_val_params'];
+
+async function loadUserSettings() {
+  try {
+    const res = await fetch('/api/user-settings');
+    const data = await res.json();
+    let hasDB = false;
+    SYNC_KEYS.forEach(key => {
+      if (data[key]) {
+        localStorage.setItem(key, data[key]);
+        hasDB = true;
+      }
+    });
+    if (!hasDB) {
+      // DB 沒有設定 → 把 localStorage 的推上去（首次遷移）
+      syncUserSettings();
+    }
+    // 重新讀取覆蓋後的值
+    _colVisible = JSON.parse(localStorage.getItem('col_visible') || 'null');
+    if (!_colVisible) { _colVisible = {}; COL_GROUPS.forEach(g => { _colVisible[g.key] = g.default; }); }
+    COL_GROUPS.forEach(g => { if (_colVisible[g.key] === undefined) _colVisible[g.key] = g.default; });
+    _wSettings = JSON.parse(localStorage.getItem('watch_settings') || 'null') || {...DEFAULT_W_SETTINGS};
+    _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
+    _qSettings = JSON.parse(localStorage.getItem('quality_settings') || 'null') || {...DEFAULT_Q_SETTINGS};
+    _divWeights = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || [...DEFAULT_WEIGHTS];
+    const br = JSON.parse(localStorage.getItem('blend_ratio') || 'null');
+    if (br) { _blendShen = br.shen; _blendWt = br.wt; }
+    _globalVal = JSON.parse(localStorage.getItem('global_val_params') || 'null') || {...DEFAULT_GLOBAL_VAL};
+  } catch(e) {}
+}
+
+function syncUserSettings() {
+  const payload = {};
+  SYNC_KEYS.forEach(key => {
+    const val = localStorage.getItem(key);
+    if (val) payload[key] = val;
+  });
+  if (Object.keys(payload).length) {
+    fetch('/api/user-settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  }
+}
 
 // 從 DB 載入清單（覆蓋 localStorage）
 async function loadUserLists() {
@@ -778,6 +826,7 @@ function saveWatchSettings() {
   _wSettings.requireQuality = document.getElementById('wsRequireQuality').checked;
   _wSettings.positiveEps = document.getElementById('wsPositiveEps').checked;
   localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
+  syncUserSettings();
 }
 
 function toggleAllSettings() {
@@ -940,6 +989,7 @@ function updateCondition(idx, prop, val) {
 
 function saveCustomConditions() {
   localStorage.setItem('watch_custom_conds', JSON.stringify(_customConditions));
+  syncUserSettings();
 }
 
 function evalCustomConditions(r) {
@@ -972,8 +1022,8 @@ function updateQualityCount() {
 }
 function toggleQuality(cb) {
   const code = cb.dataset.code;
-  if (cb.checked) qualitySet.add(code);
-  else qualitySet.delete(code);
+  if (cb.checked) { qualitySet.add(code); _syncList('quality', 'add', code); }
+  else { qualitySet.delete(code); _syncList('quality', 'remove', code); }
   saveQuality();
 }
 function toggleQualityFilter() {
@@ -1017,6 +1067,7 @@ function saveQualitySettings() {
   _qSettings.excludeConstruction = document.getElementById('qExcludeConstruction').checked;
   _qSettings.excludeIndustry = document.getElementById('qExcludeIndustry').value.trim();
   localStorage.setItem('quality_settings', JSON.stringify(_qSettings));
+  syncUserSettings();
 }
 
 function toggleQualitySettings() { toggleAllSettings(); }
@@ -1549,6 +1600,7 @@ function onWeightChange() {
     _divWeights[i - 1] = parseFloat(document.getElementById('w' + i).value) || 0;
   }
   localStorage.setItem('global_div_weights', JSON.stringify(_divWeights));
+  syncUserSettings();
   updateWeightTotal();
   // 重算全部
   allData.forEach(calcDerived);
@@ -1565,6 +1617,7 @@ function updateWeightTotal() {
 function resetWeights() {
   _divWeights = [...DEFAULT_WEIGHTS];
   localStorage.setItem('global_div_weights', JSON.stringify(_divWeights));
+  syncUserSettings();
   initWeights();
   allData.forEach(calcDerived);
   applyFilter();
@@ -1590,6 +1643,7 @@ function onBlendChange() {
   _blendShen = parseFloat(document.getElementById('blendShen').value) || 0;
   _blendWt = parseFloat(document.getElementById('blendWt').value) || 0;
   localStorage.setItem('blend_ratio', JSON.stringify({ shen: _blendShen, wt: _blendWt }));
+  syncUserSettings();
   updateBlendTotal();
   allData.forEach(calcDerived);
   applyFilter();
@@ -1660,6 +1714,7 @@ function onGlobalValChange() {
   _globalVal.yldHigh = parseFloat(document.getElementById('gYldHigh').value) || 5.5;
   _globalVal.yldMax = parseFloat(document.getElementById('gYldMax').value) || 6;
   localStorage.setItem('global_val_params', JSON.stringify(_globalVal));
+  syncUserSettings();
   // 同步更新 company.html 用的殖利率下限
   localStorage.setItem('global_yld_floor', String(_globalVal.yldFloor));
   allData.forEach(calcDerived);
@@ -1669,6 +1724,7 @@ function onGlobalValChange() {
 function resetGlobalVal() {
   _globalVal = {...DEFAULT_GLOBAL_VAL};
   localStorage.setItem('global_val_params', JSON.stringify(_globalVal));
+  syncUserSettings();
   localStorage.setItem('global_yld_floor', String(_globalVal.yldFloor));
   initGlobalVal();
   allData.forEach(calcDerived);
@@ -1714,6 +1770,7 @@ async function loadData() {
     document.getElementById('loading').style.display    = 'none';
     document.getElementById('stockTable').style.display = 'table';
 
+    await loadUserSettings();  // 從 DB 載入設定（覆蓋 localStorage）
     initColToggle();
     await loadUserLists();  // 從 DB 載入清單
     updateWatchCount();

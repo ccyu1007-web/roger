@@ -1921,6 +1921,42 @@ def update_user_list(list_type):
     conn.close()
     return jsonify({"status": "ok"})
 
+# ── 使用者設定（跨裝置同步）────────────────────────────────
+@app.route("/api/user-settings")
+def get_user_settings():
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("""CREATE TABLE IF NOT EXISTS user_settings (
+            key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
+        conn.commit()
+    except:
+        pass
+    rows = conn.execute("SELECT key, value FROM user_settings").fetchall()
+    conn.close()
+    return jsonify({r[0]: r[1] for r in rows})
+
+@app.route("/api/user-settings", methods=["POST"])
+def save_user_settings():
+    from datetime import datetime
+    data = request.json
+    if not data:
+        return jsonify({"error": "no data"}), 400
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("""CREATE TABLE IF NOT EXISTS user_settings (
+            key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
+    except:
+        pass
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for key, value in data.items():
+        c.execute("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?,?,?)",
+                  (key, value, now))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+
 @app.route("/api/user-notes/<code>", methods=["GET"])
 def get_user_note(code):
     rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))
