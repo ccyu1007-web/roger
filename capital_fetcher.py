@@ -975,6 +975,186 @@ def backfill_all(force=False):
     print(f"[群益三表] 完成: {done}/{len(need)}，耗時 {elapsed:.0f} 秒")
 
 
+# ── 完整損益表 + 資產負債表（個股頁面用）────────────────────
+
+def _init_financial_detail_db():
+    """建立 financial_detail 表（存完整損益表 + 資產負債表）"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""CREATE TABLE IF NOT EXISTS financial_detail (
+        code        TEXT NOT NULL,
+        period      TEXT NOT NULL,
+        period_type TEXT NOT NULL,
+        report_type TEXT NOT NULL,
+        item        TEXT NOT NULL,
+        value       REAL,
+        updated_at  TEXT,
+        PRIMARY KEY (code, period, report_type, item)
+    )""")
+    conn.commit()
+    conn.close()
+
+
+# 損益表要抓的欄位（群益標籤 → 顯示名稱）
+_IS_LABELS = {
+    '營業收入淨額': '營業收入',
+    '營業成本': '營業成本',
+    '營業毛利': '營業毛利',
+    '推銷費用': '推銷費用',
+    '管理費用': '管理費用',
+    '研究發展費': '研究發展費',
+    '營業費用': '營業費用',
+    '營業利益': '營業利益',
+    '營業外收入及支出': '營業外收支',
+    '稅前淨利': '稅前淨利',
+    '所得稅費用': '所得稅',
+    '繼續營業單位損益': '繼續營業損益',
+    '合併總損益': '本期淨利',
+    '歸屬母公司淨利（損）': '歸屬母公司淨利',
+    '歸屬非控制權益淨利（損）': '非控制權益淨利',
+    '每股盈餘': 'EPS',
+    '稅前息前淨利': 'EBIT',
+    '稅前息前折舊前淨利': 'EBITDA',
+}
+
+# 資產負債表要抓的欄位
+_BS_LABELS = {
+    '現金及約當現金': '現金及約當現金',
+    '應收帳款及票據': '應收帳款',
+    '存貨': '存貨',
+    '流動資產': '流動資產',
+    '不動產廠房及設備': '不動產廠房設備',
+    '使用權資產': '使用權資產',
+    '非流動資產': '非流動資產',
+    '資產總額': '資產總額',
+    '短期借款': '短期借款',
+    '合約負債－流動': '合約負債',
+    '應付帳款及票據': '應付帳款',
+    '流動負債': '流動負債',
+    '應付公司債－非流動': '應付公司債',
+    '銀行借款－非流動': '長期銀行借款',
+    '非流動負債': '非流動負債',
+    '負債總額': '負債總額',
+    '股本': '股本',
+    '資本公積合計': '資本公積',
+    '保留盈餘': '保留盈餘',
+    '母公司股東權益合計': '母公司權益',
+    '股東權益總額': '股東權益總額',
+}
+
+
+def fetch_financial_detail(code):
+    """抓取個股完整損益表(年/季) + 資產負債表(年/季)，存入 financial_detail 表"""
+    _init_financial_detail_db()
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    total = 0
+
+    def _save(code, period, period_type, report_type, data):
+        nonlocal total
+        for item, val in data.items():
+            if val is None:
+                continue
+            c.execute("""INSERT INTO financial_detail (code, period, period_type, report_type, item, value, updated_at)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(code, period, report_type, item) DO UPDATE SET
+                value=excluded.value, updated_at=excluded.updated_at""",
+                (code, period, period_type, report_type, item, val, now_str))
+            total += 1
+
+    def _west_to_roc_period(west_str, is_quarter=False):
+        """'2025' → '114' 或 '2025.4Q' → '114Q4'"""
+        if is_quarter:
+            m = re.match(r'(\d{4})\.(\d+)Q', west_str)
+            if m:
+                return f"{int(m.group(1)) - 1911}Q{m.group(2)}"
+            return west_str
+        try:
+            return str(int(float(west_str)) - 1911)
+        except:
+            return west_str
+
+    # 1. 年度損益表 (zcqa)
+    try:
+        texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}")
+        data = _extract_yearly_data(texts, _IS_LABELS)
+        for west_year, items in data.items():
+            period = _west_to_roc_period(west_year)
+            converted = {k: v * 1_000_000 if k not in ('EPS',) else v for k, v in items.items() if v is not None}
+            _save(code, period, 'annual', 'income_statement', converted)
+    except Exception as e:
+        print(f"[財報明細] {code} 年度損益表失敗: {e}")
+
+    time.sleep(random.uniform(0.2, 0.4))
+
+    # 2. 季度損益表 (zce) — t3n td 結構，每 11 個為一列
+    # 欄位順序: 季別, 營業收入, 營業成本, 毛利, 毛利率%, 營業利益, 營益率%, 業外收支, 稅前淨利, 稅後淨利, EPS
+    try:
+        r = _session.get(f"https://stock.capital.com.tw/z/zc/zce/zce_{code}.djhtm", timeout=15)
+        r.encoding = 'big5'
+        soup = BeautifulSoup(r.text, 'html.parser')
+        tds = soup.find_all('td', class_=re.compile(r't3n'))
+        texts = [td.get_text(strip=True) for td in tds]
+
+        # 找到第一個季度標籤的位置
+        start = 0
+        for i, t in enumerate(texts):
+            if re.match(r'\d+\.\d+Q', t):
+                start = i
+                break
+
+        cols_per_row = 11  # 季別 + 10 個數值
+        zce_items = ['營業收入', '營業成本', '營業毛利', None, '營業利益', None, '營業外收支', '稅前淨利', '歸屬母公司淨利', 'EPS']
+
+        for i in range(start, len(texts) - cols_per_row + 1, cols_per_row):
+            q_label = texts[i].strip()
+            m = re.match(r'(\d+)\.(\d+)Q', q_label)
+            if not m:
+                continue
+            period = f"{int(m.group(1))}Q{m.group(2)}"
+            items = {}
+            for j, item_name in enumerate(zce_items):
+                if item_name is None:
+                    continue
+                val = _parse_num(texts[i + 1 + j])
+                if val is not None:
+                    items[item_name] = val * 1_000_000 if item_name != 'EPS' else val
+            if items:
+                _save(code, period, 'quarterly', 'income_statement', items)
+    except Exception as e:
+        print(f"[財報明細] {code} 季度損益表失敗: {e}")
+
+    time.sleep(random.uniform(0.2, 0.4))
+
+    # 3. 年度資產負債表 (zcpb)
+    try:
+        texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcp/zcpb/zcpb.djhtm?a={code}")
+        data = _extract_yearly_data(texts, _BS_LABELS)
+        for west_year, items in data.items():
+            period = _west_to_roc_period(west_year)
+            converted = {k: v * 1_000_000 for k, v in items.items() if v is not None}
+            _save(code, period, 'annual', 'balance_sheet', converted)
+    except Exception as e:
+        print(f"[財報明細] {code} 年度資產負債表失敗: {e}")
+
+    time.sleep(random.uniform(0.2, 0.4))
+
+    # 4. 季度資產負債表 (zcpa)
+    try:
+        texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcp/zcpa/zcpa.djhtm?a={code}")
+        data = _extract_quarterly_data(texts, _BS_LABELS)
+        for west_q, items in data.items():
+            period = _west_to_roc_period(west_q, is_quarter=True)
+            converted = {k: v * 1_000_000 for k, v in items.items() if v is not None}
+            _save(code, period, 'quarterly', 'balance_sheet', converted)
+    except Exception as e:
+        print(f"[財報明細] {code} 季度資產負債表失敗: {e}")
+
+    conn.commit()
+    conn.close()
+    return total
+
+
 if __name__ == "__main__":
     import sys
     force = '--force' in sys.argv

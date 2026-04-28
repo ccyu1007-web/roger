@@ -541,6 +541,8 @@
     <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
     <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
     <button class="tab" id="tabIndustry" onclick="switchTab('industry')">同業比較</button>
+    <button class="tab" id="tabDetail" onclick="switchTab('detail')">損益表</button>
+    <button class="tab" id="tabBS" onclick="switchTab('bs')">資產負債表</button>
   </div>
   <div class="panel" id="panel">
     <div class="loading"><div class="spinner"></div><div>載入資料中...</div></div>
@@ -561,10 +563,14 @@ function switchTab(tab) {
   document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
   document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
+  document.getElementById('tabDetail').classList.toggle('active', tab === 'detail');
+  document.getElementById('tabBS').classList.toggle('active', tab === 'bs');
   if (tab === 'decision') loadDecision();
   else if (tab === 'financial') loadFinancial();
   else if (tab === 'quarterly') loadQuarterly();
   else if (tab === 'revenue') loadRevenue();
+  else if (tab === 'detail') loadDetail('income_statement');
+  else if (tab === 'bs') loadDetail('balance_sheet');
   else loadIndustry();
 }
 
@@ -2836,6 +2842,113 @@ async function loadImportantNews() {
 // ── 同業比較 ──
 let indData = null;
 let indSort = { key: 'pe', asc: true };
+
+// ── 損益表 / 資產負債表 ──
+let _financialDetailCache = null;
+async function loadDetail(reportType) {
+  const panel = document.getElementById('panel');
+  const label = reportType === 'income_statement' ? '損益表' : '資產負債表';
+  panel.innerHTML = `<div class="loading"><div class="spinner"></div><div>載入${label}...</div></div>`;
+
+  try {
+    if (!_financialDetailCache) {
+      const res = await fetch(`/api/stocks/${CODE}/financial-detail`);
+      _financialDetailCache = await res.json();
+    }
+    const data = _financialDetailCache[reportType];
+    if (!data) { panel.innerHTML = `<div class="loading">無${label}資料</div>`; return; }
+    renderFinancialDetail(data, reportType, label);
+  } catch(e) {
+    panel.innerHTML = `<div class="loading" style="color:#ef4444">載入失敗</div>`;
+  }
+}
+
+function renderFinancialDetail(data, reportType, label) {
+  const panel = document.getElementById('panel');
+
+  // 損益表欄位順序
+  const isOrder = ['營業收入','營業成本','營業毛利','推銷費用','管理費用','研究發展費','營業費用','營業利益',
+    '營業外收支','稅前淨利','所得稅','繼續營業損益','歸屬母公司淨利','非控制權益淨利','本期淨利','EPS','EBIT','EBITDA'];
+  // 資產負債表欄位順序
+  const bsOrder = ['現金及約當現金','應收帳款','存貨','流動資產','不動產廠房設備','使用權資產','非流動資產','資產總額',
+    '短期借款','應付帳款','合約負債','流動負債','應付公司債','長期銀行借款','非流動負債','負債總額',
+    '股本','資本公積','保留盈餘','母公司權益','股東權益總額'];
+  const order = reportType === 'income_statement' ? isOrder : bsOrder;
+  // 分隔線位置（小計行之後）
+  const isSeparators = new Set(['營業毛利','營業費用','營業利益','稅前淨利','本期淨利']);
+  const bsSeparators = new Set(['流動資產','資產總額','流動負債','負債總額','股東權益總額']);
+  const separators = reportType === 'income_statement' ? isSeparators : bsSeparators;
+  // 粗體行
+  const isBold = new Set(['營業收入','營業毛利','營業利益','稅前淨利','歸屬母公司淨利','EPS']);
+  const bsBold = new Set(['流動資產','非流動資產','資產總額','流動負債','非流動負債','負債總額','股東權益總額']);
+  const boldSet = reportType === 'income_statement' ? isBold : bsBold;
+
+  function renderTable(periodData, periods, title, isQuarterly) {
+    // 取最近 8 期
+    const sortedPeriods = periods.sort((a, b) => {
+      if (isQuarterly) {
+        const [ya, qa] = a.replace('Q', ' ').split(' ').map(Number);
+        const [yb, qb] = b.replace('Q', ' ').split(' ').map(Number);
+        return (yb * 10 + qb) - (ya * 10 + qa);
+      }
+      return parseInt(b) - parseInt(a);
+    }).slice(0, 8);
+
+    if (!sortedPeriods.length) return '';
+
+    const fmtM = v => {
+      if (v == null) return '<td class="v-empty">-</td>';
+      const m = v / 1000000;
+      const cls = m < 0 ? 'v-neg' : 'v-neutral';
+      return `<td class="${cls}">${m.toLocaleString('zh-TW', {maximumFractionDigits: 0})}</td>`;
+    };
+    const fmtEps = v => {
+      if (v == null) return '<td class="v-empty">-</td>';
+      const cls = v < 0 ? 'v-neg' : 'v-neutral';
+      return `<td class="${cls}">${v.toFixed(2)}</td>`;
+    };
+
+    let html = `<div class="dec-section"><div class="dec-title">${title}　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元（EPS 除外）</span></div>`;
+    html += '<div style="overflow-x:auto"><table class="fin-table"><thead><tr><th style="min-width:120px">項目</th>';
+    sortedPeriods.forEach(p => {
+      const displayP = isQuarterly ? p : `${p} 年`;
+      html += `<th>${displayP}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    order.forEach(item => {
+      // 檢查是否有資料
+      const hasData = sortedPeriods.some(p => periodData[p] && periodData[p][item] != null);
+      if (!hasData) return;
+
+      const isBoldRow = boldSet.has(item);
+      const rowStyle = isBoldRow ? ' style="font-weight:700;background:#f8fafc"' : '';
+      html += `<tr${rowStyle}><td${isBoldRow ? ' style="font-weight:700"' : ''}>${item}</td>`;
+      sortedPeriods.forEach(p => {
+        const val = periodData[p] ? periodData[p][item] : null;
+        html += item === 'EPS' ? fmtEps(val) : fmtM(val);
+      });
+      html += '</tr>';
+      if (separators.has(item)) {
+        html += `<tr style="height:4px;background:#e2e8f0"><td colspan="${sortedPeriods.length + 1}"></td></tr>`;
+      }
+    });
+
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  let html = '';
+  // 年度
+  const annualPeriods = Object.keys(data.annual || {});
+  html += renderTable(data.annual || {}, annualPeriods, `年度${label}`, false);
+  // 季度
+  const quarterlyPeriods = Object.keys(data.quarterly || {});
+  html += renderTable(data.quarterly || {}, quarterlyPeriods, `季度${label}`, true);
+
+  if (!html) html = `<div class="loading">無${label}資料，請稍候重新整理</div>`;
+  panel.innerHTML = html;
+}
 
 async function loadIndustry() {
   const panel = document.getElementById('panel');
