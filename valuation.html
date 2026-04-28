@@ -85,9 +85,6 @@
 </header>
 
 <div class="container">
-  <!-- 統計卡片 -->
-  <div class="stat-row" id="statRow"></div>
-
   <!-- Tab -->
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('aa',this)">AA 超便宜<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
@@ -123,6 +120,8 @@ function _calcShenGrade(pe, yld) {
   return (col>=0&&row>=0)?grades[row][col]:null;
 }
 
+let _stocks = []; // 所有股票（含沈董等級、val_aa、股價）
+
 async function load() {
   try {
     const [briefRes, stocksRes] = await Promise.all([
@@ -132,22 +131,33 @@ async function load() {
     _data = await briefRes.json();
     const stocksData = await stocksRes.json();
 
-    // 建立 code → shen 資料的映射
-    const shenMap = {};
+    // 計算沈董等級 + 折價%，存到 _stocks
     (stocksData.data || []).forEach(s => {
-      if (s.shen_pe != null && s.shen_yld != null) {
-        shenMap[s.code] = _calcShenGrade(s.shen_pe, s.shen_yld);
-      } else if (s.shen_eps != null && s.shen_eps <= 0) {
-        shenMap[s.code] = 'X';
-      }
+      let sg = null;
+      if (s.shen_eps != null && s.shen_eps <= 0) sg = 'X';
+      else if (s.shen_pe != null && s.shen_yld != null) sg = _calcShenGrade(s.shen_pe, s.shen_yld);
+      if (!sg || sg === 'X' || sg === '觀察' || sg === '臨界點') return;
+
+      const discount = (s.val_aa != null && s.val_aa > 0 && s.close != null)
+        ? Math.round((s.val_aa - s.close) / s.val_aa * 10000) / 100 : null;
+
+      _stocks.push({
+        code: s.code, name: s.name,
+        shen_grade: sg,
+        price: s.close,
+        val_aa: s.val_aa,
+        discount_pct: discount,
+        shen_yld: s.shen_yld,
+        shen_pe: s.shen_pe,
+      });
     });
 
-    // 把沈董等級寫入 cheap_list 和 changes
-    (_data.val_cheap_list || []).forEach(c => { c.shen_grade = shenMap[c.code] || null; });
-    (_data.val_level_changes || []).forEach(c => { c.shen_grade = shenMap[c.code] || null; });
+    // changes 也加上沈董等級
+    const sgMap = {};
+    _stocks.forEach(s => { sgMap[s.code] = s.shen_grade; });
+    (_data.val_level_changes || []).forEach(c => { c.shen_grade = sgMap[c.code] || null; });
 
     if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
-    renderStats();
     updateCounts();
     renderTab();
   } catch(e) {
@@ -162,22 +172,10 @@ function switchTab(tab, btn) {
   renderTab();
 }
 
-function renderStats() {
-  const dist = _data.val_dist || {};
-  const delta = _data.val_dist_delta || {};
-  const fmtD = v => v > 0 ? `<span class="arrow-up">+${v}</span>` : v < 0 ? `<span class="arrow-down">${v}</span>` : '-';
-  document.getElementById('statRow').innerHTML = `
-    <div class="stat-card sc-aa"><div class="label">AA 超便宜</div><div class="num">${dist.AA || 0}</div><div class="delta">${fmtD(delta.AA || 0)}</div></div>
-    <div class="stat-card sc-a1"><div class="label">A1 便宜</div><div class="num">${(dist.A1 || 0) - (dist.AA || 0)}</div><div class="delta">累積 ${dist.A1 || 0}</div></div>
-    <div class="stat-card sc-a2"><div class="label">A2 合理偏低</div><div class="num">${(dist.A2 || 0) - (dist.A1 || 0)}</div><div class="delta">累積 ${dist.A2 || 0}</div></div>
-    <div class="stat-card sc-a"><div class="label">A 偏低</div><div class="num">${(dist.A || 0) - (dist.A2 || 0)}</div><div class="delta">累積 ${dist.A || 0}</div></div>`;
-}
-
 function updateCounts() {
-  const cl = _data.val_cheap_list || [];
   const changes = _data.val_level_changes || [];
-  document.getElementById('cntAA').textContent = cl.filter(c => c.level === 'AA').length;
-  document.getElementById('cntCheap').textContent = cl.filter(c => c.level !== 'AA').length;
+  document.getElementById('cntAA').textContent = _stocks.filter(s => s.shen_grade === 'AA').length;
+  document.getElementById('cntCheap').textContent = _stocks.filter(s => ['A1','A2','A'].includes(s.shen_grade)).length;
   document.getElementById('cntChanges').textContent = changes.length || '';
 }
 
@@ -188,68 +186,66 @@ function renderTab() {
 }
 
 function renderList(mode) {
-  const cl = _data.val_cheap_list || [];
-  let items = mode === 'AA' ? cl.filter(c => c.level === 'AA') : cl.filter(c => c.level !== 'AA');
+  let items = mode === 'AA'
+    ? _stocks.filter(s => s.shen_grade === 'AA')
+    : _stocks.filter(s => ['A1','A2','A'].includes(s.shen_grade));
 
-  // 按沈董等級分組
+  // A1/A2/A tab 按沈董等級分組
   const groups = {};
   items.forEach(c => {
-    const g = c.shen_grade || '未分級';
+    const g = c.shen_grade;
     if (!groups[g]) groups[g] = [];
     groups[g].push(c);
   });
 
-  // 等級排序
-  const gradeOrder = ['AA','A1','A2','A','BA1','BA2','B1','B2','觀察','臨界點','X','未分級'];
-  const sortedGrades = Object.keys(groups).sort((a, b) => {
-    const ia = gradeOrder.indexOf(a), ib = gradeOrder.indexOf(b);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-  });
+  const gradeOrder = ['AA','A1','A2','A'];
+  const sortedGrades = Object.keys(groups).sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
 
-  const title = mode === 'AA' ? 'AA 超便宜區' : 'A1 / A2 / A 便宜區';
+  const title = mode === 'AA' ? 'AA 級' : 'A1 / A2 / A 級';
   const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
 
   let html = `<div class="section">
     <div class="section-header" style="${headerColor}">${title}
       <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
-    </div>
-`;
+    </div>`;
 
   sortedGrades.forEach(grade => {
     let gItems = groups[grade];
     if (!gItems.length) return;
 
-    // 組內按折價%排序
-    gItems.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
+    // 按折價%排序（正值在前=股價低於門檻）
+    gItems.sort((a, b) => (b.discount_pct || -999) - (a.discount_pct || -999));
 
-    const gcls = GRADE_CLS(grade);
-    html += `<div style="padding:0 20px">
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0">
-        <span class="${gcls}" style="font-size:.9rem">沈董等級 ${grade}</span>
-        <span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span>
-      </div>
-      <table class="val-table"><thead><tr>
-        <th>代碼</th><th>名稱</th>`;
-    if (mode !== 'AA') html += '<th>評價</th>';
-    html += `<th style="text-align:right">股價</th><th style="text-align:right">折價%</th>
-        <th style="text-align:right">天數</th><th style="text-align:right">殖利率</th><th>標記</th>
+    if (mode !== 'AA') {
+      const gcls = GRADE_CLS(grade);
+      html += `<div style="padding:0 20px">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0">
+          <span class="${gcls}" style="font-size:.9rem">沈董等級 ${grade}</span>
+          <span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span>
+        </div>`;
+    } else {
+      html += '<div style="padding:0 20px">';
+    }
+
+    html += `<table class="val-table"><thead><tr>
+        <th>代碼</th><th>名稱</th>
+        <th style="text-align:right">股價</th><th style="text-align:right">AA門檻</th><th style="text-align:right">折價%</th>
+        <th style="text-align:right">沈董PE</th><th style="text-align:right">殖利率</th>
       </tr></thead><tbody>`;
 
     gItems.forEach(c => {
-      const badges = [];
-      if (c.is_new) badges.push('<span class="tag tag-new">新進榜</span>');
-      if (c.cheap_days >= 10) badges.push(`<span class="tag tag-long">${c.cheap_days}天</span>`);
-      if (c.recovering) badges.push('<span class="tag tag-recover">低檔轉強</span>');
+      const dp = c.discount_pct;
+      const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#94a3b8') : '#cbd5e1';
+      const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
 
       html += `<tr>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-        <td>${c.name}</td>`;
-      if (mode !== 'AA') html += `<td><span class="tag tag-${c.level.toLowerCase()}">${c.level}</span></td>`;
-      html += `<td style="text-align:right;font-weight:600">${c.price}</td>
-        <td style="text-align:right;color:#dc2626;font-weight:600">${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</td>
-        <td style="text-align:right">${c.cheap_days || 0}</td>
+        <td>${c.name}</td>
+        <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+        <td style="text-align:right;color:#94a3b8">${c.val_aa != null ? c.val_aa.toFixed(2) : '-'}</td>
+        <td style="text-align:right;color:${dpColor};font-weight:600">${dpStr}</td>
+        <td style="text-align:right">${c.shen_pe != null ? c.shen_pe.toFixed(1) : '-'}</td>
         <td style="text-align:right;color:${(c.shen_yld||0) >= 5 ? '#059669' : '#475569'}">${c.shen_yld ? c.shen_yld.toFixed(1) + '%' : '-'}</td>
-        <td>${badges.join(' ')}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
