@@ -239,18 +239,14 @@ function renderList(mode) {
 
     html += `<table class="val-table"><thead><tr>
         <th style="width:70px">代碼</th><th>名稱</th>
-        <th style="text-align:right;width:80px">股價</th>
-        <th style="text-align:right;width:80px">沈董PE</th>
-        <th style="text-align:right;width:80px">殖利率</th>
+        <th style="width:80px">股價</th>
       </tr></thead><tbody>`;
 
     gItems.forEach(c => {
       html += `<tr>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>
-        <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-        <td style="text-align:right">${c.shen_pe != null ? c.shen_pe.toFixed(1) : '-'}</td>
-        <td style="text-align:right;color:${(c.shen_yld||0) >= 5 ? '#059669' : '#475569'}">${c.shen_yld ? c.shen_yld.toFixed(1) + '%' : '-'}</td>
+        <td style="font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
