@@ -120,7 +120,8 @@ function _calcShenGrade(pe, yld) {
   return (col>=0&&row>=0)?grades[row][col]:null;
 }
 
-let _stocks = []; // 所有股票（含沈董等級、val_aa、股價）
+let _stocks = [];
+let removedByGrade = {};
 
 async function load() {
   try {
@@ -158,14 +159,46 @@ async function load() {
         val_aa = Math.round(Math.min(v1, v2) * 100) / 100;
       }
 
+      // 用昨天股價算昨天的沈董等級
+      const prevClose = (s.change != null && close != null) ? close - s.change : null;
+      let prevSg = null;
+      if (prevClose && prevClose > 0 && eps && eps > 0) {
+        const prevPe = prevClose / eps;
+        const prevYld = (div && div > 0) ? div / prevClose * 100 : null;
+        if (prevPe > 0 && prevYld != null && prevYld > 0) prevSg = _calcShenGrade(prevPe, prevYld);
+      }
+
+      let chgStatus = null; // 'new' | 'removed' | null
+      if (sg !== prevSg) {
+        if (['AA','A1','A2','A'].includes(sg) && !['AA','A1','A2','A'].includes(prevSg)) chgStatus = 'new';
+        else if (sg === prevSg) chgStatus = null;
+        else if (sg !== prevSg) chgStatus = 'new'; // 等級變動也算新進
+      }
+
       _stocks.push({
         code: s.code, name: s.name,
-        shen_grade: sg,
+        shen_grade: sg, prev_grade: prevSg,
+        chg: chgStatus,
         price: close,
         val_aa: val_aa,
         shen_yld: yld != null ? Math.round(yld * 100) / 100 : null,
         shen_pe: pe != null ? Math.round(pe * 100) / 100 : null,
       });
+    });
+
+    // 標記新增/刪除
+    // 新增 = 昨天不在此等級，今天在
+    // 刪除 = 昨天在此等級，今天不在 → 加一筆「刪除」記錄到對應等級
+    removedByGrade = {}; // grade -> [{code, name, price}]
+    _stocks.forEach(s => {
+      if (s.prev_grade && s.prev_grade !== s.shen_grade) {
+        s.chg = 'new';
+        // 從舊等級刪除
+        if (['AA','A1','A2','A'].includes(s.prev_grade)) {
+          if (!removedByGrade[s.prev_grade]) removedByGrade[s.prev_grade] = [];
+          removedByGrade[s.prev_grade].push({ code: s.code, name: s.name, price: s.price, chg: 'removed' });
+        }
+      }
     });
 
     // changes 也加上沈董等級
@@ -247,19 +280,28 @@ function renderList(mode) {
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
         <th style="width:70px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
+        <th style="width:50px;text-align:center">異動</th>
       </tr></thead><tbody>`;
 
-    gItems.forEach(c => {
-      const dp = (c.val_aa != null && c.price != null && c.price > 0)
+    // 合併刪除的項目
+    const removed = removedByGrade[grade] || [];
+
+    [...gItems, ...removed].forEach(c => {
+      const isRemoved = c.chg === 'removed';
+      const dp = (!isRemoved && c.val_aa != null && c.price != null && c.price > 0)
         ? Math.round((c.val_aa - c.price) / c.price * 10000) / 100 : null;
       const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
       const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
+      const chgHtml = c.chg === 'new' ? '<span style="color:#dc2626;font-weight:700;font-size:.78rem">新</span>'
+        : isRemoved ? '<span style="color:#059669;font-weight:700;font-size:.78rem">刪</span>' : '';
+      const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
-      html += `<tr>
+      html += `<tr${rowStyle}>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>
         <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-        <td style="text-align:right;font-weight:600;color:${dpColor}">${dpStr}</td>
+        <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
+        <td style="text-align:center">${chgHtml}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
