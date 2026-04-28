@@ -851,6 +851,8 @@ def sync_to_stocks(code):
                   (code,))
 
     # 3. 季度EPS（eps_1~5）— 從 quarterly_financial 取最近5季
+    old_eps1q = c.execute("SELECT eps_1q FROM stocks WHERE code=?", (code,)).fetchone()
+    old_eps1q = old_eps1q[0] if old_eps1q else None
     rows = c.execute("""SELECT quarter, eps FROM quarterly_financial
                        WHERE code=? AND eps IS NOT NULL
                        ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) * 10
@@ -861,6 +863,11 @@ def sync_to_stocks(code):
                   (r[1], r[0], code))
     for i in range(len(rows) + 1, 6):
         c.execute(f"UPDATE stocks SET eps_{i}=NULL, eps_{i}q=NULL WHERE code=?", (code,))
+    # eps_1q 真正變更時才更新 eps_date
+    new_eps1q = rows[0][0] if rows else None
+    if new_eps1q and new_eps1q != old_eps1q:
+        c.execute("UPDATE stocks SET eps_date=? WHERE code=?",
+                  (datetime.now().strftime('%Y-%m-%d'), code))
 
     # 4. 合約負債（contract_1~3）— 從 quarterly_financial 取最近3季
     rows = c.execute("""SELECT quarter, contract_liability FROM quarterly_financial
