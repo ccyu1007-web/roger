@@ -70,7 +70,7 @@
   .spin { display: inline-block; animation: spin-icon .7s linear infinite; }
 
   /* ── 表格 ── */
-  .table-wrap { overflow-x: auto; border-radius: 10px; box-shadow: 0 1px 8px rgba(0,0,0,.08); max-height: 80vh; overscroll-behavior-x: none; }
+  .table-wrap { overflow-x: auto; border-radius: 10px; box-shadow: 0 1px 8px rgba(0,0,0,.08); max-height: 80vh; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; font-size: .88rem; }
   thead th {
     background: #1e3a5f; color: #fff;
@@ -2479,6 +2479,19 @@ document.addEventListener('keydown', e => {
 });
 
 loadData();
+
+// 防止 Mac 觸控板左右滑動觸發瀏覽器返回/前進
+document.querySelector('.table-wrap')?.addEventListener('touchmove', function(e) {
+  if (this.scrollWidth > this.clientWidth) e.stopPropagation();
+}, { passive: true });
+// Safari 不支援 overscroll-behavior，用 wheel 事件攔截
+document.querySelector('.table-wrap')?.addEventListener('wheel', function(e) {
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    const atLeft = this.scrollLeft <= 0 && e.deltaX < 0;
+    const atRight = this.scrollLeft + this.clientWidth >= this.scrollWidth - 1 && e.deltaX > 0;
+    if (atLeft || atRight) e.preventDefault();
+  }
+}, { passive: false });
 </script>
 </body>
 </html>
