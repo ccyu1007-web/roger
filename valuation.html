@@ -196,7 +196,7 @@ async function load() {
         // 從舊等級刪除
         if (['AA','A1','A2','A'].includes(s.prev_grade)) {
           if (!removedByGrade[s.prev_grade]) removedByGrade[s.prev_grade] = [];
-          removedByGrade[s.prev_grade].push({ code: s.code, name: s.name, price: s.price, chg: 'removed' });
+          removedByGrade[s.prev_grade].push({ code: s.code, name: s.name, price: s.price, chg: 'removed', prev_grade: s.prev_grade, shen_grade: s.shen_grade });
         }
       }
     });
@@ -280,7 +280,8 @@ function renderList(mode) {
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
         <th style="width:70px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
-        <th style="width:50px;text-align:center">異動</th>
+        <th style="width:70px;text-align:center">新增</th>
+        <th style="width:70px;text-align:center">刪除</th>
       </tr></thead><tbody>`;
 
     // 合併刪除的項目
@@ -292,8 +293,8 @@ function renderList(mode) {
         ? Math.round((c.val_aa - c.price) / c.price * 10000) / 100 : null;
       const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
       const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-      const chgHtml = c.chg === 'new' ? '<span style="color:#dc2626;font-weight:700;font-size:.78rem">新</span>'
-        : isRemoved ? '<span style="color:#059669;font-weight:700;font-size:.78rem">刪</span>' : '';
+      const addHtml = (c.chg === 'new' && c.prev_grade) ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c.prev_grade}→</span>` : '';
+      const rmHtml = (isRemoved && c.shen_grade) ? `<span style="color:#059669;font-weight:600;font-size:.75rem">→${c.shen_grade}</span>` : '';
       const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
       html += `<tr${rowStyle}>
@@ -301,7 +302,8 @@ function renderList(mode) {
         <td>${c.name}</td>
         <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
         <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
-        <td style="text-align:center">${chgHtml}</td>
+        <td style="text-align:center">${addHtml}</td>
+        <td style="text-align:center">${rmHtml}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';

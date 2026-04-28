@@ -793,20 +793,25 @@ def fetch_capital_pe_history(code):
         PRIMARY KEY (code, year))""")
 
     saved = 0
-    cur_year = datetime.now().year
     for i, yr_str in enumerate(years):
         yr = int(yr_str) + 1911  # 民國轉西曆
-        if yr >= cur_year:
-            continue  # 跳過當年（不完整）
         pe_h = pe_highs[i] if i < len(pe_highs) else None
         pe_l = pe_lows[i] if i < len(pe_lows) else None
-        if pe_h is None or pe_l is None or pe_h <= 0 or pe_l <= 0:
+        # 0 代表該年有虧損期間，視為無效
+        if pe_h is not None and pe_h <= 0:
+            pe_h = None
+        if pe_l is not None and pe_l <= 0:
+            pe_l = None
+        # 高低至少要有一個有效值
+        if pe_h is None and pe_l is None:
             continue
         try:
             c.execute("""INSERT INTO pe_history (code, year, pe_high, pe_low, updated_at)
                 VALUES (?,?,?,?,?)
                 ON CONFLICT(code, year) DO UPDATE SET
-                pe_high=excluded.pe_high, pe_low=excluded.pe_low, updated_at=excluded.updated_at""",
+                pe_high=COALESCE(excluded.pe_high, pe_high),
+                pe_low=COALESCE(excluded.pe_low, pe_low),
+                updated_at=excluded.updated_at""",
                 (code, yr, pe_h, pe_l, now_str))
             saved += 1
         except:
