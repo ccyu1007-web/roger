@@ -6,34 +6,50 @@
 <title>每日評價報告</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f8fafc; color: #1a202c; padding: 20px; }
-  h1 { font-size: 1.4rem; color: #1e3a5f; margin-bottom: 8px; }
-  h2 { font-size: 1.05rem; color: #334155; margin: 20px 0 10px; }
-  .back { margin-bottom: 12px; font-size: .9rem; }
-  .back a { color: #2563eb; text-decoration: none; }
-  .date-label { font-size: .85rem; color: #94a3b8; margin-bottom: 16px; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+  .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
+
+  /* 統計卡片 */
+  .stat-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 120px; padding: 16px; border-radius: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .stat-card .label { font-size: .78rem; font-weight: 600; margin-bottom: 4px; }
+  .stat-card .num { font-size: 1.8rem; font-weight: 800; }
+  .stat-card .delta { font-size: .82rem; margin-top: 2px; }
+  .sc-aa { background: #fee2e2; color: #dc2626; }
+  .sc-a1 { background: #fef3c7; color: #92400e; }
+  .sc-a2 { background: #dbeafe; color: #1d4ed8; }
+  .sc-a { background: #dcfce7; color: #166534; }
+
+  /* Tab */
+  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; }
+  .tab-btn {
+    padding: 10px 20px; font-size: .9rem; font-weight: 600; cursor: pointer;
+    border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
+  }
+  .tab-btn:first-child { border-radius: 8px 0 0 8px; }
+  .tab-btn:last-child { border-radius: 0 8px 8px 0; }
+  .tab-btn.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+  .count-badge { font-size: .75rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }
+
+  /* 區塊 */
   .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
-  .section-header { padding: 12px 18px; font-weight: 700; font-size: .95rem; border-bottom: 2px solid; }
-  .section-body { padding: 12px 18px; }
-  .flash-green { background: #f0fdf4; color: #166534; border-color: #22c55e; }
-  .flash-red { background: #fef2f2; color: #991b1b; border-color: #ef4444; }
+  .section-header { padding: 14px 20px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid; }
 
-  /* 分布卡片 */
-  .dist-cards { display: flex; gap: 12px; flex-wrap: wrap; }
-  .dist-card { flex: 1; min-width: 140px; padding: 14px; border-radius: 8px; text-align: center; }
-  .dist-card .level { font-size: .82rem; font-weight: 600; }
-  .dist-card .count { font-size: 1.6rem; font-weight: 800; }
-  .dist-card .delta { font-size: .82rem; }
-  .dist-aa { background: #fee2e2; color: #dc2626; }
-  .dist-a1 { background: #fef3c7; color: #92400e; }
-  .dist-a2 { background: #dbeafe; color: #1d4ed8; }
-  .dist-a { background: #f0fdf4; color: #166534; }
+  /* 表格 */
+  table.val-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  table.val-table th { background: #f8fafc; color: #475569; font-size: .78rem; font-weight: 700; padding: 8px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1; }
+  table.val-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
+  table.val-table tr:hover { background: #f8fafc; }
+  table.val-table tr.dim { opacity: .45; }
 
-  /* 股票行 */
-  .stock-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; }
-  .stock-row:last-child { border-bottom: none; }
-  .stock-code { font-weight: 700; color: #2563eb; text-decoration: none; font-size: .88rem; min-width: 50px; }
-  .stock-name { font-size: .85rem; color: #475569; min-width: 60px; }
   .tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: .72rem; font-weight: 700; }
   .tag-aa { background: #fee2e2; color: #dc2626; }
   .tag-a1 { background: #fef3c7; color: #92400e; }
@@ -42,150 +58,231 @@
   .tag-new { background: #f0abfc; color: #7e22ce; }
   .tag-recover { background: #e0f2fe; color: #0369a1; }
   .tag-long { background: #f1f5f9; color: #64748b; }
-  .tag-low-vol { background: #f3f4f6; color: #9ca3af; }
-  .metric { font-size: .82rem; color: #64748b; }
-  .metric strong { color: #1a202c; }
+  .grade-a { color: #dc2626; font-weight: 700; }
+  .grade-b { color: #d97706; font-weight: 600; }
+  .grade-c { color: #94a3b8; }
   .arrow-up { color: #22c55e; }
   .arrow-down { color: #ef4444; }
-  .dim { opacity: 0.45; }
-  .toggle-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
-  .toggle-btn { padding: 4px 12px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; cursor: pointer; font-size: .8rem; }
-  .toggle-btn.active { border-color: #2563eb; background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+
+  .chg-add { background: #dcfce7; color: #166534; font-size: .72rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+  .chg-rm { background: #fee2e2; color: #991b1b; font-size: .72rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+  .filter-bar { display: flex; gap: 12px; align-items: center; padding: 0 20px 12px; flex-wrap: wrap; }
+  .filter-bar label { font-size: .82rem; color: #64748b; cursor: pointer; }
 </style>
 </head>
 <body>
-<div class="back"><a href="/">< 回總表</a> | <a href="/daily.html">每日新聞報告</a></div>
-<h1>每日評價報告</h1>
-<div class="date-label" id="dateLabel"></div>
 
-<div id="content"><div style="text-align:center;padding:40px;color:#94a3b8">載入中...</div></div>
+<header>
+  <div>
+    <h1>每日評價報告</h1>
+    <span class="date-label" id="dateLabel"></span>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/">回總表</a>
+    <a href="/daily.html">新聞報告</a>
+    <a href="/etf_changes.html">ETF專區</a>
+  </div>
+</header>
+
+<div class="container">
+  <!-- 統計卡片 -->
+  <div class="stat-row" id="statRow"></div>
+
+  <!-- Tab -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('aa',this)">AA 超便宜<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
+    <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A 便宜區<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
+    <button class="tab-btn" onclick="switchTab('changes',this)">今日異動<span class="count-badge" id="cntChanges" style="background:#dbeafe;color:#1d4ed8"></span></button>
+  </div>
+
+  <div id="content"><div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div></div>
+</div>
 
 <script>
+let _data = null;
+let _tab = 'aa';
+let _hideLoVol = false;
+
+const GRADE_CLS = g => {
+  if (!g) return 'grade-c';
+  if (['AA','A1','A2','B1A','B2A'].includes(g)) return 'grade-a';
+  if (['B1','B2','BA1','BA2'].includes(g)) return 'grade-b';
+  return 'grade-c';
+};
+
 async function load() {
   try {
     const res = await fetch('/api/daily-briefing');
-    const d = await res.json();
-    render(d);
+    _data = await res.json();
+    if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
+    renderStats();
+    updateCounts();
+    renderTab();
   } catch(e) {
-    document.getElementById('content').innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444">無法載入</div>';
+    document.getElementById('content').innerHTML = '<div style="text-align:center;padding:60px;color:#ef4444">無法載入</div>';
   }
 }
 
-let hideLoVol = false;
+function switchTab(tab, btn) {
+  _tab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTab();
+}
 
-function render(d) {
-  if (d.data_date) document.getElementById('dateLabel').textContent = `資料日期：${d.data_date}`;
+function renderStats() {
+  const dist = _data.val_dist || {};
+  const delta = _data.val_dist_delta || {};
+  const fmtD = v => v > 0 ? `<span class="arrow-up">+${v}</span>` : v < 0 ? `<span class="arrow-down">${v}</span>` : '-';
+  document.getElementById('statRow').innerHTML = `
+    <div class="stat-card sc-aa"><div class="label">AA 超便宜</div><div class="num">${dist.AA || 0}</div><div class="delta">${fmtD(delta.AA || 0)}</div></div>
+    <div class="stat-card sc-a1"><div class="label">A1 便宜</div><div class="num">${(dist.A1 || 0) - (dist.AA || 0)}</div><div class="delta">累積 ${dist.A1 || 0}</div></div>
+    <div class="stat-card sc-a2"><div class="label">A2 合理偏低</div><div class="num">${(dist.A2 || 0) - (dist.A1 || 0)}</div><div class="delta">累積 ${dist.A2 || 0}</div></div>
+    <div class="stat-card sc-a"><div class="label">A 偏低</div><div class="num">${(dist.A || 0) - (dist.A2 || 0)}</div><div class="delta">累積 ${dist.A || 0}</div></div>`;
+}
 
-  const changes = d.val_level_changes || [];
-  const dist = d.val_dist || {};
-  const delta = d.val_dist_delta || {};
-  const cheapList = d.val_cheap_list || [];
+function updateCounts() {
+  const cl = _data.val_cheap_list || [];
+  const changes = _data.val_level_changes || [];
+  document.getElementById('cntAA').textContent = cl.filter(c => c.level === 'AA').length;
+  document.getElementById('cntCheap').textContent = cl.filter(c => c.level !== 'AA').length;
+  document.getElementById('cntChanges').textContent = changes.length || '';
+}
 
-  let html = '';
+function renderTab() {
+  if (_tab === 'aa') renderList('AA');
+  else if (_tab === 'cheap') renderList('cheap');
+  else renderChanges();
+}
 
-  // ── 一、閃電機會區 ──
+function renderList(mode) {
+  const cl = _data.val_cheap_list || [];
+  let items = mode === 'AA' ? cl.filter(c => c.level === 'AA') : cl.filter(c => c.level !== 'AA');
+
+  // 按沈董等級分組
+  const groups = {};
+  items.forEach(c => {
+    const g = c.shen_grade || '未分級';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(c);
+  });
+
+  // 等級排序
+  const gradeOrder = ['AA','A1','A2','B1A','B2A','B1','B2','BA1','BA2','C','D','X','未分級'];
+  const sortedGrades = Object.keys(groups).sort((a, b) => {
+    const ia = gradeOrder.indexOf(a), ib = gradeOrder.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  const title = mode === 'AA' ? 'AA 超便宜區' : 'A1 / A2 / A 便宜區';
+  const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
+
+  let html = `<div class="section">
+    <div class="section-header" style="${headerColor}">${title}
+      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
+    </div>
+    <div class="filter-bar" style="padding-top:12px">
+      <label><input type="checkbox" ${_hideLoVol ? 'checked' : ''} onchange="_hideLoVol=this.checked;renderTab()"> 隱藏低流動性</label>
+    </div>`;
+
+  sortedGrades.forEach(grade => {
+    let gItems = groups[grade];
+    if (_hideLoVol) gItems = gItems.filter(c => (c.volume || 0) >= 500);
+    if (!gItems.length) return;
+
+    // 組內按折價%排序
+    gItems.sort((a, b) => (b.discount_pct || 0) - (a.discount_pct || 0));
+
+    const gcls = GRADE_CLS(grade);
+    html += `<div style="padding:0 20px">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0">
+        <span class="${gcls}" style="font-size:.9rem">沈董等級 ${grade}</span>
+        <span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span>
+      </div>
+      <table class="val-table"><thead><tr>
+        <th>代碼</th><th>名稱</th>`;
+    if (mode !== 'AA') html += '<th>評價</th>';
+    html += `<th style="text-align:right">股價</th><th style="text-align:right">折價%</th>
+        <th style="text-align:right">天數</th><th style="text-align:right">殖利率</th><th>標記</th>
+      </tr></thead><tbody>`;
+
+    gItems.forEach(c => {
+      const isLowVol = (c.volume || 0) < 500;
+      const badges = [];
+      if (c.is_new) badges.push('<span class="tag tag-new">新進榜</span>');
+      if (c.cheap_days >= 10) badges.push(`<span class="tag tag-long">${c.cheap_days}天</span>`);
+      if (c.recovering) badges.push('<span class="tag tag-recover">低檔轉強</span>');
+      if (isLowVol) badges.push('<span class="tag" style="background:#f3f4f6;color:#9ca3af">低流動</span>');
+
+      html += `<tr${isLowVol ? ' class="dim"' : ''}>
+        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+        <td>${c.name}</td>`;
+      if (mode !== 'AA') html += `<td><span class="tag tag-${c.level.toLowerCase()}">${c.level}</span></td>`;
+      html += `<td style="text-align:right;font-weight:600">${c.price}</td>
+        <td style="text-align:right;color:#dc2626;font-weight:600">${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</td>
+        <td style="text-align:right">${c.cheap_days || 0}</td>
+        <td style="text-align:right;color:${(c.shen_yld||0) >= 5 ? '#059669' : '#475569'}">${c.shen_yld ? c.shen_yld.toFixed(1) + '%' : '-'}</td>
+        <td>${badges.join(' ')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  });
+
+  html += '</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderChanges() {
+  const changes = _data.val_level_changes || [];
   const cheaper = changes.filter(c => c.direction === 'cheaper');
   const expensive = changes.filter(c => c.direction === 'expensive');
 
-  if (cheaper.length || expensive.length) {
+  let html = '';
+
+  if (cheaper.length) {
     html += `<div class="section">
-      <div class="section-header flash-green">閃電機會區 — 今日跨級變動</div>
-      <div class="section-body">`;
-
-    if (cheaper.length) {
-      html += `<h2 style="color:#166534">變便宜（${cheaper.length} 支）</h2>`;
-      cheaper.forEach(c => {
-        const warn = c.threshold_changed ? ' <span style="color:#f59e0b;font-size:.72rem">門檻調整</span>' : '';
-        html += `<div class="stock-row">
-          <a class="stock-code" href="/company.html?code=${c.code}" target="_blank">${c.code}</a>
-          <span class="stock-name">${c.name}</span>
-          <span class="tag tag-${c.to.toLowerCase()}">${c.from} → ${c.to}</span>
-          <span class="metric">收盤 <strong>${c.price}</strong></span>
-          <span class="metric">折價 <strong>${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</strong></span>
-          ${warn}
-        </div>`;
-      });
-    }
-
-    if (expensive.length) {
-      html += `<details style="margin-top:12px"><summary style="cursor:pointer;color:#94a3b8;font-size:.85rem">變貴中（${expensive.length} 支）— 點擊展開</summary>`;
-      expensive.forEach(c => {
-        html += `<div class="stock-row dim">
-          <a class="stock-code" href="/company.html?code=${c.code}" target="_blank">${c.code}</a>
-          <span class="stock-name">${c.name}</span>
-          <span class="tag" style="background:#f1f5f9;color:#94a3b8">${c.from} → ${c.to}</span>
-          <span class="metric">收盤 ${c.price}</span>
-        </div>`;
-      });
-      html += '</details>';
-    }
-    html += '</div></div>';
+      <div class="section-header" style="background:#f0fdf4;color:#166534;border-color:#22c55e">今日變便宜（${cheaper.length} 支）</div>
+      <div style="padding:0 20px">
+      <table class="val-table"><thead><tr>
+        <th>代碼</th><th>名稱</th><th>沈董等級</th><th>變動</th><th style="text-align:right">股價</th><th style="text-align:right">折價%</th><th>備註</th>
+      </tr></thead><tbody>`;
+    cheaper.forEach(c => {
+      const gcls = GRADE_CLS(c.shen_grade);
+      html += `<tr>
+        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+        <td>${c.name}</td>
+        <td><span class="${gcls}">${c.shen_grade || '-'}</span></td>
+        <td><span class="chg-add">${c.from || 'above'} → ${c.to}</span></td>
+        <td style="text-align:right;font-weight:600">${c.price}</td>
+        <td style="text-align:right;color:#dc2626;font-weight:600">${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</td>
+        <td>${c.threshold_changed ? '<span style="color:#f59e0b;font-size:.72rem">門檻調整</span>' : ''}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div></div>';
   }
 
-  // ── 二、市場體感區 ──
-  const fmtDelta = v => v > 0 ? `<span class="arrow-up">↑${v}</span>` : v < 0 ? `<span class="arrow-down">↓${Math.abs(v)}</span>` : '-';
-  html += `<div class="section">
-    <div class="section-header" style="background:#f8fafc;color:#334155;border-color:#cbd5e1">市場體感 — 評價分布統計（累積制）</div>
-    <div class="section-body">
-      <div class="dist-cards">
-        <div class="dist-card dist-aa"><div class="level">≤ AA（超便宜）</div><div class="count">${dist.AA || 0}</div><div class="delta">${fmtDelta(delta.AA || 0)}</div></div>
-        <div class="dist-card dist-a1"><div class="level">≤ A1（便宜）</div><div class="count">${dist.A1 || 0}</div><div class="delta">${fmtDelta(delta.A1 || 0)}</div></div>
-        <div class="dist-card dist-a2"><div class="level">≤ A2（合理偏低）</div><div class="count">${dist.A2 || 0}</div><div class="delta">${fmtDelta(delta.A2 || 0)}</div></div>
-        <div class="dist-card dist-a"><div class="level">≤ A（偏低）</div><div class="count">${dist.A || 0}</div><div class="delta">${fmtDelta(delta.A || 0)}</div></div>
-      </div>
-    </div>
-  </div>`;
-
-  // ── 三、深度挖寶區 ──
-  html += `<div class="section">
-    <div class="section-header" style="background:#fffbeb;color:#92400e;border-color:#f59e0b">深度挖寶 — 完整便宜清單</div>
-    <div class="section-body">
-      <div class="toggle-bar">
-        <button class="toggle-btn ${hideLoVol ? 'active' : ''}" onclick="hideLoVol=!hideLoVol;render(window._lastData)">
-          ${hideLoVol ? '顯示全部' : '隱藏低流動性'}
-        </button>
-        <span class="metric">共 ${cheapList.length} 支在便宜區</span>
-      </div>`;
-
-  const LEVEL_ORDER = ['AA', 'A1', 'A2', 'A'];
-  const LEVEL_LABELS = { AA: '超便宜', A1: '便宜', A2: '合理偏低', A: '偏低' };
-
-  LEVEL_ORDER.forEach(lv => {
-    let items = cheapList.filter(c => c.level === lv);
-    if (hideLoVol) items = items.filter(c => (c.volume || 0) >= 500);
-    if (!items.length) return;
-
-    html += `<details${lv === 'AA' ? ' open' : ''}><summary style="cursor:pointer;padding:6px 0">
-      <span class="tag tag-${lv.toLowerCase()}" style="font-size:.85rem;padding:3px 12px">${lv}</span>
-      <strong style="font-size:.95rem;margin-left:6px">${LEVEL_LABELS[lv]}</strong>
-      <span class="metric" style="margin-left:8px">${items.length} 支</span>
-    </summary>`;
-    items.forEach(c => {
-      const isLowVol = (c.volume || 0) < 500;
-      const rowCls = isLowVol ? ' dim' : '';
-      const badges = [];
-      if (c.is_new) badges.push('<span class="tag tag-new">新進榜</span>');
-      if (c.cheap_days >= 10) badges.push(`<span class="tag tag-long">已${c.cheap_days}天</span>`);
-      if (c.recovering) badges.push('<span class="tag tag-recover">低檔轉強</span>');
-      if (c.shen_yld && c.shen_yld >= 5) badges.push(`<span class="tag" style="background:#dcfce7;color:#166534">殖${c.shen_yld.toFixed(1)}%</span>`);
-      if (isLowVol) badges.push('<span class="tag tag-low-vol">低流動</span>');
-
-      html += `<div class="stock-row${rowCls}">
-        <a class="stock-code" href="/company.html?code=${c.code}" target="_blank">${c.code}</a>
-        <span class="stock-name">${c.name}</span>
-        ${badges.join(' ')}
-        <span class="metric">收盤 <strong>${c.price}</strong></span>
-        <span class="metric">折價 <strong>${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</strong></span>
-        <span class="metric">便宜 <strong>${c.cheap_days || 0}</strong> 天</span>
-        ${c.deepest ? `<span class="metric">歷史最深 <strong>${c.deepest}</strong></span>` : ''}
-      </div>`;
+  if (expensive.length) {
+    html += `<div class="section">
+      <div class="section-header" style="background:#fef2f2;color:#991b1b;border-color:#ef4444">今日變貴（${expensive.length} 支）</div>
+      <div style="padding:0 20px">
+      <table class="val-table"><thead><tr>
+        <th>代碼</th><th>名稱</th><th>沈董等級</th><th>變動</th><th style="text-align:right">股價</th>
+      </tr></thead><tbody>`;
+    expensive.forEach(c => {
+      const gcls = GRADE_CLS(c.shen_grade);
+      html += `<tr>
+        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+        <td>${c.name}</td>
+        <td><span class="${gcls}">${c.shen_grade || '-'}</span></td>
+        <td><span class="chg-rm">${c.from} → ${c.to || 'above'}</span></td>
+        <td style="text-align:right">${c.price}</td>
+      </tr>`;
     });
-    html += '</details>';
-  });
+    html += '</tbody></table></div></div>';
+  }
 
-  html += '</div></div>';
+  if (!changes.length) html = '<div style="text-align:center;padding:60px;color:#94a3b8">今日無評價等級異動</div>';
   document.getElementById('content').innerHTML = html;
-  window._lastData = d;
 }
 
 load();

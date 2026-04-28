@@ -2250,7 +2250,7 @@ def get_daily_briefing():
         conn3.row_factory = sqlite3.Row
         c3 = conn3.cursor()
         try:
-            c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
+            c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days, fin_grade_1, fin_grade_2 FROM stocks")
             for r in c3.fetchall():
                 stock_extra[r['code']] = dict(r)
         except:
@@ -2311,6 +2311,7 @@ def get_daily_briefing():
                         'threshold_changed': threshold_changed,
                         'val_aa': latest.get('val_aa'),
                         'val_a1': latest.get('val_a1'),
+                        'shen_grade': extra.get('fin_grade_1'),
                     })
 
         # 便宜清單
@@ -2339,6 +2340,7 @@ def get_daily_briefing():
                 'shen_yld': latest.get('shen_yld'),
                 'val_aa': latest.get('val_aa'),
                 'val_a': latest.get('val_a'),
+                'shen_grade': extra.get('fin_grade_1'),
             })
 
     # 排序
