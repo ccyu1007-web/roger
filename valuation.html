@@ -44,7 +44,7 @@
   .section-header { padding: 14px 20px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid; }
 
   /* 表格 */
-  table.val-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  table.val-table { width: auto; border-collapse: collapse; font-size: .85rem; }
   table.val-table th { background: #f8fafc; color: #475569; font-size: .78rem; font-weight: 700; padding: 8px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1; }
   table.val-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
   table.val-table tr:hover { background: #f8fafc; }
@@ -238,15 +238,15 @@ function renderList(mode) {
     }
 
     html += `<table class="val-table"><thead><tr>
-        <th style="width:70px">代碼</th><th>名稱</th>
-        <th style="width:80px">股價</th>
+        <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+        <th style="width:70px;text-align:right">股價</th>
       </tr></thead><tbody>`;
 
     gItems.forEach(c => {
       html += `<tr>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>
-        <td style="font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+        <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';
