@@ -131,24 +131,34 @@ async function load() {
     _data = await briefRes.json();
     const stocksData = await stocksRes.json();
 
-    // 計算沈董等級 + 折價%，存到 _stocks
+    // 計算沈董PE/殖利率/等級 + 折價%，存到 _stocks
     (stocksData.data || []).forEach(s => {
+      const eps = s.shen_eps;
+      const div = s.shen_div;
+      const close = s.close;
+      if (!close || close <= 0) return;
+
+      // 沈董PE = 股價 / 沈董EPS
+      const pe = (eps && eps > 0) ? close / eps : null;
+      // 沈董殖利率 = 沈董股利 / 股價 * 100
+      const yld = (div && div > 0) ? div / close * 100 : null;
+
       let sg = null;
-      if (s.shen_eps != null && s.shen_eps <= 0) sg = 'X';
-      else if (s.shen_pe != null && s.shen_yld != null) sg = _calcShenGrade(s.shen_pe, s.shen_yld);
+      if (eps != null && eps <= 0) sg = 'X';
+      else if (pe != null && yld != null) sg = _calcShenGrade(pe, yld);
       if (!sg || sg === 'X' || sg === '觀察' || sg === '臨界點') return;
 
-      const discount = (s.val_aa != null && s.val_aa > 0 && s.close != null)
-        ? Math.round((s.val_aa - s.close) / s.val_aa * 10000) / 100 : null;
+      const discount = (s.val_aa != null && s.val_aa > 0)
+        ? Math.round((s.val_aa - close) / s.val_aa * 10000) / 100 : null;
 
       _stocks.push({
         code: s.code, name: s.name,
         shen_grade: sg,
-        price: s.close,
+        price: close,
         val_aa: s.val_aa,
         discount_pct: discount,
-        shen_yld: s.shen_yld,
-        shen_pe: s.shen_pe,
+        shen_yld: yld != null ? Math.round(yld * 100) / 100 : null,
+        shen_pe: pe != null ? Math.round(pe * 100) / 100 : null,
       });
     });
 
