@@ -1155,7 +1155,65 @@ def fetch_financial_detail(code):
     return total
 
 
+def backfill_financial_detail(force=False):
+    """批次抓取所有股票的完整損益表+資產負債表"""
+    _init_financial_detail_db()
+    conn = sqlite3.connect(DB_PATH)
+
+    if force:
+        codes = [r[0] for r in conn.execute(
+            "SELECT code FROM stocks WHERE close IS NOT NULL ORDER BY code").fetchall()]
+    else:
+        # 只抓還沒有 financial_detail 資料的股票
+        codes = [r[0] for r in conn.execute("""
+            SELECT s.code FROM stocks s
+            LEFT JOIN financial_detail fd ON s.code = fd.code
+            WHERE s.close IS NOT NULL
+            GROUP BY s.code
+            HAVING COUNT(fd.code) = 0
+            ORDER BY s.code""").fetchall()]
+    conn.close()
+
+    if not codes:
+        print("[財報明細] 所有股票已有資料")
+        return
+
+    print(f"[財報明細] 待抓: {len(codes)} 支")
+    done = 0
+    fail_streak = 0
+    t0 = time.time()
+
+    for code in codes:
+        try:
+            n = fetch_financial_detail(code)
+            if n > 0:
+                done += 1
+                fail_streak = 0
+            else:
+                fail_streak += 1
+        except:
+            fail_streak += 1
+
+        if (done + fail_streak) % 50 == 0:
+            elapsed = time.time() - t0
+            total_done = done + fail_streak
+            rate = total_done / elapsed * 60 if elapsed > 0 else 0
+            print(f"  進度: {total_done}/{len(codes)}（成功 {done}，{rate:.0f} 支/分）")
+
+        if fail_streak >= 50:
+            print(f"  連續失敗 {fail_streak} 次，停止")
+            break
+
+        time.sleep(random.uniform(0.3, 0.6))
+
+    elapsed = time.time() - t0
+    print(f"[財報明細] 完成: {done}/{len(codes)}，耗時 {elapsed:.0f} 秒")
+
+
 if __name__ == "__main__":
     import sys
-    force = '--force' in sys.argv
-    backfill_all(force=force)
+    if '--detail' in sys.argv:
+        backfill_financial_detail(force='--force' in sys.argv)
+    else:
+        force = '--force' in sys.argv
+        backfill_all(force=force)
