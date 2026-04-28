@@ -866,21 +866,24 @@ def get_financials(code):
 
     # 計算財務體質等級並寫入 stocks 表
     if data:
-        conn2 = sqlite3.connect(DB_PATH)
-        c2 = conn2.cursor()
-        updates = {}
-        for i, d in enumerate(data[:5], 1):
-            grade = _calc_fin_grade(d.get('roe'), d.get('operating_margin'), d.get('fcf'), d.get('revenue'))
-            updates[f'fin_grade_{i}'] = grade
-            updates[f'fin_grade_{i}y'] = d.get('year_label')
-        for i in range(len(data[:5]) + 1, 6):
-            updates[f'fin_grade_{i}'] = None
-            updates[f'fin_grade_{i}y'] = None
-        set_clause = ', '.join(f'{k}=?' for k in updates.keys())
-        c2.execute(f'UPDATE stocks SET {set_clause} WHERE code=?',
-                   list(updates.values()) + [code])
-        conn2.commit()
-        conn2.close()
+        try:
+            conn2 = sqlite3.connect(DB_PATH, timeout=10)
+            c2 = conn2.cursor()
+            updates = {}
+            for i, d in enumerate(data[:5], 1):
+                grade = _calc_fin_grade(d.get('roe'), d.get('operating_margin'), d.get('fcf'), d.get('revenue'))
+                updates[f'fin_grade_{i}'] = grade
+                updates[f'fin_grade_{i}y'] = d.get('year_label')
+            for i in range(len(data[:5]) + 1, 6):
+                updates[f'fin_grade_{i}'] = None
+                updates[f'fin_grade_{i}y'] = None
+            set_clause = ', '.join(f'{k}=?' for k in updates.keys())
+            c2.execute(f'UPDATE stocks SET {set_clause} WHERE code=?',
+                       list(updates.values()) + [code])
+            conn2.commit()
+            conn2.close()
+        except Exception:
+            pass  # DB locked 時不影響資料回傳
 
     # 取得公司名稱
     stock_info = query_db("SELECT name, market FROM stocks WHERE code = ?", (code,))
