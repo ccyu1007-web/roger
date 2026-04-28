@@ -181,13 +181,10 @@ function renderList(mode) {
     <div class="section-header" style="${headerColor}">${title}
       <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
     </div>
-    <div class="filter-bar" style="padding-top:12px">
-      <label><input type="checkbox" ${_hideLoVol ? 'checked' : ''} onchange="_hideLoVol=this.checked;renderTab()"> 隱藏低流動性</label>
-    </div>`;
+`;
 
   sortedGrades.forEach(grade => {
     let gItems = groups[grade];
-    if (_hideLoVol) gItems = gItems.filter(c => (c.volume || 0) >= 500);
     if (!gItems.length) return;
 
     // 組內按折價%排序
@@ -207,14 +204,12 @@ function renderList(mode) {
       </tr></thead><tbody>`;
 
     gItems.forEach(c => {
-      const isLowVol = (c.volume || 0) < 500;
       const badges = [];
       if (c.is_new) badges.push('<span class="tag tag-new">新進榜</span>');
       if (c.cheap_days >= 10) badges.push(`<span class="tag tag-long">${c.cheap_days}天</span>`);
       if (c.recovering) badges.push('<span class="tag tag-recover">低檔轉強</span>');
-      if (isLowVol) badges.push('<span class="tag" style="background:#f3f4f6;color:#9ca3af">低流動</span>');
 
-      html += `<tr${isLowVol ? ' class="dim"' : ''}>
+      html += `<tr>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>`;
       if (mode !== 'AA') html += `<td><span class="tag tag-${c.level.toLowerCase()}">${c.level}</span></td>`;
