@@ -837,21 +837,24 @@ async function loadDecision() {
     html += '</div>';
 
     // === 各方法比較表 ===
+    // 系統預估等級：用系統PE和系統殖利率算
+    const sys_grade = (stock.sys_ann_eps != null && stock.sys_ann_eps <= 0) ? 'X' : (stock.sys_ann_pe && stock.sys_ann_yld) ? _calcGrade(stock.sys_ann_pe, stock.sys_ann_yld) : null;
+
     html += '<div class="dec-section"><div class="dec-title">評估方法比較</div>';
-    html += '<table class="dec-table"><thead><tr><th style="width:100px">方法</th><th>等級</th><th>EPS</th><th>PE</th><th>殖利率</th><th>股利</th></tr></thead><tbody>';
+    html += '<table class="dec-table"><thead><tr><th style="width:100px">方法</th><th>等級</th><th>PE</th><th>殖利率</th><th>EPS</th><th>股利</th></tr></thead><tbody>';
     const methods = [
       { name: '預估', grade: est_grade, eps: est_eps, pe: est_pe, yld: est_yld, div: est_div },
       { name: '沈董', grade: shen_grade, eps: shen_eps, pe: shen_pe, yld: shen_yld, div: shen_div },
       { name: '綜合', grade: blend_grade, eps: blend_eps, pe: blend_pe, yld: blend_yld, div: blend_div },
       { name: '加權', grade: null, eps: weighted_eps, pe: weighted_pe, yld: weighted_yld, div: weighted_div },
-      { name: '系統', grade: null, eps: stock.sys_ann_eps, pe: stock.sys_ann_pe, yld: stock.sys_ann_yld, div: stock.sys_ann_div },
+      { name: '系統', grade: sys_grade, eps: stock.sys_ann_eps, pe: stock.sys_ann_pe, yld: stock.sys_ann_yld, div: stock.sys_ann_div },
     ];
     methods.forEach(m => {
       html += `<tr><td class="row-label">${m.name}</td>`;
       html += `<td style="text-align:center">${_gradeHtml(m.grade)}</td>`;
-      html += `<td>${fmtV(m.eps)}</td><td>${fmtV(m.pe)}</td>`;
+      html += `<td>${fmtV(m.pe)}</td>`;
       html += `<td>${m.yld != null ? m.yld.toFixed(2) + '%' : '-'}</td>`;
-      html += `<td>${fmtV(m.div)}</td></tr>`;
+      html += `<td>${fmtV(m.eps)}</td><td>${fmtV(m.div)}</td></tr>`;
     });
     html += '</tbody></table></div>';
 
