@@ -293,8 +293,8 @@ function renderList(mode) {
         ? Math.round((c.val_aa - c.price) / c.price * 10000) / 100 : null;
       const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
       const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-      const addHtml = (c.chg === 'new' && c.prev_grade) ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c.prev_grade}→</span>` : '';
-      const rmHtml = (isRemoved && c.shen_grade) ? `<span style="color:#059669;font-weight:600;font-size:.75rem">→${c.shen_grade}</span>` : '';
+      const addHtml = (c.chg === 'new' && c.prev_grade) ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c.prev_grade}→${c.shen_grade}</span>` : '';
+      const rmHtml = (isRemoved && c.shen_grade) ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c.prev_grade}→${c.shen_grade}</span>` : '';
       const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
       html += `<tr${rowStyle}>
