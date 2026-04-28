@@ -636,7 +636,8 @@ let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
 
 // ── 使用者設定同步（DB ↔ localStorage）──────────────────
 const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings',
-  'col_visible','global_div_weights','blend_ratio','global_val_params'];
+  'col_visible','global_div_weights','blend_ratio','global_val_params',
+  'sort_col','sort_asc'];
 
 async function loadUserSettings() {
   try {
@@ -664,6 +665,8 @@ async function loadUserSettings() {
     const br = JSON.parse(localStorage.getItem('blend_ratio') || 'null');
     if (br) { _blendShen = br.shen; _blendWt = br.wt; }
     _globalVal = JSON.parse(localStorage.getItem('global_val_params') || 'null') || {...DEFAULT_GLOBAL_VAL};
+    sortCol = localStorage.getItem('sort_col') || 'code';
+    sortAsc = localStorage.getItem('sort_asc') !== 'false';
   } catch(e) {}
 }
 
@@ -1985,6 +1988,7 @@ function sortBy(col) {
   else { sortCol = col; sortAsc = true; }
   localStorage.setItem('sort_col', sortCol);
   localStorage.setItem('sort_asc', String(sortAsc));
+  syncUserSettings();
   ['code','name','close','change','change_240d','trailing_pe',
    'eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','est_eps','est_pe','est_grade',
    'sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
