@@ -689,10 +689,19 @@ async function loadUserLists() {
   try {
     const res = await fetch('/api/user-lists');
     const data = await res.json();
-    if (data.watch) { watchSet = new Set(data.watch.map(r => r.code)); localStorage.setItem('watchList', JSON.stringify([...watchSet])); }
-    if (data.hold) { holdSet = new Set(data.hold.map(r => r.code)); localStorage.setItem('holdList', JSON.stringify([...holdSet])); }
-    if (data.focus) { focusSet = new Set(data.focus.map(r => r.code)); localStorage.setItem('focusList', JSON.stringify([...focusSet])); }
-    if (data.quality) { qualitySet = new Set(data.quality.map(r => r.code)); localStorage.setItem('qualityList', JSON.stringify([...qualitySet])); }
+    if (data.watch && data.watch.length) { watchSet = new Set(data.watch.map(r => r.code)); localStorage.setItem('watchList', JSON.stringify([...watchSet])); }
+    if (data.hold && data.hold.length) { holdSet = new Set(data.hold.map(r => r.code)); localStorage.setItem('holdList', JSON.stringify([...holdSet])); }
+    if (data.focus && data.focus.length) { focusSet = new Set(data.focus.map(r => r.code)); localStorage.setItem('focusList', JSON.stringify([...focusSet])); }
+    if (data.quality && data.quality.length) { qualitySet = new Set(data.quality.map(r => r.code)); localStorage.setItem('qualityList', JSON.stringify([...qualitySet])); }
+    // 自動遷移：localStorage 有但 DB 沒有 → 推上去
+    for (const [type, localKey, setRef] of [['quality','qualityList',qualitySet],['watch','watchList',watchSet],['hold','holdList',holdSet],['focus','focusList',focusSet]]) {
+      if ((!data[type] || !data[type].length) && setRef.size > 0) {
+        fetch(`/api/user-lists/${type}`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({action: 'sync', codes: [...setRef]})
+        }).catch(() => {});
+      }
+    }
     updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount();
   } catch(e) {}
 }
