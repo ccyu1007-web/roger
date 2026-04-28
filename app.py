@@ -581,6 +581,85 @@ def sync_quarterly():
     return jsonify({"status": "ok", "updated": updated})
 
 
+@app.route("/api/sync/table", methods=["POST"])
+def sync_table():
+    """
+    通用全表同步 API — 本機 push 任意資料表到 Render
+    POST body: { "table": "pe_history", "columns": [...], "pk": ["code","year"], "data": [...] }
+    """
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    if not request.is_json:
+        return jsonify({"status": "error", "msg": "not json"}), 400
+
+    table = request.json.get('table', '').strip()
+    columns = request.json.get('columns', [])
+    pk = request.json.get('pk', [])
+    rows = request.json.get('data', [])
+    create_sql = request.json.get('create_sql', '')
+
+    # 安全檢查：只允許白名單內的表
+    ALLOWED_TABLES = {
+        'pe_history', 'monthly_revenue', 'stock_state', 'material_news',
+        'etf_holdings', 'etf_changes', 'etf_info',
+        'user_lists', 'user_notes', 'user_estimates', 'user_settings',
+        'system_eps_actual', 'system_eps_log',
+        'quarterly_financial', 'financial_annual', 'financial_detail',
+        'stocks',
+    }
+    if table not in ALLOWED_TABLES:
+        return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
+    if not columns or not rows:
+        return jsonify({"status": "ok", "updated": 0, "msg": "no data"})
+
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    c = conn.cursor()
+
+    # 自動建表（如果有提供 CREATE SQL）
+    if create_sql:
+        try:
+            c.execute(create_sql)
+        except:
+            pass
+
+    updated = 0
+    if pk:
+        # UPSERT: INSERT ON CONFLICT UPDATE
+        non_pk = [col for col in columns if col not in pk]
+        placeholders = ','.join(['?'] * len(columns))
+        if non_pk:
+            update_clause = ','.join(f'{col}=excluded.{col}' for col in non_pk)
+            conflict_clause = ','.join(pk)
+            sql = f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders}) ON CONFLICT({conflict_clause}) DO UPDATE SET {update_clause}"
+        else:
+            sql = f"INSERT OR IGNORE INTO {table} ({','.join(columns)}) VALUES ({placeholders})"
+        for r in rows:
+            try:
+                vals = [r.get(col) for col in columns]
+                c.execute(sql, vals)
+                updated += 1
+            except:
+                pass
+    else:
+        # 無主鍵：先清空再插入（整表替換）
+        try:
+            c.execute(f"DELETE FROM {table}")
+        except:
+            pass
+        placeholders = ','.join(['?'] * len(columns))
+        for r in rows:
+            try:
+                vals = [r.get(col) for col in columns]
+                c.execute(f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders})", vals)
+                updated += 1
+            except:
+                pass
+
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 @app.route("/api/sync/pe-history", methods=["POST"])
 def sync_pe_history():
     """本機 push 歷史本益比到 Render"""

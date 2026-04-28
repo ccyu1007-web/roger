@@ -3348,27 +3348,171 @@ def fetch_institutional():
     return updated
 
 
+def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500):
+    """
+    通用全表同步：把本機任意資料表 push 到 Render
+    table: 表名
+    columns: 欄位列表
+    pk: 主鍵欄位列表（用於 UPSERT）
+    create_sql: 建表 SQL（Render 端自動建表）
+    where: 可選的 WHERE 條件（如 "WHERE DATE(updated_at) = DATE('now')"）
+    """
+    RENDER_URL = "https://tock-system.onrender.com"
+    conn = sqlite3.connect(DB_PATH)
+    col_str = ','.join(columns)
+    sql = f"SELECT {col_str} FROM {table}"
+    if where:
+        sql += f" {where}"
+    rows = conn.execute(sql).fetchall()
+    conn.close()
+
+    if not rows:
+        print(f"  [{table}] 無資料")
+        return 0
+
+    data = [{columns[j]: r[j] for j in range(len(columns))} for r in rows]
+
+    failed = 0
+    for i in range(0, len(data), batch_size):
+        batch = data[i:i+batch_size]
+        try:
+            resp = requests.post(
+                f'{RENDER_URL}/api/sync/table',
+                json={'table': table, 'columns': columns, 'pk': pk,
+                      'create_sql': create_sql or '', 'data': batch},
+                headers=SYNC_HEADERS, timeout=60
+            )
+            if resp.status_code != 200:
+                failed += len(batch)
+        except Exception as e:
+            print(f"  [{table}] batch {i//batch_size+1} 失敗: {e}")
+            failed += len(batch)
+
+    msg = f"  [{table}] {len(data)} 筆"
+    if failed:
+        msg += f"（{failed} 筆失敗）"
+    print(msg)
+    return len(data) - failed
+
+
 def _push_all_to_render():
-    """一次 push 所有資料到 Render（stocks + quarterly + financial_annual）"""
+    """一次 push 所有資料到 Render — 通用全表同步"""
     if os.environ.get('DATABASE_URL'):
         return
     print("[全量同步] 開始 push 到 Render...")
-    try: _push_prices_to_render()      # 股價
+
+    # 既有的專用 push（stocks 表結構特殊，保留原函式）
+    try: _push_prices_to_render()
     except Exception as e: print(f"  [prices] 失敗: {e}")
-    try: _push_annual_to_render()      # stocks 表 EPS/股利/財務等級
+    try: _push_annual_to_render()
     except Exception as e: print(f"  [annual] 失敗: {e}")
-    try: _push_quarterly_to_render()   # quarterly_financial 季報
-    except Exception as e: print(f"  [quarterly] 失敗: {e}")
-    try: _push_financial_annual_to_render()  # financial_annual 年報整表
-    except Exception as e: print(f"  [financial] 失敗: {e}")
-    try: _push_institutional_to_render()  # 法人
+    try: _push_institutional_to_render()
     except Exception as e: print(f"  [institutional] 失敗: {e}")
-    try: _push_estimates_to_render()   # 系統估算
+    try: _push_estimates_to_render()
     except Exception as e: print(f"  [estimates] 失敗: {e}")
-    try: _push_financial_detail_to_render()  # 完整財報明細
-    except Exception as e: print(f"  [detail] 失敗: {e}")
-    try: _push_pe_history_to_render()  # 歷史本益比
-    except Exception as e: print(f"  [pe_history] 失敗: {e}")
+
+    # 通用全表同步 — 所有獨立資料表
+    SYNC_TABLES = [
+        {
+            'table': 'quarterly_financial',
+            'columns': ['code','quarter','revenue','cost','gross_profit','operating_expense',
+                        'operating_income','non_operating','pretax_income','tax','continuing_income',
+                        'net_income_parent','eps','contract_liability','inventory','updated_at'],
+            'pk': ['code','quarter'],
+            'where': "WHERE DATE(updated_at) = DATE('now')",
+        },
+        {
+            'table': 'financial_annual',
+            'columns': ['code','year','revenue','cost','gross_profit','operating_expense',
+                        'operating_income','non_operating','pretax_income','tax','net_income',
+                        'net_income_parent','total_assets','total_equity','common_stock',
+                        'contract_liability','operating_cf','capex','eps',
+                        'weighted_shares','cash_dividend','stock_dividend','updated_at'],
+            'pk': ['code','year'],
+            'where': "WHERE DATE(updated_at) = DATE('now')",
+        },
+        {
+            'table': 'pe_history',
+            'columns': ['code','year','pe_high','pe_low','updated_at'],
+            'pk': ['code','year'],
+        },
+        {
+            'table': 'monthly_revenue',
+            'columns': ['code','year','month','revenue','updated_at'],
+            'pk': ['code','year','month'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS monthly_revenue (
+                code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
+                revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""",
+        },
+        {
+            'table': 'stock_state',
+            'columns': ['stock_id','date','price','price_pos','fair_low','fair_mid','fair_high',
+                        'shen_eps','shen_pe','shen_yld','fin_grade','updated_at',
+                        'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct'],
+            'pk': ['stock_id','date'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS stock_state (
+                stock_id TEXT NOT NULL, date TEXT NOT NULL,
+                price REAL, price_pos REAL, fair_low REAL, fair_mid REAL, fair_high REAL,
+                shen_eps REAL, shen_pe REAL, shen_yld REAL, fin_grade TEXT, updated_at TEXT,
+                val_level TEXT, val_aa REAL, val_a1 REAL, val_a2 REAL, val_a REAL,
+                val_lt6 REAL, discount_pct REAL,
+                PRIMARY KEY (stock_id, date))""",
+        },
+        {
+            'table': 'material_news',
+            'columns': ['id','code','name','date','time','subject','description','tier',
+                        'matched_rule','created_at','direction','link','status'],
+            'pk': ['id'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS material_news (
+                id INTEGER PRIMARY KEY, code TEXT, name TEXT, date TEXT, time TEXT,
+                subject TEXT, description TEXT, tier INTEGER, matched_rule TEXT,
+                created_at TEXT, direction TEXT, link TEXT, status TEXT)""",
+        },
+        {
+            'table': 'etf_holdings',
+            'columns': ['etf_code','stock_code','stock_name','weight','shares','updated'],
+            'pk': ['etf_code','stock_code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS etf_holdings (
+                etf_code TEXT NOT NULL, stock_code TEXT NOT NULL,
+                stock_name TEXT, weight REAL, shares INTEGER, updated TEXT,
+                PRIMARY KEY (etf_code, stock_code))""",
+        },
+        {
+            'table': 'etf_changes',
+            'columns': ['id','etf_code','stock_code','stock_name','action','change_date','created_at'],
+            'pk': ['id'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS etf_changes (
+                id INTEGER PRIMARY KEY, etf_code TEXT, stock_code TEXT,
+                stock_name TEXT, action TEXT, change_date TEXT, created_at TEXT)""",
+        },
+        {
+            'table': 'user_lists',
+            'columns': ['list_type','code','added_at'],
+            'pk': ['list_type','code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS user_lists (
+                list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT,
+                PRIMARY KEY (list_type, code))""",
+        },
+        {
+            'table': 'financial_detail',
+            'columns': ['code','period','period_type','report_type','item','value','updated_at'],
+            'pk': ['code','period','period_type','report_type','item'],
+            'where': "WHERE DATE(updated_at) = DATE('now')",
+        },
+    ]
+
+    for cfg in SYNC_TABLES:
+        try:
+            _push_table_to_render(
+                table=cfg['table'],
+                columns=cfg['columns'],
+                pk=cfg['pk'],
+                create_sql=cfg.get('create_sql'),
+                where=cfg.get('where'),
+            )
+        except Exception as e:
+            print(f"  [{cfg['table']}] 失敗: {e}")
+
     print("[全量同步] 完成")
 
 
