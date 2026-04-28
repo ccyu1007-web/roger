@@ -1470,65 +1470,85 @@ def _post_process_after_save():
     _batch_system_estimate()
     _batch_annual_estimate()
 
-    # ── 補抓缺存貨/合約負債的季度資產負債表（群益 zcpa）──
-    try: _fill_missing_inventory()
-    except Exception as e: print(f"  [補存貨] 失敗: {e}")
+    # ── 補抓缺任何關鍵資料的股票（群益全套）──
+    try: _fill_missing_financials()
+    except Exception as e: print(f"  [補資料] 失敗: {e}")
 
     print("  後處理完成")
 
 
-def _fill_missing_inventory():
+def _fill_missing_financials():
     """
-    批次補抓缺存貨/合約負債的股票（群益 zcpa）。
-    找最新一季有季報但沒存貨的股票，從群益季度資產負債表抓取。
-    每次最多補 100 支，避免跑太久。
+    批次補抓缺任何關鍵資料的股票。
+    檢查年報（total_equity/operating_cf/capex/cash_dividend）、
+    季報（inventory/contract_liability）、PE歷史，
+    缺任一項就跑群益 fetch_all_three 全套抓取。
+    每次最多補 50 支，避免跑太久。多跑幾次排程就會全部補齊。
     """
-    from capital_fetcher import fetch_capital_contract_liability
+    from capital_fetcher import fetch_all_three
     conn = sqlite3.connect(DB_PATH)
 
-    # 找最新季度
+    cur_year = date.today().year
+
+    # 找最新完整季度
     latest_q = conn.execute("""
         SELECT quarter FROM quarterly_financial
+        WHERE CAST(SUBSTR(quarter,1,INSTR(quarter,'Q')-1) AS INTEGER) >= ?
+        GROUP BY quarter HAVING COUNT(*) > 1000
         ORDER BY CAST(SUBSTR(quarter,1,INSTR(quarter,'Q')-1) AS INTEGER) DESC,
                  CAST(SUBSTR(quarter,INSTR(quarter,'Q')+1) AS INTEGER) DESC
         LIMIT 1
-    """).fetchone()
+    """, (cur_year - 1912,)).fetchone()
+
     if not latest_q:
         conn.close()
         return
 
     q = latest_q[0]
-    # 找該季有季報但沒存貨的非金融股（金融股本來沒存貨）
+
+    # 條件：缺年報關鍵欄位 OR 缺季報存貨/合約負債 OR 缺PE歷史
+    # 排除金融股的存貨檢查
     codes = [r[0] for r in conn.execute("""
-        SELECT qf.code FROM quarterly_financial qf
-        JOIN stocks s ON qf.code = s.code
-        WHERE qf.quarter = ? AND qf.inventory IS NULL
-        AND s.industry NOT IN ('金融保險業','金融業','銀行業','保險業','證券業')
-        AND s.industry IS NOT NULL
-        ORDER BY qf.code
-        LIMIT 100
-    """, (q,)).fetchall()]
+        SELECT DISTINCT s.code FROM stocks s
+        WHERE s.close IS NOT NULL AND (
+            -- 年報缺關鍵欄位（最近一年）
+            s.code IN (
+                SELECT code FROM financial_annual
+                WHERE year = ? AND (
+                    total_equity IS NULL OR operating_cf IS NULL OR
+                    capex IS NULL OR cash_dividend IS NULL
+                )
+            )
+            -- 季報缺存貨（非金融股）
+            OR (s.code IN (
+                SELECT code FROM quarterly_financial
+                WHERE quarter = ? AND inventory IS NULL
+            ) AND COALESCE(s.industry,'') NOT IN ('金融保險業','金融業','銀行業','保險業','證券業'))
+            -- 缺PE歷史（EPS > 0 的才需要）
+            OR (s.code NOT IN (SELECT DISTINCT code FROM pe_history)
+                AND s.eps_y1 IS NOT NULL AND s.eps_y1 > 0)
+        )
+        ORDER BY s.code
+        LIMIT 50
+    """, (cur_year - 1, q)).fetchall()]
     conn.close()
 
     if not codes:
-        print(f"  [補存貨] {q} 無缺漏")
+        print(f"  [補資料] 無缺漏")
         return
 
-    print(f"  [補存貨] {q} 缺 {len(codes)} 支，開始從群益 zcpa 補抓...")
+    print(f"  [補資料] 發現 {len(codes)} 支缺關鍵資料，開始群益全套補抓...")
     done = 0
-    saved = 0
     for code in codes:
         try:
-            n = fetch_capital_contract_liability(code)
-            saved += n
+            fetch_all_three(code)
         except:
             pass
         done += 1
-        time.sleep(random.uniform(0.2, 0.5))
-        if done % 20 == 0:
+        if done % 10 == 0:
             print(f"    進度: {done}/{len(codes)}")
 
-    print(f"  [補存貨] 完成，補抓 {saved} 筆")
+    print(f"  [補資料] 完成，已補 {done} 支")
 
 
 def _check_annual_eps_completeness():
