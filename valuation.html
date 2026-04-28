@@ -86,9 +86,14 @@
 
 <div class="container">
   <!-- Tab -->
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('aa',this)">AA<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
-    <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('aa',this)">AA<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
+      <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
+    </div>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer">
+      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
+    </label>
   </div>
 
   <div id="content"><div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div></div>
@@ -97,7 +102,8 @@
 <script>
 let _data = null;
 let _tab = 'aa';
-let _hideLoVol = false;
+let _qualityOnly = false;
+let _qualitySet = new Set();
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
@@ -124,10 +130,13 @@ let removedByGrade = {};
 
 async function load() {
   try {
-    const [briefRes, stocksRes] = await Promise.all([
+    const [briefRes, stocksRes, listRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/stocks'),
+      fetch('/api/user-lists'),
     ]);
+    const lists = await listRes.json();
+    _qualitySet = new Set((lists.quality || []).map(r => r.code));
     _data = await briefRes.json();
     const stocksData = await stocksRes.json();
 
@@ -221,8 +230,9 @@ function switchTab(tab, btn) {
 }
 
 function updateCounts() {
-  document.getElementById('cntAA').textContent = _stocks.filter(s => s.shen_grade === 'AA').length;
-  document.getElementById('cntCheap').textContent = _stocks.filter(s => ['A1','A2','A'].includes(s.shen_grade)).length;
+  let pool = _qualityOnly ? _stocks.filter(s => _qualitySet.has(s.code)) : _stocks;
+  document.getElementById('cntAA').textContent = pool.filter(s => s.shen_grade === 'AA').length;
+  document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.shen_grade)).length;
 }
 
 function renderTab() {
@@ -234,6 +244,7 @@ function renderList(mode) {
   let items = mode === 'AA'
     ? _stocks.filter(s => s.shen_grade === 'AA')
     : _stocks.filter(s => ['A1','A2','A'].includes(s.shen_grade));
+  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
   // A1/A2/A tab 按沈董等級分組
   const groups = {};
