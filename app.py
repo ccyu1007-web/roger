@@ -581,6 +581,37 @@ def sync_quarterly():
     return jsonify({"status": "ok", "updated": updated})
 
 
+@app.route("/api/sync/prices", methods=["POST"])
+def sync_prices():
+    """本機 push 股價到 Render"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    if not request.is_json or not request.json.get('data'):
+        return jsonify({"status": "error", "msg": "no data"}), 400
+    rows = request.json['data']
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    updated = 0
+    for r in rows:
+        code = r.get('code')
+        if not code:
+            continue
+        fields = []
+        vals = []
+        for col in ['close', 'change', 'open', 'high', 'low', 'volume']:
+            if col in r and r[col] is not None:
+                fields.append(f'{col}=?')
+                vals.append(r[col])
+        if fields:
+            vals.append(code)
+            c.execute(f"UPDATE stocks SET {', '.join(fields)} WHERE code=?", vals)
+            if c.rowcount:
+                updated += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "updated": updated})
+
+
 @app.route("/api/sync/annual", methods=["POST"])
 def sync_annual():
     """本機 push 年度 EPS + 股利 + 財務等級到 Render"""

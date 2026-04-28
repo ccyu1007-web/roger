@@ -3353,6 +3353,8 @@ def _push_all_to_render():
     if os.environ.get('DATABASE_URL'):
         return
     print("[全量同步] 開始 push 到 Render...")
+    try: _push_prices_to_render()      # 股價
+    except Exception as e: print(f"  [prices] 失敗: {e}")
     try: _push_annual_to_render()      # stocks 表 EPS/股利/財務等級
     except Exception as e: print(f"  [annual] 失敗: {e}")
     try: _push_quarterly_to_render()   # quarterly_financial 季報
@@ -3535,6 +3537,38 @@ def _push_annual_to_render():
         print(f"[年度同步] 已 push {len(data)} 支到 Render")
     except Exception as e:
         print(f"[年度同步] 失敗: {e}")
+
+
+def _push_prices_to_render():
+    """本機股價 push 到 Render（close/change/open/high/low/volume）"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    RENDER_URL = "https://tock-system.onrender.com"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""SELECT code, close, change, open, high, low, volume
+                              FROM stocks WHERE close IS NOT NULL""").fetchall()
+        conn.close()
+        cols = ['code', 'close', 'change', 'open', 'high', 'low', 'volume']
+        data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
+
+        failed = 0
+        for i in range(0, len(data), 500):
+            batch = data[i:i+500]
+            try:
+                resp = requests.post(f'{RENDER_URL}/api/sync/prices',
+                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
+                if resp.status_code != 200:
+                    failed += len(batch)
+            except Exception as e:
+                print(f"  [股價同步] batch {i//500+1} 失敗: {e}")
+                failed += len(batch)
+        msg = f"[股價同步] 已 push {len(data)} 支到 Render"
+        if failed:
+            msg += f"（{failed} 支失敗）"
+        print(msg)
+    except Exception as e:
+        print(f"[股價同步] 失敗: {e}")
 
 
 def _push_institutional_to_render():
