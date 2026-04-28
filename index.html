@@ -454,6 +454,8 @@
           <th class="g-rev" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
           <th class="g-rev" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
           <th class="g-rev" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
+          <!-- 動態月營收欄位（JS 插入） -->
+          <template id="monthlyRevHeaders"></template>
           <!-- 等級排列：預估→沈董→綜合→近四季→加權 -->
           <th class="g-est col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
           <th class="g-est" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
@@ -566,6 +568,43 @@ COL_GROUPS.forEach(g => {
   if (_colVisible[g.key] === undefined) _colVisible[g.key] = g.default;
 });
 
+
+// ── 動態月營收欄位 ──────────────────────────────────────
+let _revMonths = [];
+const _curRocYear = new Date().getFullYear() - 1911;
+
+function initMonthlyRevHeaders() {
+  const monthSet = new Set();
+  allData.forEach(r => {
+    if (r.monthly_rev) r.monthly_rev.forEach(m => monthSet.add(m.month));
+  });
+  _revMonths = [...monthSet].sort((a, b) => a - b);
+  if (!_revMonths.length) return;
+
+  // 在「營收月增」後插入表頭
+  const tpl = document.getElementById('monthlyRevHeaders');
+  if (!tpl) return;
+  const frag = document.createDocumentFragment();
+  _revMonths.forEach(m => {
+    const th = document.createElement('th');
+    th.className = 'g-rev';
+    th.style.cssText = 'font-size:.78rem;white-space:nowrap;cursor:pointer';
+    th.setAttribute('onclick', `sortBy('rev_m${m}')`);
+    th.innerHTML = `${_curRocYear}/${m}月<span class="sort-icon" id="si_rev_m${m}">↕</span>`;
+    frag.appendChild(th);
+  });
+  tpl.parentNode.insertBefore(frag, tpl);
+  tpl.remove();
+
+  // 映射到 row 欄位供排序和渲染用
+  allData.forEach(r => {
+    if (!r.monthly_rev) return;
+    r.monthly_rev.forEach(m => {
+      r[`rev_m${m.month}`] = m.revenue;
+      r[`rev_m${m.month}_yoy`] = m.yoy;
+    });
+  });
+}
 
 function initColToggle() {
   // 欄位 toggle 按鈕
@@ -1770,6 +1809,7 @@ async function loadData() {
     document.getElementById('loading').style.display    = 'none';
     document.getElementById('stockTable').style.display = 'table';
 
+    initMonthlyRevHeaders();  // 動態插入月營收欄位表頭
     await loadUserSettings();  // 從 DB 載入設定（覆蓋 localStorage）
     initColToggle();
     await loadUserLists();  // 從 DB 載入清單
@@ -2219,7 +2259,14 @@ function render() {
       <td class="g-rev">${fmtPct(r.revenue_cum_yoy, 10)}</td>
       <td class="g-rev">${fmtPct(r.revenue_yoy, 10)}</td>
       <td class="g-rev">${fmtPct(r.revenue_mom, 10)}</td>
-      <!-- 結論 -->
+      ${_revMonths.map(m => {
+        const v = r[`rev_m${m}`];
+        const yoy = r[`rev_m${m}_yoy`];
+        if (v == null) return '<td class="g-rev" style="font-size:.78rem;color:#cbd5e1">－</td>';
+        const mStr = (v / 100000000).toFixed(1);
+        const yoyStr = yoy != null ? `<div style="font-size:.68rem;color:${yoy >= 0 ? '#059669' : '#ef4444'}">${yoy >= 0 ? '+' : ''}${yoy.toFixed(1)}%</div>` : '';
+        return `<td class="g-rev" style="font-size:.78rem;text-align:right">${mStr}億${yoyStr}</td>`;
+      }).join('')}
       <!-- 預估 -->
       <td class="g-est col-div">${gradeHtml(r.est_grade)}</td>
       <td class="g-est">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>

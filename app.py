@@ -246,10 +246,36 @@ def get_stocks():
     except:
         pass
 
+    # 批次查詢月營收（當年度各月）
+    rev_map = {}  # code -> [{month, revenue, yoy}, ...]
+    try:
+        from datetime import date
+        cur_west = date.today().year
+        conn_rev = sqlite3.connect(DB_PATH)
+        conn_rev.row_factory = sqlite3.Row
+        rev_rows = conn_rev.execute(
+            """SELECT r.code, r.month, r.revenue, r2.revenue as prev_revenue
+               FROM monthly_revenue r
+               LEFT JOIN monthly_revenue r2 ON r.code = r2.code AND r2.year = r.year - 1 AND r2.month = r.month
+               WHERE r.year = ?
+               ORDER BY r.code, r.month""", (cur_west,)).fetchall()
+        conn_rev.close()
+        for r in rev_rows:
+            code = r['code']
+            if code not in rev_map:
+                rev_map[code] = []
+            yoy = None
+            if r['revenue'] and r['prev_revenue'] and r['prev_revenue'] > 0:
+                yoy = round((r['revenue'] - r['prev_revenue']) / r['prev_revenue'] * 100, 2)
+            rev_map[code].append({'month': r['month'], 'revenue': r['revenue'], 'yoy': yoy})
+    except:
+        pass
+
     # 後端統一計算沈董EPS/股利/綜合股利，避免前後端不一致
     cur_roc = __import__('datetime').date.today().year - 1911
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
+        row["monthly_rev"] = rev_map.get(row["code"], [])
         _calc_shen_fields(row, cur_roc)
 
     result_data = {"count": len(rows), "data": rows}
