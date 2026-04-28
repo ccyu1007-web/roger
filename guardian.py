@@ -1730,9 +1730,11 @@ DEFAULT_YLD_MAX = 6.0
 
 
 def _calc_val_levels(close, shen_eps, shen_div, blend_div,
-                     pe_low=None, pe_high=None, yld_high=None, yld_max=None):
+                     pe_low=None, pe_high=None, yld_high=None, yld_max=None,
+                     est_eps=None, est_div=None):
     """
     計算評價門檻（AA/A1/A2/A/長期6%）和當前等級。
+    EPS/股利優先用預估值（est_eps/est_div），沒有才用沈董值，與前端一致。
     回傳: {val_aa, val_a1, val_a2, val_a, val_lt6, val_level, discount_pct}
     """
     if pe_low is None: pe_low = DEFAULT_PE_LOW
@@ -1740,15 +1742,19 @@ def _calc_val_levels(close, shen_eps, shen_div, blend_div,
     if yld_high is None: yld_high = DEFAULT_YLD_HIGH
     if yld_max is None: yld_max = DEFAULT_YLD_MAX
 
+    # 與前端一致：預估值優先，沒有才用沈董值
+    eps = est_eps if est_eps is not None else shen_eps
+    div = est_div if est_div is not None else shen_div
+
     pe_mid = (pe_low + pe_high) / 2
     pe_lo_bias = (pe_mid + pe_low) / 2  # 偏低PE
 
     def _calc_val(pe_val, yld_val):
-        if shen_eps is None or shen_eps <= 0 or shen_div is None or shen_div <= 0:
+        if eps is None or eps <= 0 or div is None or div <= 0:
             return None
-        v1 = shen_eps * pe_val
-        v2 = shen_div / (yld_val / 100)
-        v3 = blend_div / 0.06 + shen_div if blend_div and blend_div > 0 else None
+        v1 = eps * pe_val
+        v2 = div / (yld_val / 100)
+        v3 = blend_div / 0.06 + div if blend_div and blend_div > 0 else None
         candidates = [v1, v2]
         if v3 is not None: candidates.append(v3)
         return round(min(candidates), 2)
@@ -1902,7 +1908,8 @@ def snapshot_stock_states():
                             eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
                             eps_4, eps_4q, eps_5, eps_5q,
                             eps_y1, eps_ytd, fin_grade_1,
-                            div_c1, div_s1, deepest_val_level, val_cheap_days
+                            div_c1, div_s1, deepest_val_level, val_cheap_days,
+                            sys_ann_eps, sys_ann_div
                      FROM stocks WHERE close IS NOT NULL""")
     except:
         c.execute("""SELECT code, close, volume,
@@ -1949,10 +1956,14 @@ def snapshot_stock_states():
         if shen_eps and shen_eps > 0 and div_total > 0 and eps_y1_val and eps_y1_val > 0:
             payout = min(1.0, div_total / eps_y1_val)
             shen_div = round(shen_eps * payout, 4)
-            # blend_div 簡化 = shen_div（後端沒有加權EPS，用沈董近似）
             blend_div = shen_div
 
-        vl = _calc_val_levels(close, shen_eps, shen_div, blend_div)
+        # 預估值（與前端一致：sys_ann_eps/sys_ann_div 優先）
+        est_eps = row.get('sys_ann_eps')
+        est_div = row.get('sys_ann_div')
+
+        vl = _calc_val_levels(close, shen_eps, shen_div, blend_div,
+                              est_eps=est_eps, est_div=est_div)
 
         c.execute("""INSERT INTO stock_state
                      (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
