@@ -867,6 +867,15 @@ def get_quarterly(code):
                 (code,)
             )
 
+    # fallback 股數（找一季能反算的）
+    _fallback_shares = None
+    for r in rows:
+        e = r.get('eps')
+        n = r.get('net_income_parent')
+        if e and e != 0 and n is not None:
+            _fallback_shares = n / e
+            break
+
     data = []
     for r in rows:
         d = dict(r)
@@ -918,9 +927,10 @@ def get_quarterly(code):
         if shares_raw is None and eps_val is not None and eps_val != 0 and nip is not None:
             shares_raw = nip / eps_val
             d['weighted_shares'] = round(shares_raw / 1000, 0)
-
-        # 歸屬母公司淨利 = EPS × 加權平均股數
-        parent_ni = round(eps_val * shares_raw, 2) if eps_val is not None and shares_raw else None
+        # fallback2：EPS=0 但有其他季可反算
+        if shares_raw is None and _fallback_shares:
+            shares_raw = _fallback_shares
+            d['weighted_shares'] = round(shares_raw / 1000, 0)
 
         # 毛利率
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
@@ -933,8 +943,8 @@ def get_quarterly(code):
         else:
             d['tax_rate'] = None
         # 歸屬母公司權重 = 歸屬母公司淨利 / 繼續營業單位損益
-        if ci and ci != 0 and parent_ni is not None:
-            d['parent_weight'] = round(parent_ni / ci * 100, 2)
+        if nip is not None and ci and ci != 0:
+            d['parent_weight'] = round(nip / ci * 100, 2)
         else:
             d['parent_weight'] = None
 
