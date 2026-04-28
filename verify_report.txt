@@ -1,0 +1,145 @@
+============================================================
+逍遙投資系統 — 全量資料驗證報告
+時間：2026-04-28 20:39:27
+============================================================
+
+[本機] 股票總數：1964 支
+
+[Render] 股票總數：1964 支
+[OK] 本機與 Render 股票清單完全一致
+
+[股價比對] 共 1964 支
+  不一致：118 支
+    1240 茂生農經: 本機=58.8 Render=58.7 差=0.1
+    1259 安心: 本機=57.4 Render=57.5 差=-0.1
+    1294 漢田生技: 本機=79.2 Render=79.5 差=-0.3
+    1599 宏佳騰: 本機=25.1 Render=25.15 差=-0.05
+    1742 台蠟: 本機=15.8 Render=16.1 差=-0.3
+    1777 生泰: 本機=70.8 Render=70.9 差=-0.1
+    2035 唐榮: 本機=27.4 Render=27.55 差=-0.15
+    2073 雄順: 本機=25.7 Render=26.3 差=-0.6
+    2235 謚源: 本機=32.55 Render=33.35 差=-0.8
+    2643 捷迅: 本機=66.1 Render=66.4 差=-0.3
+    2719 燦星旅: 本機=27.3 Render=27.7 差=-0.4
+    2724 藝舍-KY: 本機=14.5 Render=16.0 差=-1.5
+    2729 瓦城: 本機=168.0 Render=168.5 差=-0.5
+    2732 六角: 本機=65.5 Render=66.0 差=-0.5
+    2740 華軒: 本機=39.25 Render=43.0 差=-3.75
+    2751 王座: 本機=54.3 Render=54.9 差=-0.6
+    2752 豆府: 本機=186.5 Render=186.0 差=0.5
+    2756 聯發國際: 本機=66.3 Render=67.1 差=-0.8
+    2949 欣新網: 本機=55.2 Render=55.6 差=-0.4
+    3067 全域: 本機=17.45 Render=17.5 差=-0.05
+    3085 新零售: 本機=11.4 Render=11.45 差=-0.05
+    3115 富榮綱: 本機=10.0 Render=10.35 差=-0.35
+    3118 進階: 本機=33.5 Render=33.55 差=-0.05
+    3191 雲嘉南: 本機=13.6 Render=13.65 差=-0.05
+    3226 龍鋒: 本機=39.7 Render=39.75 差=-0.05
+    3252 海灣: 本機=19.2 Render=19.3 差=-0.1
+    3287 廣寰科: 本機=28.1 Render=28.4 差=-0.3
+    3373 熱映: 本機=16.75 Render=16.95 差=-0.2
+    3434 哲固: 本機=29.25 Render=29.15 差=0.1
+    3512 皇龍: 本機=21.4 Render=21.6 差=-0.2
+    ...還有 88 支
+
+[EPS比對] 共 1964 支
+  不一致：1 支
+    9136 巨騰-DR: 本機=-2.01 Render=-0.35 差=-1.66
+
+[個股頁API測試] 共測試 1964 支
+  成功：1784 支
+  失敗：180 支
+  回應超過10秒：1531 支
+
+  === 失敗清單 ===
+    1218 泰山: HTTP 502 
+    2457 飛宏: HTTP 502 
+    2849 安泰銀: HTTP 502 
+    3296 勝德: HTTP 502 
+    6180 橘子: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6183 關貿: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6184 大豐電: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6219 富旺: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6220 岳豐: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6221 晉泰: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6222 立軒: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6223 旺矽: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6224 聚鼎: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6225 天瀚: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6226 光鼎: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6227 茂綸: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6228 全譜: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6229 研通: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6230 尼得科超眾: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6231 系微: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6233 旺玖: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6234 高僑: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6235 華孚: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6236 中湛: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6237 驊訊: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6239 力成: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6240 松崗: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6241 易通展: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6242 立康: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6243 迅杰: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6244 茂迪: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6245 立端: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6246 臺龍: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6248 沛波: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6257 矽格: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6259 百徽: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6261 久元: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6263 普萊德: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6264 富裔: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6265 方土昶: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6266 泰詠: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6269 台郡: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6270 倍微: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6271 同欣電: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6272 驊陞: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6274 台燿: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6275 元山: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6276 安鈦克: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6277 宏正: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    6278 台表科: HTTP 0 HTTPSConnectionPool(host='tock-system.onrender.com', port=443): Read timed out. (read timeout=30)
+    ...還有 130 支
+
+  === 回應慢（>10秒）===
+    6185: 29.8秒
+    6679: 29.5秒
+    6790: 29.2秒
+    6182: 28.2秒
+    6464: 28.2秒
+    6465: 28.0秒
+    6684: 27.6秒
+    6143: 27.1秒
+    6469: 27.1秒
+    7728: 27.0秒
+    7730: 26.8秒
+    6405: 26.5秒
+    6423: 26.3秒
+    6416: 26.1秒
+    6144: 26.0秒
+    6179: 25.9秒
+    6218: 25.9秒
+    6419: 25.5秒
+    3083: 25.4秒
+    3071: 25.0秒
+
+[本機資料完整性]
+  有收盤價: 1964 (100.0%)
+  有EPS: 1964 (100.0%)
+  有營收: 1945 (99.0%)
+  有股利: 1964 (100.0%)
+  有財務等級: 1954 (99.5%)
+  年報筆數: 39483 
+  季報筆數: 118058 
+  月營收筆數: 93219 
+
+============================================================
+驗證完成，耗時 5556 秒
+結論：發現 299 個問題需處理
+  - 股價不一致 118 支
+  - EPS不一致 1 支
+  - 個股頁打不開 180 支
+============================================================
