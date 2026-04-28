@@ -238,22 +238,17 @@ function renderList(mode) {
     }
 
     html += `<table class="val-table"><thead><tr>
-        <th>代碼</th><th>名稱</th>
-        <th style="text-align:right">股價</th><th style="text-align:right">AA門檻</th><th style="text-align:right">折價%</th>
-        <th style="text-align:right">沈董PE</th><th style="text-align:right">殖利率</th>
+        <th style="width:70px">代碼</th><th>名稱</th>
+        <th style="text-align:right;width:80px">股價</th>
+        <th style="text-align:right;width:80px">沈董PE</th>
+        <th style="text-align:right;width:80px">殖利率</th>
       </tr></thead><tbody>`;
 
     gItems.forEach(c => {
-      const dp = c.discount_pct;
-      const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#94a3b8') : '#cbd5e1';
-      const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-
       html += `<tr>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>
         <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-        <td style="text-align:right;color:#94a3b8">${c.val_aa != null ? c.val_aa.toFixed(2) : '-'}</td>
-        <td style="text-align:right;color:${dpColor};font-weight:600">${dpStr}</td>
         <td style="text-align:right">${c.shen_pe != null ? c.shen_pe.toFixed(1) : '-'}</td>
         <td style="text-align:right;color:${(c.shen_yld||0) >= 5 ? '#059669' : '#475569'}">${c.shen_yld ? c.shen_yld.toFixed(1) + '%' : '-'}</td>
       </tr>`;
