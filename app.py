@@ -1414,6 +1414,81 @@ def get_monthly_revenue(code):
 
 
 # ── 系統健康報告 ──────────────────────────────────────────
+@app.route("/api/sync-status")
+def sync_status():
+    """同步狀態：比對本機 vs Render 的資料筆數和股價"""
+    import requests as req
+    is_cloud = os.environ.get('DATABASE_URL') is not None
+    RENDER_URL = "https://tock-system.onrender.com"
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # 各表筆數
+    tables = ['stocks', 'quarterly_financial', 'financial_annual', 'pe_history',
+              'monthly_revenue', 'stock_state', 'material_news', 'etf_holdings', 'user_lists']
+    counts = []
+    for t in tables:
+        try:
+            local_cnt = c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        except:
+            local_cnt = 0
+        counts.append({'table': t, 'local': local_cnt, 'render': 0})
+
+    # Render 筆數
+    if not is_cloud:
+        try:
+            r = req.get(f"{RENDER_URL}/api/sync-status?counts_only=1", timeout=15)
+            rd = r.json()
+            render_counts = {c['table']: c['local'] for c in rd.get('counts', [])}
+            for c in counts:
+                c['render'] = render_counts.get(c['table'], 0)
+        except:
+            pass
+
+    # 股價抽樣比對
+    prices = []
+    sample_codes = ['2330', '2317', '1101', '2454', '2881', '2618', '3008', '1301']
+    local_prices = {}
+    for code in sample_codes:
+        r = c.execute("SELECT code, name, close FROM stocks WHERE code=?", (code,)).fetchone()
+        if r:
+            local_prices[r[0]] = {'code': r[0], 'name': r[1], 'local': r[2], 'render': None}
+
+    if not is_cloud:
+        try:
+            r = req.get(f"{RENDER_URL}/api/stocks", timeout=30)
+            rd = r.json()
+            for s in rd.get('data', []):
+                if s['code'] in local_prices:
+                    local_prices[s['code']]['render'] = s.get('close')
+        except:
+            pass
+    prices = list(local_prices.values())
+
+    # 最近更新時間
+    times = {}
+    try:
+        r = c.execute("SELECT MAX(updated_at) FROM stocks").fetchone()
+        times['stocks 最後更新'] = r[0] if r else None
+    except: pass
+    try:
+        r = c.execute("SELECT MAX(updated_at) FROM quarterly_financial").fetchone()
+        times['季報最後更新'] = r[0] if r else None
+    except: pass
+    try:
+        r = c.execute("SELECT MAX(updated_at) FROM financial_annual").fetchone()
+        times['年報最後更新'] = r[0] if r else None
+    except: pass
+    try:
+        r = c.execute("SELECT MAX(date) FROM stock_state").fetchone()
+        times['快照最新日期'] = r[0] if r else None
+    except: pass
+
+    conn.close()
+    return jsonify({'counts': counts, 'prices': prices, 'times': times})
+
+
 @app.route("/api/health")
 def health():
     return jsonify(generate_health_report())
