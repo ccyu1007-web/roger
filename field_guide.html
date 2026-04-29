@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>欄位說明 — 逍遙投資系統</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Microsoft JhengHei', -apple-system, sans-serif; background: #f0f4f8; color: #1a202c; font-size: 14px; }
+  header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 1.2rem; }
+  header a { color: rgba(255,255,255,.9); text-decoration: none; font-size: .85rem; }
+  .container { max-width: 900px; margin: 20px auto; padding: 0 16px; }
+  .section { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.08); margin-bottom: 20px; overflow: hidden; }
+  .section-title { background: #1e3a5f; color: #fff; padding: 10px 16px; font-weight: 700; font-size: .95rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .section-title:hover { background: #2a4a6f; }
+  .section-title .arrow { transition: transform .2s; }
+  .section-title.collapsed .arrow { transform: rotate(-90deg); }
+  .section-body { padding: 0; }
+  .section-body.hidden { display: none; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f1f5f9; text-align: left; padding: 8px 12px; font-size: .82rem; color: #64748b; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; font-size: .85rem; line-height: 1.5; }
+  tr:hover { background: #f8fafc; }
+  .field { font-weight: 700; color: #1e3a5f; white-space: nowrap; }
+  .formula { font-family: 'SF Mono', Menlo, monospace; font-size: .8rem; color: #7c3aed; background: #f5f3ff; padding: 2px 6px; border-radius: 3px; }
+  .source { font-size: .78rem; color: #64748b; }
+  .src-capital { color: #059669; font-weight: 600; }
+  .src-gov { color: #2563eb; font-weight: 600; }
+  .src-calc { color: #d97706; font-weight: 600; }
+  .src-user { color: #dc2626; font-weight: 600; }
+  .note { font-size: .78rem; color: #94a3b8; margin-top: 2px; }
+  .color-sample { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-right: 4px; }
+  .legend { padding: 12px 16px; display: flex; gap: 20px; flex-wrap: wrap; font-size: .82rem; border-top: 1px solid #e2e8f0; }
+  .toc { padding: 16px; }
+  .toc a { display: inline-block; margin: 4px 8px 4px 0; padding: 4px 12px; background: #e2e8f0; border-radius: 6px; color: #1e3a5f; text-decoration: none; font-size: .82rem; font-weight: 600; }
+  .toc a:hover { background: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>欄位說明</h1>
+  <div><a href="/">回總表</a></div>
+</header>
+
+<div class="container">
+
+<div class="section">
+  <div class="section-body">
+    <div class="legend">
+      <span><span class="src-capital">群益</span> 群益證券（最高優先）</span>
+      <span><span class="src-gov">政府</span> 證交所/櫃買中心 API</span>
+      <span><span class="src-calc">計算</span> 系統衍生計算</span>
+      <span><span class="src-user">使用者</span> 手動設定</span>
+    </div>
+    <div class="toc" id="toc"></div>
+  </div>
+</div>
+
+<!-- 基本資料 -->
+<div class="section" id="sec-basic">
+  <div class="section-title" onclick="toggleSection(this)">基本資料 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">股票代碼</td><td>4碼數字</td><td><span class="src-gov">政府</span> TWSE t187ap03 + TPEX peratio_analysis</td></tr>
+      <tr><td class="field">公司名稱</td><td>公司簡稱</td><td><span class="src-gov">政府</span> 同上</td></tr>
+      <tr><td class="field">市場</td><td>上市 / 上櫃</td><td><span class="src-gov">政府</span> 同上</td></tr>
+      <tr><td class="field">產業別</td><td>產業分類</td><td><span class="src-gov">政府</span> t187ap05</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 股價 -->
+<div class="section" id="sec-price">
+  <div class="section-title" onclick="toggleSection(this)">股價 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">收盤價</td><td>當日收盤價</td><td><span class="src-gov">政府</span> TWSE STOCK_DAY_ALL / TPEX quotes<div class="note">盤中用即時API，盤後用批次API，需日期驗證</div></td></tr>
+      <tr><td class="field">漲跌</td><td>與前一交易日收盤差</td><td><span class="src-gov">政府</span> 同上</td></tr>
+      <tr><td class="field">240日漲跌幅</td><td>與240交易日前收盤比較</td><td><span class="src-calc">計算</span> (今日收盤 - 240日前收盤) / 240日前收盤 × 100%</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 評價門檻 -->
+<div class="section" id="sec-val">
+  <div class="section-title" onclick="toggleSection(this)">評價門檻（AA ~ 長期6%）<span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">評價AA</td><td>最便宜門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fee2e2"></span>紅底</div></td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(EPS×10, 股利/6%, 綜合股利/6%+股利)</span>
+        <div class="note">EPS/股利優先順序：預估值 → 系統估算 → 沈董值</div></td></tr>
+      <tr><td class="field">評價A1</td><td>偏便宜門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(EPS×10, 股利/5.5%, 綜合股利/6%+股利)</span></td></tr>
+      <tr><td class="field">評價A2</td><td>合理偏低門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(EPS×12, 股利/6%, 綜合股利/6%+股利)</span></td></tr>
+      <tr><td class="field">評價A</td><td>合理門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#dbeafe"></span>藍底</div></td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(EPS×12, 股利/5.5%, 綜合股利/6%+股利)</span></td></tr>
+      <tr><td class="field">長期6%</td><td>長期殖利率門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#dcfce7"></span>綠底</div></td>
+        <td><span class="src-calc">計算</span> <span class="formula">綜合股利 / 6%</span></td></tr>
+    </table>
+    <div class="legend">
+      <span>預設參數：最低PE=10, 偏低PE=12, 最高PE=18, 偏高殖利率=5.5%, 最高殖利率=6%</span>
+    </div>
+  </div>
+</div>
+
+<!-- 預估明細 -->
+<div class="section" id="sec-est">
+  <div class="section-title" onclick="toggleSection(this)">預估明細 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">預估等級</td><td>矩陣等級（AA~X）</td><td><span class="src-calc">計算</span> 用預估PE和預估殖利率查矩陣表<div class="note">沒有使用者預估時 fallback 到系統估算</div></td></tr>
+      <tr><td class="field">預估PE</td><td>預估本益比</td><td><span class="src-user">使用者</span> 個股頁手動輸入 / <span class="src-calc">計算</span> 股價 / 預估EPS</td></tr>
+      <tr><td class="field">預估殖利率</td><td>預估殖利率%</td><td><span class="src-calc">計算</span> 預估股利 / 股價 × 100</td></tr>
+      <tr><td class="field">預估EPS</td><td>使用者預估年度EPS</td><td><span class="src-user">使用者</span> 個股頁手動輸入 / <span class="src-calc">計算</span> 系統年度估算 fallback</td></tr>
+      <tr><td class="field">預估股利</td><td>使用者預估年度股利</td><td><span class="src-user">使用者</span> 個股頁手動輸入 / <span class="src-calc">計算</span> 系統年度估算 fallback</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 系統估算 -->
+<div class="section" id="sec-sys">
+  <div class="section-title" onclick="toggleSection(this)">系統估算 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">系統等級</td><td>矩陣等級（AA~X）</td><td><span class="src-calc">計算</span> 用系統PE和系統殖利率查矩陣表</td></tr>
+      <tr><td class="field">系統PE</td><td>系統推算本益比</td><td><span class="src-calc">計算</span> 股價 / 系統EPS</td></tr>
+      <tr><td class="field">系統殖利率</td><td>系統推算殖利率%</td><td><span class="src-calc">計算</span> 系統股利 / 股價 × 100</td></tr>
+      <tr><td class="field">系統EPS</td><td>系統推算年度EPS</td><td><span class="src-calc">計算</span> 根據已公佈季度月營收推算全年EPS</td></tr>
+      <tr><td class="field">系統股利</td><td>系統推算年度股利</td><td><span class="src-calc">計算</span> 系統EPS × 配息率（近年平均）</td></tr>
+      <tr><td class="field">信心度</td><td>估算可信度 A/B/C</td><td><span class="src-calc">計算</span> A=有3季以上 B=有1-2季 C=純推估</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 沈董明細 -->
+<div class="section" id="sec-shen">
+  <div class="section-title" onclick="toggleSection(this)">沈董明細 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">沈董等級</td><td>矩陣等級（AA~X）</td><td><span class="src-calc">計算</span> 用沈董PE和沈董殖利率查矩陣表</td></tr>
+      <tr><td class="field">沈董PE</td><td>沈董本益比</td><td><span class="src-calc">計算</span> 股價 / 沈董EPS</td></tr>
+      <tr><td class="field">沈董殖利率</td><td>沈董殖利率%</td><td><span class="src-calc">計算</span> 沈董股利 / 股價 × 100</td></tr>
+      <tr><td class="field">沈董EPS</td><td>當年度已公佈季度年化推算</td>
+        <td><span class="src-calc">計算</span> 已公佈季度EPS加總 × (4/已公佈季數)<div class="note">例：Q1=2.5 → 沈董EPS=2.5×4=10</div></td></tr>
+      <tr><td class="field">沈董股利</td><td>沈董推算股利</td><td><span class="src-calc">計算</span> 沈董EPS × 配息率（最近一年 股利/EPS）</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 綜合/加權/近四季 -->
+<div class="section" id="sec-blend">
+  <div class="section-title" onclick="toggleSection(this)">綜合 / 加權 / 近四季明細 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">綜合EPS</td><td>沈董+加權混合</td>
+        <td><span class="src-calc">計算</span> <span class="formula">沈董EPS × 沈董權重% + 加權EPS × 加權權重%</span><div class="note">預設各 50%，可自訂</div></td></tr>
+      <tr><td class="field">加權EPS</td><td>五年加權平均</td>
+        <td><span class="src-calc">計算</span> <span class="formula">Σ(年度EPS × 權重)</span><div class="note">預設權重 30/25/20/15/10</div></td></tr>
+      <tr><td class="field">近四季EPS</td><td>最近四季EPS加總</td>
+        <td><span class="src-calc">計算</span> eps_1 + eps_2 + eps_3 + eps_4</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 營收 -->
+<div class="section" id="sec-rev">
+  <div class="section-title" onclick="toggleSection(this)">營收 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">營收更新</td><td>最新營收公佈日<div class="note">當天公佈 → 紅色</div></td><td><span class="src-gov">政府</span> t187ap05 新月份時設定</td></tr>
+      <tr><td class="field">累積營收年增</td><td>當年累計營收 vs 去年同期</td><td><span class="src-gov">政府</span> t187ap05 累計營業收入-前期比較增減(%)</td></tr>
+      <tr><td class="field">營收年增率</td><td>單月營收 vs 去年同月</td><td><span class="src-gov">政府</span> t187ap05 營業收入-去年同月增減(%)</td></tr>
+      <tr><td class="field">營收月增率</td><td>單月營收 vs 上月</td><td><span class="src-gov">政府</span> t187ap05 營業收入-上月比較增減(%)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 季度EPS -->
+<div class="section" id="sec-qeps">
+  <div class="section-title" onclick="toggleSection(this)">季度EPS <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">EPS更新</td><td>新季度EPS公佈日<div class="note">當天公佈 → 紅色</div></td><td><span class="src-gov">政府</span> t187ap14 出表日期</td></tr>
+      <tr><td class="field">eps_1 ~ eps_5</td><td>最近5季單季EPS</td>
+        <td><span class="src-capital">群益</span> zce 損益表（優先）<br><span class="src-gov">政府</span> t187ap14（去重，新季度才寫入）<div class="note">數值排序（非字串排序），避免 99Q4 > 114Q4</div></td></tr>
+      <tr><td class="field">當年累計EPS</td><td>當年度已公佈季度加總</td><td><span class="src-calc">計算</span> 當年度各季 EPS 合計</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 年度EPS -->
+<div class="section" id="sec-yeps">
+  <div class="section-title" onclick="toggleSection(this)">年度EPS <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">eps_y1 ~ eps_y6</td><td>最近6年完整年度EPS</td>
+        <td><span class="src-capital">群益</span> zcqa 年度損益表（最優先）<br><span class="src-gov">政府</span> t187ap14 Q4累計（驗證）<br>BWIBBU 本益比反推（補齊）<div class="note">群益直接覆蓋，其他不可覆蓋群益值</div></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 股利 -->
+<div class="section" id="sec-div">
+  <div class="section-title" onclick="toggleSection(this)">股利 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">現金股利</td><td>歷年現金股利（最近6年）</td><td><span class="src-capital">群益</span> zcc（小計＝盈餘+公積）<br><span class="src-gov">政府</span> t187ap39/t187ap45（補齊）</td></tr>
+      <tr><td class="field">股票股利</td><td>歷年股票股利（最近6年）</td><td><span class="src-capital">群益</span> zcc（小計＝盈餘+公積配股）</td></tr>
+      <tr><td class="field">配息率</td><td>股利 / EPS × 100</td><td><span class="src-calc">計算</span> EPS ≤ 0 但有配息 → 100%</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 法人 -->
+<div class="section" id="sec-inst">
+  <div class="section-title" onclick="toggleSection(this)">法人買賣超 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">外資</td><td>外資買賣超（張）</td><td><span class="src-capital">群益</span> zcl（每天17:10後）</td></tr>
+      <tr><td class="field">投信</td><td>投信買賣超（張）</td><td><span class="src-capital">群益</span> zcl</td></tr>
+      <tr><td class="field">自營商</td><td>自營商買賣超（張）</td><td><span class="src-capital">群益</span> zcl</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 財務等級 -->
+<div class="section" id="sec-grade">
+  <div class="section-title" onclick="toggleSection(this)">財務等級 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">財務等級</td><td>歷年體質評分（最近5年）</td>
+        <td><span class="src-calc">計算</span> 綜合 ROE + 營業利益率 + 自由現金流 + 營收規模<div class="note">
+        <span style="color:#dc2626">A級</span>（AA/A1/A2/B1A/B2A）紅色<br>
+        <span style="color:#d97706">B級</span>（B1/B2/BA1/BA2）橘色<br>
+        <span style="color:#94a3b8">C以下</span>（C/D/X）灰色</div></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 合約負債 -->
+<div class="section" id="sec-contract">
+  <div class="section-title" onclick="toggleSection(this)">合約負債 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><td class="field">合約負債</td><td>最近3季的合約負債-流動</td><td><span class="src-capital">群益</span> zcpa 季度資產負債表</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- 矩陣等級 -->
+<div class="section" id="sec-matrix">
+  <div class="section-title" onclick="toggleSection(this)">矩陣等級對照表 <span class="arrow">▼</span></div>
+  <div class="section-body" style="padding: 16px;">
+    <table style="text-align:center; max-width:600px;">
+      <tr><th></th><th>PE≤10</th><th>10~12</th><th>12~14</th><th>14~16</th><th>16~18</th><th>PE>18</th></tr>
+      <tr><td style="font-weight:700">殖利率≥6%</td><td style="color:#dc2626;font-weight:700">AA</td><td>A2</td><td>BA2</td><td style="color:#94a3b8">觀察</td><td style="color:#94a3b8">臨界點</td><td style="color:#94a3b8">X</td></tr>
+      <tr><td style="font-weight:700">5.5~6%</td><td style="color:#dc2626;font-weight:700">A1</td><td style="color:#dc2626">A</td><td>B2</td><td style="color:#94a3b8">臨界點</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td></tr>
+      <tr><td style="font-weight:700">5~5.5%</td><td>BA1</td><td>B1</td><td style="color:#94a3b8">臨界點</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td></tr>
+      <tr><td style="font-weight:700">殖利率<5%</td><td style="color:#94a3b8">觀察</td><td style="color:#94a3b8">臨界點</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td></tr>
+    </table>
+    <div class="note" style="margin-top:12px">
+      等級優先順序：預估等級 → 系統等級 → 沈董等級 → 綜合等級 → 加權等級 → 近四季等級 → X<br>
+      每日評價報告也使用此優先順序判斷
+    </div>
+  </div>
+</div>
+
+<!-- 每日評價報告 -->
+<div class="section" id="sec-daily">
+  <div class="section-title" onclick="toggleSection(this)">每日評價報告 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">區塊</th><th width="280">說明</th><th>資料來源</th></tr>
+      <tr><td class="field">閃電機會</td><td>今日等級變動（變便宜/變貴）</td><td><span class="src-calc">計算</span> 比對 stock_state 最近兩天的矩陣等級</td></tr>
+      <tr><td class="field">市場體感</td><td>AA/A1/A2/A 累積分布統計</td><td><span class="src-calc">計算</span> 統計當日各等級支數，與前一日比較</td></tr>
+      <tr><td class="field">深度挖寶</td><td>完整便宜清單（AA~A）</td><td><span class="src-calc">計算</span> 矩陣等級為 AA/A1/A2/A 的所有股票<div class="note">等級優先順序：系統 → 沈董，折價%用評價AA門檻</div></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script>
+function toggleSection(el) {
+  el.classList.toggle('collapsed');
+  el.nextElementSibling.classList.toggle('hidden');
+}
+
+// 自動生成目錄
+const sections = document.querySelectorAll('.section[id]');
+const toc = document.getElementById('toc');
+sections.forEach(s => {
+  const title = s.querySelector('.section-title')?.textContent?.replace('▼','').trim();
+  if (title) {
+    const a = document.createElement('a');
+    a.href = '#' + s.id;
+    a.textContent = title;
+    toc.appendChild(a);
+  }
+});
+</script>
+
+</body>
+</html>
