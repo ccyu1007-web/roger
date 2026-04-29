@@ -525,7 +525,7 @@
 </div>
 
 <script>
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 const CUR_ROC_YEAR = new Date().getFullYear() - 1911;
 
 // ── 等級標籤 HTML（共用）──
