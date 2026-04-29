@@ -2204,119 +2204,88 @@ def get_daily_briefing():
     near_cheap = []   # 接近便宜區
     summary = {'total': 0, 'to_cheap': 0, 'to_expensive': 0, 'grade_change': 0, 'no_change': 0}
 
-    POS_LABELS = {1: '超便宜', 2: '便宜', 3: '偏低', 4: '合理', 5: '偏高'}
+    # 矩陣等級深度
+    LEVEL_DEPTH = {
+        'AA': 10, 'A1': 9, 'A2': 8, 'A': 7,
+        'BA1': 6, 'BA2': 5, 'B1': 4, 'B2': 3,
+        '觀察': 2, '臨界點': 1, 'X': 0,
+        'above': 0, None: 0,
+    }
+    CHEAP_GRADES_SET = {'AA', 'A1', 'A2', 'A'}
 
     for sid, snapshots in grouped.items():
         name = names.get(sid, sid)
         latest = snapshots[0]
         summary['total'] += 1
+        cur_level = latest.get('val_level')
 
-        # 首日：只有一筆，不做 diff，直接顯示便宜/超便宜
+        # 首日：只有一筆
         if len(snapshots) < 2:
-            if latest['price_pos'] and latest['price_pos'] <= 2:
+            if cur_level in CHEAP_GRADES_SET:
                 opportunities.append({
                     'code': sid, 'name': name,
-                    'price': latest['price'], 'price_pos': latest['price_pos'],
-                    'pos_label': POS_LABELS.get(latest['price_pos'], '?'),
-                    'shen_pe': latest['shen_pe'], 'shen_yld': latest['shen_yld'],
-                    'fair_low': latest['fair_low'], 'fair_high': latest['fair_high'],
-                    'change': '首次記錄', 'days_cheap': 1,
+                    'price': latest['price'], 'val_level': cur_level,
+                    'shen_pe': latest.get('shen_pe'), 'shen_yld': latest.get('shen_yld'),
+                    'val_aa': latest.get('val_aa'), 'discount_pct': latest.get('discount_pct'),
+                    'change': '首次記錄',
                 })
             continue
 
         prev = snapshots[1]
-        cur_pos = latest['price_pos']
-        prev_pos = prev['price_pos']
-        cur_grade = latest['fin_grade']
-        prev_grade = prev['fin_grade']
+        prev_level = prev.get('val_level')
+        cur_depth = LEVEL_DEPTH.get(cur_level, 0)
+        prev_depth = LEVEL_DEPTH.get(prev_level, 0)
 
-        if cur_pos is None or prev_pos is None:
-            continue
-
-        # 基準線漂移過濾：股價變動 < 2% 且狀態變了 → 不算
-        price_change_pct = abs(latest['price'] - prev['price']) / prev['price'] * 100 if prev['price'] else 0
-        state_changed = cur_pos != prev_pos
-        is_baseline_drift = state_changed and price_change_pct < 2
-
-        # 財務等級變化
+        # 財務等級變化（fin_grade，獨立於矩陣等級）
+        cur_grade = latest.get('fin_grade')
+        prev_grade = prev.get('fin_grade')
         if cur_grade and prev_grade and cur_grade != prev_grade:
-            # 判斷是升級還是降級
             grade_order = {'AA': 9, 'A1': 8, 'A': 7, 'A2': 7, 'B1A': 6, 'B2A': 6,
                           'B1': 5, 'B2': 5, 'C': 3, 'D': 2}
-            cur_base = cur_grade.rstrip('+-')
-            prev_base = prev_grade.rstrip('+-')
-            cur_rank = grade_order.get(cur_base, 0)
-            prev_rank = grade_order.get(prev_base, 0)
-            if cur_rank < prev_rank:  # 降級
+            cur_rank = grade_order.get(cur_grade.rstrip('+-'), 0)
+            prev_rank = grade_order.get(prev_grade.rstrip('+-'), 0)
+            if cur_rank < prev_rank:
                 alerts.append({
-                    'code': sid, 'name': name,
-                    'type': 'grade_down',
+                    'code': sid, 'name': name, 'type': 'grade_down',
                     'price': latest['price'],
                     'old_grade': prev_grade, 'new_grade': cur_grade,
                 })
                 summary['grade_change'] += 1
 
-        # 去抖動：5 日內是否已出現過相同終點狀態
-        def already_reached_in_5d(target_pos):
-            """檢查最近 5 筆歷史中，是否有從其他狀態變到 target_pos 的記錄"""
-            for i in range(1, min(5, len(snapshots))):
-                if snapshots[i]['price_pos'] == target_pos and (
-                    i + 1 >= len(snapshots) or snapshots[i + 1]['price_pos'] != target_pos):
-                    return True
-            return False
-
-        # 狀態變化（排除基準線漂移 + 去抖動）
-        if state_changed and not is_baseline_drift:
-            if cur_pos < prev_pos:  # 往便宜方向
-                # 去抖動：同終點狀態 5 日內不重複
-                if already_reached_in_5d(cur_pos):
-                    summary['no_change'] += 1
-                    continue
+        # 矩陣等級變化
+        if cur_level != prev_level:
+            if cur_depth > prev_depth:
+                # 變便宜
                 summary['to_cheap'] += 1
                 opportunities.append({
                     'code': sid, 'name': name,
-                    'price': latest['price'], 'price_pos': cur_pos,
-                    'pos_label': POS_LABELS.get(cur_pos, '?'),
-                    'prev_pos_label': POS_LABELS.get(prev_pos, '?'),
-                    'shen_pe': latest['shen_pe'], 'shen_yld': latest['shen_yld'],
-                    'fair_low': latest['fair_low'], 'fair_high': latest['fair_high'],
-                    'change': f"{POS_LABELS.get(prev_pos, '?')} → {POS_LABELS.get(cur_pos, '?')}",
-                    'days_cheap': 1,
+                    'price': latest['price'], 'val_level': cur_level,
+                    'shen_pe': latest.get('shen_pe'), 'shen_yld': latest.get('shen_yld'),
+                    'val_aa': latest.get('val_aa'), 'discount_pct': latest.get('discount_pct'),
+                    'change': f"{prev_level or '—'} → {cur_level}",
                 })
-            else:  # 往貴的方向
+            elif cur_depth < prev_depth:
+                # 變貴
                 summary['to_expensive'] += 1
+            else:
+                summary['no_change'] += 1
         else:
             summary['no_change'] += 1
 
-        # 持續便宜的（不是今天才變的，算天數）
-        if not state_changed and cur_pos and cur_pos <= 2:
-            # 往回查連續便宜天數
-            already_in = any(o['code'] == sid for o in opportunities)
-            if not already_in:
-                opportunities.append({
-                    'code': sid, 'name': name,
-                    'price': latest['price'], 'price_pos': cur_pos,
-                    'pos_label': POS_LABELS.get(cur_pos, '?'),
-                    'shen_pe': latest['shen_pe'], 'shen_yld': latest['shen_yld'],
-                    'fair_low': latest['fair_low'], 'fair_high': latest['fair_high'],
-                    'change': '持續便宜',
-                    'days_cheap': None,  # 簡化：不回查天數
-                })
+            # 持續便宜
+            if cur_level in CHEAP_GRADES_SET:
+                already_in = any(o['code'] == sid for o in opportunities)
+                if not already_in:
+                    opportunities.append({
+                        'code': sid, 'name': name,
+                        'price': latest['price'], 'val_level': cur_level,
+                        'shen_pe': latest.get('shen_pe'), 'shen_yld': latest.get('shen_yld'),
+                        'val_aa': latest.get('val_aa'), 'discount_pct': latest.get('discount_pct'),
+                        'change': '持續',
+                    })
 
-        # 接近便宜區（目前偏低，距離 fair_low < 5%）
-        if cur_pos == 3 and latest['fair_low'] and latest['price']:
-            dist = (latest['price'] - latest['fair_low']) / latest['fair_low'] * 100
-            if dist < 5:
-                near_cheap.append({
-                    'code': sid, 'name': name,
-                    'price': latest['price'],
-                    'fair_low': latest['fair_low'],
-                    'dist_pct': round(dist, 1),
-                })
-
-    # 排序：超便宜在前，便宜次之
-    opportunities.sort(key=lambda x: (x['price_pos'], x['code']))
-    near_cheap.sort(key=lambda x: x['dist_pct'])
+    # 排序：等級深度高（AA）在前
+    opportunities.sort(key=lambda x: (-LEVEL_DEPTH.get(x.get('val_level'), 0), x['code']))
 
     # ETF 成分股異動（近 30 天）
     etf_changes = []
@@ -2335,8 +2304,8 @@ def get_daily_briefing():
     except:
         pass
 
-    # ── 評價監控 ──
-    LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, 'above': 0, None: 0}
+    # ── 評價監控（矩陣等級）──
+    CHEAP_GRADES = CHEAP_GRADES_SET
 
     # 取 stocks 表的便宜天數和歷史最深
     stock_extra = {}
@@ -2370,7 +2339,7 @@ def get_daily_briefing():
         cur_level = latest.get('val_level')
         extra = stock_extra.get(sid, {})
 
-        if cur_level and cur_level in val_dist:
+        if cur_level and cur_level in CHEAP_GRADES:
             # 累積制：AA 包含在 A1 裡
             for lv in val_dist:
                 if LEVEL_DEPTH.get(lv, 0) <= LEVEL_DEPTH.get(cur_level, 0):
@@ -2379,7 +2348,7 @@ def get_daily_briefing():
         # 前一日分布
         if len(snapshots) >= 2:
             prev_level = snapshots[1].get('val_level')
-            if prev_level and prev_level in val_dist_prev:
+            if prev_level and prev_level in CHEAP_GRADES:
                 for lv in val_dist_prev:
                     if LEVEL_DEPTH.get(lv, 0) <= LEVEL_DEPTH.get(prev_level, 0):
                         val_dist_prev[lv] += 1
@@ -2408,15 +2377,15 @@ def get_daily_briefing():
                         'val_a1': latest.get('val_a1'),
                             })
 
-        # 便宜清單
-        if cur_level and cur_level != 'above':
+        # 便宜清單（AA/A1/A2/A 才列入）
+        if cur_level and cur_level in CHEAP_GRADES:
             cheap_days = extra.get('val_cheap_days', 0)
             deepest = extra.get('deepest_val_level')
             volume = extra.get('volume', 0)
             is_new = False
             if len(snapshots) >= 2:
                 prev_lv = snapshots[1].get('val_level')
-                is_new = (prev_lv == 'above' or prev_lv is None)
+                is_new = (prev_lv not in CHEAP_GRADES)
 
             # 是否從深處回升
             recovering = (deepest and LEVEL_DEPTH.get(deepest, 0) > LEVEL_DEPTH.get(cur_level, 0))
