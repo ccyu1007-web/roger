@@ -864,7 +864,7 @@ def sync_to_stocks(code):
     for i in range(len(rows) + 1, 6):
         c.execute(f"UPDATE stocks SET eps_{i}=NULL, eps_{i}q=NULL WHERE code=?", (code,))
     # eps_date 不在這裡更新 — 由政府 API（quick_update）第一次偵測到新季度時設定
-    # 群益是補充資料來源，不應該覆蓋政府 API 已設定的 eps_date
+    # 群益是補充資料來源，不應該覆蓋 eps_date
 
     # 4. 合約負債（contract_1~3）— 從 quarterly_financial 取最近3季
     rows = c.execute("""SELECT quarter, contract_liability FROM quarterly_financial

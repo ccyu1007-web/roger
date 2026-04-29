@@ -2766,13 +2766,13 @@ def quick_update():
     #   Q1 累計=單季, Q2 累計=Q1+Q2, Q3 累計=Q1+Q2+Q3, Q4 累計=全年
     eps_updated = 0
     eps_y_updated = 0
-    for label, url, code_key, eps_key, year_key, season_key in [
+    for label, url, code_key, eps_key, year_key, season_key, date_key in [
         ("上市",
          "https://openapi.twse.com.tw/v1/opendata/t187ap14_L",
-         "公司代號", "基本每股盈餘(元)", "年度", "季別"),
+         "公司代號", "基本每股盈餘(元)", "年度", "季別", "出表日期"),
         ("上櫃",
          "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap14_O",
-         "SecuritiesCompanyCode", "基本每股盈餘", "Year", "季別"),
+         "SecuritiesCompanyCode", "基本每股盈餘", "Year", "季別", "Date"),
     ]:
         data = fetch_json(url, backup_as=f'quick_eps_{label}')
         if not data:
@@ -2797,6 +2797,18 @@ def quick_update():
             season = str(d.get(season_key, '')).strip()
             if not code or eps is None or not year or not season:
                 continue
+
+            # 出表日期（民國格式 1150429 → 2026-04-29）
+            pub_date_str = str(d.get(date_key, '')).strip()
+            pub_date = today_str  # fallback
+            if pub_date_str and len(pub_date_str) >= 7:
+                try:
+                    roc_y = int(pub_date_str[:-4])
+                    mm = pub_date_str[-4:-2]
+                    dd = pub_date_str[-2:]
+                    pub_date = f"{roc_y + 1911}-{mm}-{dd}"
+                except:
+                    pass
 
             quarter_label = f"{year}Q{season}"
 
@@ -2824,7 +2836,7 @@ def quick_update():
                         eps_ytd = ?, eps_ytd_label = ?,
                         eps_date = ?
                     WHERE code = ?
-                """, (eps, year, eps, year, today_str, code))
+                """, (eps, year, eps, year, pub_date, code))
                 eps_y_updated += 1
             else:
                 # 用 eps_1q 做去重
@@ -2871,7 +2883,7 @@ def quick_update():
                         eps_date = ?,
                         eps_ytd = ?, eps_ytd_label = ?
                     WHERE code = ?
-                """, (single_eps, quarter_label, today_str, eps, year, code))
+                """, (single_eps, quarter_label, pub_date, eps, year, code))
                 eps_updated += 1
 
     print(f"[EPS] 更新季度 {eps_updated} 支 + 年度 {eps_y_updated} 支")
