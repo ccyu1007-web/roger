@@ -1104,10 +1104,17 @@ async function loadQuarterly() {
     if (!json.data || !json.data.length) { panel.innerHTML = '<div class="loading">無季度資料（FinMind 額度可能不足，請稍後再試）</div>'; return; }
     _sysQuarters = sysJson.quarters || [];
     _sysAnnual = annJson.error ? null : annJson;
+    // 取年報配息率供季度估計表參考
+    try {
+      const fRes2 = await fetch(`/api/stocks/${CODE}/financials`);
+      const fData2 = await fRes2.json();
+      _annualPayouts = (fData2.data || []).slice(0, 5);
+    } catch(e) { _annualPayouts = []; }
     renderQuarterlyTable(json.data);
   } catch(e) { console.error('季度估計表錯誤:', e); panel.innerHTML = `<div class="loading" style="color:#ef4444">載入失敗: ${e.message}</div>`; }
 }
 let _sysQuarters = [];
+let _annualPayouts = []; // 近5年配息率，供季度估計表參考
 let _sysAnnual = null;
 
 // ── 載入月營收 ──
@@ -1690,7 +1697,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div class="val"><input id="annPR" type="text" placeholder="%" oninput="calcFromPR()"></div>
         <div class="sys-v">${ann && ann.payout != null ? ann.payout + '%' : '-'}
           <div style="font-size:.72rem;color:#94a3b8;margin-top:2px">近5年：${
-            annuals.slice(0, 5).map(a => a.payout_ratio != null ? `${a.year_label}年${Math.round(a.payout_ratio)}%` : null).filter(Boolean).join('、') || '—'
+            _annualPayouts.slice(0, 5).map(a => a.payout_ratio != null ? `${a.year_label}年${Math.round(a.payout_ratio)}%` : null).filter(Boolean).join('、') || '—'
           }</div>
         </div>
         <div class="lbl">預估現金股利</div>
