@@ -1969,11 +1969,11 @@ def snapshot_stock_states():
                      ('discount_pct','REAL')]:
         try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
         except: pass
-    # stocks 表加 deepest_val_level
-    try: c.execute("ALTER TABLE stocks ADD COLUMN deepest_val_level TEXT")
-    except: pass
-    try: c.execute("ALTER TABLE stocks ADD COLUMN val_cheap_days INTEGER DEFAULT 0")
-    except: pass
+    # stocks 表加欄位
+    for col, typ in [('deepest_val_level','TEXT'),('val_cheap_days','INTEGER DEFAULT 0'),
+                     ('priority_grade','TEXT'),('grade_source','TEXT')]:
+        try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+        except: pass
 
     # 取所有有收盤價的股票
     try:
@@ -2088,10 +2088,12 @@ def snapshot_stock_states():
         old_depth = LEVEL_DEPTH.get(old_deepest, 0)
         new_deepest = cur_level if cur_depth > old_depth else old_deepest
 
-        # 同步寫回 stocks 表
+        # 同步寫回 stocks 表（含優先順序等級）
         c.execute("""UPDATE stocks SET price_pos=?, fair_low=?, fair_high=?,
-                     deepest_val_level=?, val_cheap_days=? WHERE code=?""",
-                  (price_pos, fair_low, fair_high, new_deepest, new_cheap_days, code))
+                     deepest_val_level=?, val_cheap_days=?,
+                     priority_grade=?, grade_source=? WHERE code=?""",
+                  (price_pos, fair_low, fair_high, new_deepest, new_cheap_days,
+                   matrix_grade, grade_source, code))
         count += 1
 
     # 清理 180 天前的舊資料

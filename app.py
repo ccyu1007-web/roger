@@ -176,7 +176,8 @@ def get_stocks():
         for col, typ in [('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER'),
                         ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT'),
                         ('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
-                        ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
+                        ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT'),
+                        ('priority_grade','TEXT'),('grade_source','TEXT')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except: pass
         try: conn_init.commit()

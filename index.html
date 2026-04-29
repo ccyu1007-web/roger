@@ -1577,12 +1577,16 @@ function calcDerived(r) {
     if (r.est_pe == null && r.sys_ann_pe) r.est_pe = r.sys_ann_pe;
   }
 
-  // 系統預估等級：用系統PE和系統殖利率算
-  r.sys_grade = null;
-  if (r.sys_ann_eps != null && r.sys_ann_eps <= 0) {
-    r.sys_grade = 'X';
-  } else if (r.sys_ann_pe != null && r.sys_ann_yld != null && r.sys_ann_pe > 0 && r.sys_ann_yld > 0) {
-    r.sys_grade = _calcMatrixGrade(r.sys_ann_pe, r.sys_ann_yld, r.code);
+  // 系統預估等級：優先用後端算好的 priority_grade，沒有才前端自算
+  if (r.priority_grade) {
+    r.sys_grade = r.priority_grade;
+  } else {
+    r.sys_grade = null;
+    if (r.sys_ann_eps != null && r.sys_ann_eps <= 0) {
+      r.sys_grade = 'X';
+    } else if (r.sys_ann_pe != null && r.sys_ann_yld != null && r.sys_ann_pe > 0 && r.sys_ann_yld > 0) {
+      r.sys_grade = _calcMatrixGrade(r.sys_ann_pe, r.sys_ann_yld, r.code);
+    }
   }
 
   // 近四季股利/殖利率/評等（必須在 weighted_payout 之後）

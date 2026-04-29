@@ -167,8 +167,10 @@ async function load() {
       const close = s.close;
       if (!close || close <= 0) return;
 
-      // 今天的等級
-      const cur = _calcPriorityGrade(s, close);
+      // 今天的等級：優先用後端算好的 priority_grade
+      const cur = s.priority_grade
+        ? { grade: s.priority_grade, source: s.grade_source || 'db', pe: s.sys_ann_pe, yld: s.sys_ann_yld }
+        : _calcPriorityGrade(s, close);
       if (!CHEAP_GRADES.has(cur.grade)) return;  // 只列便宜等級
 
       // 折價% 用 val_aa

@@ -2677,6 +2677,7 @@ def quick_update():
 
     t0 = time.time()
     today_str = date.today().strftime('%Y-%m-%d')
+    _new_eps_codes = []  # 追蹤有新季度 EPS 的股票
     print(f"\n{'='*50}")
     print(f"快速更新  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}")
@@ -2838,6 +2839,7 @@ def quick_update():
                     WHERE code = ?
                 """, (eps, year, eps, year, pub_date, code))
                 eps_y_updated += 1
+                _new_eps_codes.append(code)
             else:
                 # 用 eps_1q 做去重
                 if old_q1 == quarter_label:
@@ -2885,6 +2887,7 @@ def quick_update():
                     WHERE code = ?
                 """, (single_eps, quarter_label, pub_date, eps, year, code))
                 eps_updated += 1
+                _new_eps_codes.append(code)
 
     print(f"[EPS] 更新季度 {eps_updated} 支 + 年度 {eps_y_updated} 支")
 
@@ -2952,6 +2955,27 @@ def quick_update():
     # ── 6. 稅務修正（每次都跑）──
     _fix_tax_data()
 
+    # ── 7. 有新 EPS 的股票立即重算系統估算 ──
+    if _new_eps_codes:
+        unique_codes = list(set(_new_eps_codes))
+        print(f"[即時重算] {len(unique_codes)} 支有新 EPS，重算系統估算...")
+        for code in unique_codes:
+            try:
+                ar = estimate_annual_eps(code)
+                if ar.get('est_eps') is not None and 'error' not in ar:
+                    d = ar['details']
+                    conn_r = sqlite3.connect(DB_PATH)
+                    conn_r.execute("""UPDATE stocks SET sys_ann_eps=?, sys_ann_div=?, sys_ann_pe=?,
+                                     sys_ann_yld=?, sys_ann_confidence=? WHERE code=?""",
+                                  (ar['est_eps'], d.get('est_div'), d.get('est_pe'),
+                                   d.get('est_yld'), ar['confidence'], code))
+                    conn_r.commit()
+                    conn_r.close()
+            except:
+                pass
+        print(f"[即時重算] 完成")
+
+    elapsed = time.time() - t0
     print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
 
 
