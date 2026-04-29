@@ -268,6 +268,9 @@
         <button class="mkt-btn" data-mkt="上市" onclick="setMarket(this)">上市</button>
         <button class="mkt-btn ot" data-mkt="上櫃" onclick="setMarket(this)">上櫃</button>
       </div>
+      <select id="industryFilter" onchange="applyFilter()" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:.8rem;cursor:pointer;max-width:140px">
+        <option value="">全部產業</option>
+      </select>
       <div class="tb-spacer"></div>
       <select id="pageSizeSelect" onchange="changePageSize()" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:.8rem;cursor:pointer">
         <option value="50">每頁 50</option>
@@ -1985,6 +1988,7 @@ function setMarket(btn) {
 function applyFilter() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   const etfVal = document.getElementById('etfFilter')?.value || '';
+  const indVal = document.getElementById('industryFilter')?.value || '';
   filtered = allData.filter(r => {
     const mktOk   = !market || r.market === market;
     const qOk     = !q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q);
@@ -1993,7 +1997,8 @@ function applyFilter() {
     const focusOk = !focusOnly || focusSet.has(r.code);
     const qualityOk = !qualityOnly || qualitySet.has(r.code);
     const etfOk = !etfVal || (etfVal === 'any' ? !!r.etf_tags : (r.etf_tags || '').includes(etfVal + ':'));
-    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk;
+    const indOk = !indVal || r.industry === indVal;
+    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk && indOk;
   });
   page = 1;
   applySort();
@@ -2479,6 +2484,24 @@ document.addEventListener('keydown', e => {
 });
 
 loadData();
+
+// ── 盤中自動更新股價（每 30 分鐘）─────────────────────────────
+let _autoRefreshTimer = null;
+function startAutoRefresh() {
+  if (_autoRefreshTimer) return;
+  const INTERVAL = 30 * 60 * 1000; // 30 分鐘
+  _autoRefreshTimer = setInterval(() => {
+    const now = new Date();
+    const h = now.getHours();
+    const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+    // 盤中 09:00~14:30（排程 14:30 會完整更新，之後不需要）
+    if (isWeekday && h >= 9 && (h < 14 || (h === 14 && now.getMinutes() <= 30))) {
+      console.log('[自動更新] 盤中自動更新股價', now.toLocaleTimeString());
+      triggerRefresh();
+    }
+  }, INTERVAL);
+}
+startAutoRefresh();
 
 // 防止 Mac 觸控板左右滑動觸發瀏覽器返回/前進
 document.querySelector('.table-wrap')?.addEventListener('touchmove', function(e) {
