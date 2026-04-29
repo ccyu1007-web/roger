@@ -1727,6 +1727,79 @@ DEFAULT_PE_HIGH = 18
 DEFAULT_PE_LOW = 10
 DEFAULT_YLD_HIGH = 5.5
 DEFAULT_YLD_MAX = 6.0
+DEFAULT_YLD_FLOOR = 5.0
+
+
+def _calc_matrix_grade(pe, yld, pe_high=None, pe_low=None, yld_max=None, yld_high=None, yld_floor=None):
+    """
+    矩陣等級計算（與前端 _calcMatrixGrade 一致）。
+    回傳: AA/A1/A2/A/BA1/BA2/B1/B2/觀察/臨界點/X
+    """
+    if pe is None or pe <= 0 or yld is None or yld <= 0:
+        return 'X'
+    if not pe_high: pe_high = DEFAULT_PE_HIGH
+    if not pe_low: pe_low = DEFAULT_PE_LOW
+    if not yld_max: yld_max = DEFAULT_YLD_MAX
+    if not yld_high: yld_high = DEFAULT_YLD_HIGH
+    if not yld_floor: yld_floor = DEFAULT_YLD_FLOOR
+
+    pe_fair = (pe_high + pe_low) / 2
+    pe_above = (pe_high + pe_fair) / 2
+    pe_below = (pe_fair + pe_low) / 2
+    pe_cols = [(-9999, pe_low), (pe_low, pe_below), (pe_below, pe_fair),
+               (pe_fair, pe_above), (pe_above, pe_high), (pe_high, 9999)]
+    y_rows = [(yld_max, 9999), (yld_high, yld_max), (yld_floor, yld_high), (-9999, yld_floor)]
+    grades = [
+        ['AA', 'A2', 'BA2', '觀察', '臨界點', 'X'],
+        ['A1', 'A', 'B2', '臨界點', 'X', 'X'],
+        ['BA1', 'B1', '臨界點', 'X', 'X', 'X'],
+        ['觀察', '臨界點', 'X', 'X', 'X', 'X'],
+    ]
+    col = next((i for i, (lo, hi) in enumerate(pe_cols) if pe >= lo and pe < hi), -1)
+    row = next((i for i, (lo, hi) in enumerate(y_rows) if yld >= lo and yld < hi), -1)
+    if col >= 0 and row >= 0:
+        return grades[row][col]
+    return 'X'
+
+
+def _calc_priority_grade(row, close):
+    """
+    等級優先順序：預估 > 系統 > 沈董 > 綜合 > 加權 > 近四季 > X
+    每個等級都用矩陣計算（PE + 殖利率）。
+    回傳: (grade, source)
+    """
+    # 1. 預估等級（使用者手動輸入，存在 user_estimates）
+    # DB 裡沒有預算好的預估 PE/殖利率，跳過（前端才有）
+
+    # 2. 系統等級
+    sys_pe = row.get('sys_ann_pe')
+    sys_yld = row.get('sys_ann_yld')
+    if sys_pe and sys_yld and sys_pe > 0 and sys_yld > 0:
+        g = _calc_matrix_grade(sys_pe, sys_yld)
+        if g:
+            return g, 'sys'
+
+    # 3. 沈董等級
+    shen_eps = _calc_shen_eps(row)
+    if shen_eps and shen_eps > 0 and close and close > 0:
+        shen_pe = round(close / shen_eps, 2)
+        div_total = (row.get('div_c1') or 0) + (row.get('div_s1') or 0)
+        eps_y1 = row.get('eps_y1')
+        shen_yld = 0
+        if div_total > 0 and eps_y1 and eps_y1 > 0:
+            payout = min(1.0, div_total / eps_y1)
+            shen_div = shen_eps * payout
+            shen_yld = round(shen_div / close * 100, 2)
+        if shen_pe > 0 and shen_yld > 0:
+            g = _calc_matrix_grade(shen_pe, shen_yld)
+            if g:
+                return g, 'shen'
+
+    # 4~6. 綜合/加權/近四季 — 需要前端的 blend/weighted 計算，後端簡化跳過
+    # 這些在前端 calcDerived 裡算，後端沒有完整資料
+
+    # 7. 都沒有
+    return 'X', 'none'
 
 
 def _calc_val_levels(close, shen_eps, shen_div, blend_div,
@@ -1909,7 +1982,7 @@ def snapshot_stock_states():
                             eps_4, eps_4q, eps_5, eps_5q,
                             eps_y1, eps_ytd, fin_grade_1,
                             div_c1, div_s1, deepest_val_level, val_cheap_days,
-                            sys_ann_eps, sys_ann_div
+                            sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld
                      FROM stocks WHERE close IS NOT NULL""")
     except:
         c.execute("""SELECT code, close, volume,
@@ -1965,6 +2038,16 @@ def snapshot_stock_states():
         vl = _calc_val_levels(close, shen_eps, shen_div, blend_div,
                               est_eps=est_eps, est_div=est_div)
 
+        # 矩陣等級（優先順序：預估 > 系統 > 沈董 > X）
+        matrix_grade, grade_source = _calc_priority_grade(row, close)
+        vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
+
+        # 折價%：用 val_aa 門檻算
+        if vl['val_aa'] and vl['val_aa'] > 0 and close:
+            vl['discount_pct'] = round((vl['val_aa'] - close) / vl['val_aa'] * 100, 2)
+        else:
+            vl['discount_pct'] = None
+
         c.execute("""INSERT INTO stock_state
                      (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                       shen_eps, shen_pe, shen_yld, fin_grade,
@@ -1992,8 +2075,9 @@ def snapshot_stock_states():
         old_cheap_days = row.get('val_cheap_days') or 0
         old_deepest = row.get('deepest_val_level')
 
-        # 便宜天數：≤A 就累加，above 就歸零
-        if cur_level and cur_level != 'above':
+        # 便宜天數：AA/A1/A2/A 等級才累加，其他歸零
+        CHEAP_GRADES = {'AA', 'A1', 'A2', 'A'}
+        if cur_level in CHEAP_GRADES:
             new_cheap_days = old_cheap_days + 1
         else:
             new_cheap_days = 0
