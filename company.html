@@ -1105,7 +1105,7 @@ async function loadQuarterly() {
     _sysQuarters = sysJson.quarters || [];
     _sysAnnual = annJson.error ? null : annJson;
     renderQuarterlyTable(json.data);
-  } catch(e) { panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗</div>'; }
+  } catch(e) { console.error('季度估計表錯誤:', e); panel.innerHTML = `<div class="loading" style="color:#ef4444">載入失敗: ${e.message}</div>`; }
 }
 let _sysQuarters = [];
 let _sysAnnual = null;
