@@ -1692,25 +1692,45 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         ${ann ? `<div class="est-annual-eps" style="background:#e0f2fe;color:#0369a1">系統 = <span style="font-weight:800">${ann.epsStr}</span></div>` : ''}
       </div>
 
-      <div class="est-val-grid">
-        <div class="lbl">配息率（%）</div>
-        <div class="val"><input id="annPR" type="text" placeholder="%" oninput="calcFromPR()"></div>
-        <div class="sys-v">${ann && ann.payout != null ? ann.payout + '%' : '-'}</div>
-        <div class="lbl">預估現金股利</div>
-        <div class="val"><input id="annDiv" type="text" placeholder="元" oninput="calcFromDiv()"></div>
-        <div class="sys-v" style="font-weight:700">${ann && ann.div != null ? ann.div.toFixed(2) : '-'}</div>
+      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
+        <div class="est-val-grid" style="min-width:420px;flex-shrink:0">
+          <div class="lbl">配息率（%）</div>
+          <div class="val"><input id="annPR" type="text" placeholder="%" oninput="calcFromPR()"></div>
+          <div class="sys-v">${ann && ann.payout != null ? ann.payout + '%' : '-'}</div>
+          <div class="lbl">預估現金股利</div>
+          <div class="val"><input id="annDiv" type="text" placeholder="元" oninput="calcFromDiv()"></div>
+          <div class="sys-v" style="font-weight:700">${ann && ann.div != null ? ann.div.toFixed(2) : '-'}</div>
 
-        <div class="sep"></div>
+          <div class="sep"></div>
 
-        <div class="lbl" style="font-weight:600;color:#334155">目前股價</div>
-        <div class="val"><div class="est-price-box" id="annPrice">-</div></div>
-        <div class="sys-v"></div>
-        <div class="lbl" style="font-weight:600;color:#334155">預估本益比</div>
-        <div class="val"><div class="computed" id="annPE" style="font-weight:700;font-size:.95rem">-</div></div>
-        <div class="sys-v">${ann && ann.pe != null ? ann.pe.toFixed(2) : '-'}</div>
-        <div class="lbl" style="font-weight:600;color:#334155">預估殖利率</div>
-        <div class="val"><div class="computed" id="annYield" style="font-weight:700;color:#059669;font-size:.95rem">-</div></div>
-        <div class="sys-v" style="color:#059669">${ann && ann.yld != null ? ann.yld + '%' : '-'}</div>
+          <div class="lbl" style="font-weight:600;color:#334155">目前股價</div>
+          <div class="val"><div class="est-price-box" id="annPrice">-</div></div>
+          <div class="sys-v"></div>
+          <div class="lbl" style="font-weight:600;color:#334155">預估本益比</div>
+          <div class="val"><div class="computed" id="annPE" style="font-weight:700;font-size:.95rem">-</div></div>
+          <div class="sys-v">${ann && ann.pe != null ? ann.pe.toFixed(2) : '-'}</div>
+          <div class="lbl" style="font-weight:600;color:#334155">預估殖利率</div>
+          <div class="val"><div class="computed" id="annYield" style="font-weight:700;color:#059669;font-size:.95rem">-</div></div>
+          <div class="sys-v" style="color:#059669">${ann && ann.yld != null ? ann.yld + '%' : '-'}</div>
+        </div>
+        <div style="flex:1;min-width:300px">
+          ${(() => {
+            const payouts = (typeof annuals !== 'undefined' ? annuals : _annualPayouts).slice(0, 5);
+            if (!payouts.length) return '';
+            let t = '<div style="font-size:.88rem;font-weight:700;color:#1e3a5f;margin-bottom:4px">配息率歷史（近 ' + payouts.length + ' 年）</div>';
+            t += '<table class="pe-hist-table"><thead><tr><th style="width:80px">年度</th>';
+            payouts.forEach(a => { t += '<th>' + a.year_label + '</th>'; });
+            t += '</tr></thead><tbody>';
+            t += '<tr><td style="font-weight:600;color:#475569">EPS</td>';
+            payouts.forEach(a => { t += '<td>' + (a.eps != null ? a.eps.toFixed(2) : '-') + '</td>'; });
+            t += '</tr><tr><td style="font-weight:600;color:#475569">現金股利</td>';
+            payouts.forEach(a => { t += '<td>' + (a.cash_dividend != null ? a.cash_dividend.toFixed(2) : '-') + '</td>'; });
+            t += '</tr><tr><td style="font-weight:600;color:#475569">配息率</td>';
+            payouts.forEach(a => { t += '<td style="font-weight:700;color:#2563eb">' + (a.payout_ratio != null ? Math.round(a.payout_ratio) + '%' : '-') + '</td>'; });
+            t += '</tr></tbody></table>';
+            return t;
+          })()}
+        </div>
       </div>
 
       <!-- 本益比設定 + 歷史參考（左右並排） -->
@@ -1746,47 +1766,27 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div id="peHistoryContainer" style="flex:1;min-width:300px"><div class="loading" style="padding:12px"><div class="spinner"></div></div></div>
       </div>
 
-      <!-- 殖利率設定 + 配息率歷史（左右並排） -->
-      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
-        <div class="est-val-grid" style="min-width:420px;flex-shrink:0">
-          <div class="lbl">偏高殖利率（%）</div>
-          <div class="val"><input id="yldHigh" type="text" placeholder="%" oninput="calcYldRange()"></div>
-          <div class="sys-v">5.5%</div>
-          <div class="lbl">最高殖利率（%）</div>
-          <div class="val"><input id="yldMax" type="text" placeholder="%" oninput="calcYldRange()"></div>
-          <div class="sys-v">6%</div>
-          <div class="sep"></div>
-          <div class="lbl result-label">合理殖利率</div>
-          <div class="val"><div class="computed result-val" id="yldFair" style="color:#2563eb">-</div></div>
-          <div class="sys-v">5.75%</div>
-          <div class="lbl result-label">偏高殖利率價格</div>
-          <div class="val"><div class="computed result-val" id="yldPriceHigh">-</div></div>
-          <div class="sys-v" id="sysYldPriceHigh">${ann && ann.div ? (ann.div / 5.5 * 100).toFixed(2) : '-'}</div>
-          <div class="lbl result-label">合理殖利率價格</div>
-          <div class="val"><div class="computed result-val" id="yldPriceFair" style="color:#2563eb">-</div></div>
-          <div class="sys-v" id="sysYldPriceFair" style="color:#2563eb">${ann && ann.div ? (ann.div / 5.75 * 100).toFixed(2) : '-'}</div>
-          <div class="lbl result-label">最高殖利率價格</div>
-          <div class="val"><div class="computed result-val" id="yldPriceMax">-</div></div>
-          <div class="sys-v" id="sysYldPriceMax">${ann && ann.div ? (ann.div / 6 * 100).toFixed(2) : '-'}</div>
-        </div>
-        <div style="flex:1;min-width:300px">
-          ${(() => {
-            const payouts = (typeof annuals !== 'undefined' ? annuals : _annualPayouts).slice(0, 5);
-            if (!payouts.length) return '<div style="color:#94a3b8;font-size:.85rem;padding:8px">無配息率歷史</div>';
-            let t = '<div style="font-size:.88rem;font-weight:700;color:#1e3a5f;margin-bottom:4px">配息率歷史（近 ' + payouts.length + ' 年）</div>';
-            t += '<table class="pe-hist-table"><thead><tr><th style="width:80px">年度</th>';
-            payouts.forEach(a => { t += '<th>' + a.year_label + '</th>'; });
-            t += '</tr></thead><tbody>';
-            t += '<tr><td style="font-weight:600;color:#475569">EPS</td>';
-            payouts.forEach(a => { t += '<td>' + (a.eps != null ? a.eps.toFixed(2) : '-') + '</td>'; });
-            t += '</tr><tr><td style="font-weight:600;color:#475569">現金股利</td>';
-            payouts.forEach(a => { t += '<td>' + (a.cash_dividend != null ? a.cash_dividend.toFixed(2) : '-') + '</td>'; });
-            t += '</tr><tr><td style="font-weight:600;color:#475569">配息率</td>';
-            payouts.forEach(a => { t += '<td style="font-weight:700;color:#2563eb">' + (a.payout_ratio != null ? Math.round(a.payout_ratio) + '%' : '-') + '</td>'; });
-            t += '</tr></tbody></table>';
-            return t;
-          })()}
-        </div>
+      <!-- 殖利率設定 -->
+      <div class="est-val-grid" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
+        <div class="lbl">偏高殖利率（%）</div>
+        <div class="val"><input id="yldHigh" type="text" placeholder="%" oninput="calcYldRange()"></div>
+        <div class="sys-v">5.5%</div>
+        <div class="lbl">最高殖利率（%）</div>
+        <div class="val"><input id="yldMax" type="text" placeholder="%" oninput="calcYldRange()"></div>
+        <div class="sys-v">6%</div>
+        <div class="sep"></div>
+        <div class="lbl result-label">合理殖利率</div>
+        <div class="val"><div class="computed result-val" id="yldFair" style="color:#2563eb">-</div></div>
+        <div class="sys-v">5.75%</div>
+        <div class="lbl result-label">偏高殖利率價格</div>
+        <div class="val"><div class="computed result-val" id="yldPriceHigh">-</div></div>
+        <div class="sys-v" id="sysYldPriceHigh">${ann && ann.div ? (ann.div / 5.5 * 100).toFixed(2) : '-'}</div>
+        <div class="lbl result-label">合理殖利率價格</div>
+        <div class="val"><div class="computed result-val" id="yldPriceFair" style="color:#2563eb">-</div></div>
+        <div class="sys-v" id="sysYldPriceFair" style="color:#2563eb">${ann && ann.div ? (ann.div / 5.75 * 100).toFixed(2) : '-'}</div>
+        <div class="lbl result-label">最高殖利率價格</div>
+        <div class="val"><div class="computed result-val" id="yldPriceMax">-</div></div>
+        <div class="sys-v" id="sysYldPriceMax">${ann && ann.div ? (ann.div / 6 * 100).toFixed(2) : '-'}</div>
       </div>
     </div>
 
