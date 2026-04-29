@@ -602,7 +602,7 @@ async function loadDecision() {
     const peData = await peRes.json();
 
     const quarters = (Array.isArray(qData) ? qData : qData.data || qData.quarters || []).slice(0, 4);
-    const annuals = (fData.data || []).slice(0, 4);
+    const annuals = (fData.data || []).slice(0, 5);
     const stock = (sData.data || [])[0] || {};
     const annDet = annEst.details || {};
     if (annDet.est_revenue != null && annDet.est_gross_profit != null) annDet._est_cost = annDet.est_revenue - annDet.est_gross_profit;
