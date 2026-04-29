@@ -140,26 +140,40 @@ async function load() {
     _data = await briefRes.json();
     const stocksData = await stocksRes.json();
 
-    // 計算沈董PE/殖利率/等級 + 折價%，存到 _stocks
-    (stocksData.data || []).forEach(s => {
+    // 計算等級（優先順序：預估 > 系統 > 沈董 > X）+ 折價%，存到 _stocks
+    function _calcPriorityGrade(s, price) {
+      // 1. 系統等級（預估等級在前端沒有完整資料，跳過）
+      if (s.sys_ann_pe && s.sys_ann_yld && s.sys_ann_pe > 0 && s.sys_ann_yld > 0) {
+        const g = _calcShenGrade(s.sys_ann_pe, s.sys_ann_yld);
+        if (g) return { grade: g, source: 'sys', pe: s.sys_ann_pe, yld: s.sys_ann_yld };
+      }
+      // 2. 沈董等級
       const eps = s.shen_eps;
       const div = s.shen_div;
+      if (eps && eps > 0 && price && price > 0) {
+        const pe = price / eps;
+        const yld = (div && div > 0) ? div / price * 100 : null;
+        if (pe > 0 && yld != null && yld > 0) {
+          const g = _calcShenGrade(pe, yld);
+          if (g) return { grade: g, source: 'shen', pe: pe, yld: yld };
+        }
+      }
+      return { grade: 'X', source: 'none', pe: null, yld: null };
+    }
+
+    const CHEAP_GRADES = new Set(['AA','A1','A2','A']);
+
+    (stocksData.data || []).forEach(s => {
       const close = s.close;
       if (!close || close <= 0) return;
 
-      // 沈董PE = 股價 / 沈董EPS
-      const pe = (eps && eps > 0) ? close / eps : null;
-      // 沈董殖利率 = 沈董股利 / 股價 * 100
-      const yld = (div && div > 0) ? div / close * 100 : null;
+      // 今天的等級
+      const cur = _calcPriorityGrade(s, close);
+      if (!CHEAP_GRADES.has(cur.grade)) return;  // 只列便宜等級
 
-      let sg = null;
-      if (eps != null && eps <= 0) sg = 'X';
-      else if (pe != null && yld != null) sg = _calcShenGrade(pe, yld);
-      if (!sg || sg === 'X' || sg === '觀察' || sg === '臨界點') return;
-
-      // 自算 val_aa = min(eps*peLo, div/yldMax%, bDiv/6%+div)
-      const estEps = s.sys_ann_eps != null ? s.sys_ann_eps : eps;
-      const estDiv = s.sys_ann_div != null ? s.sys_ann_div : div;
+      // 折價% 用 val_aa
+      const estEps = s.sys_ann_eps != null ? s.sys_ann_eps : s.shen_eps;
+      const estDiv = s.sys_ann_div != null ? s.sys_ann_div : s.shen_div;
       let val_aa = null;
       if (estEps && estEps > 0 && estDiv && estDiv > 0) {
         const v1 = estEps * 10;
@@ -167,42 +181,33 @@ async function load() {
         val_aa = Math.round(Math.min(v1, v2) * 100) / 100;
       }
 
-      // 用昨天股價算昨天的沈董等級
-      const prevClose = (s.change != null && close != null) ? close - s.change : null;
-      let prevSg = null;
-      if (prevClose && prevClose > 0 && eps && eps > 0) {
-        const prevPe = prevClose / eps;
-        const prevYld = (div && div > 0) ? div / prevClose * 100 : null;
-        if (prevPe > 0 && prevYld != null && prevYld > 0) prevSg = _calcShenGrade(prevPe, prevYld);
-      }
+      // 昨天的等級（用昨天股價）
+      const prevClose = (s.change != null) ? close - s.change : null;
+      const prev = prevClose ? _calcPriorityGrade(s, prevClose) : { grade: null };
 
-      let chgStatus = null; // 'new' | 'removed' | null
-      if (sg !== prevSg) {
-        if (['AA','A1','A2','A'].includes(sg) && !['AA','A1','A2','A'].includes(prevSg)) chgStatus = 'new';
-        else if (sg === prevSg) chgStatus = null;
-        else if (sg !== prevSg) chgStatus = 'new'; // 等級變動也算新進
+      let chgStatus = null;
+      if (cur.grade !== prev.grade) {
+        chgStatus = 'new';
       }
 
       _stocks.push({
         code: s.code, name: s.name,
-        shen_grade: sg, prev_grade: prevSg,
+        shen_grade: cur.grade, prev_grade: prev.grade,
         chg: chgStatus,
         price: close,
         val_aa: val_aa,
-        shen_yld: yld != null ? Math.round(yld * 100) / 100 : null,
-        shen_pe: pe != null ? Math.round(pe * 100) / 100 : null,
+        shen_yld: cur.yld != null ? Math.round(cur.yld * 100) / 100 : null,
+        shen_pe: cur.pe != null ? Math.round(cur.pe * 100) / 100 : null,
+        grade_source: cur.source,
       });
     });
 
     // 標記新增/刪除
-    // 新增 = 昨天不在此等級，今天在
-    // 刪除 = 昨天在此等級，今天不在 → 加一筆「刪除」記錄到對應等級
-    removedByGrade = {}; // grade -> [{code, name, price}]
+    removedByGrade = {};
     _stocks.forEach(s => {
       if (s.prev_grade && s.prev_grade !== s.shen_grade) {
         s.chg = 'new';
-        // 從舊等級刪除
-        if (['AA','A1','A2','A'].includes(s.prev_grade)) {
+        if (CHEAP_GRADES.has(s.prev_grade)) {
           if (!removedByGrade[s.prev_grade]) removedByGrade[s.prev_grade] = [];
           removedByGrade[s.prev_grade].push({ code: s.code, name: s.name, price: s.price, chg: 'removed', prev_grade: s.prev_grade, shen_grade: s.shen_grade });
         }
