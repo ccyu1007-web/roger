@@ -4250,10 +4250,9 @@ def fetch_mops_quarterly_eps():
                                         eps_y3=eps_y2, eps_y3_label=eps_y2_label,
                                         eps_y2=eps_y1, eps_y2_label=eps_y1_label,
                                         eps_y1=?, eps_y1_label=?,
-                                        eps_ytd=?, eps_ytd_label=?, eps_date=?
+                                        eps_ytd=?, eps_ytd_label=?
                                         WHERE code=?""",
-                                        (cum_eps, str(yr), cum_eps, str(yr),
-                                         date.today().strftime('%Y-%m-%d'), code))
+                                        (cum_eps, str(yr), cum_eps, str(yr), code))
                                     count += 1
                                 continue  # Q4 不寫 quarterly_financial 的 eps
                             else:
@@ -4284,10 +4283,9 @@ def fetch_mops_quarterly_eps():
                                 eps_4=eps_3, eps_4q=eps_3q,
                                 eps_3=eps_2, eps_3q=eps_2q,
                                 eps_2=eps_1, eps_2q=eps_1q,
-                                eps_1=?, eps_1q=?, eps_date=?
+                                eps_1=?, eps_1q=?
                                 WHERE code=?""",
-                                (single_eps, quarter_key,
-                                 date.today().strftime('%Y-%m-%d'), code))
+                                (single_eps, quarter_key, code))
                             count += 1
                         elif cur and cur[0] == quarter_key:
                             c.execute("UPDATE stocks SET eps_1=? WHERE code=?",
