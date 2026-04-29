@@ -2241,13 +2241,10 @@ function render() {
         : r.revenue_date;
     }
 
-    // EPS 更新日期（新季度 EPS 才紅色醒目）
-    // 紅色條件：這支股票的 eps_1q 比多數公司更新（代表剛公佈新季度）
+    // EPS 更新日期（eps_date 是今天才紅色，隔天自動恢復）
     let epsDateHtml = '－';
     if (r.eps_date) {
-      const _qToNum = q => { if (!q) return 0; const m = q.match(/(\d+)Q(\d+)/); return m ? parseInt(m[1]) * 10 + parseInt(m[2]) : 0; };
-      const isNewQuarter = _qToNum(r.eps_1q) > _qToNum(_prevailingQuarter);
-      epsDateHtml = isNewQuarter
+      epsDateHtml = r.eps_date === TODAY
         ? `<span style="color:#ef4444;font-weight:700">${r.eps_date}</span>`
         : r.eps_date;
     }
