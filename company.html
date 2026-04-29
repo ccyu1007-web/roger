@@ -1771,7 +1771,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         </div>
         <div style="flex:1;min-width:300px">
           ${(() => {
-            const payouts = annuals.slice(0, 5);
+            const payouts = (typeof annuals !== 'undefined' ? annuals : _annualPayouts).slice(0, 5);
             if (!payouts.length) return '<div style="color:#94a3b8;font-size:.85rem;padding:8px">無配息率歷史</div>';
             let t = '<div style="font-size:.88rem;font-weight:700;color:#1e3a5f;margin-bottom:4px">配息率歷史（近 ' + payouts.length + ' 年）</div>';
             t += '<table class="pe-hist-table"><thead><tr><th style="width:80px">年度</th>';
