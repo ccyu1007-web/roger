@@ -1840,6 +1840,17 @@ async function loadData() {
     document.getElementById('stockTable').style.display = 'table';
 
     initMonthlyRevHeaders();  // 動態插入月營收欄位表頭
+    // 填充產業篩選選項
+    const industries = [...new Set(allData.map(r => r.industry).filter(Boolean))].sort();
+    const indSel = document.getElementById('industryFilter');
+    if (indSel) {
+      industries.forEach(ind => {
+        const opt = document.createElement('option');
+        opt.value = ind;
+        opt.textContent = ind;
+        indSel.appendChild(opt);
+      });
+    }
     await loadUserSettings();  // 從 DB 載入設定（覆蓋 localStorage）
     initColToggle();
     await loadUserLists();  // 從 DB 載入清單

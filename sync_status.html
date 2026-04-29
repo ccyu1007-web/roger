@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>同步狀態 — 逍遙投資系統</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Microsoft JhengHei', -apple-system, sans-serif; background: #f0f4f8; color: #1a202c; font-size: 14px; }
+  header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 1.2rem; }
+  header a { color: rgba(255,255,255,.9); text-decoration: none; font-size: .85rem; }
+  .container { max-width: 800px; margin: 20px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.08); margin-bottom: 16px; overflow: hidden; }
+  .card-title { padding: 10px 16px; font-weight: 700; font-size: .95rem; border-bottom: 1px solid #e2e8f0; }
+  .card-body { padding: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 6px 10px; font-size: .82rem; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; font-size: .85rem; }
+  .ok { color: #059669; font-weight: 600; }
+  .warn { color: #d97706; font-weight: 600; }
+  .error { color: #dc2626; font-weight: 600; }
+  .loading { text-align: center; padding: 40px; color: #94a3b8; }
+  .refresh-btn { padding: 6px 14px; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.15); color: #fff; border-radius: 6px; cursor: pointer; font-size: .82rem; }
+  .refresh-btn:hover { background: rgba(255,255,255,.25); }
+  .ts { font-size: .78rem; color: #94a3b8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>同步狀態</h1>
+  <div>
+    <button class="refresh-btn" onclick="load()">重新檢查</button>
+    <a href="/" style="margin-left:16px">回總表</a>
+  </div>
+</header>
+<div class="container">
+  <div class="loading" id="loading">檢查中...</div>
+  <div id="content" style="display:none">
+
+    <div class="card">
+      <div class="card-title">資料表筆數比對（本機 vs Render）</div>
+      <div class="card-body"><table id="tblCounts"><thead><tr><th>資料表</th><th>本機</th><th>Render</th><th>狀態</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">股價抽樣比對</div>
+      <div class="card-body"><table id="tblPrices"><thead><tr><th>代碼</th><th>名稱</th><th>本機</th><th>Render</th><th>狀態</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">最近同步時間</div>
+      <div class="card-body" id="syncTimes"></div>
+    </div>
+
+  </div>
+</div>
+<script>
+async function load() {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('content').style.display = 'none';
+  try {
+    const res = await fetch('/api/sync-status');
+    const data = await res.json();
+    renderCounts(data.counts);
+    renderPrices(data.prices);
+    renderTimes(data.times);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+  } catch(e) {
+    document.getElementById('loading').textContent = '載入失敗: ' + e.message;
+  }
+}
+
+function renderCounts(counts) {
+  const tbody = document.querySelector('#tblCounts tbody');
+  tbody.innerHTML = counts.map(c => {
+    const match = c.local === c.render;
+    const cls = match ? 'ok' : (Math.abs(c.local - c.render) / Math.max(c.local, 1) < 0.05 ? 'warn' : 'error');
+    return `<tr><td>${c.table}</td><td>${c.local.toLocaleString()}</td><td>${c.render.toLocaleString()}</td><td class="${cls}">${match ? '一致' : '差 ' + (c.local - c.render).toLocaleString()}</td></tr>`;
+  }).join('');
+}
+
+function renderPrices(prices) {
+  const tbody = document.querySelector('#tblPrices tbody');
+  tbody.innerHTML = prices.map(p => {
+    const match = p.local === p.render;
+    const cls = match ? 'ok' : 'error';
+    return `<tr><td>${p.code}</td><td>${p.name}</td><td>${p.local}</td><td>${p.render}</td><td class="${cls}">${match ? '一致' : '差 ' + (p.local - p.render).toFixed(2)}</td></tr>`;
+  }).join('');
+}
+
+function renderTimes(times) {
+  const el = document.getElementById('syncTimes');
+  el.innerHTML = Object.entries(times).map(([k, v]) => `<div style="margin-bottom:4px"><span style="font-weight:600">${k}：</span><span class="ts">${v || '—'}</span></div>`).join('');
+}
+
+load();
+</script>
+</body>
+</html>
