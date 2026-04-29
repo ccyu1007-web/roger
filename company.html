@@ -1770,6 +1770,25 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       </div>
     </div>
 
+    <!-- 配息率歷史 -->
+    ${(() => {
+      const payouts = _annualPayouts.slice(0, 5);
+      if (!payouts.length) return '';
+      let t = '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">';
+      t += '<div style="font-size:.88rem;font-weight:700;color:#1e3a5f;margin-bottom:4px">配息率歷史（近 ' + payouts.length + ' 年）</div>';
+      t += '<table class="pe-hist-table"><thead><tr><th style="width:80px">年度</th>';
+      payouts.forEach(a => { t += `<th>${a.year_label}年</th>`; });
+      t += '</tr></thead><tbody>';
+      t += '<tr><td style="font-weight:600;color:#475569">EPS</td>';
+      payouts.forEach(a => { t += `<td>${a.eps != null ? a.eps.toFixed(2) : '-'}</td>`; });
+      t += '</tr><tr><td style="font-weight:600;color:#475569">現金股利</td>';
+      payouts.forEach(a => { t += `<td>${a.cash_dividend != null ? a.cash_dividend.toFixed(2) : '-'}</td>`; });
+      t += '</tr><tr><td style="font-weight:600;color:#475569">配息率</td>';
+      payouts.forEach(a => { t += `<td style="font-weight:700;color:#2563eb">${a.payout_ratio != null ? Math.round(a.payout_ratio) + '%' : '-'}</td>`; });
+      t += '</tr></tbody></table></div>';
+      return t;
+    })()}
+
     <!-- 價值評估矩陣 -->
     <div class="matrix-wrap">
       <div class="matrix-title">
