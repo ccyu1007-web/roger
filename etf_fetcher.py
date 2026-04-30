@@ -93,8 +93,7 @@ def init_etf_db():
     # 舊表可能沒有 category 欄位，嘗試補上
     try:
         c.execute("ALTER TABLE etf_info ADD COLUMN category TEXT")
-    except:
-        pass
+    except Exception: pass
 
     conn.commit()
     conn.close()
@@ -163,7 +162,7 @@ def _parse_js_val(s):
     if s.startswith('"'):
         try:
             return json.loads(s)
-        except:
+        except Exception:
             return s.strip('"')
     try:
         return int(s)
@@ -244,15 +243,13 @@ def _fetch_yuanta(etf_code):
                 w_str = fields.get('weights', '')
                 try:
                     weight = float(w_str)
-                except:
-                    pass
+                except Exception: pass
 
                 qty = None
                 q_str = fields.get('qty', '')
                 try:
                     qty = int(q_str)
-                except:
-                    pass
+                except Exception: pass
 
                 if re.match(r'^\d{4,6}$', code):
                     holdings.append({
@@ -303,14 +300,12 @@ def _fetch_moneydj(etf_code):
                             if len(cols) >= 2:
                                 try:
                                     weight = float(cols[1].get_text(strip=True))
-                                except:
-                                    pass
+                                except Exception: pass
                             shares = None
                             if len(cols) >= 3:
                                 try:
                                     shares = int(cols[2].get_text(strip=True).replace(',', '').replace('.00', ''))
-                                except:
-                                    pass
+                                except Exception: pass
                             holdings.append({
                                 'stock_code': code,
                                 'stock_name': name,

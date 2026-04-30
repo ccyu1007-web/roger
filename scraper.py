@@ -13,6 +13,7 @@
   - 三大法人：群益證券 zcl（每天17:10後抓取）
 """
 
+import logging
 import requests
 import db as sqlite3
 from datetime import datetime, date, timedelta
@@ -22,6 +23,8 @@ import random
 import re
 import os
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 from fetcher_utils import (
     create_session, parse_num as safe_float,
     parse_int as safe_int, DB_PATH
@@ -168,8 +171,7 @@ def init_db():
     for col, typ in new_cols:
         try:
             c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-        except:
-            pass
+        except Exception: pass
     conn.commit()
     conn.close()
     print("[DB] 資料表已就緒")
@@ -218,8 +220,7 @@ def _flush_health_log():
         conn.commit()
         conn.close()
         _health_log = []
-    except:
-        pass
+    except Exception: pass
 
 
 
@@ -253,7 +254,7 @@ def date_to_quarter_label(date_str):
         roc_year = d.year - 1911
         quarter = (d.month - 1) // 3 + 1
         return f"{roc_year}Q{quarter}"
-    except:
+    except Exception:
         return None
 
 
@@ -367,8 +368,7 @@ def fetch_twse_history_240d():
                 close_str = str(row[8]).replace(',', '').strip()
                 try:
                     hist[code] = float(close_str)
-                except:
-                    pass
+                except Exception: pass
             print(f"[TWSE] 找到歷史資料：{d}（{len(hist)} 筆）")
             return hist
     print("[TWSE] 找不到歷史資料")
@@ -401,8 +401,7 @@ def fetch_tpex_history_240d():
                 close_str = str(row[2]).replace(',', '').strip()
                 try:
                     hist[code] = float(close_str)
-                except:
-                    pass
+                except Exception: pass
             print(f"[TPEX] 找到歷史資料：{d}（{len(hist)} 筆）")
             return hist
     print("[TPEX] 找不到歷史資料")
@@ -425,7 +424,7 @@ def read_old_meta():
         result = {row['code']: dict(row) for row in c.fetchall()}
         conn.close()
         return result
-    except:
+    except Exception:
         return {}
 
 
@@ -440,8 +439,7 @@ def _fetch_revenue(code, start_date):
         data = r.json()
         if data.get('status') == 200:
             return code, data.get('data', [])
-    except:
-        pass
+    except Exception: pass
     return code, None
 
 def _calc_revenue_metrics(records):
@@ -454,8 +452,7 @@ def _calc_revenue_metrics(records):
             m = int(r['revenue_month'])
             v = float(r['revenue'])
             rev_map[(y, m)] = v
-        except:
-            pass
+        except Exception: pass
     if not rev_map:
         return None
     latest_ym = max(rev_map.keys())
@@ -598,7 +595,7 @@ def fetch_dividends_bulk():
             r = _session.get(url, timeout=15)
             d = r.json()
             return d.get('data', []) if d.get('status') == 200 else []
-        except:
+        except Exception:
             return []
 
     all_codes_set = set(div_map.keys())
@@ -821,8 +818,7 @@ def _fetch_contract_liability(code, start_date):
         data = r.json()
         if data.get('status') == 200:
             return code, data.get('data', [])
-    except:
-        pass
+    except Exception: pass
     return code, None
 
 def _calc_contract_metrics(records):
@@ -929,8 +925,7 @@ def _fetch_eps(code, start_date):
         data = r.json()
         if data.get('status') == 200:
             return code, data.get('data', [])
-    except:
-        pass
+    except Exception: pass
     return code, None
 
 def _calc_eps_metrics(records):
@@ -1089,8 +1084,7 @@ def save_to_db(rows):
         for r in c_old.fetchall():
             old_data[r['code']] = dict(r)
         conn_old.close()
-    except:
-        pass
+    except Exception: pass
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -1348,8 +1342,7 @@ def run(scheduled=True):
             print(f"[交叉校驗] {cv['checked']} 支抽查，{len(cv['mismatches'])} 支有差異！")
         else:
             print(f"[交叉校驗] {cv['checked']} 支抽查，全部一致")
-    except:
-        pass
+    except Exception: pass
 
     # 自動 push 所有資料到 Render（僅本機）
     if not os.environ.get('DATABASE_URL'):
@@ -1398,7 +1391,7 @@ def _post_process_after_save():
             try:
                 roc_year = int(ym_str[:-2])
                 month = int(ym_str[-2:])
-            except: continue
+            except Exception: continue
             yoy = safe_float(d.get('營業收入-去年同月增減(%)'))
             mom = safe_float(d.get('營業收入-上月比較增減(%)'))
             cum_yoy = safe_float(d.get('累計營業收入-前期比較增減(%)'))
@@ -1437,24 +1430,24 @@ def _post_process_after_save():
 
     # ── MOPS 最新季 EPS ──
     try: fetch_mops_quarterly_eps()
-    except: pass
+    except Exception: pass
 
     # ── 稅務資料修正 ──
     _fix_tax_data()
 
     # ── 交叉驗證 ──
     try: cross_validate_financial()
-    except: pass
+    except Exception: pass
 
     # ── 年報公告截止後：確認年度 EPS + 股利到齊 ──
     try: _check_annual_eps_completeness()
-    except: pass
+    except Exception: pass
     try: _check_annual_dividend_completeness()
-    except: pass
+    except Exception: pass
 
     # ── 季報公告截止後：用群益批次確認季度資料 ──
     try: _check_quarterly_completeness()
-    except: pass
+    except Exception: pass
 
     # ── 系統 EPS 估算（季+年，批次更新所有股票）──
     _batch_system_estimate()
@@ -1532,8 +1525,7 @@ def _fill_missing_financials():
     for code in codes:
         try:
             fetch_all_three(code)
-        except:
-            pass
+        except Exception: pass
         done += 1
         if done % 10 == 0:
             print(f"    進度: {done}/{len(codes)}")
@@ -1649,8 +1641,7 @@ def _check_annual_dividend_completeness():
     for i, code in enumerate(missing_codes):
         try:
             fetch_capital_dividend(code)
-        except:
-            pass
+        except Exception: pass
         if (i + 1) % 50 == 0:
             print(f"  股利補抓進度：{i+1}/{len(missing_codes)}")
             time.sleep(0.5)
@@ -1736,8 +1727,7 @@ def _check_quarterly_completeness():
     for i, code in enumerate(codes):
         try:
             fetch_capital_financials(code)
-        except:
-            pass
+        except Exception: pass
         if (i + 1) % 100 == 0:
             print(f"  進度：{i+1}/{len(codes)}")
             time.sleep(0.3)
@@ -1769,8 +1759,7 @@ def _check_quarterly_completeness():
                         'have_data': have_data, 'missing': missing},
                        ensure_ascii=False)))
         conn.commit()
-    except:
-        pass
+    except Exception: pass
     conn.close()
 
     print(f"[季報確認] {check_quarter} 完成：{have_data}/{total} 支有資料，{missing} 支缺漏")
@@ -2074,7 +2063,7 @@ def fetch_company_monthly_revenue(code):
         r = _session.get(url, timeout=15)
         data = r.json()
         records = data.get('data', []) if data.get('status') == 200 else []
-    except:
+    except Exception:
         records = []
 
     if not records:
@@ -2091,8 +2080,7 @@ def fetch_company_monthly_revenue(code):
                 'revenue': float(rec['revenue']),
                 'updated_at': now_str,
             })
-        except:
-            pass
+        except Exception: pass
 
     if rows:
         conn = sqlite3.connect(DB_PATH)
@@ -2158,8 +2146,7 @@ def fetch_company_financials(code):
             from capital_fetcher import fetch_all_three
             a1, q1, a2, a3, a4, a5 = fetch_all_three(code)
             capital_ok = (a1 > 0 or a2 > 0 or a3 > 0)
-        except:
-            pass
+        except Exception: pass
 
     # 檢查群益是否已補齊關鍵欄位
     conn = sqlite3.connect(DB_PATH)
@@ -2180,8 +2167,7 @@ def fetch_company_financials(code):
             data = fetch_yahoo_financials(session, crumb, code, market)
             if data:
                 save_yahoo_to_db(code, data)
-        except:
-            pass
+        except Exception: pass
 
     c.execute("SELECT * FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 6", (code,))
     rows = [dict(r) for r in c.fetchall()]
@@ -2212,7 +2198,7 @@ def _fetch_financials_finmind(code):
                 resp = f.result()
                 data = resp.json()
                 raw[key] = data.get('data', []) if data.get('status') == 200 else []
-            except:
+            except Exception:
                 raw[key] = []
 
     # ── 損益表：單季值，依年分組加總 ──
@@ -2298,10 +2284,8 @@ def _fetch_financials_finmind(code):
                             'cash_dividend': row[i * 3] or 0,
                             'stock_dividend': row[i * 3 + 1] or 0,
                         }
-                    except:
-                        pass
-    except:
-        pass
+                    except Exception: pass
+    except Exception: pass
 
     # ── 組合年度資料 ──
     all_years = sorted(set(
@@ -2453,8 +2437,7 @@ def fetch_company_quarterly(code):
             from capital_fetcher import fetch_capital_financials, fetch_capital_contract_liability
             fetch_capital_financials(code)
             fetch_capital_contract_liability(code)
-        except:
-            pass
+        except Exception: pass
 
     c.execute("""SELECT * FROM quarterly_financial WHERE code=?
                  ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
@@ -2487,7 +2470,7 @@ def _fetch_quarterly_finmind(code):
                 resp = f.result()
                 data = resp.json()
                 raw[key] = data.get('data', []) if data.get('status') == 200 else []
-            except:
+            except Exception:
                 raw[key] = []
 
     # ── 損益表：按季整理 ──
@@ -2601,8 +2584,7 @@ def fetch_pe_history(code):
         n = fetch_capital_pe_history(code)
         if n > 0:
             return []  # 群益成功，不用 FinMind
-    except:
-        pass
+    except Exception: pass
 
     # 來源 2：FinMind（有額度限制）
     start_date = f"{date.today().year - 8}-01-01"
@@ -2612,7 +2594,7 @@ def fetch_pe_history(code):
         r = _session.get(url, timeout=20)
         data = r.json()
         records = data.get('data', []) if data.get('status') == 200 else []
-    except:
+    except Exception:
         records = []
 
     if not records:
@@ -2674,7 +2656,7 @@ def quick_update():
 
     # 清理舊備份
     try: cleanup_old_backups(30)
-    except: pass
+    except Exception: pass
 
     init_db()
     conn = sqlite3.connect(DB_PATH)
@@ -2718,8 +2700,7 @@ def quick_update():
             try:
                 roc_year = int(ym_str[:-2])
                 month = int(ym_str[-2:])
-            except:
-                continue
+            except Exception: continue
 
             yoy = safe_float(d.get('營業收入-去年同月增減(%)'))
             mom = safe_float(d.get('營業收入-上月比較增減(%)'))
@@ -2798,8 +2779,7 @@ def quick_update():
                     mm = pub_date_str[-4:-2]
                     dd = pub_date_str[-2:]
                     pub_date = f"{roc_y + 1911}-{mm}-{dd}"
-                except:
-                    pass
+                except Exception: pass
 
             quarter_label = f"{year}Q{season}"
 
@@ -2929,15 +2909,15 @@ def quick_update():
     _flush_health_log()
     snapshot_stock_states()
     try: fetch_material_news()
-    except: pass
+    except Exception: pass
     try: fetch_moneydj_news()
-    except: pass
+    except Exception: pass
     try: auto_archive_old_news()
-    except: pass
+    except Exception: pass
     # 本機自動 push 新聞到 Render
     if not os.environ.get('DATABASE_URL'):
         try: _push_news_to_render()
-        except: pass
+        except Exception: pass
     # ── 5. MOPS 最新季 EPS（比政府 API 快）──
     try: fetch_mops_quarterly_eps()
     except Exception as e: print(f"[MOPS] 失敗: {e}")
@@ -2961,8 +2941,7 @@ def quick_update():
                                    d.get('est_yld'), ar['confidence'], code))
                     conn_r.commit()
                     conn_r.close()
-            except:
-                pass
+            except Exception: pass
         print(f"[即時重算] 完成")
 
     elapsed = time.time() - t0
@@ -3096,8 +3075,7 @@ def _refresh_stale_financials():
             result = fetch_company_financials(code)
             if result:
                 print(f"  {code} 財報已更新（{year_label}年）")
-        except:
-            pass
+        except Exception: pass
 
 
 def _prefetch_watchlist_details():
@@ -3169,8 +3147,7 @@ def _prefetch_watchlist_details():
                 roc_year = int(ym_str[:-2])
                 month = int(ym_str[-2:])
                 west_year = roc_year + 1911
-            except:
-                continue
+            except Exception: continue
             try:
                 c.execute("""INSERT OR IGNORE INTO monthly_revenue
                     (code, year, month, revenue, updated_at)
@@ -3178,8 +3155,7 @@ def _prefetch_watchlist_details():
                     (code, west_year, month, revenue, now_str))
                 if c.rowcount:
                     rev_saved += 1
-            except:
-                pass
+            except Exception: pass
 
     conn.commit()
     if rev_saved:
@@ -3198,8 +3174,7 @@ def _prefetch_watchlist_details():
                 continue  # 只取 Q4 = 年度
             try:
                 west_year = int(year_str) + 1911
-            except:
-                continue
+            except Exception: continue
             revenue = safe_float(d.get('營業收入(百萬元)'))
             gross_margin = safe_float(d.get('毛利率(%)(營業毛利)/(營業收入)'))
             opm = safe_float(d.get('營業利益率(%)(營業利益)/(營業收入)'))
@@ -3225,8 +3200,7 @@ def _prefetch_watchlist_details():
                     VALUES (?,?,?,?,?,?,?)""",
                     (code, west_year, rev_full, gross_profit, operating_income, net_income, now_str))
                 fin_saved += 1
-            except:
-                pass
+            except Exception: pass
 
     # 上櫃也從 t187ap14 補充
     for label, url, code_key, eps_key, year_key, season_key, rev_key, oi_key, ni_key in [
@@ -3246,8 +3220,7 @@ def _prefetch_watchlist_details():
             try:
                 year_str = str(d.get(year_key, '')).strip()
                 west_year = int(year_str) + 1911
-            except:
-                continue
+            except Exception: continue
 
             eps = safe_float(d.get(eps_key))
             revenue = safe_float(d.get(rev_key))
@@ -3271,8 +3244,7 @@ def _prefetch_watchlist_details():
                     VALUES (?,?,?,?,?,?,?)""",
                     (code, west_year, revenue, oi, ni, eps, now_str))
                 fin_saved += 1
-            except:
-                pass
+            except Exception: pass
 
     conn.commit()
     if fin_saved:
@@ -3319,7 +3291,7 @@ def _prefetch_watchlist_details():
             updated = datetime.strptime(r['updated_at'], '%Y-%m-%d %H:%M:%S')
             if (now - updated).days >= 7:
                 need_fetch.append(code)
-        except:
+        except Exception:
             need_fetch.append(code)
 
     conn.close()
@@ -3344,8 +3316,7 @@ def _prefetch_watchlist_details():
                 print(f"  {code}: 季度{len(r3) if r3 else 0}季, PE{len(r4) if r4 else 0}年")
             done += 1
             time.sleep(random.uniform(0.3, 1.0))
-        except:
-            pass
+        except Exception: pass
 
     print(f"[預抓取] FinMind 補充完成 {done}/{len(batch)} 支")
 
@@ -3356,7 +3327,7 @@ def _parse_inst_val(v):
         return None
     try:
         return int(v)
-    except:
+    except Exception:
         return None
 
 
@@ -3385,7 +3356,7 @@ def _fetch_inst_one(code):
                     dealer  = _parse_inst_val(cells[3])
                     return code, foreign, trust, dealer, date_str
         return code, None, None, None, None
-    except:
+    except Exception:
         return code, None, None, None, None
 
 
@@ -3994,10 +3965,8 @@ def _refresh_realtime():
                               (close, change, op, hi, lo, vol, updated_at, code))
                     if c.rowcount:
                         count += 1
-                except:
-                    pass
-        except:
-            pass
+                except Exception: pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -4010,9 +3979,9 @@ def _batch_system_estimate():
     conn.row_factory = sqlite3.Row
     for col, typ in [('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT')]:
         try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-        except: pass
+        except Exception: pass
     try: conn.commit()
-    except: pass
+    except Exception: pass
     rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
     conn.close()
 
@@ -4032,8 +4001,7 @@ def _batch_system_estimate():
                 c2.commit()
                 c2.close()
                 success += 1
-        except:
-            pass
+        except Exception: pass
     print(f"  系統 EPS 估算：{success}/{len(rows)} 支完成")
 
 
@@ -4048,9 +4016,9 @@ def _batch_annual_estimate():
     for col, typ in [('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
                      ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
         try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-        except: pass
+        except Exception: pass
     try: conn.commit()
-    except: pass
+    except Exception: pass
     rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
     conn.close()
 
@@ -4064,7 +4032,7 @@ def _batch_annual_estimate():
                 c2 = sqlite3.connect(DB_PATH)
                 c2.execute("UPDATE stocks SET sys_ann_confidence='N/A' WHERE code=?", (code,))
                 c2.commit(); c2.close()
-            except: pass
+            except Exception: pass
             skip += 1
             continue
         try:
@@ -4079,8 +4047,7 @@ def _batch_annual_estimate():
                             d.get('est_yld'), ar['confidence'], code))
                 c2.commit(); c2.close()
                 success += 1
-        except:
-            pass
+        except Exception: pass
     print(f"  年度 EPS 估算：{success} 支完成，{skip} 支產業排除")
 
     # 估算結果 push 到 Render
@@ -4140,8 +4107,7 @@ def _backfill_actual_eps():
                     VALUES (?, ?, ?, ?, ?)""",
                     (q['code'], q['quarter'], q['revenue'], q['eps'], q['updated_at']))
                 filled += conn.total_changes
-            except:
-                pass
+            except Exception: pass
 
         # 回填已公布的年度 EPS
         annuals = conn.execute("""
@@ -4157,13 +4123,11 @@ def _backfill_actual_eps():
                     (code, target_period, actual_revenue, actual_eps, report_date)
                     VALUES (?, ?, ?, ?, ?)""",
                     (a['code'], period, a['revenue'], a['eps'], a['updated_at']))
-            except:
-                pass
+            except Exception: pass
 
         conn.commit()
         conn.close()
-    except:
-        pass
+    except Exception: pass
 
 
 def fetch_mops_quarterly_eps():
@@ -4230,8 +4194,7 @@ def fetch_mops_quarterly_eps():
                         code = cells[0]
                         try:
                             cum_eps = float(cells[3].replace(',', ''))
-                        except:
-                            continue
+                        except Exception: continue
                         cum_revenue = parse_k(cells[5])
                         cum_oi = parse_k(cells[6])
                         cum_nonop = parse_k(cells[7])
@@ -4864,8 +4827,7 @@ def estimate_system_eps_multi(code):
                 days_since = (now - upd).days
                 if days_since > 15:
                     continue  # 已公布超過 15 天，跳過
-            except:
-                pass
+            except Exception: pass
 
         result = _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, qn, west_year, ann_rows)
         if 'error' not in result:
@@ -5212,7 +5174,7 @@ def estimate_annual_eps(code):
         price_row = conn2.execute("SELECT close FROM stocks WHERE code = ?", (code,)).fetchone()
         conn2.close()
         cur_price = price_row['close'] if price_row and price_row['close'] else None
-    except:
+    except Exception:
         cur_price = None
 
     est_pe = round(cur_price / est_eps, 2) if cur_price and est_eps and est_eps > 0 else None

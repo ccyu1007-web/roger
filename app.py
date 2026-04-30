@@ -3,10 +3,13 @@
 提供股票資料給前端網頁
 """
 
+import logging
 from flask import Flask, jsonify, request
 import os
 import db as sqlite3
 import threading
+
+logger = logging.getLogger(__name__)
 from guardian import (generate_health_report, get_provider_status, PROVIDER_TIERS,
                       get_all_breakers, get_breaker,
                       get_quarantine_list, resolve_quarantine,
@@ -25,6 +28,12 @@ from scraper import (run as scraper_run, refresh_prices, init_db, init_financial
 from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
 from capital_fetcher import fetch_financial_detail
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 app.config['COMPRESS_MIMETYPES'] = ['application/json']
@@ -179,11 +188,11 @@ def get_stocks():
                         ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT'),
                         ('priority_grade','TEXT'),('grade_source','TEXT')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-            except: pass
+            except Exception: pass
         try: conn_init.commit()
-        except: pass
+        except Exception: pass
         conn_init.close()
-    except: pass
+    except Exception: pass
 
     sql    = """SELECT code, name, market, industry, close, change, change_240d,
                        revenue_date, revenue_yoy, revenue_mom, revenue_cum_yoy,
@@ -244,8 +253,7 @@ def get_stocks():
         for r in c.fetchall():
             etf_map[r["stock_code"]] = r["etf_list"]
         conn.close()
-    except:
-        pass
+    except Exception: pass
 
     # 批次查詢月營收（當年度各月）
     rev_map = {}  # code -> [{month, revenue, yoy}, ...]
@@ -269,8 +277,7 @@ def get_stocks():
             if r['revenue'] and r['prev_revenue'] and r['prev_revenue'] > 0:
                 yoy = round((r['revenue'] - r['prev_revenue']) / r['prev_revenue'] * 100, 2)
             rev_map[code].append({'month': r['month'], 'revenue': r['revenue'], 'yoy': yoy})
-    except:
-        pass
+    except Exception: pass
 
     # 後端統一計算沈董EPS/股利/綜合股利，避免前後端不一致
     cur_roc = __import__('datetime').date.today().year - 1911
@@ -319,13 +326,13 @@ def refresh():
                 from scraper import _sync_eps_from_quarterly
                 from guardian import snapshot_stock_states, fetch_material_news, fetch_moneydj_news
                 try: _sync_eps_from_quarterly()
-                except: pass
+                except Exception: pass
                 try: snapshot_stock_states()
-                except: pass
+                except Exception: pass
                 try: fetch_material_news()
-                except: pass
+                except Exception: pass
                 try: fetch_moneydj_news()
-                except: pass
+                except Exception: pass
             finally:
                 _is_refreshing = False
 
@@ -354,13 +361,13 @@ def sync_snapshot():
     for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
                      ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),('discount_pct','REAL')]:
         try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
-        except: pass
+        except Exception: pass
     try: c.execute("ALTER TABLE stocks ADD COLUMN deepest_val_level TEXT")
-    except: pass
+    except Exception: pass
     try: c.execute("ALTER TABLE stocks ADD COLUMN val_cheap_days INTEGER DEFAULT 0")
-    except: pass
+    except Exception: pass
     try: conn.commit()
-    except: pass
+    except Exception: pass
 
     updated = 0
     for r in data['rows']:
@@ -388,8 +395,7 @@ def sync_snapshot():
             # 更新 stocks 表
             c.execute("UPDATE stocks SET deepest_val_level=?, val_cheap_days=? WHERE code=?",
                       (r.get('deepest'), r.get('cheap_days', 0), r['code']))
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -410,7 +416,7 @@ def sync_estimates():
     for col, typ in [('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
                      ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
         try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-        except: pass
+        except Exception: pass
 
     updated = 0
     for row in data['data']:
@@ -420,8 +426,7 @@ def sync_estimates():
                       (row.get('sys_ann_eps'), row.get('sys_ann_div'), row.get('sys_ann_pe'),
                        row.get('sys_ann_yld'), row.get('sys_ann_confidence'), row['code']))
             updated += c.rowcount
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -454,8 +459,7 @@ def sync_news():
                            r.get('link'), r.get('tier'),
                            r.get('matched_rule'), r.get('direction'), r.get('created_at')))
             inserted += c.rowcount
-        except:
-            pass
+        except Exception: pass
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "inserted": inserted})
@@ -503,8 +507,7 @@ def sync_financial_detail():
             report_type TEXT NOT NULL, item TEXT NOT NULL, value REAL, updated_at TEXT,
             PRIMARY KEY (code, period, report_type, item))""")
         conn.commit()
-    except:
-        pass
+    except Exception: pass
     updated = 0
     for r in rows:
         try:
@@ -514,8 +517,7 @@ def sync_financial_detail():
                 value=excluded.value, period_type=excluded.period_type, updated_at=excluded.updated_at""",
                 (r['code'], r['period'], r['period_type'], r['report_type'], r['item'], r['value'], r.get('updated_at', '')))
             updated += 1
-        except:
-            pass
+        except Exception: pass
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
@@ -534,16 +536,16 @@ def sync_quarterly():
     # 確保欄位存在（Render PostgreSQL 可能缺少新欄位）
     for col, typ in [('inventory', 'REAL'), ('continuing_income', 'REAL')]:
         try: c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} {typ}")
-        except: pass
+        except Exception: pass
     try: conn.commit()
-    except: pass
+    except Exception: pass
     updated = 0
     errors = 0
     # 查詢實際存在的欄位，只用存在的欄位做 UPDATE/INSERT
     try:
         c.execute("SELECT * FROM quarterly_financial LIMIT 0")
         existing_cols = set(desc[0] for desc in c.description)
-    except:
+    except Exception:
         existing_cols = set()
     qf_cols = [col for col in ['revenue','cost','gross_profit','operating_expense','operating_income',
                'non_operating','pretax_income','tax','continuing_income',
@@ -624,9 +626,9 @@ def sync_table():
         try:
             c.execute(create_sql)
             conn.commit()
-        except:
+        except Exception:
             try: conn.rollback()
-            except: pass
+            except Exception: pass
 
     updated = 0
     errors = []
@@ -649,15 +651,15 @@ def sync_table():
                 if len(errors) < 3:
                     errors.append(str(e))
                 try: conn.rollback()
-                except: pass
+                except Exception: pass
     else:
         # 無主鍵：先清空再插入（整表替換）
         try:
             c.execute(f"DELETE FROM {table}")
             conn.commit()
-        except:
+        except Exception:
             try: conn.rollback()
-            except: pass
+            except Exception: pass
         placeholders = ','.join(['?'] * len(columns))
         for r in rows:
             try:
@@ -668,14 +670,14 @@ def sync_table():
                 if len(errors) < 3:
                     errors.append(str(e))
                 try: conn.rollback()
-                except: pass
+                except Exception: pass
 
     try:
         conn.commit()
     except Exception as e:
         errors.append(f"commit: {e}")
         try: conn.rollback()
-        except: pass
+        except Exception: pass
     conn.close()
     result = {"status": "ok", "updated": updated}
     if errors:
@@ -712,8 +714,7 @@ def sync_pe_history():
                 updated_at=excluded.updated_at""",
                 (code, year, r.get('pe_high'), r.get('pe_low'), r.get('updated_at')))
             updated += 1
-        except:
-            pass
+        except Exception: pass
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
@@ -806,7 +807,7 @@ def sync_financial_annual():
     try:
         c.execute("SELECT * FROM financial_annual LIMIT 0")
         existing_cols = set(desc[0] for desc in c.description)
-    except:
+    except Exception:
         existing_cols = set()
     fa_cols = [col for col in ['revenue','cost','gross_profit','operating_expense','operating_income',
                'non_operating','pretax_income','tax','net_income','net_income_parent',
@@ -859,8 +860,7 @@ def _bg_update_financials(code):
     def _do():
         try:
             fetch_company_financials(code)
-        except:
-            pass
+        except Exception: pass
         finally:
             _bg_updating.discard(code)
     threading.Thread(target=_do, daemon=True).start()
@@ -882,8 +882,7 @@ def get_financials(code):
             updated = datetime.strptime(rows[0]['updated_at'], '%Y-%m-%d %H:%M:%S')
             if datetime.now() - updated < timedelta(hours=24):
                 cache_valid = True
-        except:
-            pass
+        except Exception: pass
 
     is_cloud = os.environ.get('DATABASE_URL') is not None
     if not cache_valid:
@@ -895,8 +894,7 @@ def get_financials(code):
             # 本機：完全沒資料時同步抓（第一次必須等）
             try:
                 fetch_company_financials(code)
-            except:
-                pass
+            except Exception: pass
             rows = query_db(
                 "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 6",
                 (code,)
@@ -1048,18 +1046,17 @@ def get_quarterly(code):
             updated = datetime.strptime(rows[0]['updated_at'], '%Y-%m-%d %H:%M:%S')
             if datetime.now() - updated < timedelta(hours=12):
                 cache_valid = True
-        except:
-            pass
+        except Exception: pass
 
     if not cache_valid and not is_cloud:
         if rows:
             def _bg_q(c=code):
                 try: fetch_company_quarterly(c)
-                except: pass
+                except Exception: pass
             threading.Thread(target=_bg_q, daemon=True).start()
         else:
             try: fetch_company_quarterly(code)
-            except: pass
+            except Exception: pass
             rows = query_db(
                 f"SELECT * FROM quarterly_financial WHERE code = ? {q_order} LIMIT 8",
                 (code,)
@@ -1119,8 +1116,7 @@ def get_quarterly(code):
                     ann_shares = fa_row[0]['weighted_shares']  # 千股
                     d['weighted_shares'] = round(ann_shares, 0)
                     shares_raw = ann_shares * 1000  # 轉為股
-            except:
-                pass
+            except Exception: pass
         # fallback：EPS 反算（年度股數尚未入庫時）
         if shares_raw is None and eps_val is not None and eps_val != 0 and nip is not None:
             shares_raw = nip / eps_val
@@ -1210,19 +1206,18 @@ def get_pe_history(code):
             updated = datetime.strptime(rows[-1]['updated_at'], '%Y-%m-%d %H:%M:%S')
             if datetime.now() - updated < timedelta(days=7):
                 cache_valid = True
-        except:
-            pass
+        except Exception: pass
 
     is_cloud = os.environ.get('DATABASE_URL') is not None
     if not cache_valid and not is_cloud:
         if rows:
             def _bg_pe(c=code):
                 try: fetch_pe_history(c)
-                except: pass
+                except Exception: pass
             threading.Thread(target=_bg_pe, daemon=True).start()
         else:
             try: fetch_pe_history(code)
-            except: pass
+            except Exception: pass
             rows = query_db(
                 "SELECT * FROM pe_history WHERE code = ? ORDER BY year ASC",
                 (code,)
@@ -1271,8 +1266,7 @@ def get_financial_detail(code):
             PRIMARY KEY (code, period, report_type, item))""")
         conn_init.commit()
         conn_init.close()
-    except:
-        pass
+    except Exception: pass
 
     rows = query_db(
         "SELECT period, period_type, report_type, item, value, updated_at FROM financial_detail WHERE code = ? ORDER BY period DESC",
@@ -1287,18 +1281,17 @@ def get_financial_detail(code):
             updated = datetime.strptime(latest, '%Y-%m-%d %H:%M:%S')
             if datetime.now() - updated < timedelta(hours=24):
                 cache_valid = True
-        except:
-            pass
+        except Exception: pass
 
     if not cache_valid and not is_cloud:
         if rows:
             def _bg(c=code):
                 try: fetch_financial_detail(c)
-                except: pass
+                except Exception: pass
             threading.Thread(target=_bg, daemon=True).start()
         else:
             try: fetch_financial_detail(code)
-            except: pass
+            except Exception: pass
             rows = query_db(
                 "SELECT period, period_type, report_type, item, value, updated_at FROM financial_detail WHERE code = ? ORDER BY period DESC",
                 (code,)
@@ -1336,19 +1329,18 @@ def get_monthly_revenue(code):
             updated = datetime.strptime(rows[0]['updated_at'], '%Y-%m-%d %H:%M:%S')
             if datetime.now() - updated < timedelta(hours=24):
                 cache_valid = True
-        except:
-            pass
+        except Exception: pass
 
     is_cloud = os.environ.get('DATABASE_URL') is not None
     if not cache_valid and not is_cloud:
         if rows:
             def _bg_rev(c=code):
                 try: fetch_company_monthly_revenue(c)
-                except: pass
+                except Exception: pass
             threading.Thread(target=_bg_rev, daemon=True).start()
         else:
             try: fetch_company_monthly_revenue(code)
-            except: pass
+            except Exception: pass
             rows = query_db(
                 "SELECT * FROM monthly_revenue WHERE code = ? ORDER BY year DESC, month ASC",
                 (code,)
@@ -1431,7 +1423,7 @@ def sync_status():
     for t in tables:
         try:
             local_cnt = c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-        except:
+        except Exception:
             local_cnt = 0
         counts.append({'table': t, 'local': local_cnt, 'render': 0})
 
@@ -1443,8 +1435,7 @@ def sync_status():
             render_counts = {c['table']: c['local'] for c in rd.get('counts', [])}
             for c in counts:
                 c['render'] = render_counts.get(c['table'], 0)
-        except:
-            pass
+        except Exception: pass
 
     # 股價抽樣比對
     prices = []
@@ -1462,8 +1453,7 @@ def sync_status():
             for s in rd.get('data', []):
                 if s['code'] in local_prices:
                     local_prices[s['code']]['render'] = s.get('close')
-        except:
-            pass
+        except Exception: pass
     prices = list(local_prices.values())
 
     # 最近更新時間
@@ -1471,19 +1461,19 @@ def sync_status():
     try:
         r = c.execute("SELECT MAX(updated_at) FROM stocks").fetchone()
         times['stocks 最後更新'] = r[0] if r else None
-    except: pass
+    except Exception: pass
     try:
         r = c.execute("SELECT MAX(updated_at) FROM quarterly_financial").fetchone()
         times['季報最後更新'] = r[0] if r else None
-    except: pass
+    except Exception: pass
     try:
         r = c.execute("SELECT MAX(updated_at) FROM financial_annual").fetchone()
         times['年報最後更新'] = r[0] if r else None
-    except: pass
+    except Exception: pass
     try:
         r = c.execute("SELECT MAX(date) FROM stock_state").fetchone()
         times['快照最新日期'] = r[0] if r else None
-    except: pass
+    except Exception: pass
 
     conn.close()
     return jsonify({'counts': counts, 'prices': prices, 'times': times})
@@ -1570,8 +1560,7 @@ def db_status():
             lines = f.readlines()
             if lines:
                 last_check = lines[-1].strip()
-    except:
-        pass
+    except Exception: pass
     return jsonify({
         "size_bytes": size,
         "size_mb": round(size / 1024 / 1024, 2),
@@ -1655,7 +1644,7 @@ def shendong_get_all_estimates():
     try:
         rows = query_db("SELECT code, data FROM shendong_estimates")
         return jsonify({r['code']: json.loads(r['data']) for r in rows})
-    except:
+    except Exception:
         return jsonify({})
 
 @app.route("/api/shendong/watchlist", methods=["GET"])
@@ -1663,7 +1652,7 @@ def shendong_get_watchlist():
     try:
         rows = query_db("SELECT code FROM shendong_watchlist ORDER BY added_at")
         return jsonify([r['code'] for r in rows])
-    except:
+    except Exception:
         return jsonify([])
 
 @app.route("/api/shendong/watchlist", methods=["POST"])
@@ -1734,8 +1723,7 @@ def realtime():
                     "time": s.get("t"),
                     "yesterday": float(s["y"]) if s.get("y") else None,
                 })
-        except:
-            pass
+        except Exception: pass
 
     return jsonify(all_results)
 
@@ -2113,9 +2101,9 @@ def _init_user_lists():
     )""")
     # 確保 est_year 欄位存在
     try: c.execute("ALTER TABLE user_estimates ADD COLUMN est_year INTEGER")
-    except: pass
+    except Exception: pass
     try: conn.commit()
-    except: pass
+    except Exception: pass
     conn.close()
 
 _init_user_lists()
@@ -2138,8 +2126,7 @@ def _cleanup_expired_estimates():
             conn.close()
             if deleted > 0:
                 print(f"[自動清除] 已清除 {deleted} 筆過期預估（est_year <= {cutoff_year}）")
-        except:
-            pass
+        except Exception: pass
 
 _cleanup_expired_estimates()
 
@@ -2147,8 +2134,7 @@ _cleanup_expired_estimates()
 try:
     from scraper import _fix_tax_data
     _fix_tax_data()
-except:
-    pass
+except Exception: pass
 
 @app.route("/api/user-lists")
 def get_user_lists():
@@ -2205,8 +2191,7 @@ def get_user_settings():
         conn.execute("""CREATE TABLE IF NOT EXISTS user_settings (
             key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
         conn.commit()
-    except:
-        pass
+    except Exception: pass
     rows = conn.execute("SELECT key, value FROM user_settings").fetchall()
     conn.close()
     return jsonify({r[0]: r[1] for r in rows})
@@ -2222,8 +2207,7 @@ def save_user_settings():
     try:
         c.execute("""CREATE TABLE IF NOT EXISTS user_settings (
             key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
-    except:
-        pass
+    except Exception: pass
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     for key, value in data.items():
         c.execute("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?,?,?)",

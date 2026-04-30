@@ -11,12 +11,15 @@ capital_fetcher.py — 從群益證券（嘉實系統）抓取財務三表
   現金流量表(年): zc3/zc3a.djhtm?a={code}
   現金流量表(季): zc3/zc3.djhtm?a={code}
 """
+import logging
 import db as sqlite3
 import time
 import random
 import re
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+logger = logging.getLogger(__name__)
 from bs4 import BeautifulSoup
 from fetcher_utils import (
     create_session, parse_num as _parse_num,
@@ -120,7 +123,7 @@ def fetch_capital_financials(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except:
+    except Exception:
         return 0, 0
 
     # 找有「季別」表頭的表格
@@ -204,8 +207,7 @@ def fetch_capital_financials(code):
                 (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
                  non_operating, pretax_income, net_income, eps, now_str))
             quarterly_saved += 1
-        except:
-            pass
+        except Exception: pass
 
         # 累計到年度
         if west_year not in annual_data:
@@ -254,8 +256,7 @@ def fetch_capital_financials(code):
                  opex, ad['operating_income'], ad['non_operating'],
                  ad['pretax_income'], ad['net_income'], ad['eps'], now_str))
             annual_saved += 1
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -293,7 +294,7 @@ def fetch_capital_balance_sheet(code):
     # 確保欄位存在
     for col in ['inventory', 'contract_liability']:
         try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} REAL")
-        except: pass
+        except Exception: pass
     mul = 1000000  # 百萬 → 元
 
     saved = 0
@@ -337,8 +338,7 @@ def fetch_capital_balance_sheet(code):
                 updated_at=excluded.updated_at""",
                 (code, yr, ta, te, cs, inv, cl, now_str))
             saved += 1
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -395,7 +395,7 @@ def fetch_capital_contract_liability(code):
     c = conn.cursor()
     # 確保欄位存在
     try: c.execute("ALTER TABLE quarterly_financial ADD COLUMN inventory REAL")
-    except: pass
+    except Exception: pass
     mul = 1000000  # 百萬 → 元
 
     saved = 0
@@ -430,8 +430,7 @@ def fetch_capital_contract_liability(code):
             c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code = ? AND quarter = ?", vals)
             if c.rowcount:
                 saved += 1
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -447,7 +446,7 @@ def fetch_capital_dividend(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except:
+    except Exception:
         return 0
 
     tds = soup.find_all('td', class_=re.compile(r't3n[01]'))
@@ -479,8 +478,7 @@ def fetch_capital_dividend(code):
                         updated_at = excluded.updated_at""",
                         (code, year, cash_div, stock_div_total, now_str))
                     saved += 1
-                except:
-                    pass
+                except Exception: pass
             i += 9
         else:
             i += 1
@@ -554,8 +552,7 @@ def fetch_capital_cashflow(code):
                 updated_at=excluded.updated_at""",
                 (code, yr, ocf, capex, now_str))
             saved += 1
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -571,7 +568,7 @@ def fetch_capital_annual_eps(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except:
+    except Exception:
         return {}
 
     spans = soup.find_all('span', class_=lambda c: c and 'table-cell' in c)
@@ -586,7 +583,7 @@ def fetch_capital_annual_eps(code):
             west_year = int(txt)
             roc_year = west_year - 1911
             years.append(str(roc_year))
-        except:
+        except Exception:
             years.append(None)
 
     if not years:
@@ -626,16 +623,14 @@ def fetch_capital_annual_eps(code):
             try:
                 c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
                 conn.commit()
-            except:
-                pass
+            except Exception: pass
             for yr, shares in shares_map.items():
                 west_year = int(yr) + 1911
                 c.execute("UPDATE financial_annual SET weighted_shares=? WHERE code=? AND year=?",
                           (shares, code, west_year))
             conn.commit()
             conn.close()
-        except:
-            pass
+        except Exception: pass
 
     return result
 
@@ -659,8 +654,7 @@ def fetch_capital_annual_eps_batch(codes):
                 data = f.result()
                 if data:
                     result[code] = data
-            except:
-                pass
+            except Exception: pass
 
     print(f"[群益年度EPS] 完成：{len(result)}/{len(codes)} 支有資料，耗時 {time.time()-t0:.1f}s")
     return result
@@ -675,7 +669,7 @@ def fetch_capital_monthly_revenue(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except:
+    except Exception:
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -720,8 +714,7 @@ def fetch_capital_monthly_revenue(code):
                     revenue=excluded.revenue, updated_at=excluded.updated_at""",
                     (code, west_year, month, revenue, now_str))
                 saved += 1
-            except:
-                pass
+            except Exception: pass
 
     conn.commit()
     conn.close()
@@ -739,7 +732,7 @@ def fetch_capital_pe_history(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except:
+    except Exception:
         return 0
 
     years = []
@@ -793,8 +786,7 @@ def fetch_capital_pe_history(code):
                 updated_at=excluded.updated_at""",
                 (code, yr, pe_h, pe_l, now_str))
             saved += 1
-        except:
-            pass
+        except Exception: pass
 
     conn.commit()
     conn.close()
@@ -1059,7 +1051,7 @@ def fetch_financial_detail(code):
             return west_str
         try:
             return str(int(float(west_str)) - 1911)
-        except:
+        except Exception:
             return west_str
 
     # 1. 年度損益表 (zcqa)
@@ -1179,7 +1171,7 @@ def backfill_financial_detail(force=False):
                 fail_streak = 0
             else:
                 fail_streak += 1
-        except:
+        except Exception:
             fail_streak += 1
 
         if (done + fail_streak) % 50 == 0:
