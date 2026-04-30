@@ -265,6 +265,32 @@ def _calc_checklist_for_stock(r, user_params=None):
     blend_div = r.get('blend_div')
     weighted_div = r.get('weighted_div')
 
+    # 沈董EPS 計算過程（用於 chk_4 detail）
+    from datetime import date as _date
+    _cur_roc = _date.today().year - 1911
+    _all_eps = []
+    for i in range(1, 6):
+        q = r.get(f'eps_{i}q')
+        v = r.get(f'eps_{i}')
+        if q and v is not None:
+            _all_eps.append((q, v))
+    _cur_year = [(q, v) for q, v in _all_eps if q and int(q.split('Q')[0]) == _cur_roc]
+    _n = len(_cur_year)
+    if _n >= 4:
+        _eps_parts = ' + '.join(f'{q}:{v}' for q, v in _cur_year)
+        _shen_formula = f'({_eps_parts}) = {shen_eps}'
+    elif _n > 0:
+        _eps_parts = ' + '.join(f'{q}:{v}' for q, v in _cur_year)
+        _s = round(sum(v for _, v in _cur_year), 2)
+        _shen_formula = f'({_eps_parts}) / {_n} × 4 = {_s}/{_n}×4 = {shen_eps}'
+    else:
+        _eps4 = [(f'Q{i}', r.get(f'eps_{i}')) for i in range(1, 5) if r.get(f'eps_{i}') is not None]
+        if len(_eps4) == 4:
+            _eps_parts = ' + '.join(f'{q}:{v}' for q, v in _eps4)
+            _shen_formula = f'近四季({_eps_parts}) = {shen_eps}'
+        else:
+            _shen_formula = f'年度EPS = {shen_eps}'
+
     # 沈董 PE / 殖利率
     shen_pe = round(close / shen_eps, 2) if shen_eps and shen_eps > 0 and close else None
     shen_yld = round(shen_div / close * 100, 2) if shen_div and shen_div > 0 and close and close > 0 else None
@@ -370,7 +396,10 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 4. 沈董本益比 > 0 且 < 14
     checks[4] = 1 if shen_pe is not None and shen_pe > 0 and shen_pe < 14 else 0
-    detail['chk_4'] = f'{shen_pe}' if shen_pe is not None else None
+    if shen_pe is not None:
+        detail['chk_4'] = f'PE={shen_pe}　股價{close} / 沈董EPS{shen_eps}　算法：{_shen_formula}'
+    else:
+        detail['chk_4'] = None
 
     # 5. 沈董殖利率 >= 5.5%
     checks[5] = 1 if shen_yld is not None and shen_yld >= 5.5 else 0
