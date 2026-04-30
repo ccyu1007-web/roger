@@ -390,6 +390,11 @@
       <div id="customConditions" style="display:inline"></div>
       <button onclick="addCondition()" style="padding:2px 8px;border:1px solid #6366f1;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#6366f1;font-weight:600">+ 自訂</button>
     </div>
+    <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #8b5cf6">
+      <span class="wb-label" style="color:#8b5cf6">等級篩選：</span>
+      <div id="gradeFilterContainer" style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center"></div>
+      <button onclick="clearGradeFilters()" style="padding:2px 8px;border:1px solid #8b5cf6;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#8b5cf6;font-weight:600">全清</button>
+    </div>
 
     <div class="weight-bar" style="margin-top:8px">
       <span class="wb-label">加權股息設定：</span>
@@ -1062,6 +1067,84 @@ function evalCustomConditions(r) {
       case '<':  if (!(v < target)) return false; break;
       case '=':  if (Math.abs(v - target) > 0.01) return false; break;
     }
+  }
+  return true;
+}
+
+// ── 等級篩選 ─────────────────────────────────────────────
+const GRADE_METHODS = [
+  { key: 'est_grade', label: '預估' },
+  { key: 'sys_grade', label: '系統' },
+  { key: 'shen_grade', label: '沈董' },
+  { key: 'blend_grade', label: '綜合' },
+  { key: 'weighted_grade', label: '加權' },
+  { key: 'trailing_grade', label: '近四季' },
+];
+const GRADE_LEVELS = ['AA','A1','A2','A','BA1','BA2','B1','B2','觀察','臨界點'];
+
+let _gradeFilters = JSON.parse(localStorage.getItem('grade_filters') || '{}');
+
+function renderGradeFilters() {
+  const container = document.getElementById('gradeFilterContainer');
+  if (!container) return;
+  container.innerHTML = GRADE_METHODS.map(m => {
+    const selected = _gradeFilters[m.key] || [];
+    const opts = GRADE_LEVELS.map(g =>
+      `<label style="font-size:.75rem;cursor:pointer;white-space:nowrap"><input type="checkbox" value="${g}" ${selected.includes(g)?'checked':''} onchange="onGradeFilterChange('${m.key}')" style="width:12px;height:12px;vertical-align:middle">${g}</label>`
+    ).join(' ');
+    const hasFilter = selected.length > 0;
+    return `<div style="display:inline-flex;align-items:center;gap:3px;border:1px solid ${hasFilter?'#8b5cf6':'#e2e8f0'};border-radius:6px;padding:2px 6px;background:${hasFilter?'#f5f3ff':'#f8fafc'}">
+      <span style="font-size:.78rem;font-weight:600;color:${hasFilter?'#7c3aed':'#64748b'};min-width:40px">${m.label}</span>
+      <select onchange="onGradeQuickSelect('${m.key}',this.value);this.value=''" style="border:none;background:none;font-size:.75rem;outline:none;color:#8b5cf6;cursor:pointer;width:50px">
+        <option value="">選擇</option>
+        <option value="A_up">A級以上</option>
+        <option value="AA">僅AA</option>
+        <option value="clear">清除</option>
+      </select>
+    </div>`;
+  }).join('');
+}
+
+function onGradeQuickSelect(key, action) {
+  if (action === 'A_up') {
+    _gradeFilters[key] = ['AA','A1','A2','A'];
+  } else if (action === 'AA') {
+    _gradeFilters[key] = ['AA'];
+  } else if (action === 'clear') {
+    delete _gradeFilters[key];
+  }
+  localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
+  renderGradeFilters();
+  renderTable();
+}
+
+function onGradeFilterChange(key) {
+  const container = document.getElementById('gradeFilterContainer');
+  const checks = container.querySelectorAll(`input[type="checkbox"][onchange*="${key}"]`);
+  const selected = [];
+  checks.forEach(cb => { if (cb.checked) selected.push(cb.value); });
+  if (selected.length > 0) {
+    _gradeFilters[key] = selected;
+  } else {
+    delete _gradeFilters[key];
+  }
+  localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
+  renderGradeFilters();
+  renderTable();
+}
+
+function clearGradeFilters() {
+  _gradeFilters = {};
+  localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
+  renderGradeFilters();
+  renderTable();
+}
+
+function evalGradeFilters(r) {
+  for (const [key, grades] of Object.entries(_gradeFilters)) {
+    if (!grades || !grades.length) continue;
+    const val = r[key];
+    if (!val || !grades.includes(val)) return false;
   }
   return true;
 }
@@ -1862,6 +1945,7 @@ async function loadData() {
     initWatchSettings();
     initQualitySettings();
     renderConditions();
+    renderGradeFilters();
     initWeights();
     initBlend();
     initGlobalVal();
@@ -2016,7 +2100,8 @@ function applyFilter() {
     const qualityOk = !qualityOnly || qualitySet.has(r.code);
     const etfOk = !etfVal || (etfVal === 'any' ? !!r.etf_tags : (r.etf_tags || '').includes(etfVal + ':'));
     const indOk = !indVal || r.industry === indVal;
-    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk && indOk;
+    const gradeOk = evalGradeFilters(r);
+    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk && indOk && gradeOk;
   });
   page = 1;
   applySort();
