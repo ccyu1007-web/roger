@@ -1682,7 +1682,12 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
 
     <!-- 年度 EPS 彙總 -->
     <div class="est-annual">
-      <div class="est-annual-title">${_estYear} 年度預估 EPS</div>
+      <div class="est-annual-title" style="display:flex;align-items:center;gap:12px">
+        <span>${_estYear} 年度預估 EPS</span>
+        <button class="est-save" onclick="saveValParams()">儲存參數</button>
+        <button class="est-save" onclick="clearValParams()" style="background:#ef4444">清除參數</button>
+        <span class="est-date" id="valParamsDate" style="font-size:.78rem;color:#94a3b8"></span>
+      </div>
       <div class="est-q-row">
         <div class="est-q-item"><label>${_estYear}Q1</label><input id="estQ1" type="text" oninput="calcAnnual()"></div>
         <div class="est-q-item"><label>${_estYear}Q2</label><input id="estQ2" type="text" oninput="calcAnnual()"></div>
@@ -1733,16 +1738,8 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         </div>
       </div>
 
-      <!-- 參數設定區（本益比 + 殖利率）-->
-      <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <span style="font-weight:700;font-size:.95rem">參數設定</span>
-          <button class="est-save" onclick="saveValParams()">儲存參數</button>
-          <button class="est-save" onclick="clearValParams()" style="background:#ef4444">清除參數</button>
-          <span class="est-date" id="valParamsDate" style="font-size:.78rem;color:#94a3b8"></span>
-        </div>
-      </div>
-      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
+      <!-- 本益比設定 + 歷史參考（左右並排） -->
+      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
         <div class="est-val-grid" style="min-width:420px;flex-shrink:0">
           <div class="lbl">最高本益比</div>
           <div class="val"><input id="peHigh" type="text" placeholder="倍" oninput="calcPERange()"></div>
@@ -1817,8 +1814,8 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="val-method">
       <div class="val-method-title">逍遙價值投資評價法</div>
       <div class="val-inputs">
-        <div class="val-inp-group"><label>評價之預估EPS</label><input id="vmEps" type="text" oninput="calcValMethod()"></div>
-        <div class="val-inp-group"><label>評價之預估現金股利</label><input id="vmDiv" type="text" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>EPS設定</label><input id="vmEps" type="text" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>股利設定</label><input id="vmDiv" type="text" oninput="calcValMethod()"></div>
         <div class="val-inp-group"><label>偏高殖利率</label><span class="auto-val" id="vmYldHigh">-</span></div>
         <div class="val-inp-group"><label>最高殖利率</label><span class="auto-val" id="vmYldMax">-</span></div>
       </div>
@@ -2124,14 +2121,21 @@ async function initEstimator(sharesMillion) {
       document.getElementById('ddmDiv3').value = _blendDiv.toFixed(2);
     }
 
-    // === 逍遙評價法預設值 ===
-    // 評價之預估EPS：預估EPS(vmEps) > 沈董EPS
-    if (!savedObj.vmEps && _shenEps != null) {
-      document.getElementById('vmEps').value = _shenEps.toFixed(2);
+    // === 逍遙評價法預設值（與總表優先順序一致：預估 > 系統 > 沈董）===
+    if (!savedObj.vmEps) {
+      // EPS 優先順序：使用者預估EPS > 系統預估 > 沈董EPS
+      const userEstEps = savedObj.q1 || savedObj.q2 || savedObj.q3 || savedObj.q4
+        ? [savedObj.q1, savedObj.q2, savedObj.q3, savedObj.q4].filter(v => v).reduce((a, b) => parseFloat(a || 0) + parseFloat(b || 0), 0)
+        : null;
+      const sysEstEps = _sysAnnual && _sysAnnual.est_eps ? _sysAnnual.est_eps : null;
+      const autoEps = userEstEps || sysEstEps || _shenEps;
+      if (autoEps != null) document.getElementById('vmEps').value = parseFloat(autoEps).toFixed(2);
     }
-    // 評價之預估現金股利：預估股利(vmDiv) > 沈董股利
-    if (!savedObj.vmDiv && _shenDiv != null) {
-      document.getElementById('vmDiv').value = _shenDiv.toFixed(2);
+    if (!savedObj.vmDiv) {
+      // 股利優先順序：使用者預估股利 > 系統預估 > 沈董股利
+      const sysEstDiv = _sysAnnual && _sysAnnual.details && _sysAnnual.details.est_div ? _sysAnnual.details.est_div : null;
+      const autoDiv = sysEstDiv || _shenDiv;
+      if (autoDiv != null) document.getElementById('vmDiv').value = parseFloat(autoDiv).toFixed(2);
     }
     // 長期現金股利水準：綜合股利
     if (!savedObj.vmLtDiv && _blendDiv != null) {
@@ -2715,22 +2719,22 @@ function calcValMethod() {
   const el = document.getElementById('vmResultContainer');
   if (!el) return;
 
-  // 讀取參數
+  // 讀取參數（優先自訂，fallback 預設）
   const eps   = parseNum('vmEps');
   const div   = parseNum('vmDiv');
   const ltDiv = parseNum('vmLtDiv');
-  const yHigh = parseNum('yldHigh');
-  const yMax  = parseNum('yldMax');
-  const peHi  = parseNum('peHigh');
-  const peLo  = parseNum('peLow');
+  const yHigh = parseNum('yldHigh') || _yHigh;
+  const yMax  = parseNum('yldMax') || _yMax;
+  const peHi  = parseNum('peHigh') || _peHi;
+  const peLo  = parseNum('peLow') || _peLo;
 
   // 顯示自動帶入的殖利率
   const vmYH = document.getElementById('vmYldHigh');
   const vmYM = document.getElementById('vmYldMax');
-  if (vmYH) vmYH.textContent = yHigh != null ? yHigh + '%' : '-';
-  if (vmYM) vmYM.textContent = yMax != null ? yMax + '%' : '-';
+  if (vmYH) vmYH.textContent = yHigh + '%';
+  if (vmYM) vmYM.textContent = yMax + '%';
 
-  if (!eps || !div || !yHigh || !yMax || !peHi || !peLo) {
+  if (!eps || !div) {
     el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入所有參數</div>';
     return;
   }
@@ -2800,15 +2804,24 @@ function saveValParams() {
 }
 
 function clearValParams() {
-  if (!confirm('確定清除參數設定？將恢復為預設值')) return;
-  document.getElementById('peHigh').value = '';
-  document.getElementById('peLow').value = '';
-  document.getElementById('yldHigh').value = '';
-  document.getElementById('yldMax').value = '';
-  // 從 localStorage 移除參數欄位
+  if (!confirm('確定清除所有參數設定？（含預估EPS、配息、本益比、殖利率）')) return;
+  // 清除 EPS 預估
+  ['estQ1','estQ2','estQ3','estQ4','annPR','annDiv'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  // 清除 PE/殖利率
+  ['peHigh','peLow','yldHigh','yldMax'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  // 清除逍遙評價法
+  ['vmEps','vmDiv','vmLtDiv'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  // 從 localStorage 移除所有參數欄位
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
-  ['peHigh','peLow','yldHigh','yldMax','valParamsDate'].forEach(k => delete saved[k]);
+  ['q1','q2','q3','q4','pr','div','peHigh','peLow','yldHigh','yldMax',
+   'vmEps','vmDiv','vmLtDiv','valParamsDate'].forEach(k => delete saved[k]);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB
   fetch(`/api/user-estimates/${CODE}`, {
@@ -2817,16 +2830,14 @@ function clearValParams() {
   });
   document.getElementById('valParamsDate').textContent = '';
   // 重設顯示
-  document.getElementById('peAbove').textContent = '-';
-  document.getElementById('peFair').textContent = '-';
-  document.getElementById('peBelow').textContent = '-';
-  document.getElementById('priceAbove').textContent = '-';
-  document.getElementById('priceFair').textContent = '-';
-  document.getElementById('priceBelow').textContent = '-';
-  document.getElementById('yldFair').textContent = '-';
-  document.getElementById('yldPriceHigh').textContent = '-';
-  document.getElementById('yldPriceFair').textContent = '-';
-  document.getElementById('yldPriceMax').textContent = '-';
+  ['peAbove','peFair','peBelow','priceAbove','priceFair','priceBelow',
+   'yldFair','yldPriceHigh','yldPriceFair','yldPriceMax','annEPS'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '-';
+  });
+  calcAnnual();
+  calcPERange();
+  calcYldRange();
+  calcValMethod();
   renderMatrix();
 }
 
