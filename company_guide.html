@@ -63,37 +63,43 @@
   </div>
 </div>
 
-<!-- 決策表 - 個股評價 -->
+<!-- 決策表 - 檢核清單 -->
 <div class="section" id="sec-decision">
-  <div class="section-title" onclick="toggleSection(this)">決策表 — 個股評價 <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">決策表 — 檢核清單 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="140">欄位</th><th width="100">類型</th><th>說明</th></tr>
-      <tr><td class="field">收盤價</td><td><span class="input-tag readonly">唯讀</span></td><td><span class="src-gov">政府</span> 當日收盤價 + 漲跌</td></tr>
-      <tr><td class="field">評價AA~A</td><td><span class="input-tag readonly">唯讀</span></td><td><span class="src-calc">計算</span> <span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">股價低於門檻時醒目底色：AA紅/A1黃/A2黃/A藍/長期6%綠</div></td></tr>
-      <tr><td class="field">外資/投信/自營商</td><td><span class="input-tag readonly">唯讀</span></td><td><span class="src-capital">群益</span> zcl 三大法人買賣超（張）<div class="note">每天 17:10 後才公佈</div></td></tr>
-      <tr><td class="field">系統EPS</td><td><span class="input-tag system">系統值</span></td><td><span class="src-calc">計算</span> 根據月營收推算全年 EPS</td></tr>
-      <tr><td class="field">系統PE</td><td><span class="input-tag system">系統值</span></td><td><span class="src-calc">計算</span> 股價 / 系統EPS</td></tr>
-      <tr><td class="field">系統殖利率</td><td><span class="input-tag system">系統值</span></td><td><span class="src-calc">計算</span> 系統股利 / 股價 × 100</td></tr>
-      <tr><td class="field">系統股利</td><td><span class="input-tag system">系統值</span></td><td><span class="src-calc">計算</span> 系統EPS × 平均配息率</td></tr>
-      <tr><td class="field">信心度</td><td><span class="input-tag system">系統值</span></td><td><span class="src-calc">計算</span> A=3季以上, B=1-2季, C=純推估</td></tr>
+      <tr><th width="40">#</th><th width="240">條件</th><th>判定邏輯</th></tr>
+      <tr><td>1</td><td class="field">近五年財務等級 B 級以上 >= 3 年，且近兩年都 B 級以上</td><td>B 級以上 = AA/A1/A2/A/B2A/B1A/B1/B2/BA1/BA2（含 +）<div class="note">帶 - 的（如 B1-）算 B 級以下；C/D/X 也算不過</div></td></tr>
+      <tr><td>2</td><td class="field">累積營收年增率 >= -10% 且 < 0%</td><td>stocks 表 revenue_cum_yoy 欄位<div class="note">與第 3 條互斥，衰退但在可接受範圍</div></td></tr>
+      <tr><td>3</td><td class="field">累積營收年增率 >= 0%</td><td>stocks 表 revenue_cum_yoy 欄位<div class="note">與第 2 條互斥，營收持平或成長</div></td></tr>
+      <tr><td>4</td><td class="field">沈董本益比 > 0 且 < 14</td><td><span class="formula">沈董PE = 收盤價 / 沈董EPS</span></td></tr>
+      <tr><td>5</td><td class="field">沈董殖利率 >= 5.5%</td><td><span class="formula">沈董殖利率 = 沈董股利 / 收盤價 × 100</span></td></tr>
+      <tr><td>6</td><td class="field">沈董等級 A 級以上</td><td>A 級 = AA/A1/A2/A（含 +），由 PE×殖利率矩陣判定</td></tr>
+      <tr><td>7</td><td class="field">綜合等級 A 級以上</td><td>綜合 = 沈董EPS×權重% + 加權EPS×權重%</td></tr>
+      <tr><td>8</td><td class="field">加權等級 A 級以上</td><td>加權 = 五年加權平均 EPS（30/25/20/15/10）</td></tr>
+      <tr><td>9</td><td class="field">預估等級 A 級以上</td><td>預估 EPS/股利 優先順序見下方說明</td></tr>
+      <tr><td>10</td><td class="field">股價低於總表評價 A</td><td><span class="formula">收盤價 <= val_a + 0.005</span></td></tr>
+      <tr><td>11</td><td class="field">股價低於總表評價 AA</td><td><span class="formula">收盤價 <= val_aa + 0.005</span></td></tr>
+      <tr><td>12</td><td class="field">綜合殖利率 >= 6%</td><td><span class="formula">綜合殖利率 = 綜合股利 / 收盤價 × 100</span></td></tr>
     </table>
+    <div class="legend">
+      <span>頂部顯示「N / 12 通過」：>= 80% 綠色、>= 50% 黃色、< 50% 紅色</span>
+    </div>
   </div>
 </div>
 
-<!-- 決策表 - 評估方法比較 -->
-<div class="section" id="sec-methods">
-  <div class="section-title" onclick="toggleSection(this)">決策表 — 評估方法比較表 <span class="arrow">▼</span></div>
+<!-- 決策表 - EPS/股利優先順序 -->
+<div class="section" id="sec-eps-priority">
+  <div class="section-title" onclick="toggleSection(this)">決策表 — EPS / 股利設定優先順序 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="100">方法</th><th width="80">等級</th><th>PE / 殖利率 / EPS / 股利 來源</th></tr>
-      <tr><td class="field">預估</td><td><span class="src-calc">矩陣</span></td><td><span class="src-user">使用者</span> 手動輸入的預估 EPS/股利 → 算出 PE 和殖利率<div class="note">沒有手動輸入時 fallback 到系統估算</div></td></tr>
-      <tr><td class="field">沈董</td><td><span class="src-calc">矩陣</span></td><td><span class="src-calc">計算</span> 當年度已公佈季度 EPS 年化 × 配息率<div class="note">沈董EPS = 已公佈季度加總 × (4/季數)</div></td></tr>
-      <tr><td class="field">綜合</td><td><span class="src-calc">矩陣</span></td><td><span class="src-calc">計算</span> 沈董EPS×沈董權重% + 加權EPS×加權權重%<div class="note">權重預設各50%，可在總表自訂</div></td></tr>
-      <tr><td class="field">加權</td><td>—</td><td><span class="src-calc">計算</span> 五年加權平均 EPS（權重 30/25/20/15/10）</td></tr>
-      <tr><td class="field">系統</td><td><span class="src-calc">矩陣</span></td><td><span class="src-calc">計算</span> 系統推算年度 EPS/股利 → 算出 PE 和殖利率</td></tr>
+      <tr><th width="120">用途</th><th width="160">EPS 優先順序</th><th width="160">股利 優先順序</th><th>說明</th></tr>
+      <tr><td class="field">預估等級</td><td>1. 使用者手動輸入<br>2. 系統估算</td><td>1. 使用者手動輸入<br>2. 系統估算</td><td>個股頁 Q1~Q4 EPS 加總 / 預估現金股利<div class="note">存在 localStorage + DB (user_estimates)</div></td></tr>
+      <tr><td class="field">評價門檻<br>(AA/A1/A2/A)</td><td>1. 預估 EPS<br>2. 沈董 EPS</td><td>1. 預估股利<br>2. 沈董股利</td><td><span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">預估 = 使用者輸入 > 系統估算；沈董 = 已公佈季度年化</div></td></tr>
+      <tr><td class="field">沈董等級</td><td>沈董 EPS</td><td>沈董股利</td><td>沈董EPS = 已公佈季度 EPS 加總 × (4/季數)<div class="note">沈董股利 = 沈董EPS × 平均配息率</div></td></tr>
+      <tr><td class="field">綜合等級</td><td>沈董×權重 + 加權×權重</td><td>綜合股利</td><td>權重預設各 50%，可在總表自訂</td></tr>
+      <tr><td class="field">加權等級</td><td>五年加權平均</td><td>加權股利</td><td>權重 30/25/20/15/10</td></tr>
     </table>
-    <div class="legend">等級優先順序：預估 → 系統 → 沈董 → 綜合 → 加權 → X</div>
   </div>
 </div>
 
@@ -111,28 +117,8 @@
       <tr><td class="field">最高殖利率%</td><td><span class="input-tag editable">可輸入</span></td><td>最高殖利率（預設 6%）<div class="note">影響評價 AA/A2 門檻</div></td></tr>
     </table>
     <div class="legend">
-      <span>輸入後即時重算：偏高/合理/偏低本益比、偏高/合理/偏低價格、殖利率價格、矩陣等級</span>
+      <span>個股自訂參數優先於全域預設值，影響所有等級計算和評價門檻</span>
     </div>
-  </div>
-</div>
-
-<!-- 決策表 - 衍生計算 -->
-<div class="section" id="sec-derived">
-  <div class="section-title" onclick="toggleSection(this)">決策表 — 衍生計算欄位 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="140">欄位</th><th>計算方式</th></tr>
-      <tr><td class="field">偏高本益比</td><td><span class="formula">(最高PE + 合理PE) / 2 = (18+14)/2 = 16</span></td></tr>
-      <tr><td class="field">合理本益比</td><td><span class="formula">(最高PE + 最低PE) / 2 = (18+10)/2 = 14</span></td></tr>
-      <tr><td class="field">偏低本益比</td><td><span class="formula">(合理PE + 最低PE) / 2 = (14+10)/2 = 12</span></td></tr>
-      <tr><td class="field">偏高價格</td><td><span class="formula">預估EPS × 偏高本益比</span></td></tr>
-      <tr><td class="field">合理價格</td><td><span class="formula">預估EPS × 合理本益比</span></td></tr>
-      <tr><td class="field">偏低價格</td><td><span class="formula">預估EPS × 偏低本益比</span></td></tr>
-      <tr><td class="field">合理殖利率</td><td><span class="formula">(偏高殖利率 + 最高殖利率) / 2 = (5.5+6)/2 = 5.75%</span></td></tr>
-      <tr><td class="field">偏高殖利率價格</td><td><span class="formula">預估股利 / 偏高殖利率 × 100</span></td></tr>
-      <tr><td class="field">合理殖利率價格</td><td><span class="formula">預估股利 / 合理殖利率 × 100</span></td></tr>
-      <tr><td class="field">最高殖利率價格</td><td><span class="formula">預估股利 / 最高殖利率 × 100</span></td></tr>
-    </table>
   </div>
 </div>
 
