@@ -409,10 +409,14 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 1. 近五年財務等級
     grades5 = [r.get(f'fin_grade_{i}') for i in range(1, 6)]
+    grades5y = [r.get(f'fin_grade_{i}y') for i in range(1, 6)]
     above_b = sum(1 for g in grades5 if _is_grade_above_b(g))
     recent2 = _is_grade_above_b(grades5[0]) and _is_grade_above_b(grades5[1]) if len(grades5) >= 2 else False
     checks[1] = 1 if above_b >= 3 and recent2 else 0
-    detail['chk_1'] = ' / '.join(g or '--' for g in grades5)
+    detail['chk_1'] = ' / '.join(
+        f'{grades5y[i] or ""}:{grades5[i]}' if grades5[i] else '--'
+        for i in range(5)
+    )
 
     # 2. 累積營收年增率 >= -10% 且 < 0%
     cum_yoy = r.get('revenue_cum_yoy')
@@ -541,7 +545,8 @@ def calc_all_checklists():
                        div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
                        div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
                        div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
-                       fin_grade_1, fin_grade_2, fin_grade_3, fin_grade_4, fin_grade_5,
+                       fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
+                       fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y, fin_grade_5, fin_grade_5y,
                        sys_ann_eps, sys_ann_div
                     FROM stocks""")
 
