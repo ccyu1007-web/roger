@@ -2208,12 +2208,22 @@ async function initEstimator(sharesMillion) {
   calcDDM();
   renderMatrix();
 
-  // 載入筆記
+  // 載入筆記（先 localStorage，再從 DB 覆蓋）
   const savedNotes = localStorage.getItem('notes_' + CODE);
   if (savedNotes) {
     const notesArea = document.getElementById('notesArea');
     if (notesArea) notesArea.value = savedNotes;
   }
+  // 從 DB 載入筆記（跨瀏覽器同步）
+  fetch(`/api/user-notes/${CODE}`).then(r => r.json()).then(data => {
+    if (data && data.content) {
+      const notesArea = document.getElementById('notesArea');
+      if (notesArea) {
+        notesArea.value = data.content;
+        localStorage.setItem('notes_' + CODE, data.content);
+      }
+    }
+  }).catch(() => {});
 }
 
 let _notesTimer = null;
@@ -2225,8 +2235,17 @@ function onNotesInput() {
     const text = document.getElementById('notesArea').value;
     if (text.trim()) {
       localStorage.setItem('notes_' + CODE, text);
+      // 同步到 DB
+      fetch(`/api/user-notes/${CODE}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({content: text})
+      });
     } else {
       localStorage.removeItem('notes_' + CODE);
+      fetch(`/api/user-notes/${CODE}`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({content: ''})
+      });
     }
     if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
   }, 800);
