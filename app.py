@@ -606,6 +606,81 @@ def calc_all_checklists():
     return count
 
 
+def _recalc_checklist_single(code):
+    """重算單支股票的檢核表（儲存預估參數或股價更新後呼叫）"""
+    import json
+    from datetime import datetime
+    _init_checklist_db()
+
+    cur_roc = datetime.now().year - 1911
+    rows = query_db("""SELECT code, name, close, change, revenue_cum_yoy,
+                       eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
+                       eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
+                       eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+                       eps_ytd, eps_ytd_label,
+                       div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
+                       div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
+                       div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
+                       fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
+                       fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y, fin_grade_5, fin_grade_5y,
+                       sys_ann_eps, sys_ann_div
+                    FROM stocks WHERE code=?""", (code,))
+    if not rows:
+        return
+
+    r = dict(rows[0])
+    _calc_shen_fields(r, cur_roc)
+
+    user_params = None
+    try:
+        ue = query_db("SELECT params FROM user_estimates WHERE code=?", (code,))
+        if ue and ue[0]['params']:
+            user_params = json.loads(ue[0]['params'])
+    except Exception: pass
+
+    result = _calc_checklist_for_stock(r, user_params)
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""INSERT INTO stock_checklist
+                 (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
+                  chk_7, chk_8, chk_9, chk_10, chk_11, chk_12, chk_13,
+                  pass_count, total_count, detail,
+                  eps_setting, div_setting, yld_high, yld_max, pe_high, pe_low,
+                  lt_div, lt_yld, val_a, val_a1, val_a2, val_aa, lt5, lt6, lt7,
+                  updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 ON CONFLICT(code) DO UPDATE SET
+                  chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
+                  chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
+                  chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
+                  chk_10=excluded.chk_10, chk_11=excluded.chk_11, chk_12=excluded.chk_12,
+                  chk_13=excluded.chk_13,
+                  pass_count=excluded.pass_count, total_count=excluded.total_count,
+                  detail=excluded.detail,
+                  eps_setting=excluded.eps_setting, div_setting=excluded.div_setting,
+                  yld_high=excluded.yld_high, yld_max=excluded.yld_max,
+                  pe_high=excluded.pe_high, pe_low=excluded.pe_low,
+                  lt_div=excluded.lt_div, lt_yld=excluded.lt_yld,
+                  val_a=excluded.val_a, val_a1=excluded.val_a1,
+                  val_a2=excluded.val_a2, val_aa=excluded.val_aa,
+                  lt5=excluded.lt5, lt6=excluded.lt6, lt7=excluded.lt7,
+                  updated_at=excluded.updated_at""",
+              (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
+               result['chk_4'], result['chk_5'], result['chk_6'],
+               result['chk_7'], result['chk_8'], result['chk_9'],
+               result['chk_10'], result['chk_11'], result['chk_12'], result['chk_13'],
+               result['pass_count'], result['total_count'], result['detail'],
+               result['eps_setting'], result['div_setting'],
+               result['yld_high'], result['yld_max'], result['pe_high'], result['pe_low'],
+               result['lt_div'], result['lt_yld'],
+               result['val_a'], result['val_a1'], result['val_a2'], result['val_aa'],
+               result['lt5'], result['lt6'], result['lt7'], now))
+    conn.commit()
+    conn.close()
+
+
 # ── 取得全部股票 ────────────────────────────────────────────
 @app.route("/api/stocks")
 def get_stocks():
@@ -781,6 +856,9 @@ def refresh():
                 try: fetch_material_news()
                 except Exception: pass
                 try: fetch_moneydj_news()
+                except Exception: pass
+                # 股價更新後重算檢核表
+                try: calc_all_checklists()
                 except Exception: pass
             finally:
                 _is_refreshing = False
@@ -2752,6 +2830,9 @@ def save_user_estimate(code):
               (code, json.dumps(params, ensure_ascii=False), now, est_year))
     conn.commit()
     conn.close()
+    # 即時重算該股檢核表
+    try: _recalc_checklist_single(code)
+    except Exception: pass
     return jsonify({"status": "ok"})
 
 # ── 啟動 ────────────────────────────────────────────────────
