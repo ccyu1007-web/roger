@@ -3063,7 +3063,12 @@ function filterIndTable() { renderIndRows(); }
 
 // ── 啟動 ──
 if (CODE) {
-  loadFinancial();
+  const _initTab = new URLSearchParams(location.search).get('tab');
+  if (_initTab === 'decision') {
+    switchTab('decision');
+  } else {
+    loadFinancial();
+  }
   loadImportantNews();
 }
 </script>

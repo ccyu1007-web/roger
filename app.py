@@ -724,10 +724,23 @@ def get_stocks():
 
     # 後端統一計算沈董EPS/股利/綜合股利，避免前後端不一致
     cur_roc = __import__('datetime').date.today().year - 1911
+
+    # 批次查詢 checklist pass_count
+    chk_map = {}
+    try:
+        _init_checklist_db()
+        chk_rows = query_db("SELECT code, pass_count, total_count FROM stock_checklist")
+        for cr in chk_rows:
+            chk_map[cr['code']] = (cr['pass_count'], cr['total_count'])
+    except Exception: pass
+
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
         row["monthly_rev"] = rev_map.get(row["code"], [])
         _calc_shen_fields(row, cur_roc)
+        chk = chk_map.get(row["code"])
+        row["_chk_pass"] = chk[0] if chk else None
+        row["_chk_total"] = chk[1] if chk else None
 
     result_data = {"count": len(rows), "data": rows}
     if use_cache:

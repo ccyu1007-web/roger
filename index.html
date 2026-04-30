@@ -81,21 +81,23 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前四欄：觀察 + 體質 + 股票代碼 + 公司名稱 */
-  thead th:nth-child(1), thead th:nth-child(2),
-  thead th:nth-child(3), thead th:nth-child(4) { position: sticky; top: 0; z-index: 4; }
+  /* 凍結前五欄：觀察 + 體質 + 檢核 + 股票代碼 + 公司名稱 */
+  thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3),
+  thead th:nth-child(4), thead th:nth-child(5) { position: sticky; top: 0; z-index: 4; }
   thead th:nth-child(1) { left: 0; }
   thead th:nth-child(2) { left: 0; }
   thead th:nth-child(3) { left: 0; }
-  thead th:nth-child(4) { left: 0; border-right: 2px solid #93c5fd; }
-  tbody td:nth-child(1), tbody td:nth-child(2),
-  tbody td:nth-child(3), tbody td:nth-child(4) { position: sticky; background: #fff; z-index: 1; }
+  thead th:nth-child(4) { left: 0; }
+  thead th:nth-child(5) { left: 0; border-right: 2px solid #93c5fd; }
+  tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3),
+  tbody td:nth-child(4), tbody td:nth-child(5) { position: sticky; background: #fff; z-index: 1; }
   tbody td:nth-child(1) { left: 0; }
   tbody td:nth-child(2) { left: 0; }
   tbody td:nth-child(3) { left: 0; }
-  tbody td:nth-child(4) { left: 0; border-right: 2px solid #e2e8f0; }
-  tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2),
-  tbody tr:nth-child(even) td:nth-child(3), tbody tr:nth-child(even) td:nth-child(4) { background: #f8fafc; }
+  tbody td:nth-child(4) { left: 0; }
+  tbody td:nth-child(5) { left: 0; border-right: 2px solid #e2e8f0; }
+  tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2), tbody tr:nth-child(even) td:nth-child(3),
+  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5) { background: #f8fafc; }
   tbody tr:hover td:nth-child(1),
   tbody tr:hover td:nth-child(2),
   tbody tr:hover td:nth-child(3) { background: #dbeafe; }
@@ -444,6 +446,7 @@
           <!-- 識別 -->
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
+          <th class="no-sort" style="width:50px;text-align:center">檢核</th>
           <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
           <th onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
           <th class="g-mkt no-sort">市場</th>
@@ -2358,6 +2361,7 @@ function render() {
         return `<div class="watch-wrap"><input type="checkbox" class="watch-cb" data-code="${r.code}" ${isWatched?'checked':''} onchange="toggleWatch(this)">${tip}</div>`;
       })()}</td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
+      <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
       <td>${r.name}</td>
       <td class="g-mkt">${mktBadge}</td>
