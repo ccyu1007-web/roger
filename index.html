@@ -1114,6 +1114,7 @@ function onGradeQuickSelect(key, action) {
     delete _gradeFilters[key];
   }
   localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
+  syncUserSettings();
   renderGradeFilters();
   renderTable();
 }
@@ -1129,6 +1130,7 @@ function onGradeFilterChange(key) {
     delete _gradeFilters[key];
   }
   localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
+  syncUserSettings();
   renderGradeFilters();
   renderTable();
 }
@@ -1136,6 +1138,7 @@ function onGradeFilterChange(key) {
 function clearGradeFilters() {
   _gradeFilters = {};
   localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
+  syncUserSettings();
   renderGradeFilters();
   renderTable();
 }
