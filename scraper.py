@@ -242,7 +242,7 @@ def fetch_json(url, retries=3, backup_as=None):
                 backup_raw_response(backup_as, raw)
             return data
         except Exception as e:
-            print(f"  [警告] 第 {i+1} 次請求失敗：{e}")
+            logger.warning(f"第 {i+1} 次請求失敗：{e}")
             if i < retries - 1:
                 time.sleep(1)
     return None
@@ -254,7 +254,8 @@ def date_to_quarter_label(date_str):
         roc_year = d.year - 1911
         quarter = (d.month - 1) // 3 + 1
         return f"{roc_year}Q{quarter}"
-    except Exception:
+    except Exception as e:
+        logger.debug(f"d = datetime.strptime(date_str, \'%Y-%m-: {e}")
         return None
 
 
@@ -424,7 +425,8 @@ def read_old_meta():
         result = {row['code']: dict(row) for row in c.fetchall()}
         conn.close()
         return result
-    except Exception:
+    except Exception as e:
+        logger.debug(f"conn = sqlite3.connect(DB_PATH): {e}")
         return {}
 
 
@@ -595,7 +597,8 @@ def fetch_dividends_bulk():
             r = _session.get(url, timeout=15)
             d = r.json()
             return d.get('data', []) if d.get('status') == 200 else []
-        except Exception:
+        except Exception as e:
+            logger.debug(f"time.sleep(random.uniform(0.1, 0.5)): {e}")
             return []
 
     all_codes_set = set(div_map.keys())
@@ -2063,7 +2066,7 @@ def fetch_company_monthly_revenue(code):
         r = _session.get(url, timeout=15)
         data = r.json()
         records = data.get('data', []) if data.get('status') == 200 else []
-    except Exception:
+    except Exception as e:
         records = []
 
     if not records:
@@ -2198,7 +2201,7 @@ def _fetch_financials_finmind(code):
                 resp = f.result()
                 data = resp.json()
                 raw[key] = data.get('data', []) if data.get('status') == 200 else []
-            except Exception:
+            except Exception as e:
                 raw[key] = []
 
     # ── 損益表：單季值，依年分組加總 ──
@@ -2470,7 +2473,7 @@ def _fetch_quarterly_finmind(code):
                 resp = f.result()
                 data = resp.json()
                 raw[key] = data.get('data', []) if data.get('status') == 200 else []
-            except Exception:
+            except Exception as e:
                 raw[key] = []
 
     # ── 損益表：按季整理 ──
@@ -2594,7 +2597,7 @@ def fetch_pe_history(code):
         r = _session.get(url, timeout=20)
         data = r.json()
         records = data.get('data', []) if data.get('status') == 200 else []
-    except Exception:
+    except Exception as e:
         records = []
 
     if not records:
@@ -3114,7 +3117,7 @@ def _prefetch_watchlist_details():
                     y_fail += 1
                 if y_fail >= 30:
                     try: session, crumb = _get_yahoo_session()
-                    except: break
+                    except Exception: break
                     y_fail = 0
                 time.sleep(random.uniform(0.1, 0.3))
             print(f"  Yahoo 補齊 {y_done} 支")
@@ -3291,7 +3294,7 @@ def _prefetch_watchlist_details():
             updated = datetime.strptime(r['updated_at'], '%Y-%m-%d %H:%M:%S')
             if (now - updated).days >= 7:
                 need_fetch.append(code)
-        except Exception:
+        except Exception as e:
             need_fetch.append(code)
 
     conn.close()
@@ -3327,7 +3330,8 @@ def _parse_inst_val(v):
         return None
     try:
         return int(v)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"return int(v): {e}")
         return None
 
 
@@ -4184,7 +4188,7 @@ def fetch_mops_quarterly_eps():
 
                 def parse_k(s):
                     try: return float(s.replace(',', '')) * 1000
-                    except: return None
+                    except Exception: return None
 
                 for table in soup.find_all('table'):
                     for row in table.find_all('tr'):
@@ -5174,7 +5178,7 @@ def estimate_annual_eps(code):
         price_row = conn2.execute("SELECT close FROM stocks WHERE code = ?", (code,)).fetchone()
         conn2.close()
         cur_price = price_row['close'] if price_row and price_row['close'] else None
-    except Exception:
+    except Exception as e:
         cur_price = None
 
     est_pe = round(cur_price / est_eps, 2) if cur_price and est_eps and est_eps > 0 else None
