@@ -156,18 +156,22 @@ def _calc_shen_fields(r, cur_roc):
 
     # 沈董股利
     r['shen_div'] = None
+    r['_shen_div_formula'] = None
     if shen_eps and shen_eps > 0:
         if is_fallback:
             lbl = str(r.get('eps_y1_label') or '')
             if lbl in div_map:
                 r['shen_div'] = round(div_map[lbl] * 100) / 100
+                r['_shen_div_formula'] = f'{lbl}年實際股利 = {r["shen_div"]}'
         if r['shen_div'] is None and weighted_payout is not None:
             r['shen_div'] = round(shen_eps * weighted_payout * 100) / 100
+            r['_shen_div_formula'] = f'沈董EPS{shen_eps} × 加權配息率{round(weighted_payout*100,1)}% = {r["shen_div"]}'
         if r['shen_div'] is None:
             for i in range(1, 7):
                 dc = r.get(f'div_c{i}')
                 if dc and dc > 0:
                     r['shen_div'] = dc
+                    r['_shen_div_formula'] = f'最近現金股利 = {dc}'
                     break
 
     # 綜合股利 = 沈董股利 × 60% + 加權股利 × 40%（預設，前端可覆蓋）
@@ -403,7 +407,11 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 5. 沈董殖利率 >= 5.5%
     checks[5] = 1 if shen_yld is not None and shen_yld >= 5.5 else 0
-    detail['chk_5'] = f'{shen_yld}%' if shen_yld is not None else None
+    if shen_yld is not None:
+        _div_formula = r.get('_shen_div_formula') or ''
+        detail['chk_5'] = f'殖利率={shen_yld}%　沈董股利{shen_div} / 股價{close} × 100　股利算法：{_div_formula}'
+    else:
+        detail['chk_5'] = None
 
     # 6. 沈董等級 A 級以上
     checks[6] = 1 if _is_grade_a(shen_grade) else 0
