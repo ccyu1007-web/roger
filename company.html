@@ -831,27 +831,90 @@ async function loadDecision() {
       const base = g.replace(/[+-]/g, '');
       return ['AA','A1','A2','A','B2A','B1A','B1','B2','BA1','BA2'].includes(base);
     }
+    // 判斷等級是否 A 級以上（AA/A1/A2/A，含 +）
+    function _isGradeA(g) {
+      if (!g || g === '-' || g === 'X') return false;
+      const base = g.replace(/[+-]/g, '');
+      return ['AA','A1','A2','A'].includes(base);
+    }
 
-    // 檢核項目 1：近五年財務等級
+    // 1. 近五年財務等級
     const grades5 = [];
     for (let i = 1; i <= 5; i++) { grades5.push(stock[`fin_grade_${i}`] || null); }
     const gradesAboveB = grades5.filter(g => _isGradeAboveB(g)).length;
     const recent2ok = _isGradeAboveB(grades5[0]) && _isGradeAboveB(grades5[1]);
     const chk1_pass = gradesAboveB >= 3 && recent2ok;
-    const chk1_detail = grades5.map((g, i) => {
-      if (!g) return `Y${i+1}:--`;
+    const chk1_detail = grades5.map(g => {
+      if (!g) return '--';
       const ok = _isGradeAboveB(g);
       return `<span style="color:${ok ? '#16a34a' : '#dc2626'}">${g}</span>`;
     }).join(' / ');
 
+    // 2. 累積營收年增率 >= -10% 且 < 0%
+    const cumYoy = stock.revenue_cum_yoy;
+    const chk2_pass = cumYoy != null && cumYoy >= -10 && cumYoy < 0;
+    const chk2_detail = cumYoy != null ? `累積營收年增率：${cumYoy.toFixed(2)}%` : '無資料';
+
+    // 3. 累積營收年增率 >= 0%
+    const chk3_pass = cumYoy != null && cumYoy >= 0;
+    const chk3_detail = chk2_detail;
+
+    // 4. 沈董本益比 > 0 且 < 14
+    const chk4_pass = shen_pe != null && shen_pe > 0 && shen_pe < 14;
+    const chk4_detail = shen_pe != null ? `沈董PE：${shen_pe.toFixed(2)}` : '無資料';
+
+    // 5. 沈董殖利率 >= 5.5%
+    const chk5_pass = shen_yld != null && shen_yld >= 5.5;
+    const chk5_detail = shen_yld != null ? `沈董殖利率：${shen_yld.toFixed(2)}%` : '無資料';
+
+    // 6. 沈董等級 A 級以上
+    const chk6_pass = _isGradeA(shen_grade);
+    const chk6_detail = shen_grade ? `沈董等級：${shen_grade}` : '無資料';
+
+    // 7. 綜合等級 A 級以上
+    const chk7_pass = _isGradeA(blend_grade);
+    const chk7_detail = blend_grade ? `綜合等級：${blend_grade}` : '無資料';
+
+    // 8. 加權等級 A 級以上
+    const weighted_grade = (weighted_eps != null && weighted_eps <= 0) ? 'X' : (weighted_pe && weighted_yld) ? _calcGrade(weighted_pe, weighted_yld) : null;
+    const chk8_pass = _isGradeA(weighted_grade);
+    const chk8_detail = weighted_grade ? `加權等級：${weighted_grade}` : '無資料';
+
+    // 9. 預估等級 A 級以上
+    const chk9_pass = _isGradeA(est_grade);
+    const chk9_detail = est_grade ? `預估等級：${est_grade}` : '無資料';
+
+    // 10. 股價低於總表評價 A
+    const chk10_pass = close != null && val_a != null && close <= val_a + 0.005;
+    const chk10_detail = val_a != null ? `股價：${fmtV(close)}　評價A：${fmtV(val_a)}` : '無資料';
+
+    // 11. 股價低於總表評價 AA
+    const chk11_pass = close != null && val_aa != null && close <= val_aa + 0.005;
+    const chk11_detail = val_aa != null ? `股價：${fmtV(close)}　評價AA：${fmtV(val_aa)}` : '無資料';
+
+    // 12. 綜合殖利率 >= 6%
+    const chk12_pass = blend_yld != null && blend_yld >= 6;
+    const chk12_detail = blend_yld != null ? `綜合殖利率：${blend_yld.toFixed(2)}%` : '無資料';
+
     // 組裝檢核清單
     const checks = [
       { cond: '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上', pass: chk1_pass, detail: chk1_detail },
+      { cond: '累積營收年增率 >= -10% 且 < 0%', pass: chk2_pass, detail: chk2_detail },
+      { cond: '累積營收年增率 >= 0%', pass: chk3_pass, detail: chk3_detail },
+      { cond: '沈董本益比 > 0 且 < 14', pass: chk4_pass, detail: chk4_detail },
+      { cond: '沈董殖利率 >= 5.5%', pass: chk5_pass, detail: chk5_detail },
+      { cond: '沈董等級 A 級以上', pass: chk6_pass, detail: chk6_detail },
+      { cond: '綜合等級 A 級以上', pass: chk7_pass, detail: chk7_detail },
+      { cond: '加權等級 A 級以上', pass: chk8_pass, detail: chk8_detail },
+      { cond: '預估等級 A 級以上', pass: chk9_pass, detail: chk9_detail },
+      { cond: '目前股價低於總表評價 A', pass: chk10_pass, detail: chk10_detail },
+      { cond: '目前股價低於總表評價 AA', pass: chk11_pass, detail: chk11_detail },
+      { cond: '綜合殖利率 >= 6%', pass: chk12_pass, detail: chk12_detail },
     ];
 
     const passCount = checks.filter(c => c.pass).length;
     const totalCount = checks.length;
-    const scoreClass = passCount === totalCount ? 'chk-score-pass' : passCount >= totalCount * 0.6 ? 'chk-score-warn' : 'chk-score-fail';
+    const scoreClass = passCount >= totalCount * 0.8 ? 'chk-score-pass' : passCount >= totalCount * 0.5 ? 'chk-score-warn' : 'chk-score-fail';
 
     let html = '';
     // 頂部摘要
