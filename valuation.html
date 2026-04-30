@@ -140,17 +140,24 @@ async function load() {
     _data = await briefRes.json();
     const stocksData = await stocksRes.json();
 
-    // 計算等級（優先順序：預估 > 系統 > 沈董 > X）+ 折價%，存到 _stocks
+    // 計算等級（優先順序：系統 > 沈董 > X）+ 折價%，存到 _stocks
+    // 注意：必須用 price 重算 PE/殖利率，不能用存好的 sys_ann_pe/yld（那是固定值，無法偵測跨日變動）
     function _calcPriorityGrade(s, price) {
-      // 1. 系統等級（預估等級在前端沒有完整資料，跳過）
-      if (s.sys_ann_pe && s.sys_ann_yld && s.sys_ann_pe > 0 && s.sys_ann_yld > 0) {
-        const g = _calcShenGrade(s.sys_ann_pe, s.sys_ann_yld);
-        if (g) return { grade: g, source: 'sys', pe: s.sys_ann_pe, yld: s.sys_ann_yld };
+      if (!price || price <= 0) return { grade: 'X', source: 'none', pe: null, yld: null };
+      // 1. 系統等級（用系統預估 EPS/股利 + 當前股價重算 PE/殖利率）
+      if (s.sys_ann_eps && s.sys_ann_eps > 0) {
+        const pe = price / s.sys_ann_eps;
+        const div = s.sys_ann_div || 0;
+        const yld = div > 0 ? div / price * 100 : null;
+        if (pe > 0 && yld != null && yld > 0) {
+          const g = _calcShenGrade(pe, yld);
+          if (g) return { grade: g, source: 'sys', pe: pe, yld: yld };
+        }
       }
       // 2. 沈董等級
       const eps = s.shen_eps;
       const div = s.shen_div;
-      if (eps && eps > 0 && price && price > 0) {
+      if (eps && eps > 0) {
         const pe = price / eps;
         const yld = (div && div > 0) ? div / price * 100 : null;
         if (pe > 0 && yld != null && yld > 0) {
@@ -171,7 +178,13 @@ async function load() {
       const cur = s.priority_grade
         ? { grade: s.priority_grade, source: s.grade_source || 'db', pe: s.sys_ann_pe, yld: s.sys_ann_yld }
         : _calcPriorityGrade(s, close);
-      if (!CHEAP_GRADES.has(cur.grade)) return;  // 只列便宜等級
+
+      // 昨天的等級（用昨天股價重算）
+      const prevClose = (s.change != null) ? close - s.change : null;
+      const prev = prevClose ? _calcPriorityGrade(s, prevClose) : { grade: null };
+
+      // 今天或昨天至少有一個在便宜區才列入
+      if (!CHEAP_GRADES.has(cur.grade) && !CHEAP_GRADES.has(prev.grade)) return;
 
       // 折價% 用 val_aa
       const estEps = s.sys_ann_eps != null ? s.sys_ann_eps : s.shen_eps;
@@ -182,10 +195,6 @@ async function load() {
         const v2 = estDiv / 0.06;
         val_aa = Math.round(Math.min(v1, v2) * 100) / 100;
       }
-
-      // 昨天的等級（用昨天股價）
-      const prevClose = (s.change != null) ? close - s.change : null;
-      const prev = prevClose ? _calcPriorityGrade(s, prevClose) : { grade: null };
 
       let chgStatus = null;
       if (cur.grade !== prev.grade) {
