@@ -557,7 +557,7 @@
 
 <div class="container">
   <div class="tabs">
-    <button class="tab" id="tabDecision" onclick="switchTab('decision')">決策表</button>
+    <button class="tab" id="tabDecision" onclick="switchTab('decision')">檢核清單</button>
     <button class="tab active" id="tabFinancial" onclick="switchTab('financial')">年度財報</button>
     <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
     <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
@@ -601,7 +601,7 @@ function switchTab(tab) {
   else loadIndustry();
 }
 
-// ── 載入決策表（從 DB 讀取檢核表）──
+// ── 載入檢核清單（從 DB 讀取）──
 async function loadDecision() {
   const panel = document.getElementById('panel');
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入檢核表...</div></div>';
