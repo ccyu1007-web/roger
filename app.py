@@ -480,15 +480,8 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 13. 股利折現模式現價潛在年報酬 >= 10%
     # DDM 參數：EPS 用 min(系統, 沈董) 或使用者設定；PE=14, 折現率=10%, 股利=綜合股利
-    ddm_eps = None
-    if user_params and user_params.get('ddmEps'):
-        ddm_eps = float(user_params['ddmEps'])
-    if ddm_eps is None:
-        sys_eps = r.get('sys_ann_eps')
-        if sys_eps is not None and shen_eps is not None:
-            ddm_eps = min(sys_eps, shen_eps) if sys_eps > 0 and shen_eps > 0 else (sys_eps if sys_eps > 0 else shen_eps)
-        else:
-            ddm_eps = sys_eps or shen_eps
+    # DDM EPS：預估EPS > 沈董EPS（與評價門檻一致）
+    ddm_eps = est_eps if est_eps is not None else shen_eps
     ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
     ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
     ddm_div = blend_div or shen_div
@@ -1064,7 +1057,7 @@ def sync_table():
         'user_lists', 'user_notes', 'user_estimates', 'user_settings',
         'system_eps_actual', 'system_eps_log',
         'quarterly_financial', 'financial_annual', 'financial_detail',
-        'stocks',
+        'stocks', 'stock_checklist',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
