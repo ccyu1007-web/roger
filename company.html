@@ -2442,8 +2442,8 @@ function calcValuation(annEps) {
 }
 
 function calcPERange() {
-  const hi = parseNum('peHigh');
-  const lo = parseNum('peLow');
+  const hi = parseNum('peHigh') || _peHi;
+  const lo = parseNum('peLow') || _peLo;
   const fair  = (hi != null && lo != null) ? (hi + lo) / 2 : null;
   const above = (hi != null && fair != null) ? (hi + fair) / 2 : null;
   const below = (fair != null && lo != null) ? (fair + lo) / 2 : null;
@@ -2464,8 +2464,8 @@ function calcPERange() {
 }
 
 function calcYldRange() {
-  const yHigh = parseNum('yldHigh');
-  const yMax  = parseNum('yldMax');
+  const yHigh = parseNum('yldHigh') || _yHigh;
+  const yMax  = parseNum('yldMax') || _yMax;
   const yFair = (yHigh != null && yMax != null) ? (yHigh + yMax) / 2 : null;
   document.getElementById('yldFair').textContent = yFair != null ? yFair.toFixed(2) + '%' : '-';
 
@@ -2509,21 +2509,11 @@ function renderMatrix() {
   const el = document.getElementById('matrixContainer');
   if (!el) return;
 
-  const peHi = parseNum('peHigh');
-  const peLo = parseNum('peLow');
-  const yHigh = parseNum('yldHigh');
-  const yMax  = parseNum('yldMax');
-
-  if (peHi == null || peLo == null || yHigh == null || yMax == null) {
-    const gradeEl = document.getElementById('matrixGrade');
-    if (gradeEl) {
-      let h = '<div><div class="grade-badge gb-na"><span class="grade-label">價值評估矩陣等級：</span>尚未計算</div></div>';
-      h += _buildSysGradeBadge();
-      gradeEl.innerHTML = h;
-    }
-    el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入本益比與殖利率參數</div>';
-    return;
-  }
+  // 優先自訂，fallback 預設
+  const peHi = parseNum('peHigh') || _peHi;
+  const peLo = parseNum('peLow') || _peLo;
+  const yHigh = parseNum('yldHigh') || _yHigh;
+  const yMax  = parseNum('yldMax') || _yMax;
 
   const peFair  = (peHi + peLo) / 2;
   const peAbove = (peHi + peFair) / 2;
