@@ -649,7 +649,7 @@ let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
 // ── 使用者設定同步（DB ↔ localStorage）──────────────────
 const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings',
   'col_visible','global_div_weights','blend_ratio','global_val_params',
-  'sort_col','sort_asc'];
+  'sort_col','sort_asc','grade_filters'];
 
 async function loadUserSettings() {
   try {
