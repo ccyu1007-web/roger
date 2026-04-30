@@ -1919,6 +1919,17 @@ const _estYear = new Date().getFullYear() - 1911;  // 115
 let _yldFloor = parseFloat(localStorage.getItem('global_yld_floor') || '5');
 let _ltYld = parseFloat(localStorage.getItem('global_lt_yld') || '6');
 
+// 全域估值參數（預設值，個股自訂會覆蓋）
+const _gvGlobal = JSON.parse(localStorage.getItem('global_val_params') || 'null') || { peHigh: 18, peLow: 10, yldFloor: 5, yldHigh: 5.5, yldMax: 6 };
+let _peHi = _gvGlobal.peHigh, _peLo = _gvGlobal.peLow, _yHigh = _gvGlobal.yldHigh, _yMax = _gvGlobal.yldMax;
+try {
+  const _savedParams = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}');
+  if (_savedParams.peHigh) _peHi = parseFloat(_savedParams.peHigh);
+  if (_savedParams.peLow) _peLo = parseFloat(_savedParams.peLow);
+  if (_savedParams.yldHigh) _yHigh = parseFloat(_savedParams.yldHigh);
+  if (_savedParams.yldMax) _yMax = parseFloat(_savedParams.yldMax);
+} catch(e) {}
+
 function onLtYldChange() {
   const v = parseFloat(document.getElementById('vmLtYld').value);
   if (!isNaN(v)) { _ltYld = v; localStorage.setItem('global_lt_yld', String(v)); }
