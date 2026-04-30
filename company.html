@@ -1733,8 +1733,16 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         </div>
       </div>
 
-      <!-- 本益比設定 + 歷史參考（左右並排） -->
-      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
+      <!-- 參數設定區（本益比 + 殖利率）-->
+      <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-weight:700;font-size:.95rem">參數設定</span>
+          <button class="est-save" onclick="saveValParams()">儲存參數</button>
+          <button class="est-save" onclick="clearValParams()" style="background:#ef4444">清除參數</button>
+          <span class="est-date" id="valParamsDate" style="font-size:.78rem;color:#94a3b8"></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap">
         <div class="est-val-grid" style="min-width:420px;flex-shrink:0">
           <div class="lbl">最高本益比</div>
           <div class="val"><input id="peHigh" type="text" placeholder="倍" oninput="calcPERange()"></div>
@@ -2169,6 +2177,7 @@ async function initEstimator(sharesMillion) {
       if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
       if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
       if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
+      if (d.valParamsDate) document.getElementById('valParamsDate').textContent = '上次儲存：' + d.valParamsDate;
       calcEstimate();
       calcEstimateYear();
       calcAnnual();
@@ -2422,9 +2431,21 @@ function _buildSysGradeBadge() {
   const sa = _sysAnnual.details;
   const sPE = sa.est_pe, sYld = sa.est_yld;
   if (sPE == null || sYld == null) return '';
+
+  // 使用自訂參數（與使用者等級一致）
+  const peHi = parseNum('peHigh') || _peHi;
+  const peLo = parseNum('peLow') || _peLo;
+  const yHigh = parseNum('yldHigh') || _yHigh;
+  const yMax  = parseNum('yldMax') || _yMax;
+  const yFloor = _yldFloor;
+
+  const peFair  = (peHi + peLo) / 2;
+  const peAbove = (peHi + peFair) / 2;
+  const peBelow = (peFair + peLo) / 2;
+
   const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
-  const sPeCols = [{lo:-Infinity,hi:10},{lo:10,hi:11},{lo:11,hi:14},{lo:14,hi:16},{lo:16,hi:18},{lo:18,hi:Infinity}];
-  const sYRows = [{lo:6,hi:Infinity},{lo:5.5,hi:6},{lo:_yldFloor,hi:5.5},{lo:-Infinity,hi:_yldFloor}];
+  const sPeCols = [{lo:-Infinity,hi:peLo},{lo:peLo,hi:peBelow},{lo:peBelow,hi:peFair},{lo:peFair,hi:peAbove},{lo:peAbove,hi:peHi},{lo:peHi,hi:Infinity}];
+  const sYRows = [{lo:yMax,hi:Infinity},{lo:yHigh,hi:yMax},{lo:yFloor,hi:yHigh},{lo:-Infinity,hi:yFloor}];
   const sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
   const sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
   if (sRow < 0 || sCol < 0) return '';
@@ -2753,6 +2774,60 @@ function calcValMethod() {
   html += '</tr></tbody></table>';
 
   el.innerHTML = html;
+}
+
+function saveValParams() {
+  const now = new Date().toLocaleString('zh-TW');
+  const params = {
+    peHigh: document.getElementById('peHigh').value,
+    peLow: document.getElementById('peLow').value,
+    yldHigh: document.getElementById('yldHigh').value,
+    yldMax: document.getElementById('yldMax').value,
+  };
+  // 更新 localStorage
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  Object.assign(saved, params);
+  saved.valParamsDate = now;
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  // 同步到 DB
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(saved)
+  });
+  document.getElementById('valParamsDate').textContent = '已儲存：' + now;
+  renderMatrix();
+}
+
+function clearValParams() {
+  if (!confirm('確定清除參數設定？將恢復為預設值')) return;
+  document.getElementById('peHigh').value = '';
+  document.getElementById('peLow').value = '';
+  document.getElementById('yldHigh').value = '';
+  document.getElementById('yldMax').value = '';
+  // 從 localStorage 移除參數欄位
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  ['peHigh','peLow','yldHigh','yldMax','valParamsDate'].forEach(k => delete saved[k]);
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  // 同步到 DB
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(saved)
+  });
+  document.getElementById('valParamsDate').textContent = '';
+  // 重設顯示
+  document.getElementById('peAbove').textContent = '-';
+  document.getElementById('peFair').textContent = '-';
+  document.getElementById('peBelow').textContent = '-';
+  document.getElementById('priceAbove').textContent = '-';
+  document.getElementById('priceFair').textContent = '-';
+  document.getElementById('priceBelow').textContent = '-';
+  document.getElementById('yldFair').textContent = '-';
+  document.getElementById('yldPriceHigh').textContent = '-';
+  document.getElementById('yldPriceFair').textContent = '-';
+  document.getElementById('yldPriceMax').textContent = '-';
+  renderMatrix();
 }
 
 function saveEstimate() {

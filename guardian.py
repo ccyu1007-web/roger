@@ -1743,12 +1743,16 @@ def _calc_matrix_grade(pe, yld, pe_high=None, pe_low=None, yld_max=None, yld_hig
     return 'X'
 
 
-def _calc_priority_grade(row, close):
+def _calc_priority_grade(row, close, uvp=None):
     """
     等級優先順序：預估 > 系統 > 沈董 > 綜合 > 加權 > 近四季 > X
     每個等級都用矩陣計算（PE + 殖利率）。
+    uvp: 個股自訂估值參數 dict（pe_high, pe_low, yld_high, yld_max）
     回傳: (grade, source)
     """
+    if uvp is None:
+        uvp = {}
+
     # 1. 預估等級（使用者手動輸入，存在 user_estimates）
     # DB 裡沒有預算好的預估 PE/殖利率，跳過（前端才有）
 
@@ -1756,7 +1760,9 @@ def _calc_priority_grade(row, close):
     sys_pe = row.get('sys_ann_pe')
     sys_yld = row.get('sys_ann_yld')
     if sys_pe and sys_yld and sys_pe > 0 and sys_yld > 0:
-        g = _calc_matrix_grade(sys_pe, sys_yld)
+        g = _calc_matrix_grade(sys_pe, sys_yld,
+                               pe_high=uvp.get('pe_high'), pe_low=uvp.get('pe_low'),
+                               yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'))
         if g:
             return g, 'sys'
 
@@ -1772,7 +1778,9 @@ def _calc_priority_grade(row, close):
             shen_div = shen_eps * payout
             shen_yld = round(shen_div / close * 100, 2)
         if shen_pe > 0 and shen_yld > 0:
-            g = _calc_matrix_grade(shen_pe, shen_yld)
+            g = _calc_matrix_grade(shen_pe, shen_yld,
+                                   pe_high=uvp.get('pe_high'), pe_low=uvp.get('pe_low'),
+                                   yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'))
             if g:
                 return g, 'shen'
 
@@ -1955,6 +1963,23 @@ def snapshot_stock_states():
         try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
         except Exception: pass
 
+    # 載入所有個股自訂估值參數（PE/殖利率）
+    user_val_params = {}
+    try:
+        ue_rows = c.execute("SELECT code, params FROM user_estimates WHERE params IS NOT NULL").fetchall()
+        for ue in ue_rows:
+            try:
+                d = json.loads(ue['params'])
+                p = {}
+                if d.get('peHigh'): p['pe_high'] = float(d['peHigh'])
+                if d.get('peLow'): p['pe_low'] = float(d['peLow'])
+                if d.get('yldHigh'): p['yld_high'] = float(d['yldHigh'])
+                if d.get('yldMax'): p['yld_max'] = float(d['yldMax'])
+                if p:
+                    user_val_params[ue['code']] = p
+            except Exception: pass
+    except Exception: pass
+
     # 取所有有收盤價的股票
     try:
         c.execute("""SELECT code, close, volume,
@@ -2015,11 +2040,16 @@ def snapshot_stock_states():
         est_eps = row.get('sys_ann_eps')
         est_div = row.get('sys_ann_div')
 
+        # 個股自訂估值參數（優先於預設值）
+        uvp = user_val_params.get(code, {})
+
         vl = _calc_val_levels(close, shen_eps, shen_div, blend_div,
+                              pe_low=uvp.get('pe_low'), pe_high=uvp.get('pe_high'),
+                              yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'),
                               est_eps=est_eps, est_div=est_div)
 
         # 矩陣等級（優先順序：預估 > 系統 > 沈董 > X）
-        matrix_grade, grade_source = _calc_priority_grade(row, close)
+        matrix_grade, grade_source = _calc_priority_grade(row, close, uvp)
         vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
 
         # 折價%：用 val_aa 門檻算

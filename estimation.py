@@ -825,13 +825,29 @@ def estimate_annual_eps(code):
     est_yld = round(est_div / cur_price * 100, 2) if cur_price and est_div and cur_price > 0 else None
 
     # === 系統價值評估矩陣 ===
-    # PE 倍數：最低10, 偏低12, 合理14, 偏高16, 最高18
-    # 殖利率：偏高5.5%, 最高6%
-    # 長期殖利率：6%
+    # 優先使用個股自訂參數，沒有才用預設值
+    _user_pe_low, _user_pe_high, _user_yld_high, _user_yld_max = 10, 18, 5.5, 6.0
+    try:
+        ue_conn = sqlite3.connect(DB_PATH)
+        ue_conn.row_factory = sqlite3.Row
+        ue_row = ue_conn.execute("SELECT params FROM user_estimates WHERE code=?", (code,)).fetchone()
+        ue_conn.close()
+        if ue_row and ue_row['params']:
+            import json as _json
+            _ue = _json.loads(ue_row['params'])
+            if _ue.get('peHigh'): _user_pe_high = float(_ue['peHigh'])
+            if _ue.get('peLow'): _user_pe_low = float(_ue['peLow'])
+            if _ue.get('yldHigh'): _user_yld_high = float(_ue['yldHigh'])
+            if _ue.get('yldMax'): _user_yld_max = float(_ue['yldMax'])
+    except Exception: pass
+
     val = {}
     if est_eps and est_eps > 0 and est_div is not None:
-        pe_low, pe_below, pe_fair = 10, 12, 14
-        yld_high, yld_max = 5.5, 6.0
+        pe_low = _user_pe_low
+        pe_high = _user_pe_high
+        pe_fair = (pe_high + pe_low) / 2
+        pe_below = (pe_fair + pe_low) / 2
+        yld_high, yld_max = _user_yld_high, _user_yld_max
 
         # 加權股利（用近 5 年加權平均股利）
         wt_div_data = []
