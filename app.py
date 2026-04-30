@@ -179,10 +179,13 @@ def _calc_shen_fields(r, cur_roc):
     wd = r.get('weighted_div')
     if sd is not None and wd is not None:
         r['blend_div'] = round((sd * 0.6 + wd * 0.4) * 100) / 100
+        r['_blend_div_formula'] = f'沈董股利{sd}×60% + 加權股利{wd}×40% = {r["blend_div"]}'
     elif sd is not None:
         r['blend_div'] = round(sd * 100) / 100
+        r['_blend_div_formula'] = f'沈董股利{sd}（無加權股利）'
     elif wd is not None:
         r['blend_div'] = round(wd * 100) / 100
+        r['_blend_div_formula'] = f'加權股利{wd}（無沈董股利）'
     else:
         r['blend_div'] = None
 
@@ -430,16 +433,24 @@ def _calc_checklist_for_stock(r, user_params=None):
     detail['chk_9'] = est_grade
 
     # 10. 股價低於評價 A
+    _eps_src = '預估EPS' if est_eps is not None else '沈董EPS'
+    _div_src = '預估股利' if est_div is not None else '沈董股利'
+    _val_param = f'EPS={val_eps}({_eps_src}) 股利={val_div}({_div_src})'
+
     checks[10] = 1 if close is not None and val_a is not None and close <= val_a + 0.005 else 0
-    detail['chk_10'] = f'股價:{close} 評價A:{val_a}' if val_a is not None else None
+    detail['chk_10'] = f'股價:{close} 評價A:{val_a}　{_val_param}' if val_a is not None else None
 
     # 11. 股價低於評價 AA
     checks[11] = 1 if close is not None and val_aa is not None and close <= val_aa + 0.005 else 0
-    detail['chk_11'] = f'股價:{close} 評價AA:{val_aa}' if val_aa is not None else None
+    detail['chk_11'] = f'股價:{close} 評價AA:{val_aa}　{_val_param}' if val_aa is not None else None
 
     # 12. 綜合殖利率 >= 6%
     checks[12] = 1 if blend_yld is not None and blend_yld >= 6 else 0
-    detail['chk_12'] = f'{blend_yld}%' if blend_yld is not None else None
+    if blend_yld is not None:
+        _blend_formula = r.get('_blend_div_formula') or ''
+        detail['chk_12'] = f'殖利率={blend_yld}%　綜合股利{blend_div} / 股價{close} × 100　股利算法：{_blend_formula}'
+    else:
+        detail['chk_12'] = None
 
     pass_count = sum(checks.values())
 
