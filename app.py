@@ -49,6 +49,15 @@ def check_sync_token():
         return False
     return True
 
+# ── HTML/API 不快取（避免瀏覽器用舊資料）──────────────────
+@app.after_request
+def add_no_cache_headers(response):
+    if response.content_type and ('text/html' in response.content_type or 'application/json' in response.content_type):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 # ── 回應壓縮 ──────────────────────────────────────────────
 try:
     from flask_compress import Compress
