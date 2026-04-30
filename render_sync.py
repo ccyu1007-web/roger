@@ -21,14 +21,15 @@ def _is_cloud():
     return bool(os.environ.get('DATABASE_URL'))
 
 
-def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500):
+def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500, clear_first=False):
     """
     通用全表同步：把本機任意資料表 push 到 Render
     table: 表名
     columns: 欄位列表
     pk: 主鍵欄位列表（用於 UPSERT）
     create_sql: 建表 SQL（Render 端自動建表）
-    where: 可選的 WHERE 條件（如 "WHERE DATE(updated_at) = DATE('now')"）
+    where: 可選的 WHERE 條件
+    clear_first: 同步前先清空 Render 端的表（避免殘留已刪除的資料）
     """
     conn = sqlite3.connect(DB_PATH)
     col_str = ','.join(columns)
@@ -43,6 +44,17 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
         return 0
 
     data = [{columns[j]: r[j] for j in range(len(columns))} for r in rows]
+
+    # 同步前清空 Render 端（整表替換，避免殘留已刪除的資料）
+    if clear_first:
+        try:
+            requests.post(
+                f'{RENDER_URL}/api/sync/clear-table',
+                json={'table': table},
+                headers=SYNC_HEADERS, timeout=30
+            )
+        except Exception:
+            pass
 
     failed = 0
     for i in range(0, len(data), batch_size):
@@ -133,6 +145,7 @@ def _push_all_to_render():
             'columns': ['id','code','name','date','time','subject','description','tier',
                         'matched_rule','created_at','direction','link','status'],
             'pk': ['id'],
+            'clear_first': True,
             'create_sql': """CREATE TABLE IF NOT EXISTS material_news (
                 id INTEGER PRIMARY KEY, code TEXT, name TEXT, date TEXT, time TEXT,
                 subject TEXT, description TEXT, tier INTEGER, matched_rule TEXT,
@@ -142,6 +155,7 @@ def _push_all_to_render():
             'table': 'etf_holdings',
             'columns': ['etf_code','stock_code','stock_name','weight','shares','updated'],
             'pk': ['etf_code','stock_code'],
+            'clear_first': True,
             'create_sql': """CREATE TABLE IF NOT EXISTS etf_holdings (
                 etf_code TEXT NOT NULL, stock_code TEXT NOT NULL,
                 stock_name TEXT, weight REAL, shares INTEGER, updated TEXT,
@@ -159,6 +173,7 @@ def _push_all_to_render():
             'table': 'user_lists',
             'columns': ['list_type','code','added_at'],
             'pk': ['list_type','code'],
+            'clear_first': True,
             'create_sql': """CREATE TABLE IF NOT EXISTS user_lists (
                 list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT,
                 PRIMARY KEY (list_type, code))""",
@@ -179,6 +194,7 @@ def _push_all_to_render():
                 pk=cfg['pk'],
                 create_sql=cfg.get('create_sql'),
                 where=cfg.get('where'),
+                clear_first=cfg.get('clear_first', False),
             )
         except Exception as e:
             print(f"  [{cfg['table']}] 失敗: {e}")

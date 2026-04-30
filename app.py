@@ -685,6 +685,28 @@ def sync_table():
     return jsonify(result)
 
 
+@app.route("/api/sync/clear-table", methods=["POST"])
+def sync_clear_table():
+    """清空指定資料表（同步前用，避免殘留已刪除的資料）"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    table = request.json.get('table', '').strip()
+    ALLOWED_TABLES = {
+        'material_news', 'etf_holdings', 'etf_changes', 'user_lists',
+        'user_notes', 'user_estimates',
+    }
+    if table not in ALLOWED_TABLES:
+        return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(f"DELETE FROM {table}")
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
+
 @app.route("/api/sync/pe-history", methods=["POST"])
 def sync_pe_history():
     """本機 push 歷史本益比到 Render"""
