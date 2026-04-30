@@ -181,7 +181,7 @@ def _push_all_to_render():
         {
             'table': 'stock_checklist',
             'columns': ['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
-                        'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12',
+                        'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12','chk_13',
                         'pass_count','total_count','detail',
                         'eps_setting','div_setting','yld_high','yld_max','pe_high','pe_low',
                         'lt_div','lt_yld','val_a','val_a1','val_a2','val_aa','lt5','lt6','lt7',
@@ -192,7 +192,8 @@ def _push_all_to_render():
                 chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
                 chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
                 chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
-                pass_count INTEGER, total_count INTEGER DEFAULT 12,
+                chk_13 INTEGER,
+                pass_count INTEGER, total_count INTEGER DEFAULT 13,
                 detail TEXT,
                 eps_setting REAL, div_setting REAL,
                 yld_high REAL, yld_max REAL, pe_high REAL, pe_low REAL,

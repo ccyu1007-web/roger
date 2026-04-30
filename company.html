@@ -606,12 +606,14 @@ async function loadDecision() {
   const panel = document.getElementById('panel');
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入檢核表...</div></div>';
   try {
-    const [clRes, sRes] = await Promise.all([
+    const [clRes, sRes, noteRes] = await Promise.all([
       fetch(`/api/stocks/${CODE}/checklist`),
-      fetch(`/api/stocks?exact=${CODE}`)
+      fetch(`/api/stocks?exact=${CODE}`),
+      fetch(`/api/user-notes/${CODE}`)
     ]);
     const cl = await clRes.json();
     const sData = await sRes.json();
+    const noteData = await noteRes.json();
     const stock = (sData.data || [])[0] || {};
 
     const close = stock.close;
@@ -632,6 +634,7 @@ async function loadDecision() {
       '目前股價低於總表評價 A',
       '目前股價低於總表評價 AA',
       '綜合殖利率 >= 6%',
+      '股利折現模式現價潛在年報酬 >= 10%',
     ];
 
     const detail = cl.detail || {};
@@ -648,7 +651,7 @@ async function loadDecision() {
     html += '<table class="chk-table">';
     html += '<thead><tr><th>#</th><th>條件</th><th>是</th><th>否</th></tr></thead>';
     html += '<tbody>';
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 13; i++) {
       const pass = cl[`chk_${i}`] === 1;
       const d = detail[`chk_${i}`] || '';
       html += '<tr>';
@@ -696,8 +699,20 @@ async function loadDecision() {
       html += '</tr></tbody></table></div>';
     }
 
+    // === 質性研究筆記 ===
+    const noteContent = noteData.content || '';
+    if (noteContent) {
+      html += '<div style="margin-top:24px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid #e2e8f0">';
+      html += '<div style="font-size:1rem;font-weight:700;color:#1e3a5f;margin-bottom:10px">質性研究筆記</div>';
+      html += `<div style="font-size:.85rem;color:#334155;line-height:1.8;white-space:pre-wrap">${noteContent.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+      if (noteData.updated_at) {
+        html += `<div style="text-align:right;font-size:.72rem;color:#94a3b8;margin-top:6px">筆記更新：${noteData.updated_at}</div>`;
+      }
+      html += '</div>';
+    }
+
     if (cl.updated_at) {
-      html += `<div style="text-align:right;font-size:.75rem;color:#94a3b8;margin-top:8px">更新時間：${cl.updated_at}</div>`;
+      html += `<div style="text-align:right;font-size:.75rem;color:#94a3b8;margin-top:8px">檢核表更新：${cl.updated_at}</div>`;
     }
 
     panel.innerHTML = html;

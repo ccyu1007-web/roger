@@ -200,7 +200,8 @@ def _init_checklist_db():
         chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
         chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
         chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
-        pass_count INTEGER, total_count INTEGER DEFAULT 12,
+        chk_13 INTEGER,
+        pass_count INTEGER, total_count INTEGER DEFAULT 13,
         detail TEXT,
         eps_setting REAL, div_setting REAL,
         yld_high REAL, yld_max REAL, pe_high REAL, pe_low REAL,
@@ -210,7 +211,8 @@ def _init_checklist_db():
         updated_at TEXT
     )""")
     # 既有表加欄位
-    for col, typ in [('eps_setting','REAL'),('div_setting','REAL'),
+    for col, typ in [('chk_13','INTEGER'),
+                     ('eps_setting','REAL'),('div_setting','REAL'),
                      ('yld_high','REAL'),('yld_max','REAL'),('pe_high','REAL'),('pe_low','REAL'),
                      ('lt_div','REAL'),('lt_yld','REAL'),
                      ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
@@ -472,13 +474,40 @@ def _calc_checklist_for_stock(r, user_params=None):
     else:
         detail['chk_12'] = None
 
+    # 13. 股利折現模式現價潛在年報酬 >= 10%
+    # DDM 參數：EPS 用 min(系統, 沈董) 或使用者設定；PE=14, 折現率=10%, 股利=綜合股利
+    ddm_eps = None
+    if user_params and user_params.get('ddmEps'):
+        ddm_eps = float(user_params['ddmEps'])
+    if ddm_eps is None:
+        sys_eps = r.get('sys_ann_eps')
+        if sys_eps is not None and shen_eps is not None:
+            ddm_eps = min(sys_eps, shen_eps) if sys_eps > 0 and shen_eps > 0 else (sys_eps if sys_eps > 0 else shen_eps)
+        else:
+            ddm_eps = sys_eps or shen_eps
+    ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
+    ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
+    ddm_div = blend_div or shen_div
+    ddm_ann_ret = None
+    if ddm_eps and ddm_eps > 0 and close and close > 0 and ddm_div and ddm_div > 0:
+        sell_price = ddm_eps * ddm_pe
+        total_div = ddm_div * 3
+        target_price = sell_price + total_div
+        total_ret = (target_price - close) / close
+        ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
+    checks[13] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
+    if ddm_ann_ret is not None:
+        detail['chk_13'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div} 折現率={ddm_rate}'
+    else:
+        detail['chk_13'] = None
+
     pass_count = sum(checks.values())
 
     return {
         'code': r['code'],
-        **{f'chk_{i}': checks[i] for i in range(1, 13)},
+        **{f'chk_{i}': checks[i] for i in range(1, 14)},
         'pass_count': pass_count,
-        'total_count': 12,
+        'total_count': 13,
         'detail': json.dumps(detail, ensure_ascii=False),
         'eps_setting': val_eps,
         'div_setting': val_div,
@@ -539,17 +568,18 @@ def calc_all_checklists():
 
         c.execute("""INSERT INTO stock_checklist
                      (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
-                      chk_7, chk_8, chk_9, chk_10, chk_11, chk_12,
+                      chk_7, chk_8, chk_9, chk_10, chk_11, chk_12, chk_13,
                       pass_count, total_count, detail,
                       eps_setting, div_setting, yld_high, yld_max, pe_high, pe_low,
                       lt_div, lt_yld, val_a, val_a1, val_a2, val_aa, lt5, lt6, lt7,
                       updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                      ON CONFLICT(code) DO UPDATE SET
                       chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
                       chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
                       chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
                       chk_10=excluded.chk_10, chk_11=excluded.chk_11, chk_12=excluded.chk_12,
+                      chk_13=excluded.chk_13,
                       pass_count=excluded.pass_count, total_count=excluded.total_count,
                       detail=excluded.detail,
                       eps_setting=excluded.eps_setting, div_setting=excluded.div_setting,
@@ -563,7 +593,7 @@ def calc_all_checklists():
                   (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
                    result['chk_4'], result['chk_5'], result['chk_6'],
                    result['chk_7'], result['chk_8'], result['chk_9'],
-                   result['chk_10'], result['chk_11'], result['chk_12'],
+                   result['chk_10'], result['chk_11'], result['chk_12'], result['chk_13'],
                    result['pass_count'], result['total_count'], result['detail'],
                    result['eps_setting'], result['div_setting'],
                    result['yld_high'], result['yld_max'], result['pe_high'], result['pe_low'],
