@@ -2143,7 +2143,19 @@ async function initEstimator(sharesMillion) {
     }
   }
 
-  // 從 localStorage 載入
+  // 從 DB 載入（跨瀏覽器同步），合併到 localStorage
+  fetch(`/api/user-estimates/${CODE}`).then(r => r.json()).then(dbData => {
+    if (dbData && Object.keys(dbData).length > 0) {
+      let local = {};
+      try { local = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+      // DB 資料覆蓋 localStorage（DB 為準）
+      Object.assign(local, dbData);
+      localStorage.setItem('estimate_' + CODE, JSON.stringify(local));
+      _applyEstimateData(local);
+    }
+  }).catch(() => {});
+
+  // 從 localStorage 載入（立即顯示，不等 DB）
   const saved = localStorage.getItem('estimate_' + CODE);
   if (saved) {
     try {
@@ -2716,6 +2728,49 @@ function saveDDM() {
   saved.ddmDiv2 = document.getElementById('ddmDiv2')?.value || '';
   saved.ddmDiv3 = document.getElementById('ddmDiv3')?.value || '';
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+}
+
+function _applyEstimateData(d) {
+  // 共用：把 estimate 資料填入表單
+  if (d.rev1) document.getElementById('estRev1').value = d.rev1;
+  if (d.rev2) document.getElementById('estRev2').value = d.rev2;
+  if (d.rev3) document.getElementById('estRev3').value = d.rev3;
+  if (d.gm) document.getElementById('estGM').value = d.gm;
+  if (d.opex) document.getElementById('estOpex').value = d.opex;
+  if (d.nonop) document.getElementById('estNonOp').value = d.nonop;
+  if (d.tax) document.getElementById('estTax').value = d.tax;
+  if (d.pw) document.getElementById('estPW').value = d.pw;
+  if (d.revYear) document.getElementById('estRevYear').value = d.revYear;
+  if (d.growthRate) document.getElementById('estGrowthRate').value = d.growthRate;
+  if (d.gmYear) document.getElementById('estGMYear').value = d.gmYear;
+  if (d.opexYear) document.getElementById('estOpexYear').value = d.opexYear;
+  if (d.nonopYear) document.getElementById('estNonOpYear').value = d.nonopYear;
+  if (d.taxYear) document.getElementById('estTaxYear').value = d.taxYear;
+  if (d.pwYear) document.getElementById('estPWYear').value = d.pwYear;
+  if (d.q1) document.getElementById('estQ1').value = d.q1;
+  if (d.q2) document.getElementById('estQ2').value = d.q2;
+  if (d.q3) document.getElementById('estQ3').value = d.q3;
+  if (d.q4) document.getElementById('estQ4').value = d.q4;
+  if (d.pr) document.getElementById('annPR').value = d.pr;
+  if (d.div) document.getElementById('annDiv').value = d.div;
+  if (d.peHigh) document.getElementById('peHigh').value = d.peHigh;
+  if (d.peLow) document.getElementById('peLow').value = d.peLow;
+  if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
+  if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
+  if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
+  if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
+  if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+  if (d.ddmPE) document.getElementById('ddmPE').value = d.ddmPE;
+  if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
+  if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
+  if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
+  if (d.valParamsDate) document.getElementById('valParamsDate').textContent = '上次儲存：' + d.valParamsDate;
+  calcEstimate();
+  calcEstimateYear();
+  calcAnnual();
+  calcPERange();
+  calcYldRange();
+  calcValMethod();
 }
 
 function _syncToValMethod() {
