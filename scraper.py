@@ -1848,16 +1848,32 @@ def _sync_eps_from_quarterly():
             vals['eps_ytd'] = None
             vals['eps_ytd_label'] = None
 
-        c.execute("""UPDATE stocks SET
-            eps_1=?, eps_1q=?, eps_2=?, eps_2q=?, eps_3=?, eps_3q=?,
-            eps_4=?, eps_4q=?, eps_5=?, eps_5q=?,
-            eps_ytd=?, eps_ytd_label=?,
-            eps_date=? WHERE code=?""",
-            (vals['eps_1'], vals['eps_1q'], vals['eps_2'], vals['eps_2q'],
-             vals['eps_3'], vals['eps_3q'], vals['eps_4'], vals['eps_4q'],
-             vals['eps_5'], vals['eps_5q'],
-             vals.get('eps_ytd'), vals.get('eps_ytd_label'),
-             datetime.now().strftime('%Y-%m-%d'), code))
+        # 只在 eps_1/eps_1q 有變動時才更新 eps_date
+        old = c.execute("SELECT eps_1, eps_1q FROM stocks WHERE code=?", (code,)).fetchone()
+        old_eps1 = old[0] if old else None
+        old_eps1q = old[1] if old else None
+        new_date = datetime.now().strftime('%Y-%m-%d') if (vals['eps_1'] != old_eps1 or vals['eps_1q'] != old_eps1q) else None
+
+        if new_date:
+            c.execute("""UPDATE stocks SET
+                eps_1=?, eps_1q=?, eps_2=?, eps_2q=?, eps_3=?, eps_3q=?,
+                eps_4=?, eps_4q=?, eps_5=?, eps_5q=?,
+                eps_ytd=?, eps_ytd_label=?,
+                eps_date=? WHERE code=?""",
+                (vals['eps_1'], vals['eps_1q'], vals['eps_2'], vals['eps_2q'],
+                 vals['eps_3'], vals['eps_3q'], vals['eps_4'], vals['eps_4q'],
+                 vals['eps_5'], vals['eps_5q'],
+                 vals.get('eps_ytd'), vals.get('eps_ytd_label'),
+                 new_date, code))
+        else:
+            c.execute("""UPDATE stocks SET
+                eps_1=?, eps_1q=?, eps_2=?, eps_2q=?, eps_3=?, eps_3q=?,
+                eps_4=?, eps_4q=?, eps_5=?, eps_5q=?,
+                eps_ytd=?, eps_ytd_label=? WHERE code=?""",
+                (vals['eps_1'], vals['eps_1q'], vals['eps_2'], vals['eps_2q'],
+                 vals['eps_3'], vals['eps_3q'], vals['eps_4'], vals['eps_4q'],
+                 vals['eps_5'], vals['eps_5q'],
+                 vals.get('eps_ytd'), vals.get('eps_ytd_label'), code))
         if c.rowcount:
             updated += 1
 
