@@ -386,7 +386,28 @@
   }
   .ddm-table input:focus { border-color: #0369a1; }
 
-  /* ── 決策表 ── */
+  /* ── 決策檢核表 ── */
+  .chk-summary { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding: 16px 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; flex-wrap: wrap; }
+  .chk-price { font-size: 1.3rem; font-weight: 700; color: #1e293b; }
+  .chk-score { font-size: 1.1rem; font-weight: 700; padding: 4px 14px; border-radius: 20px; }
+  .chk-score-pass { background: #dcfce7; color: #166534; }
+  .chk-score-warn { background: #fef3c7; color: #92400e; }
+  .chk-score-fail { background: #fee2e2; color: #dc2626; }
+  .chk-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  .chk-table th { padding: 10px 14px; background: #1e3a5f; color: #fff; font-weight: 600; text-align: center; }
+  .chk-table th:nth-child(1) { width: 50px; }
+  .chk-table th:nth-child(2) { text-align: left; }
+  .chk-table th:nth-child(3), .chk-table th:nth-child(4) { width: 70px; }
+  .chk-table td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  .chk-table td:first-child { text-align: center; font-weight: 700; color: #64748b; }
+  .chk-table .chk-cond { color: #334155; line-height: 1.5; }
+  .chk-table .chk-detail { font-size: .78rem; color: #94a3b8; margin-top: 3px; }
+  .chk-table .chk-yes, .chk-table .chk-no { text-align: center; font-size: 1.1rem; font-weight: 700; }
+  .chk-table .chk-yes { color: #16a34a; }
+  .chk-table .chk-no { color: #dc2626; }
+  .chk-table tbody tr:hover { background: #f8fafc; }
+
+  /* 保留舊的供其他區塊用 */
   .dec-section { margin-bottom: 24px; }
   .dec-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #2563eb; }
   .dec-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
@@ -399,7 +420,6 @@
   .dec-table .v-neg { color: #16a34a; }
   .dec-table .grade-cell { font-weight: 700; text-align: center; }
   .dec-table .section-row td { background: #f1f5f9; font-weight: 700; color: #475569; border-top: 2px solid #cbd5e1; }
-  /* 決策摘要卡片 */
   .dec-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
   .dec-card { flex: 1; min-width: 220px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; }
   .dec-card-title { font-size: .78rem; color: #64748b; font-weight: 600; margin-bottom: 8px; }
@@ -803,282 +823,58 @@ async function loadDecision() {
     const chg = stock.change;
     const chgStr = chg != null ? `<span style="color:${chg > 0 ? '#dc2626' : chg < 0 ? '#16a34a' : '#64748b'};font-weight:600">${chg > 0 ? '+' : ''}${chg.toFixed(2)}</span>` : '-';
 
-    // === 評價摘要區 ===
-    let html = '<div class="dec-cards">';  // 決策表統一用這個 html 變數
-    // 卡片1：股價 + 評價門檻
-    html += '<div class="dec-card">';
-    html += '<div class="dec-card-title">個股評價</div>';
-    html += `<div class="dec-card-row"><span class="dec-card-label">收盤價</span><span class="dec-card-val" style="font-size:1.1rem">${fmtV(close)} ${chgStr}</span></div>`;
-    const valLevels = [
-      { key: 'aa', label: '評價AA', val: val_aa, cls: 'val-aa' },
-      { key: 'a1', label: '評價A1', val: val_a1, cls: 'val-a1' },
-      { key: 'a2', label: '評價A2', val: val_a2, cls: 'val-a2' },
-      { key: 'a',  label: '評價A',  val: val_a,  cls: 'val-a' },
-      { key: 'lt6', label: '長期6%', val: val_lt6, cls: 'val-lt6' },
-    ];
-    valLevels.forEach(lv => {
-      const hit = curLevel === lv.key;
-      html += `<div class="dec-card-row"><span class="dec-card-label">${lv.label}</span><span class="dec-card-val${hit ? ' val-hit ' + lv.cls : ''}">${fmtV(lv.val)}</span></div>`;
-    });
-    html += '</div>';
-
-    // 卡片2：法人買賣
-    html += '<div class="dec-card">';
-    html += '<div class="dec-card-title">法人買賣超（張）</div>';
-    html += `<div class="dec-card-row"><span class="dec-card-label">外資</span><span class="dec-card-val">${fmtInst(stock.inst_foreign)}</span></div>`;
-    html += `<div class="dec-card-row"><span class="dec-card-label">投信</span><span class="dec-card-val">${fmtInst(stock.inst_trust)}</span></div>`;
-    html += `<div class="dec-card-row"><span class="dec-card-label">自營商</span><span class="dec-card-val">${fmtInst(stock.inst_dealer)}</span></div>`;
-    const instTotal = [stock.inst_foreign, stock.inst_trust, stock.inst_dealer].filter(v => v != null);
-    if (instTotal.length > 0) {
-      const total = instTotal.reduce((a,b) => a+b, 0);
-      html += `<div class="dec-card-row" style="border-top:1px solid #e2e8f0;margin-top:4px;padding-top:6px"><span class="dec-card-label">合計</span><span class="dec-card-val">${fmtInst(total)}</span></div>`;
-    }
-    html += '</div>';
-
-    // 卡片3：系統估算
-    html += '<div class="dec-card">';
-    html += '<div class="dec-card-title">系統估算</div>';
-    html += `<div class="dec-card-row"><span class="dec-card-label">系統EPS</span><span class="dec-card-val">${fmtV(stock.sys_ann_eps)}</span></div>`;
-    html += `<div class="dec-card-row"><span class="dec-card-label">系統PE</span><span class="dec-card-val">${fmtV(stock.sys_ann_pe)}</span></div>`;
-    html += `<div class="dec-card-row"><span class="dec-card-label">系統殖利率</span><span class="dec-card-val">${stock.sys_ann_yld != null ? stock.sys_ann_yld.toFixed(2) + '%' : '-'}</span></div>`;
-    html += `<div class="dec-card-row"><span class="dec-card-label">系統股利</span><span class="dec-card-val">${fmtV(stock.sys_ann_div)}</span></div>`;
-    const confColor = stock.sys_ann_confidence === 'A' ? '#059669' : stock.sys_ann_confidence === 'B' ? '#d97706' : stock.sys_ann_confidence === 'C' ? '#dc2626' : '#94a3b8';
-    html += `<div class="dec-card-row"><span class="dec-card-label">信心度</span><span class="dec-card-val" style="padding:2px 8px;border-radius:8px;color:#fff;background:${confColor}">${stock.sys_ann_confidence || '-'}</span></div>`;
-    html += '</div>';
-    html += '</div>';
-
-    // === 各方法比較表 ===
-    // 系統預估等級：用系統PE和系統殖利率算
-    const sys_grade = (stock.sys_ann_eps != null && stock.sys_ann_eps <= 0) ? 'X' : (stock.sys_ann_pe && stock.sys_ann_yld) ? _calcGrade(stock.sys_ann_pe, stock.sys_ann_yld) : null;
-
-    html += '<div class="dec-section"><div class="dec-title">評估方法比較</div>';
-    html += '<table class="dec-table"><thead><tr><th style="width:100px">方法</th><th>等級</th><th>PE</th><th>殖利率</th><th>EPS</th><th>股利</th></tr></thead><tbody>';
-    const weighted_grade = (weighted_eps != null && weighted_eps <= 0) ? 'X' : (weighted_pe && weighted_yld) ? _calcGrade(weighted_pe, weighted_yld) : null;
-    const methods = [
-      { name: '預估', grade: est_grade, eps: est_eps, pe: est_pe, yld: est_yld, div: est_div },
-      { name: '系統', grade: sys_grade, eps: stock.sys_ann_eps, pe: stock.sys_ann_pe, yld: stock.sys_ann_yld, div: stock.sys_ann_div },
-      { name: '沈董', grade: shen_grade, eps: shen_eps, pe: shen_pe, yld: shen_yld, div: shen_div },
-      { name: '綜合', grade: blend_grade, eps: blend_eps, pe: blend_pe, yld: blend_yld, div: blend_div },
-      { name: '加權', grade: weighted_grade, eps: weighted_eps, pe: weighted_pe, yld: weighted_yld, div: weighted_div },
-      { name: '近四季', grade: trailing_grade, eps: trailing_eps, pe: trailing_pe, yld: trailing_yld, div: trailing_div },
-    ];
-    methods.forEach(m => {
-      html += `<tr><td class="row-label">${m.name}</td>`;
-      html += `<td style="text-align:center">${_gradeHtml(m.grade)}</td>`;
-      html += `<td>${fmtV(m.pe)}</td>`;
-      html += `<td>${m.yld != null ? m.yld.toFixed(2) + '%' : '-'}</td>`;
-      html += `<td>${fmtV(m.eps)}</td><td>${fmtV(m.div)}</td></tr>`;
-    });
-    html += '</tbody></table></div>';
-
-    // === 歷史本益比 ===
-    const peHist = peData.data || [];
-    const peEst = peData.estimate || {};
-    if (peHist.length > 0) {
-      html += '<div class="dec-section"><div class="dec-title">歷史本益比（近 ' + peHist.length + ' 年）</div>';
-      html += '<table class="dec-table"><thead><tr><th style="width:100px">年度</th>';
-      peHist.forEach(d => { html += `<th>${d.year - 1911}</th>`; });
-      html += '</tr></thead><tbody>';
-      html += '<tr><td class="row-label">最高</td>';
-      peHist.forEach(d => { html += `<td style="color:#dc2626">${d.pe_high != null ? d.pe_high.toFixed(1) : '-'}</td>`; });
-      html += '</tr><tr><td class="row-label">最低</td>';
-      peHist.forEach(d => { html += `<td style="color:#16a34a">${d.pe_low != null ? d.pe_low.toFixed(1) : '-'}</td>`; });
-      html += '</tr></tbody></table>';
-      if (peEst.avg_high) {
-        html += '<div style="display:flex;gap:12px;align-items:center;margin-top:8px;font-size:.82rem;flex-wrap:wrap">';
-        html += '<span style="color:#64748b">統計：</span>';
-        html += `<span style="color:#475569">平均 <b style="color:#dc2626">${peEst.avg_high}</b> / <b style="color:#16a34a">${peEst.avg_low}</b></span>`;
-        html += `<span style="color:#475569">中位數 <b style="color:#dc2626">${peEst.median_high}</b> / <b style="color:#16a34a">${peEst.median_low}</b></span>`;
-        if (peEst.trimmed_avg_high) {
-          html += `<span style="color:#475569">去極值 <b style="color:#dc2626">${peEst.trimmed_avg_high}</b> / <b style="color:#16a34a">${peEst.trimmed_avg_low}</b></span>`;
-        }
-        html += '</div>';
-      }
-      html += '</div>';
+    // === 決策檢核表 ===
+    // 判斷財務等級是否 B 級以上（不含帶 - 的，不含 C/D/X）
+    function _isGradeAboveB(g) {
+      if (!g || g === '-') return false;
+      if (g.endsWith('-')) return false;
+      const base = g.replace(/[+-]/g, '');
+      return ['AA','A1','A2','A','B2A','B1A','B1','B2','BA1','BA2'].includes(base);
     }
 
-    // === 股利歷史表 ===
-    const divLabels = [];
-    for (let i = 1; i <= 6; i++) { const l = stock[`div_${i}_label`]; if (l) divLabels.push({ idx: i, label: l }); }
-    if (divLabels.length > 0) {
-      html += '<div class="dec-section"><div class="dec-title">股利歷史</div>';
-      html += '<table class="dec-table"><thead><tr><th style="width:100px">項目</th>';
-      divLabels.forEach(d => { html += `<th>${d.label}年</th>`; });
-      html += '</tr></thead><tbody>';
-      html += '<tr><td class="row-label">現金股利</td>';
-      divLabels.forEach(d => { const v = stock[`div_c${d.idx}`]; html += `<td>${v != null ? v.toFixed(2) : '-'}</td>`; });
-      html += '</tr><tr><td class="row-label">股票股利</td>';
-      divLabels.forEach(d => { const v = stock[`div_s${d.idx}`]; html += `<td>${v != null ? v.toFixed(2) : '-'}</td>`; });
-      html += '</tr><tr><td class="row-label">合計</td>';
-      divLabels.forEach(d => { const c = stock[`div_c${d.idx}`] || 0, s = stock[`div_s${d.idx}`] || 0; html += `<td style="font-weight:600">${(c+s) > 0 ? (c+s).toFixed(2) : '-'}</td>`; });
-      html += '</tr></tbody></table></div>';
-    }
+    // 檢核項目 1：近五年財務等級
+    const grades5 = [];
+    for (let i = 1; i <= 5; i++) { grades5.push(stock[`fin_grade_${i}`] || null); }
+    const gradesAboveB = grades5.filter(g => _isGradeAboveB(g)).length;
+    const recent2ok = _isGradeAboveB(grades5[0]) && _isGradeAboveB(grades5[1]);
+    const chk1_pass = gradesAboveB >= 3 && recent2ok;
+    const chk1_detail = grades5.map((g, i) => {
+      if (!g) return `Y${i+1}:--`;
+      const ok = _isGradeAboveB(g);
+      return `<span style="color:${ok ? '#16a34a' : '#dc2626'}">${g}</span>`;
+    }).join(' / ');
 
-    // === 季度表 ===
-    const sysQQuarter = qEst.quarter || stock.sys_est_quarter || '';
-    const qHeaders = ['自行估算(季)', (sysQQuarter || '系統') + '系統預估', ...quarters.map(q => q.quarter)];
-
-    const qRows = [
-      { label: '營業收入', key: 'revenue', fmt: fmtM, unit: '百萬' },
-      { label: '營業成本', key: 'cost', fmt: fmtM },
-      { label: '營業毛利', key: 'gross_profit', fmt: fmtM },
-      { label: '毛利率', key: 'gross_margin', fmt: fmtP },
-      { label: '營業費用', key: 'operating_expense', fmt: fmtM },
-      { label: '營業利益', key: 'operating_income', fmt: fmtM },
-      { label: '業外收支', key: 'non_operating', fmt: fmtM },
-      { label: '稅前淨利', key: 'pretax_income', fmt: fmtM },
-      { label: '稅', key: 'tax', fmt: fmtM },
-      { label: '稅率', key: 'tax_rate', fmt: fmtP },
-      { label: '繼續營業單位損益', key: 'net_income_parent', fmt: fmtM },
-      { label: '歸屬母公司權重', key: 'parent_weight', fmt: fmtP },
-      { label: 'EPS', key: 'eps', fmt: fmt2 },
-      { label: '每股盈餘-本業', key: 'eps_core', fmt: fmt2 },
-      { label: '每股盈餘-業外', key: 'eps_nonop', fmt: fmt2 },
+    // 組裝檢核清單
+    const checks = [
+      { cond: '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上', pass: chk1_pass, detail: chk1_detail },
     ];
 
-    // 季度系統預估欄位對照
-    const sysQMap = {
-      'revenue': qEstDet.est_revenue,
-      'cost': (qEstDet.est_revenue != null && qEstDet.est_gross_profit != null) ? qEstDet.est_revenue - qEstDet.est_gross_profit : null,
-      'gross_profit': qEstDet.est_gross_profit,
-      'gross_margin': qEstDet.est_gm,
-      'operating_expense': qEstDet.est_opex,
-      'operating_income': qEstDet.est_oi,
-      'non_operating': qEstDet.est_nonop,
-      'pretax_income': qEstDet.est_pti,
-      'tax': (qEstDet.est_pti != null && qEstDet.est_tax_rate != null) ? qEstDet.est_pti * qEstDet.est_tax_rate / 100 : null,
-      'tax_rate': qEstDet.est_tax_rate,
-      'net_income_parent': qEstDet.est_ni,
-      'parent_weight': qEstDet.est_pw,
-      'eps': qEst.est_eps,
-      'eps_core': qEstDet.est_eps_core,
-      'eps_nonop': qEstDet.est_eps_nonop,
-    };
+    const passCount = checks.filter(c => c.pass).length;
+    const totalCount = checks.length;
+    const scoreClass = passCount === totalCount ? 'chk-score-pass' : passCount >= totalCount * 0.6 ? 'chk-score-warn' : 'chk-score-fail';
 
-    html += '<div class="dec-section"><div class="dec-title">季度資料（最近四季）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
-    html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
-    qHeaders.forEach(h => {
-      html += `<th>${h}</th>`;
-    });
-    html += '</tr></thead><tbody>';
+    let html = '';
+    // 頂部摘要
+    html += '<div class="chk-summary">';
+    html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
+    html += `<span class="chk-score ${scoreClass}">${passCount} / ${totalCount} 通過</span>`;
+    html += '</div>';
 
-    qRows.forEach(row => {
-      // 自行估算值（從 localStorage 季估計表）
-      const ueRaw = ueQ[row.key];
-      let userVal = '-';
-      if (ueRaw != null) {
-        if (row.key === 'revenue' || row.key === 'cost' || row.key === 'gross_profit' || row.key === 'operating_expense' || row.key === 'operating_income' || row.key === 'non_operating' || row.key === 'pretax_income' || row.key === 'tax' || row.key === 'net_income_parent') {
-          userVal = fmtMd(ueRaw);
-        } else {
-          userVal = row.fmt(ueRaw);
-        }
-      }
-      // 系統預估值
-      const sysRaw = sysQMap[row.key];
-      let sysVal = sysRaw != null ? row.fmt(sysRaw) : '-';
-
-      html += `<tr><td class="row-label">${row.label}</td>`;
-      html += `<td class="col-est">${userVal}</td>`;
-      html += `<td class="col-sys">${sysVal}</td>`;
-      quarters.forEach(q => {
-        html += `<td>${row.fmt(q[row.key])}</td>`;
-      });
+    // 檢核表格
+    html += '<table class="chk-table">';
+    html += '<thead><tr><th>#</th><th>條件</th><th>是</th><th>否</th></tr></thead>';
+    html += '<tbody>';
+    checks.forEach((c, idx) => {
+      html += '<tr>';
+      html += `<td>${idx + 1}</td>`;
+      html += `<td class="chk-cond">${c.cond}`;
+      if (c.detail) html += `<div class="chk-detail">${c.detail}</div>`;
+      html += '</td>';
+      html += `<td class="chk-yes">${c.pass ? 'V' : ''}</td>`;
+      html += `<td class="chk-no">${c.pass ? '' : 'X'}</td>`;
       html += '</tr>';
     });
-    html += '</tbody></table></div>';
-
-    // === 年度表 ===
-    const estRocYear = annEst.target ? annEst.target.replace('年度', '年系統預估') : '系統預估';
-    const aHeaders = ['自行估算(年)', estRocYear, ...annuals.map(a => (a.year - 1911) + '年')];
-
-    const aRows = [
-      { label: '營業收入', key: 'revenue', fmt: fmtM, est: 'est_revenue' },
-      { label: '營業成本', key: 'cost', fmt: fmtM, est: '_est_cost' },
-      { label: '營業毛利', key: 'gross_profit', fmt: fmtM, est: 'est_gross_profit' },
-      { label: '毛利率', key: null, fmt: fmtP, calc: d => d.revenue > 0 && d.gross_profit != null ? d.gross_profit/d.revenue*100 : null, est: 'est_gm' },
-      { label: '營業費用', key: 'operating_expense', fmt: fmtM, est: 'est_opex' },
-      { label: '營業利益', key: 'operating_income', fmt: fmtM, est: 'est_oi' },
-      { label: '業外收支', key: 'non_operating', fmt: fmtM, est: 'est_nonop' },
-      { label: '稅前淨利', key: 'pretax_income', fmt: fmtM, est: 'est_pti' },
-      { label: '稅', key: 'tax', fmt: fmtM, est: '_est_tax' },
-      { label: '稅率', key: null, fmt: fmtP, calc: d => d.pretax_income > 0 && d.tax != null ? d.tax/d.pretax_income*100 : null, est: 'est_tax_rate', estFmt: v => fmtP(v * 100) },
-      { label: '繼續營業單位損益', key: 'net_income', fmt: fmtM, est: 'est_ni' },
-      { label: 'EPS', key: 'eps', fmt: fmt2, estTop: true },
-      { label: '現金股利', key: 'cash_dividend', fmt: fmt2, est: 'est_div' },
-      { label: '股票股利', key: 'stock_dividend', fmt: fmt2 },
-    ];
-
-    const bsRows = [
-      { label: '資產總額', key: 'total_assets', fmt: fmtM },
-      { label: '股東權益總額', key: 'total_equity', fmt: fmtM },
-      { label: '存貨', key: 'inventory', fmt: fmtM },
-      { label: '合約負債', key: 'contract_liability', fmt: fmtM },
-    ];
-
-    const cfRows = [
-      { label: '來自營運之現金流量', key: 'operating_cf', fmt: fmtM },
-      { label: '購置不動產廠房設備', key: 'capex', fmt: fmtM },
-    ];
-
-    html += '<div class="dec-section"><div class="dec-title">年度資料（最近四年）　<span style="font-size:.78rem;color:#94a3b8;font-weight:400">金額單位：百萬元</span></div>';
-    html += '<table class="dec-table"><thead><tr><th style="width:140px">項目</th>';
-    aHeaders.forEach(h => {
-      html += `<th>${h}</th>`;
-    });
-    html += '</tr></thead><tbody>';
-
-    // 財務等級（與年度欄數一致）
-    html += '<tr><td class="row-label">財務等級</td><td class="col-est">-</td><td class="col-sys">-</td>';
-    for (let i = 1; i <= annuals.length; i++) {
-      const grade = stock[`fin_grade_${i}`] || '-';
-      const gradeColor = grade.includes('AA') ? '#dc2626' : (grade.includes('A') ? '#ea580c' : '#94a3b8');
-      html += `<td class="grade-cell" style="color:${gradeColor};font-weight:700">${grade}</td>`;
-    }
-    html += '</tr>';
-
-    // 損益表
-    const renderAnnRow = (row) => {
-      // 自行估算(年)值
-      let ueYRaw = row.key ? ueY[row.key] : null;
-      // 毛利率、稅率等 calc 欄位
-      if (ueYRaw == null && row.calc) ueYRaw = row.calc(ueY);
-      let userYVal = '-';
-      if (ueYRaw != null) {
-        if (row.key === 'revenue' || row.key === 'cost' || row.key === 'gross_profit' || row.key === 'operating_expense' || row.key === 'operating_income' || row.key === 'non_operating' || row.key === 'pretax_income' || row.key === 'tax' || row.key === 'net_income' || row.key === 'net_income_parent') {
-          userYVal = fmtMd(ueYRaw);
-        } else {
-          userYVal = row.fmt(ueYRaw);
-        }
-      }
-
-      // 系統預估值
-      let estVal = '-';
-      if (row.estTop && annEst.est_eps != null) estVal = fmt2(annEst.est_eps);
-      else if (row.est && annDet[row.est] != null) {
-        estVal = row.estFmt ? row.estFmt(annDet[row.est]) : row.fmt(annDet[row.est]);
-      }
-
-      html += `<tr><td class="row-label">${row.label}</td>`;
-      html += `<td class="col-est">${userYVal}</td>`;
-      html += `<td class="col-sys">${estVal}</td>`;
-      annuals.forEach(a => {
-        let v = row.key ? a[row.key] : (row.calc ? row.calc(a) : null);
-        html += `<td>${row.fmt(v)}</td>`;
-      });
-      html += '</tr>';
-    };
-
-    aRows.forEach(renderAnnRow);
-
-    // 資產負債表分隔
-    html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">資產負債表</td></tr>';
-    bsRows.forEach(renderAnnRow);
-
-    // 現金流量表分隔
-    html += '<tr class="section-row"><td colspan="' + (aHeaders.length + 1) + '">現金流量表</td></tr>';
-    cfRows.forEach(renderAnnRow);
-
-    html += '</tbody></table></div>';
+    html += '</tbody></table>';
 
     panel.innerHTML = html;
   } catch(e) {
