@@ -602,6 +602,8 @@ def calc_all_checklists():
 
     conn.commit()
     conn.close()
+    global _stocks_cache_time
+    _stocks_cache_time = 0  # 清快取，讓下次 API 重新查詢
     print(f"[Checklist] 已計算 {count} 支股票檢核表")
     return count
 
@@ -679,6 +681,8 @@ def _recalc_checklist_single(code):
                result['lt5'], result['lt6'], result['lt7'], now))
     conn.commit()
     conn.close()
+    global _stocks_cache_time
+    _stocks_cache_time = 0  # 清快取
 
 
 # ── 取得全部股票 ────────────────────────────────────────────
@@ -2833,6 +2837,24 @@ def save_user_estimate(code):
     # 即時重算該股檢核表
     try: _recalc_checklist_single(code)
     except Exception: pass
+    # 本機才推 Render（背景執行避免阻塞）
+    if not os.environ.get('DATABASE_URL'):
+        def _push_single():
+            try:
+                from render_sync import _push_table_to_render
+                _push_table_to_render(
+                    table='stock_checklist',
+                    columns=['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
+                             'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12','chk_13',
+                             'pass_count','total_count','detail',
+                             'eps_setting','div_setting','yld_high','yld_max','pe_high','pe_low',
+                             'lt_div','lt_yld','val_a','val_a1','val_a2','val_aa','lt5','lt6','lt7',
+                             'updated_at'],
+                    pk=['code'],
+                    where=f"WHERE code='{code}'",
+                )
+            except Exception: pass
+        threading.Thread(target=_push_single, daemon=True).start()
     return jsonify({"status": "ok"})
 
 # ── 啟動 ────────────────────────────────────────────────────
