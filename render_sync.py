@@ -91,7 +91,6 @@ def _push_all_to_render():
                         'operating_income','non_operating','pretax_income','tax','continuing_income',
                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
             'pk': ['code','quarter'],
-            'where': "WHERE DATE(updated_at) = DATE('now')",
         },
         {
             'table': 'financial_annual',
@@ -101,7 +100,6 @@ def _push_all_to_render():
                         'contract_liability','operating_cf','capex','eps',
                         'weighted_shares','cash_dividend','stock_dividend','updated_at'],
             'pk': ['code','year'],
-            'where': "WHERE DATE(updated_at) = DATE('now')",
         },
         {
             'table': 'pe_history',
@@ -251,8 +249,7 @@ def _push_financial_detail_to_render():
     try:
         conn = sqlite3.connect(DB_PATH)
         rows = conn.execute("""SELECT code, period, period_type, report_type, item, value, updated_at
-                              FROM financial_detail
-                              WHERE DATE(updated_at) = DATE('now')""").fetchall()
+                              FROM financial_detail""").fetchall()
         conn.close()
 
         if not rows:
@@ -293,7 +290,6 @@ def _push_financial_annual_to_render():
                               contract_liability, operating_cf, capex, eps,
                               weighted_shares, cash_dividend, stock_dividend, updated_at
                               FROM financial_annual
-                              WHERE DATE(updated_at) = DATE('now')
                               ORDER BY code, year""").fetchall()
         conn.close()
 
@@ -337,7 +333,6 @@ def _push_quarterly_to_render():
                               operating_income, non_operating, pretax_income, tax, continuing_income,
                               net_income_parent, eps, contract_liability, updated_at
                               FROM quarterly_financial
-                              WHERE DATE(updated_at) = DATE('now')
                               ORDER BY code, quarter""").fetchall()
         conn.close()
 
