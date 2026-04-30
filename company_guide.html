@@ -103,6 +103,48 @@
   </div>
 </div>
 
+<!-- 逍遙價值投資評價法 EPS/股利設定 -->
+<div class="section" id="sec-valmethod-eps">
+  <div class="section-title" onclick="toggleSection(this)">逍遙價值投資評價法 — EPS / 股利設定邏輯 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="140">欄位</th><th width="120">自動帶入優先順序</th><th>說明</th></tr>
+      <tr><td class="field">EPS設定</td><td>
+        1. 使用者手動儲存值<br>
+        2. Q1~Q4 預估 EPS 加總<br>
+        3. 系統預估 EPS<br>
+        4. 沈董 EPS
+      </td><td>
+        開啟個股頁時自動帶入，優先順序由高到低<div class="note">
+        手動儲存值 = 之前在「EPS設定」欄位手動改過並儲存的值（存在 localStorage/DB vmEps）<br>
+        Q1~Q4 加總 = 季度估計表的 Q1~Q4 EPS 欄位有值就加總<br>
+        系統預估 = 系統根據月營收推算的年度 EPS<br>
+        沈董 = 已公佈季度 EPS 年化</div>
+      </td></tr>
+      <tr><td class="field">股利設定</td><td>
+        1. 使用者手動儲存值<br>
+        2. 預估現金股利<br>
+        3. 系統預估股利<br>
+        4. 沈董股利
+      </td><td>
+        同 EPS 邏輯<div class="note">
+        預估現金股利 = 季度估計表「預估現金股利」欄位<br>
+        系統預估股利 = 系統EPS × 平均配息率<br>
+        沈董股利 = 沈董EPS × 平均配息率</div>
+      </td></tr>
+      <tr><td class="field">長期現金股利水準</td><td>
+        1. 使用者手動儲存值<br>
+        2. 綜合股利
+      </td><td>用於計算長期殖利率價格（5%/6%/7%）<div class="note">綜合股利 = 沈董股利×權重 + 加權股利×權重</div></td></tr>
+      <tr><td class="field">偏高殖利率 / 最高殖利率</td><td>自動帶入</td><td>從「參數設定」區的個股自訂值讀取<div class="note">預設：偏高 5.5% / 最高 6%</div></td></tr>
+      <tr><td class="field">長期殖利率設定</td><td><span class="input-tag editable">可輸入</span></td><td>預設 6%，全部公司共用<div class="note">影響長期 5%/6%/7% 價格計算的分母</div></td></tr>
+    </table>
+    <div class="legend">
+      <span>連動機制：季度估計表的 Q1~Q4 EPS 或預估股利變動時，會自動同步更新 EPS設定 和 股利設定</span>
+    </div>
+  </div>
+</div>
+
 <!-- 決策表 - 可輸入欄位 -->
 <div class="section" id="sec-input">
   <div class="section-title" onclick="toggleSection(this)">決策表 — 可輸入欄位（使用者設定）<span class="arrow">▼</span></div>
