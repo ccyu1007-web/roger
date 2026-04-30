@@ -606,15 +606,23 @@ async function loadDecision() {
   const panel = document.getElementById('panel');
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入檢核表...</div></div>';
   try {
-    const [clRes, sRes, noteRes] = await Promise.all([
+    const [clRes, sRes, noteRes, ueRes] = await Promise.all([
       fetch(`/api/stocks/${CODE}/checklist`),
       fetch(`/api/stocks?exact=${CODE}`),
-      fetch(`/api/user-notes/${CODE}`)
+      fetch(`/api/user-notes/${CODE}`),
+      fetch(`/api/user-estimates/${CODE}`)
     ]);
     const cl = await clRes.json();
     const sData = await sRes.json();
     const noteData = await noteRes.json();
+    const ueData = await ueRes.json();
     const stock = (sData.data || [])[0] || {};
+
+    // 預估 EPS/股利（使用者手動輸入）
+    let _estEps = null, _estDiv = null;
+    const _qs = [ueData.q1, ueData.q2, ueData.q3, ueData.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
+    if (_qs.length > 0) _estEps = Math.round(_qs.reduce((a,b) => a+b, 0) * 100) / 100;
+    if (ueData.div) _estDiv = parseFloat(ueData.div);
 
     const close = stock.close;
     const chg = stock.change;
@@ -675,22 +683,52 @@ async function loadDecision() {
         if (lbl) payoutYears.push({ year: lbl, eps, div });
       }
       if (payoutYears.length > 0) {
+        const _f = v => v != null ? Number(v).toFixed(2) : '-';
+        const _shenEps = stock.shen_eps;
+        const _shenDiv = stock.shen_div;
+        const _thBase = 'padding:8px 10px;background:#1e3a5f;color:#fff;font-weight:700';
+        const _tdBase = 'padding:8px 10px;border:1px solid #e2e8f0';
+        const _tdEst = 'padding:8px 10px;border:1px solid #e2e8f0;background:#eff6ff';
+        const _tdShen = 'padding:8px 10px;border:1px solid #e2e8f0;background:#f0fdf4';
+
         html += '<div style="margin-top:24px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid #e2e8f0">';
         html += '<div style="font-size:1rem;font-weight:700;color:#1e3a5f;margin-bottom:12px">配息率歷史（近 ' + payoutYears.length + ' 年）</div>';
         html += '<table style="width:100%;border-collapse:collapse;font-size:.85rem;text-align:center">';
-        html += '<thead><tr><th style="padding:8px 10px;background:#1e3a5f;color:#fff;font-weight:600;width:80px">年度</th>';
-        payoutYears.forEach(y => { html += `<th style="padding:8px 10px;background:#1e3a5f;color:#fff;font-weight:700">${y.year}</th>`; });
+        html += '<thead><tr><th style="' + _thBase + ';width:80px">年度</th>';
+        html += `<th style="${_thBase};background:#2563eb">預估</th>`;
+        html += `<th style="${_thBase};background:#059669">沈董</th>`;
+        payoutYears.forEach(y => { html += `<th style="${_thBase}">${y.year}</th>`; });
         html += '</tr></thead><tbody>';
-        html += '<tr><td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f">EPS</td>';
-        payoutYears.forEach(y => { html += `<td style="padding:8px 10px;border:1px solid #e2e8f0">${y.eps != null ? y.eps.toFixed(2) : '-'}</td>`; });
-        html += '</tr><tr><td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f">現金股利</td>';
-        payoutYears.forEach(y => { html += `<td style="padding:8px 10px;border:1px solid #e2e8f0">${y.div != null ? y.div.toFixed(2) : '-'}</td>`; });
-        html += '</tr><tr><td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f">配息率</td>';
+
+        // EPS
+        html += `<tr><td style="${_tdBase};font-weight:600;color:#1e3a5f">EPS</td>`;
+        html += `<td style="${_tdEst};font-weight:600">${_f(_estEps)}</td>`;
+        html += `<td style="${_tdShen};font-weight:600">${_f(_shenEps)}</td>`;
+        payoutYears.forEach(y => { html += `<td style="${_tdBase}">${_f(y.eps)}</td>`; });
+
+        // 現金股利
+        html += `</tr><tr><td style="${_tdBase};font-weight:600;color:#1e3a5f">現金股利</td>`;
+        html += `<td style="${_tdEst};font-weight:600">${_f(_estDiv)}</td>`;
+        html += `<td style="${_tdShen};font-weight:600">${_f(_shenDiv)}</td>`;
+        payoutYears.forEach(y => { html += `<td style="${_tdBase}">${_f(y.div)}</td>`; });
+
+        // 配息率
+        html += `</tr><tr><td style="${_tdBase};font-weight:600;color:#1e3a5f">配息率</td>`;
+        // 預估配息率
+        let _estPr = '-';
+        if (_estEps != null && _estEps > 0 && _estDiv != null) _estPr = Math.round(_estDiv / _estEps * 100) + '%';
+        else if (_estEps != null && _estEps <= 0 && _estDiv != null && _estDiv > 0) _estPr = '100%';
+        html += `<td style="${_tdEst};font-weight:700;color:#2563eb">${_estPr}</td>`;
+        // 沈董配息率
+        let _shenPr = '-';
+        if (_shenEps != null && _shenEps > 0 && _shenDiv != null) _shenPr = Math.round(_shenDiv / _shenEps * 100) + '%';
+        else if (_shenEps != null && _shenEps <= 0 && _shenDiv != null && _shenDiv > 0) _shenPr = '100%';
+        html += `<td style="${_tdShen};font-weight:700;color:#2563eb">${_shenPr}</td>`;
         payoutYears.forEach(y => {
           let pr = '-';
           if (y.eps != null && y.eps > 0 && y.div != null) pr = Math.round(y.div / y.eps * 100) + '%';
           else if (y.eps != null && y.eps <= 0 && y.div != null && y.div > 0) pr = '100%';
-          html += `<td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#2563eb">${pr}</td>`;
+          html += `<td style="${_tdBase};font-weight:700;color:#2563eb">${pr}</td>`;
         });
         html += '</tr></tbody></table></div>';
       }
