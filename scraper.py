@@ -1851,11 +1851,13 @@ def _sync_eps_from_quarterly():
         c.execute("""UPDATE stocks SET
             eps_1=?, eps_1q=?, eps_2=?, eps_2q=?, eps_3=?, eps_3q=?,
             eps_4=?, eps_4q=?, eps_5=?, eps_5q=?,
-            eps_ytd=?, eps_ytd_label=? WHERE code=?""",
+            eps_ytd=?, eps_ytd_label=?,
+            eps_date=? WHERE code=?""",
             (vals['eps_1'], vals['eps_1q'], vals['eps_2'], vals['eps_2q'],
              vals['eps_3'], vals['eps_3q'], vals['eps_4'], vals['eps_4q'],
              vals['eps_5'], vals['eps_5q'],
-             vals.get('eps_ytd'), vals.get('eps_ytd_label'), code))
+             vals.get('eps_ytd'), vals.get('eps_ytd_label'),
+             datetime.now().strftime('%Y-%m-%d'), code))
         if c.rowcount:
             updated += 1
 
