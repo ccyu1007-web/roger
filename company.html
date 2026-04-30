@@ -1015,9 +1015,9 @@ async function loadDecision() {
     });
     html += '</tr></thead><tbody>';
 
-    // 財務等級（緊接表頭下方）
+    // 財務等級（與年度欄數一致）
     html += '<tr><td class="row-label">財務等級</td><td class="col-est">-</td><td class="col-sys">-</td>';
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= annuals.length; i++) {
       const grade = stock[`fin_grade_${i}`] || '-';
       const gradeColor = grade.includes('AA') ? '#dc2626' : (grade.includes('A') ? '#ea580c' : '#94a3b8');
       html += `<td class="grade-cell" style="color:${gradeColor};font-weight:700">${grade}</td>`;
