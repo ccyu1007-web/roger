@@ -665,6 +665,37 @@ async function loadDecision() {
     }
     html += '</tbody></table>';
 
+    // === 配息率歷史（近5年）===
+    {
+      const payoutYears = [];
+      for (let i = 1; i <= 5; i++) {
+        const lbl = stock[`eps_y${i}_label`];
+        const eps = stock[`eps_y${i}`];
+        const div = stock[`div_c${i}`];
+        if (lbl) payoutYears.push({ year: lbl, eps, div });
+      }
+      if (payoutYears.length > 0) {
+        html += '<div style="margin-top:24px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid #e2e8f0">';
+        html += '<div style="font-size:1rem;font-weight:700;color:#1e3a5f;margin-bottom:12px">配息率歷史（近 ' + payoutYears.length + ' 年）</div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:.85rem;text-align:center">';
+        html += '<thead><tr><th style="padding:8px 10px;background:#1e3a5f;color:#fff;font-weight:600;width:80px">年度</th>';
+        payoutYears.forEach(y => { html += `<th style="padding:8px 10px;background:#1e3a5f;color:#fff;font-weight:700">${y.year}</th>`; });
+        html += '</tr></thead><tbody>';
+        html += '<tr><td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f">EPS</td>';
+        payoutYears.forEach(y => { html += `<td style="padding:8px 10px;border:1px solid #e2e8f0">${y.eps != null ? y.eps.toFixed(2) : '-'}</td>`; });
+        html += '</tr><tr><td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f">現金股利</td>';
+        payoutYears.forEach(y => { html += `<td style="padding:8px 10px;border:1px solid #e2e8f0">${y.div != null ? y.div.toFixed(2) : '-'}</td>`; });
+        html += '</tr><tr><td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f">配息率</td>';
+        payoutYears.forEach(y => {
+          let pr = '-';
+          if (y.eps != null && y.eps > 0 && y.div != null) pr = Math.round(y.div / y.eps * 100) + '%';
+          else if (y.eps != null && y.eps <= 0 && y.div != null && y.div > 0) pr = '100%';
+          html += `<td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#2563eb">${pr}</td>`;
+        });
+        html += '</tr></tbody></table></div>';
+      }
+    }
+
     // === 逍遙價值投資評價法（從 DB）===
     if (cl.eps_setting != null || cl.val_a != null) {
       const f = v => v != null ? Number(v).toFixed(2) : '-';
