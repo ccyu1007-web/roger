@@ -647,7 +647,7 @@ async function loadDecision() {
 
     const detail = cl.detail || {};
     const passCount = cl.pass_count || 0;
-    const totalCount = cl.total_count || 12;
+    const totalCount = cl.total_count || 13;
     const scoreClass = passCount >= totalCount * 0.8 ? 'chk-score-pass' : passCount >= totalCount * 0.5 ? 'chk-score-warn' : 'chk-score-fail';
 
     let html = '';

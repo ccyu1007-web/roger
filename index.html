@@ -2495,11 +2495,12 @@ function renderSummary() {
 }
 
 function exportCSV() {
-  const headers = ['代碼','名稱','市場','產業別','收盤價','漲跌','外資','投信','自營商','240日漲跌幅',
+  const headers = ['代碼','名稱','市場','產業別','檢核','收盤價','漲跌','外資','投信','自營商','240日漲跌幅',
     '近四季EPS','近四季PE','評價AA','評價A1','評價A2','評價A','長期6%','沈董EPS','沈董PE','沈董股利','沈董殖利率','沈董等級',
     '累積營收年增率','營收年增率','營收月增率'];
   const rows = filtered.map(r => [
     r.code, r.name, r.market, r.industry || '',
+    r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '',
     r.close, r.change, r.inst_foreign, r.inst_trust, r.inst_dealer, r.change_240d,
     r.eps_4q_sum, r.trailing_pe, r.val_aa, r.val_a1, r.val_a2, r.val_a, r.val_lt6, r.shen_eps, r.shen_pe, r.shen_div, r.shen_yld, r.shen_grade || '',
     r.revenue_cum_yoy, r.revenue_yoy, r.revenue_mom,
@@ -2514,10 +2515,10 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const ths = [1,2,3,4].map(i => document.querySelector(`thead th:nth-child(${i})`));
+  const ths = [1,2,3,4,5].map(i => document.querySelector(`thead th:nth-child(${i})`));
   if (!ths[0]) return;
   let left = 0;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     if (!ths[i]) break;
     const n = i + 1;
     document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
