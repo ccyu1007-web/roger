@@ -662,6 +662,40 @@ async function loadDecision() {
     }
     html += '</tbody></table>';
 
+    // === 逍遙價值投資評價法（從 DB）===
+    if (cl.eps_setting != null || cl.val_a != null) {
+      const f = v => v != null ? Number(v).toFixed(2) : '-';
+      html += '<div style="margin-top:24px;padding:16px 20px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">';
+      html += '<div style="font-size:1rem;font-weight:700;color:#7c3aed;margin-bottom:12px">逍遙價值投資評價法</div>';
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;margin-bottom:12px">';
+      html += `<span><span style="color:#7c3aed;font-weight:600">EPS設定</span> ${f(cl.eps_setting)}</span>`;
+      html += `<span><span style="color:#7c3aed;font-weight:600">股利設定</span> ${f(cl.div_setting)}</span>`;
+      html += `<span><span style="color:#dc2626;font-weight:600">偏高殖利率</span> ${cl.yld_high || 5.5}%</span>`;
+      html += `<span><span style="color:#dc2626;font-weight:600">最高殖利率</span> ${cl.yld_max || 6}%</span>`;
+      html += '</div>';
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:.85rem;margin-bottom:12px">';
+      html += `<span><span style="color:#7c3aed;font-weight:600">長期現金股利水準</span> ${f(cl.lt_div)}</span>`;
+      html += `<span><span style="color:#7c3aed;font-weight:600">長期殖利率設定</span> ${cl.lt_yld || 6}%</span>`;
+      html += '</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:.85rem;text-align:center">';
+      html += '<thead><tr>';
+      ['股價','A級評價','A1級評價','A2級評價','AA級評價','長期5%','長期6%','長期7%'].forEach(h => {
+        html += `<th style="padding:8px 10px;background:#6d28d9;color:#fff;font-weight:600">${h}</th>`;
+      });
+      html += '</tr></thead><tbody><tr>';
+      html += `<td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600">${f(close)}</td>`;
+      const valCells = [
+        { v: cl.val_a, cls: '#16a34a' }, { v: cl.val_a1, cls: '#6d28d9' },
+        { v: cl.val_a2, cls: '#6d28d9' }, { v: cl.val_aa, cls: '#6d28d9' },
+        { v: cl.lt5, cls: '#166534' }, { v: cl.lt6, cls: '#166534' }, { v: cl.lt7, cls: '#166534' },
+      ];
+      valCells.forEach(c => {
+        const hit = c.v != null && close != null && close <= c.v;
+        html += `<td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:${c.cls}${hit ? ';background:#fef3c7' : ''}">${f(c.v)}</td>`;
+      });
+      html += '</tr></tbody></table></div>';
+    }
+
     if (cl.updated_at) {
       html += `<div style="text-align:right;font-size:.75rem;color:#94a3b8;margin-top:8px">更新時間：${cl.updated_at}</div>`;
     }

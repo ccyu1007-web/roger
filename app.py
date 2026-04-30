@@ -202,8 +202,21 @@ def _init_checklist_db():
         chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
         pass_count INTEGER, total_count INTEGER DEFAULT 12,
         detail TEXT,
+        eps_setting REAL, div_setting REAL,
+        yld_high REAL, yld_max REAL, pe_high REAL, pe_low REAL,
+        lt_div REAL, lt_yld REAL,
+        val_a REAL, val_a1 REAL, val_a2 REAL, val_aa REAL,
+        lt5 REAL, lt6 REAL, lt7 REAL,
         updated_at TEXT
     )""")
+    # 既有表加欄位
+    for col, typ in [('eps_setting','REAL'),('div_setting','REAL'),
+                     ('yld_high','REAL'),('yld_max','REAL'),('pe_high','REAL'),('pe_low','REAL'),
+                     ('lt_div','REAL'),('lt_yld','REAL'),
+                     ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
+                     ('lt5','REAL'),('lt6','REAL'),('lt7','REAL')]:
+        try: conn.execute(f"ALTER TABLE stock_checklist ADD COLUMN {col} {typ}")
+        except Exception: pass
     conn.commit()
     conn.close()
 
@@ -381,7 +394,14 @@ def _calc_checklist_for_stock(r, user_params=None):
     pe_mid = (pe_hi + pe_lo) / 2
     pe_lo_bias = (pe_mid + pe_lo) / 2
     val_aa = _calc_val(pe_lo, y_max)
+    val_a1 = _calc_val(pe_lo, y_high)
+    val_a2 = _calc_val(pe_lo_bias, y_max)
     val_a = _calc_val(pe_lo_bias, y_high)
+    lt_div = blend_div
+    lt_yld = 6
+    lt5 = round(lt_div / 0.05, 2) if lt_div and lt_div > 0 else None
+    lt6 = round(lt_div / 0.06, 2) if lt_div and lt_div > 0 else None
+    lt7 = round(lt_div / 0.07, 2) if lt_div and lt_div > 0 else None
 
     # === 12 項檢核 ===
 
@@ -460,6 +480,21 @@ def _calc_checklist_for_stock(r, user_params=None):
         'pass_count': pass_count,
         'total_count': 12,
         'detail': json.dumps(detail, ensure_ascii=False),
+        'eps_setting': val_eps,
+        'div_setting': val_div,
+        'yld_high': y_high,
+        'yld_max': y_max,
+        'pe_high': pe_hi,
+        'pe_low': pe_lo,
+        'lt_div': lt_div,
+        'lt_yld': lt_yld,
+        'val_a': val_a,
+        'val_a1': val_a1,
+        'val_a2': val_a2,
+        'val_aa': val_aa,
+        'lt5': lt5,
+        'lt6': lt6,
+        'lt7': lt7,
     }
 
 def calc_all_checklists():
@@ -505,20 +540,36 @@ def calc_all_checklists():
         c.execute("""INSERT INTO stock_checklist
                      (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
                       chk_7, chk_8, chk_9, chk_10, chk_11, chk_12,
-                      pass_count, total_count, detail, updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                      pass_count, total_count, detail,
+                      eps_setting, div_setting, yld_high, yld_max, pe_high, pe_low,
+                      lt_div, lt_yld, val_a, val_a1, val_a2, val_aa, lt5, lt6, lt7,
+                      updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                      ON CONFLICT(code) DO UPDATE SET
                       chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
                       chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
                       chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
                       chk_10=excluded.chk_10, chk_11=excluded.chk_11, chk_12=excluded.chk_12,
                       pass_count=excluded.pass_count, total_count=excluded.total_count,
-                      detail=excluded.detail, updated_at=excluded.updated_at""",
+                      detail=excluded.detail,
+                      eps_setting=excluded.eps_setting, div_setting=excluded.div_setting,
+                      yld_high=excluded.yld_high, yld_max=excluded.yld_max,
+                      pe_high=excluded.pe_high, pe_low=excluded.pe_low,
+                      lt_div=excluded.lt_div, lt_yld=excluded.lt_yld,
+                      val_a=excluded.val_a, val_a1=excluded.val_a1,
+                      val_a2=excluded.val_a2, val_aa=excluded.val_aa,
+                      lt5=excluded.lt5, lt6=excluded.lt6, lt7=excluded.lt7,
+                      updated_at=excluded.updated_at""",
                   (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
                    result['chk_4'], result['chk_5'], result['chk_6'],
                    result['chk_7'], result['chk_8'], result['chk_9'],
                    result['chk_10'], result['chk_11'], result['chk_12'],
-                   result['pass_count'], result['total_count'], result['detail'], now))
+                   result['pass_count'], result['total_count'], result['detail'],
+                   result['eps_setting'], result['div_setting'],
+                   result['yld_high'], result['yld_max'], result['pe_high'], result['pe_low'],
+                   result['lt_div'], result['lt_yld'],
+                   result['val_a'], result['val_a1'], result['val_a2'], result['val_aa'],
+                   result['lt5'], result['lt6'], result['lt7'], now))
         count += 1
 
     conn.commit()
