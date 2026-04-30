@@ -601,343 +601,70 @@ function switchTab(tab) {
   else loadIndustry();
 }
 
-// ── 載入決策表 ──
+// ── 載入決策表（從 DB 讀取檢核表）──
 async function loadDecision() {
   const panel = document.getElementById('panel');
-  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入決策表...</div></div>';
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入檢核表...</div></div>';
   try {
-    const [qRes, fRes, sRes, aeRes, qeRes, peRes] = await Promise.all([
-      fetch(`/api/stocks/${CODE}/quarterly`),
-      fetch(`/api/stocks/${CODE}/financials`),
-      fetch(`/api/stocks?exact=${CODE}`),
-      fetch(`/api/stocks/${CODE}/system-estimate-annual`),
-      fetch(`/api/stocks/${CODE}/system-estimate`),
-      fetch(`/api/stocks/${CODE}/pe-history`)
+    const [clRes, sRes] = await Promise.all([
+      fetch(`/api/stocks/${CODE}/checklist`),
+      fetch(`/api/stocks?exact=${CODE}`)
     ]);
-    const qData = await qRes.json();
-    const fData = await fRes.json();
+    const cl = await clRes.json();
     const sData = await sRes.json();
-    const annEst = await aeRes.json();
-    const qEst = await qeRes.json();
-    const peData = await peRes.json();
-
-    const quarters = (Array.isArray(qData) ? qData : qData.data || qData.quarters || []).slice(0, 4);
-    const annuals = (fData.data || []).slice(0, 5);
     const stock = (sData.data || [])[0] || {};
-    const annDet = annEst.details || {};
-    if (annDet.est_revenue != null && annDet.est_gross_profit != null) annDet._est_cost = annDet.est_revenue - annDet.est_gross_profit;
-    if (annDet.est_pti != null && annDet.est_tax_rate != null) annDet._est_tax = annDet.est_pti * annDet.est_tax_rate / 100;
-    const qEstDet = qEst.details || {};
-
-    // 使用者自行估算（從 localStorage）
-    let userEst = {};
-    try { userEst = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
-
-    // 季估算計算
-    const _parseV = s => { if (!s) return null; const v = parseFloat(String(s).replace(/,/g, '')); return isNaN(v) ? null : v; };
-    const ueQ = {};
-    const ueR1 = _parseV(userEst.rev1), ueR2 = _parseV(userEst.rev2), ueR3 = _parseV(userEst.rev3);
-    const ueParts = [ueR1, ueR2, ueR3].filter(v => v != null);
-    ueQ.cumK = ueParts.length > 0 ? ueParts.reduce((a,b) => a+b, 0) : null;
-    ueQ.cumM = ueQ.cumK != null ? ueQ.cumK / 1000 : null;
-    ueQ.revenue = ueQ.cumM;
-    ueQ.gm = _parseV(userEst.gm);
-    ueQ.gp = (ueQ.cumM != null && ueQ.gm != null) ? ueQ.cumM * ueQ.gm / 100 : null;
-    ueQ.cogs = (ueQ.cumM != null && ueQ.gp != null) ? ueQ.cumM - ueQ.gp : null;
-    ueQ.gross_profit = ueQ.gp;
-    ueQ.gross_margin = ueQ.gm;
-    ueQ.cost = ueQ.cogs;
-    ueQ.opex = _parseV(userEst.opex);
-    ueQ.operating_expense = ueQ.opex;
-    ueQ.oi = (ueQ.gp != null && ueQ.opex != null) ? ueQ.gp - ueQ.opex : null;
-    ueQ.operating_income = ueQ.oi;
-    ueQ.nonop = _parseV(userEst.nonop);
-    ueQ.non_operating = ueQ.nonop;
-    ueQ.pti = (ueQ.oi != null && ueQ.nonop != null) ? ueQ.oi + ueQ.nonop : null;
-    ueQ.pretax_income = ueQ.pti;
-    ueQ.taxRate = _parseV(userEst.tax);
-    ueQ.tax_rate = ueQ.taxRate;
-    ueQ.taxAmt = (ueQ.pti != null && ueQ.taxRate != null) ? ueQ.pti * ueQ.taxRate / 100 : null;
-    ueQ.tax = ueQ.taxAmt;
-    ueQ.ni = (ueQ.pti != null && ueQ.taxRate != null) ? ueQ.pti * (1 - ueQ.taxRate / 100) : null;
-    ueQ.pw = _parseV(userEst.pw);
-    ueQ.parent_weight = ueQ.pw;
-    ueQ.nip = (ueQ.ni != null && ueQ.pw != null) ? ueQ.ni * ueQ.pw / 100 : null;
-    ueQ.net_income_parent = ueQ.nip;
-    const _shares = _estSharesMillion || (stock.shares ? stock.shares / 1000000 : null);
-    ueQ.eps = (ueQ.nip != null && _shares) ? ueQ.nip / _shares : null;
-    ueQ.eps_core = (ueQ.oi != null && ueQ.taxRate != null && ueQ.pw != null && _shares) ? ueQ.oi * (1 - ueQ.taxRate / 100) * ueQ.pw / 100 / _shares : null;
-    ueQ.eps_nonop = (ueQ.eps != null && ueQ.eps_core != null) ? ueQ.eps - ueQ.eps_core : null;
-
-    // 年估算計算
-    const ueY = {};
-    const ueRevY = _parseV(userEst.revYear), ueGr = _parseV(userEst.growthRate);
-    ueY.cumK = (ueRevY != null && ueGr != null) ? ueRevY * (1 + ueGr / 100) : (ueRevY != null ? ueRevY : null);
-    ueY.cumM = ueY.cumK != null ? ueY.cumK / 1000 : null;
-    ueY.revenue = ueY.cumM;
-    ueY.gm = _parseV(userEst.gmYear);
-    ueY.gp = (ueY.cumM != null && ueY.gm != null) ? ueY.cumM * ueY.gm / 100 : null;
-    ueY.cogs = (ueY.cumM != null && ueY.gp != null) ? ueY.cumM - ueY.gp : null;
-    ueY.gross_profit = ueY.gp;
-    ueY.gross_margin = ueY.gm;
-    ueY.cost = ueY.cogs;
-    ueY.opex = _parseV(userEst.opexYear);
-    ueY.operating_expense = ueY.opex;
-    ueY.oi = (ueY.gp != null && ueY.opex != null) ? ueY.gp - ueY.opex : null;
-    ueY.operating_income = ueY.oi;
-    ueY.nonop = _parseV(userEst.nonopYear);
-    ueY.non_operating = ueY.nonop;
-    ueY.pti = (ueY.oi != null && ueY.nonop != null) ? ueY.oi + ueY.nonop : null;
-    ueY.pretax_income = ueY.pti;
-    ueY.taxRate = _parseV(userEst.taxYear);
-    ueY.tax_rate = ueY.taxRate;
-    ueY.taxAmt = (ueY.pti != null && ueY.taxRate != null) ? ueY.pti * ueY.taxRate / 100 : null;
-    ueY.tax = ueY.taxAmt;
-    ueY.ni = (ueY.pti != null && ueY.taxRate != null) ? ueY.pti * (1 - ueY.taxRate / 100) : null;
-    ueY.pw = _parseV(userEst.pwYear);
-    ueY.parent_weight = ueY.pw;
-    ueY.nip = (ueY.ni != null && ueY.pw != null) ? ueY.ni * ueY.pw / 100 : null;
-    ueY.net_income_parent = ueY.nip;
-    ueY.eps = (ueY.nip != null && _shares) ? ueY.nip / _shares : null;
-    ueY.eps_core = (ueY.oi != null && ueY.taxRate != null && ueY.pw != null && _shares) ? ueY.oi * (1 - ueY.taxRate / 100) * ueY.pw / 100 / _shares : null;
-    ueY.eps_nonop = (ueY.eps != null && ueY.eps_core != null) ? ueY.eps - ueY.eps_core : null;
-    ueY.net_income = ueY.ni;
-
-    const fmtM = v => v != null ? Math.round(v / 1000000).toLocaleString('zh-TW') : '-';
-    const fmtMd = v => v != null ? Math.round(v).toLocaleString('zh-TW') : '-';
-    const fmt2 = v => v != null ? Number(v).toFixed(2) : '-';
-    const fmtP = v => v != null ? Number(v).toFixed(1) + '%' : '-';
-
-    // === 衍生欄位計算（評價/等級/明細）===
-    const _gv = JSON.parse(localStorage.getItem('global_val_params') || 'null') || { peHigh: 18, peLow: 10, yldFloor: 5, yldHigh: 5.5, yldMax: 6 };
-    const _dw = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || [30, 30, 20, 10, 10];
-    const _bs = JSON.parse(localStorage.getItem('blend_weights') || 'null') || { shen: 50, wt: 50 };
-
-    // 個股參數覆蓋
-    let _peHi = _gv.peHigh, _peLo = _gv.peLow, _yHigh = _gv.yldHigh, _yMax = _gv.yldMax, _yFloor = _gv.yldFloor;
-    let userEps, userDiv;
-    try {
-      const saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}');
-      if (saved.peHigh) _peHi = parseFloat(saved.peHigh);
-      if (saved.peLow) _peLo = parseFloat(saved.peLow);
-      if (saved.yldHigh) _yHigh = parseFloat(saved.yldHigh);
-      if (saved.yldMax) _yMax = parseFloat(saved.yldMax);
-      const qs = [saved.q1, saved.q2, saved.q3, saved.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
-      if (qs.length > 0) userEps = Math.round(qs.reduce((a,b) => a+b, 0) * 100) / 100;
-      if (saved.div) userDiv = parseFloat(saved.div);
-    } catch(e) {}
-
-    // 等級矩陣計算
-    function _calcGrade(pe, yld) {
-      if (pe == null || pe <= 0 || yld == null || yld <= 0) return 'X';
-      if (!_peHi || !_peLo || !_yHigh || !_yMax) return null;
-      const peFair = (_peHi + _peLo) / 2, peAbove = (_peHi + peFair) / 2, peBelow = (peFair + _peLo) / 2;
-      const peCols = [[-Infinity,_peLo],[_peLo,peBelow],[peBelow,peFair],[peFair,peAbove],[peAbove,_peHi],[_peHi,Infinity]];
-      const yRows = [[_yMax,Infinity],[_yHigh,_yMax],[_yFloor,_yHigh],[-Infinity,_yFloor]];
-      const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
-      const col = peCols.findIndex(c => pe >= c[0] && pe < c[1]);
-      const row = yRows.findIndex(y => yld >= y[0] && yld < y[1]);
-      return (col >= 0 && row >= 0) ? grades[row][col] : null;
-    }
-    function _gradeHtml(g) {
-      if (!g) return '-';
-      const cls = ['AA','A1','A2','A','BA1','BA2','B1A','B2A'].includes(g) ? 'grade-A' : ['B1','B2','BA1','BA2'].includes(g) ? 'grade-B' : 'grade-C';
-      return `<span class="grade-tag ${cls}">${g}</span>`;
-    }
 
     const close = stock.close;
-    const shen_eps = stock.shen_eps;
-    const shen_div = stock.shen_div;
-    const shen_pe = (shen_eps > 0 && close) ? Math.round(close / shen_eps * 100) / 100 : null;
-    const shen_yld = (shen_div > 0 && close > 0) ? Math.round(shen_div / close * 10000) / 100 : null;
-    const shen_grade = (shen_eps != null && shen_eps <= 0) ? 'X' : (shen_pe && shen_yld) ? _calcGrade(shen_pe, shen_yld) : null;
-
-    // 加權 EPS
-    let weighted_eps = null;
-    { let we = 0, ws2 = 0;
-      for (let i = 1; i <= 5; i++) { const e = stock[`eps_y${i}`], w = _dw[i-1] || 0; if (e != null && w > 0) { we += e * w / 100; ws2 += w; } }
-      if (ws2 > 0) weighted_eps = Math.round(we * 100) / 100;
-    }
-    const weighted_div = stock.weighted_div;
-    const weighted_pe = (weighted_eps > 0 && close) ? Math.round(close / weighted_eps * 100) / 100 : null;
-    const weighted_yld = (weighted_div > 0 && close > 0) ? Math.round(weighted_div / close * 10000) / 100 : null;
-
-    // 綜合
-    const bS = (_bs.shen || 50) / 100, bW = (_bs.wt || 50) / 100;
-    let blend_eps = null;
-    if (shen_eps != null && weighted_eps != null) blend_eps = Math.round((shen_eps * bS + weighted_eps * bW) * 100) / 100;
-    else if (shen_eps != null) blend_eps = shen_eps;
-    else if (weighted_eps != null) blend_eps = weighted_eps;
-    const blend_div = stock.blend_div;
-    const blend_pe = (blend_eps > 0 && close) ? Math.round(close / blend_eps * 100) / 100 : null;
-    const blend_yld = (blend_div > 0 && close > 0) ? Math.round(blend_div / close * 10000) / 100 : null;
-    const blend_grade = (blend_eps != null && blend_eps <= 0) ? 'X' : (blend_pe && blend_yld) ? _calcGrade(blend_pe, blend_yld) : null;
-
-    // 近四季 EPS（最近四季加總）
-    let trailing_eps = null;
-    { const e1 = stock.eps_1, e2 = stock.eps_2, e3 = stock.eps_3, e4 = stock.eps_4;
-      if (e1 != null && e2 != null && e3 != null && e4 != null) trailing_eps = Math.round((e1+e2+e3+e4)*100)/100;
-    }
-    const trailing_div = shen_div;  // 近四季用沈董股利
-    const trailing_pe = (trailing_eps > 0 && close) ? Math.round(close / trailing_eps * 100) / 100 : null;
-    const trailing_yld = (trailing_div > 0 && close > 0) ? Math.round(trailing_div / close * 10000) / 100 : null;
-    const trailing_grade = (trailing_eps != null && trailing_eps <= 0) ? 'X' : (trailing_pe && trailing_yld) ? _calcGrade(trailing_pe, trailing_yld) : null;
-
-    // 預估
-    let est_eps = userEps || null;
-    let est_div = userDiv || null;
-    const est_pe = (est_eps > 0 && close) ? Math.round(close / est_eps * 100) / 100 : null;
-    const est_yld = (est_div > 0 && close > 0) ? Math.round(est_div / close * 10000) / 100 : null;
-    const est_grade = (est_eps != null && est_eps <= 0) ? 'X' : (est_pe && est_yld) ? _calcGrade(est_pe, est_yld) : null;
-
-    // 評價門檻
-    function _calcVal(peVal, yldVal) {
-      const eps = est_eps != null ? est_eps : shen_eps;
-      const div = est_div != null ? est_div : shen_div;
-      const bDiv = blend_div;
-      if (eps == null || eps <= 0 || div == null || div <= 0) return null;
-      const v1 = eps * peVal, v2 = div / (yldVal / 100);
-      const candidates = [v1, v2];
-      if (bDiv != null && bDiv > 0) candidates.push(bDiv / 0.06 + div);
-      return Math.round(Math.min(...candidates) * 100) / 100;
-    }
-    const peBias = ((_peHi + _peLo) / 2 + _peLo) / 2;
-    const val_aa = _calcVal(_peLo, _yMax);
-    const val_a1 = _calcVal(_peLo, _yHigh);
-    const val_a2 = _calcVal(peBias, _yMax);
-    const val_a  = _calcVal(peBias, _yHigh);
-    const val_lt6 = (blend_div > 0) ? Math.round(blend_div / 0.06 * 100) / 100 : null;
-
-    // 判斷目前落在哪個等級
-    let curLevel = null;
-    if (close != null) {
-      if (val_aa != null && close <= val_aa + 0.005) curLevel = 'aa';
-      else if (val_a1 != null && close <= val_a1 + 0.005) curLevel = 'a1';
-      else if (val_a2 != null && close <= val_a2 + 0.005) curLevel = 'a2';
-      else if (val_a != null && close <= val_a + 0.005) curLevel = 'a';
-      else if (val_lt6 != null && close <= val_lt6 + 0.005) curLevel = 'lt6';
-    }
-
-    const fmtV = v => v != null ? v.toFixed(2) : '-';
-    const fmtInst = v => { if (v == null) return '-'; const cls = v > 0 ? 'inst-pos' : v < 0 ? 'inst-neg' : ''; return `<span class="${cls}">${v > 0 ? '+' : ''}${v.toLocaleString('zh-TW')}</span>`; };
     const chg = stock.change;
+    const fmtV = v => v != null ? Number(v).toFixed(2) : '-';
     const chgStr = chg != null ? `<span style="color:${chg > 0 ? '#dc2626' : chg < 0 ? '#16a34a' : '#64748b'};font-weight:600">${chg > 0 ? '+' : ''}${chg.toFixed(2)}</span>` : '-';
 
-    // === 決策檢核表 ===
-    // 判斷財務等級是否 B 級以上（不含帶 - 的，不含 C/D/X）
-    function _isGradeAboveB(g) {
-      if (!g || g === '-') return false;
-      if (g.endsWith('-')) return false;
-      const base = g.replace(/[+-]/g, '');
-      return ['AA','A1','A2','A','B2A','B1A','B1','B2','BA1','BA2'].includes(base);
-    }
-    // 判斷等級是否 A 級以上（AA/A1/A2/A，含 +）
-    function _isGradeA(g) {
-      if (!g || g === '-' || g === 'X') return false;
-      const base = g.replace(/[+-]/g, '');
-      return ['AA','A1','A2','A'].includes(base);
-    }
-
-    // 1. 近五年財務等級
-    const grades5 = [];
-    for (let i = 1; i <= 5; i++) { grades5.push(stock[`fin_grade_${i}`] || null); }
-    const gradesAboveB = grades5.filter(g => _isGradeAboveB(g)).length;
-    const recent2ok = _isGradeAboveB(grades5[0]) && _isGradeAboveB(grades5[1]);
-    const chk1_pass = gradesAboveB >= 3 && recent2ok;
-    const chk1_detail = grades5.map(g => {
-      if (!g) return '--';
-      const ok = _isGradeAboveB(g);
-      return `<span style="color:${ok ? '#16a34a' : '#dc2626'}">${g}</span>`;
-    }).join(' / ');
-
-    // 2. 累積營收年增率 >= -10% 且 < 0%
-    const cumYoy = stock.revenue_cum_yoy;
-    const chk2_pass = cumYoy != null && cumYoy >= -10 && cumYoy < 0;
-    const chk2_detail = cumYoy != null ? `累積營收年增率：${cumYoy.toFixed(2)}%` : '無資料';
-
-    // 3. 累積營收年增率 >= 0%
-    const chk3_pass = cumYoy != null && cumYoy >= 0;
-    const chk3_detail = chk2_detail;
-
-    // 4. 沈董本益比 > 0 且 < 14
-    const chk4_pass = shen_pe != null && shen_pe > 0 && shen_pe < 14;
-    const chk4_detail = shen_pe != null ? `沈董PE：${shen_pe.toFixed(2)}` : '無資料';
-
-    // 5. 沈董殖利率 >= 5.5%
-    const chk5_pass = shen_yld != null && shen_yld >= 5.5;
-    const chk5_detail = shen_yld != null ? `沈董殖利率：${shen_yld.toFixed(2)}%` : '無資料';
-
-    // 6. 沈董等級 A 級以上
-    const chk6_pass = _isGradeA(shen_grade);
-    const chk6_detail = shen_grade ? `沈董等級：${shen_grade}` : '無資料';
-
-    // 7. 綜合等級 A 級以上
-    const chk7_pass = _isGradeA(blend_grade);
-    const chk7_detail = blend_grade ? `綜合等級：${blend_grade}` : '無資料';
-
-    // 8. 加權等級 A 級以上
-    const weighted_grade = (weighted_eps != null && weighted_eps <= 0) ? 'X' : (weighted_pe && weighted_yld) ? _calcGrade(weighted_pe, weighted_yld) : null;
-    const chk8_pass = _isGradeA(weighted_grade);
-    const chk8_detail = weighted_grade ? `加權等級：${weighted_grade}` : '無資料';
-
-    // 9. 預估等級 A 級以上
-    const chk9_pass = _isGradeA(est_grade);
-    const chk9_detail = est_grade ? `預估等級：${est_grade}` : '無資料';
-
-    // 10. 股價低於總表評價 A
-    const chk10_pass = close != null && val_a != null && close <= val_a + 0.005;
-    const chk10_detail = val_a != null ? `股價：${fmtV(close)}　評價A：${fmtV(val_a)}` : '無資料';
-
-    // 11. 股價低於總表評價 AA
-    const chk11_pass = close != null && val_aa != null && close <= val_aa + 0.005;
-    const chk11_detail = val_aa != null ? `股價：${fmtV(close)}　評價AA：${fmtV(val_aa)}` : '無資料';
-
-    // 12. 綜合殖利率 >= 6%
-    const chk12_pass = blend_yld != null && blend_yld >= 6;
-    const chk12_detail = blend_yld != null ? `綜合殖利率：${blend_yld.toFixed(2)}%` : '無資料';
-
-    // 組裝檢核清單
-    const checks = [
-      { cond: '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上', pass: chk1_pass, detail: chk1_detail },
-      { cond: '累積營收年增率 >= -10% 且 < 0%', pass: chk2_pass, detail: chk2_detail },
-      { cond: '累積營收年增率 >= 0%', pass: chk3_pass, detail: chk3_detail },
-      { cond: '沈董本益比 > 0 且 < 14', pass: chk4_pass, detail: chk4_detail },
-      { cond: '沈董殖利率 >= 5.5%', pass: chk5_pass, detail: chk5_detail },
-      { cond: '沈董等級 A 級以上', pass: chk6_pass, detail: chk6_detail },
-      { cond: '綜合等級 A 級以上', pass: chk7_pass, detail: chk7_detail },
-      { cond: '加權等級 A 級以上', pass: chk8_pass, detail: chk8_detail },
-      { cond: '預估等級 A 級以上', pass: chk9_pass, detail: chk9_detail },
-      { cond: '目前股價低於總表評價 A', pass: chk10_pass, detail: chk10_detail },
-      { cond: '目前股價低於總表評價 AA', pass: chk11_pass, detail: chk11_detail },
-      { cond: '綜合殖利率 >= 6%', pass: chk12_pass, detail: chk12_detail },
+    const condLabels = [
+      '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上',
+      '累積營收年增率 >= -10% 且 < 0%',
+      '累積營收年增率 >= 0%',
+      '沈董本益比 > 0 且 < 14',
+      '沈董殖利率 >= 5.5%',
+      '沈董等級 A 級以上',
+      '綜合等級 A 級以上',
+      '加權等級 A 級以上',
+      '預估等級 A 級以上',
+      '目前股價低於總表評價 A',
+      '目前股價低於總表評價 AA',
+      '綜合殖利率 >= 6%',
     ];
 
-    const passCount = checks.filter(c => c.pass).length;
-    const totalCount = checks.length;
+    const detail = cl.detail || {};
+    const passCount = cl.pass_count || 0;
+    const totalCount = cl.total_count || 12;
     const scoreClass = passCount >= totalCount * 0.8 ? 'chk-score-pass' : passCount >= totalCount * 0.5 ? 'chk-score-warn' : 'chk-score-fail';
 
     let html = '';
-    // 頂部摘要
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
     html += `<span class="chk-score ${scoreClass}">${passCount} / ${totalCount} 通過</span>`;
     html += '</div>';
 
-    // 檢核表格
     html += '<table class="chk-table">';
     html += '<thead><tr><th>#</th><th>條件</th><th>是</th><th>否</th></tr></thead>';
     html += '<tbody>';
-    checks.forEach((c, idx) => {
+    for (let i = 1; i <= 12; i++) {
+      const pass = cl[`chk_${i}`] === 1;
+      const d = detail[`chk_${i}`] || '';
       html += '<tr>';
-      html += `<td>${idx + 1}</td>`;
-      html += `<td class="chk-cond">${c.cond}`;
-      if (c.detail) html += `<div class="chk-detail">${c.detail}</div>`;
+      html += `<td>${i}</td>`;
+      html += `<td class="chk-cond">${condLabels[i-1]}`;
+      if (d) html += `<div class="chk-detail">${d}</div>`;
       html += '</td>';
-      html += `<td class="chk-yes">${c.pass ? 'V' : ''}</td>`;
-      html += `<td class="chk-no">${c.pass ? '' : 'X'}</td>`;
+      html += `<td class="chk-yes">${pass ? 'V' : ''}</td>`;
+      html += `<td class="chk-no">${pass ? '' : 'X'}</td>`;
       html += '</tr>';
-    });
+    }
     html += '</tbody></table>';
+
+    if (cl.updated_at) {
+      html += `<div style="text-align:right;font-size:.75rem;color:#94a3b8;margin-top:8px">更新時間：${cl.updated_at}</div>`;
+    }
 
     panel.innerHTML = html;
   } catch(e) {

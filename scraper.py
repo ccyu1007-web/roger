@@ -1357,6 +1357,13 @@ def run(scheduled=True):
             print(f"[交叉校驗] {cv['checked']} 支抽查，全部一致")
     except Exception: pass
 
+    # 計算檢核表
+    try:
+        from app import calc_all_checklists
+        calc_all_checklists()
+    except Exception as e:
+        print(f"[Checklist] 計算失敗: {e}")
+
     # 自動 push 所有資料到 Render（僅本機）
     if not os.environ.get('DATABASE_URL'):
         _push_all_to_render()

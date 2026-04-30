@@ -179,6 +179,20 @@ def _push_all_to_render():
                 PRIMARY KEY (list_type, code))""",
         },
         {
+            'table': 'stock_checklist',
+            'columns': ['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
+                        'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12',
+                        'pass_count','total_count','detail','updated_at'],
+            'pk': ['code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS stock_checklist (
+                code TEXT PRIMARY KEY,
+                chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
+                chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
+                chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
+                pass_count INTEGER, total_count INTEGER DEFAULT 12,
+                detail TEXT, updated_at TEXT)""",
+        },
+        {
             'table': 'financial_detail',
             'columns': ['code','period','period_type','report_type','item','value','updated_at'],
             'pk': ['code','period','period_type','report_type','item'],

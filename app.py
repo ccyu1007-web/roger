@@ -180,6 +180,302 @@ def _calc_shen_fields(r, cur_roc):
         r['blend_div'] = None
 
 
+# ── 檢核表計算 ─────────────────────────────────────────────
+
+def _init_checklist_db():
+    """建立 stock_checklist 資料表"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""CREATE TABLE IF NOT EXISTS stock_checklist (
+        code TEXT PRIMARY KEY,
+        chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
+        chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
+        chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
+        pass_count INTEGER, total_count INTEGER DEFAULT 12,
+        detail TEXT,
+        updated_at TEXT
+    )""")
+    conn.commit()
+    conn.close()
+
+def _is_grade_above_b(g):
+    """財務等級是否 B 級以上（不含帶 - 的，不含 C/D/X）"""
+    if not g or g == '-':
+        return False
+    if g.endswith('-'):
+        return False
+    base = g.replace('+', '').replace('-', '')
+    return base in ('AA','A1','A2','A','B2A','B1A','B1','B2','BA1','BA2')
+
+def _is_grade_a(g):
+    """等級是否 A 級以上（AA/A1/A2/A，含 +）"""
+    if not g or g in ('-', 'X'):
+        return False
+    base = g.replace('+', '').replace('-', '')
+    return base in ('AA','A1','A2','A')
+
+def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor=5):
+    """PE×殖利率矩陣等級"""
+    if pe is None or pe <= 0 or yld is None or yld <= 0:
+        return None
+    pe_fair = (pe_hi + pe_lo) / 2
+    pe_above = (pe_hi + pe_fair) / 2
+    pe_below = (pe_fair + pe_lo) / 2
+    pe_cols = [(-999999, pe_lo), (pe_lo, pe_below), (pe_below, pe_fair),
+               (pe_fair, pe_above), (pe_above, pe_hi), (pe_hi, 999999)]
+    y_rows = [(y_max, 999999), (y_high, y_max), (y_floor, y_high), (-999999, y_floor)]
+    grades = [
+        ['AA','A2','BA2','觀察','臨界點','X'],
+        ['A1','A','B2','臨界點','X','X'],
+        ['BA1','B1','臨界點','X','X','X'],
+        ['觀察','臨界點','X','X','X','X'],
+    ]
+    col = next((i for i, c in enumerate(pe_cols) if pe >= c[0] and pe < c[1]), -1)
+    row = next((i for i, y in enumerate(y_rows) if yld >= y[0] and yld < y[1]), -1)
+    if col >= 0 and row >= 0:
+        return grades[row][col]
+    return None
+
+def _calc_checklist_for_stock(r, user_params=None):
+    """計算單支股票的 12 項檢核，r 為 stocks 表的 row dict（已含 shen 欄位）"""
+    import json
+    checks = {}
+    detail = {}
+
+    # 讀取個股參數
+    pe_hi, pe_lo, y_high, y_max = 18, 10, 5.5, 6
+    est_eps_user, est_div_user = None, None
+    if user_params:
+        if user_params.get('peHigh'): pe_hi = float(user_params['peHigh'])
+        if user_params.get('peLow'): pe_lo = float(user_params['peLow'])
+        if user_params.get('yldHigh'): y_high = float(user_params['yldHigh'])
+        if user_params.get('yldMax'): y_max = float(user_params['yldMax'])
+        qs = [user_params.get(f'q{i}') for i in range(1, 5)]
+        qs = [float(v) for v in qs if v]
+        if qs:
+            est_eps_user = round(sum(qs), 2)
+        if user_params.get('div'):
+            est_div_user = float(user_params['div'])
+
+    close = r.get('close')
+    shen_eps = r.get('shen_eps')
+    shen_div = r.get('shen_div')
+    blend_div = r.get('blend_div')
+    weighted_div = r.get('weighted_div')
+
+    # 沈董 PE / 殖利率
+    shen_pe = round(close / shen_eps, 2) if shen_eps and shen_eps > 0 and close else None
+    shen_yld = round(shen_div / close * 100, 2) if shen_div and shen_div > 0 and close and close > 0 else None
+
+    # 沈董等級
+    if shen_eps is not None and shen_eps <= 0:
+        shen_grade = 'X'
+    elif shen_pe and shen_yld:
+        shen_grade = _calc_matrix_grade(shen_pe, shen_yld, pe_hi, pe_lo, y_high, y_max)
+    else:
+        shen_grade = None
+
+    # 加權 EPS
+    weighted_eps = None
+    dw = [30, 25, 20, 15, 10]
+    we = ws2 = 0
+    for i in range(1, 6):
+        e = r.get(f'eps_y{i}')
+        w = dw[i - 1]
+        if e is not None and w > 0:
+            we += e * w / 100
+            ws2 += w
+    if ws2 > 0:
+        weighted_eps = round(we, 2)
+    weighted_pe = round(close / weighted_eps, 2) if weighted_eps and weighted_eps > 0 and close else None
+    weighted_yld = round(weighted_div / close * 100, 2) if weighted_div and weighted_div > 0 and close and close > 0 else None
+
+    # 加權等級
+    if weighted_eps is not None and weighted_eps <= 0:
+        weighted_grade = 'X'
+    elif weighted_pe and weighted_yld:
+        weighted_grade = _calc_matrix_grade(weighted_pe, weighted_yld, pe_hi, pe_lo, y_high, y_max)
+    else:
+        weighted_grade = None
+
+    # 綜合 EPS
+    bs, bw = 0.5, 0.5
+    blend_eps = None
+    if shen_eps is not None and weighted_eps is not None:
+        blend_eps = round(shen_eps * bs + weighted_eps * bw, 2)
+    elif shen_eps is not None:
+        blend_eps = shen_eps
+    elif weighted_eps is not None:
+        blend_eps = weighted_eps
+    blend_pe = round(close / blend_eps, 2) if blend_eps and blend_eps > 0 and close else None
+    blend_yld = round(blend_div / close * 100, 2) if blend_div and blend_div > 0 and close and close > 0 else None
+
+    # 綜合等級
+    if blend_eps is not None and blend_eps <= 0:
+        blend_grade = 'X'
+    elif blend_pe and blend_yld:
+        blend_grade = _calc_matrix_grade(blend_pe, blend_yld, pe_hi, pe_lo, y_high, y_max)
+    else:
+        blend_grade = None
+
+    # 預估 EPS/股利（預估 > 沈董）
+    est_eps = est_eps_user if est_eps_user is not None else None
+    est_div = est_div_user if est_div_user is not None else None
+    est_pe = round(close / est_eps, 2) if est_eps and est_eps > 0 and close else None
+    est_yld = round(est_div / close * 100, 2) if est_div and est_div > 0 and close and close > 0 else None
+    if est_eps is not None and est_eps <= 0:
+        est_grade = 'X'
+    elif est_pe and est_yld:
+        est_grade = _calc_matrix_grade(est_pe, est_yld, pe_hi, pe_lo, y_high, y_max)
+    else:
+        est_grade = None
+
+    # 評價門檻（預估 > 沈董）
+    val_eps = est_eps if est_eps is not None else shen_eps
+    val_div = est_div if est_div is not None else shen_div
+    def _calc_val(pe_val, yld_val):
+        if val_eps is None or val_eps <= 0 or val_div is None or val_div <= 0:
+            return None
+        v1 = val_eps * pe_val
+        v2 = val_div / (yld_val / 100)
+        candidates = [v1, v2]
+        if blend_div and blend_div > 0:
+            candidates.append(blend_div / 0.06 + val_div)
+        return round(min(candidates), 2)
+
+    pe_mid = (pe_hi + pe_lo) / 2
+    pe_lo_bias = (pe_mid + pe_lo) / 2
+    val_aa = _calc_val(pe_lo, y_max)
+    val_a = _calc_val(pe_lo_bias, y_high)
+
+    # === 12 項檢核 ===
+
+    # 1. 近五年財務等級
+    grades5 = [r.get(f'fin_grade_{i}') for i in range(1, 6)]
+    above_b = sum(1 for g in grades5 if _is_grade_above_b(g))
+    recent2 = _is_grade_above_b(grades5[0]) and _is_grade_above_b(grades5[1]) if len(grades5) >= 2 else False
+    checks[1] = 1 if above_b >= 3 and recent2 else 0
+    detail['chk_1'] = ' / '.join(g or '--' for g in grades5)
+
+    # 2. 累積營收年增率 >= -10% 且 < 0%
+    cum_yoy = r.get('revenue_cum_yoy')
+    checks[2] = 1 if cum_yoy is not None and cum_yoy >= -10 and cum_yoy < 0 else 0
+    detail['chk_2'] = f'{cum_yoy}%' if cum_yoy is not None else None
+
+    # 3. 累積營收年增率 >= 0%
+    checks[3] = 1 if cum_yoy is not None and cum_yoy >= 0 else 0
+    detail['chk_3'] = detail['chk_2']
+
+    # 4. 沈董本益比 > 0 且 < 14
+    checks[4] = 1 if shen_pe is not None and shen_pe > 0 and shen_pe < 14 else 0
+    detail['chk_4'] = f'{shen_pe}' if shen_pe is not None else None
+
+    # 5. 沈董殖利率 >= 5.5%
+    checks[5] = 1 if shen_yld is not None and shen_yld >= 5.5 else 0
+    detail['chk_5'] = f'{shen_yld}%' if shen_yld is not None else None
+
+    # 6. 沈董等級 A 級以上
+    checks[6] = 1 if _is_grade_a(shen_grade) else 0
+    detail['chk_6'] = shen_grade
+
+    # 7. 綜合等級 A 級以上
+    checks[7] = 1 if _is_grade_a(blend_grade) else 0
+    detail['chk_7'] = blend_grade
+
+    # 8. 加權等級 A 級以上
+    checks[8] = 1 if _is_grade_a(weighted_grade) else 0
+    detail['chk_8'] = weighted_grade
+
+    # 9. 預估等級 A 級以上
+    checks[9] = 1 if _is_grade_a(est_grade) else 0
+    detail['chk_9'] = est_grade
+
+    # 10. 股價低於評價 A
+    checks[10] = 1 if close is not None and val_a is not None and close <= val_a + 0.005 else 0
+    detail['chk_10'] = f'股價:{close} 評價A:{val_a}' if val_a is not None else None
+
+    # 11. 股價低於評價 AA
+    checks[11] = 1 if close is not None and val_aa is not None and close <= val_aa + 0.005 else 0
+    detail['chk_11'] = f'股價:{close} 評價AA:{val_aa}' if val_aa is not None else None
+
+    # 12. 綜合殖利率 >= 6%
+    checks[12] = 1 if blend_yld is not None and blend_yld >= 6 else 0
+    detail['chk_12'] = f'{blend_yld}%' if blend_yld is not None else None
+
+    pass_count = sum(checks.values())
+
+    return {
+        'code': r['code'],
+        **{f'chk_{i}': checks[i] for i in range(1, 13)},
+        'pass_count': pass_count,
+        'total_count': 12,
+        'detail': json.dumps(detail, ensure_ascii=False),
+    }
+
+def calc_all_checklists():
+    """批次計算所有股票的檢核表並存入 DB"""
+    import json
+    from datetime import datetime
+    _init_checklist_db()
+
+    cur_roc = datetime.now().year - 1911
+    rows = query_db("""SELECT code, name, close, change, revenue_cum_yoy,
+                       eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
+                       eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
+                       eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+                       eps_ytd, eps_ytd_label,
+                       div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
+                       div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
+                       div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
+                       fin_grade_1, fin_grade_2, fin_grade_3, fin_grade_4, fin_grade_5,
+                       sys_ann_eps, sys_ann_div
+                    FROM stocks""")
+
+    # 批次讀取 user_estimates
+    ue_map = {}
+    try:
+        ue_rows = query_db("SELECT code, params FROM user_estimates")
+        for ue in ue_rows:
+            if ue['params']:
+                ue_map[ue['code']] = json.loads(ue['params'])
+    except Exception:
+        pass
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    count = 0
+
+    for r in rows:
+        r = dict(r)
+        _calc_shen_fields(r, cur_roc)
+        user_params = ue_map.get(r['code'])
+        result = _calc_checklist_for_stock(r, user_params)
+
+        c.execute("""INSERT INTO stock_checklist
+                     (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
+                      chk_7, chk_8, chk_9, chk_10, chk_11, chk_12,
+                      pass_count, total_count, detail, updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     ON CONFLICT(code) DO UPDATE SET
+                      chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
+                      chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
+                      chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
+                      chk_10=excluded.chk_10, chk_11=excluded.chk_11, chk_12=excluded.chk_12,
+                      pass_count=excluded.pass_count, total_count=excluded.total_count,
+                      detail=excluded.detail, updated_at=excluded.updated_at""",
+                  (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
+                   result['chk_4'], result['chk_5'], result['chk_6'],
+                   result['chk_7'], result['chk_8'], result['chk_9'],
+                   result['chk_10'], result['chk_11'], result['chk_12'],
+                   result['pass_count'], result['total_count'], result['detail'], now))
+        count += 1
+
+    conn.commit()
+    conn.close()
+    print(f"[Checklist] 已計算 {count} 支股票檢核表")
+    return count
+
+
 # ── 取得全部股票 ────────────────────────────────────────────
 @app.route("/api/stocks")
 def get_stocks():
@@ -2271,6 +2567,26 @@ def save_user_note(code):
     conn.commit()
     conn.close()
     return jsonify({"status": "ok"})
+
+# ── 檢核表 API ─────────────────────────────────────────────
+@app.route("/api/stocks/<code>/checklist")
+def get_checklist(code):
+    _init_checklist_db()
+    rows = query_db("SELECT * FROM stock_checklist WHERE code=?", (code,))
+    if rows:
+        import json
+        r = dict(rows[0])
+        if r.get('detail'):
+            try: r['detail'] = json.loads(r['detail'])
+            except Exception: pass
+        return jsonify(r)
+    return jsonify({})
+
+@app.route("/api/checklist/refresh", methods=["POST"])
+def refresh_checklist():
+    """手動觸發重算所有檢核表"""
+    count = calc_all_checklists()
+    return jsonify({"status": "ok", "count": count})
 
 @app.route("/api/user-estimates/<code>", methods=["GET"])
 def get_user_estimate(code):
