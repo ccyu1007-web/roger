@@ -49,10 +49,11 @@ def check_sync_token():
         return False
     return True
 
-# ── HTML/API 不快取（避免瀏覽器用舊資料）──────────────────
+# ── 快取控制 ──────────────────────────────────────────────
+# HTML 不快取（確保載入最新版），API JSON 短快取（減少重複請求）
 @app.after_request
-def add_no_cache_headers(response):
-    if response.content_type and ('text/html' in response.content_type or 'application/json' in response.content_type):
+def add_cache_headers(response):
+    if response.content_type and 'text/html' in response.content_type:
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
