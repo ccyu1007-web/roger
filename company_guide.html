@@ -94,8 +94,8 @@
   <div class="section-body">
     <table>
       <tr><th width="120">用途</th><th width="160">EPS 優先順序</th><th width="160">股利 優先順序</th><th>說明</th></tr>
-      <tr><td class="field">預估等級</td><td>1. 使用者手動輸入<br>2. 系統估算</td><td>1. 使用者手動輸入<br>2. 系統估算</td><td>個股頁 Q1~Q4 EPS 加總 / 預估現金股利<div class="note">存在 localStorage + DB (user_estimates)</div></td></tr>
-      <tr><td class="field">評價門檻<br>(AA/A1/A2/A)</td><td>1. 預估 EPS<br>2. 沈董 EPS</td><td>1. 預估股利<br>2. 沈董股利</td><td><span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">預估 = 使用者輸入 > 系統估算；沈董 = 已公佈季度年化</div></td></tr>
+      <tr><td class="field">預估等級</td><td>1. 使用者手動輸入<br>2. （無則不顯示）</td><td>1. 使用者手動輸入<br>2. （無則不顯示）</td><td>個股頁 Q1~Q4 EPS 加總 / 預估現金股利<div class="note">沒有手動輸入就不顯示預估等級，不 fallback 到系統估算</div></td></tr>
+      <tr><td class="field">評價門檻<br>(AA/A1/A2/A)</td><td>1. 預估 EPS<br>2. 沈董 EPS</td><td>1. 預估股利<br>2. 沈董股利</td><td><span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">總表和個股頁的評價門檻使用相同優先順序</div></td></tr>
       <tr><td class="field">沈董等級</td><td>沈董 EPS</td><td>沈董股利</td><td>沈董EPS = 已公佈季度 EPS 加總 × (4/季數)<div class="note">沈董股利 = 沈董EPS × 平均配息率</div></td></tr>
       <tr><td class="field">綜合等級</td><td>沈董×權重 + 加權×權重</td><td>綜合股利</td><td>權重預設各 50%，可在總表自訂</td></tr>
       <tr><td class="field">加權等級</td><td>五年加權平均</td><td>加權股利</td><td>權重 30/25/20/15/10</td></tr>
@@ -112,24 +112,20 @@
       <tr><td class="field">EPS設定</td><td>
         1. 使用者手動儲存值<br>
         2. Q1~Q4 預估 EPS 加總<br>
-        3. 系統預估 EPS<br>
-        4. 沈董 EPS
+        3. 沈董 EPS
       </td><td>
         開啟個股頁時自動帶入，優先順序由高到低<div class="note">
         手動儲存值 = 之前在「EPS設定」欄位手動改過並儲存的值（存在 localStorage/DB vmEps）<br>
         Q1~Q4 加總 = 季度估計表的 Q1~Q4 EPS 欄位有值就加總<br>
-        系統預估 = 系統根據月營收推算的年度 EPS<br>
         沈董 = 已公佈季度 EPS 年化</div>
       </td></tr>
       <tr><td class="field">股利設定</td><td>
         1. 使用者手動儲存值<br>
         2. 預估現金股利<br>
-        3. 系統預估股利<br>
-        4. 沈董股利
+        3. 沈董股利
       </td><td>
         同 EPS 邏輯<div class="note">
         預估現金股利 = 季度估計表「預估現金股利」欄位<br>
-        系統預估股利 = 系統EPS × 平均配息率<br>
         沈董股利 = 沈董EPS × 平均配息率</div>
       </td></tr>
       <tr><td class="field">長期現金股利水準</td><td>

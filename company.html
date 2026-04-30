@@ -784,8 +784,8 @@ async function loadDecision() {
     const trailing_grade = (trailing_eps != null && trailing_eps <= 0) ? 'X' : (trailing_pe && trailing_yld) ? _calcGrade(trailing_pe, trailing_yld) : null;
 
     // 預估
-    let est_eps = userEps || (stock.sys_ann_eps != null ? stock.sys_ann_eps : null);
-    let est_div = userDiv || (stock.sys_ann_div != null ? stock.sys_ann_div : null);
+    let est_eps = userEps || null;
+    let est_div = userDiv || null;
     const est_pe = (est_eps > 0 && close) ? Math.round(close / est_eps * 100) / 100 : null;
     const est_yld = (est_div > 0 && close > 0) ? Math.round(est_div / close * 10000) / 100 : null;
     const est_grade = (est_eps != null && est_eps <= 0) ? 'X' : (est_pe && est_yld) ? _calcGrade(est_pe, est_yld) : null;
@@ -2003,20 +2003,19 @@ async function initEstimator(sharesMillion) {
       document.getElementById('ddmDiv3').value = _blendDiv.toFixed(2);
     }
 
-    // === 逍遙評價法預設值（與總表優先順序一致：預估 > 系統 > 沈董）===
+    // === 逍遙評價法預設值（預估 > 沈董，與總表評價一致）===
     if (!savedObj.vmEps) {
-      // EPS 優先順序：使用者預估EPS > 系統預估 > 沈董EPS
+      // EPS 優先順序：使用者預估EPS > 沈董EPS
       const userEstEps = savedObj.q1 || savedObj.q2 || savedObj.q3 || savedObj.q4
         ? [savedObj.q1, savedObj.q2, savedObj.q3, savedObj.q4].filter(v => v).reduce((a, b) => parseFloat(a || 0) + parseFloat(b || 0), 0)
         : null;
-      const sysEstEps = (_stockData && _stockData.sys_ann_eps) || (_sysAnnual && _sysAnnual.est_eps) || null;
-      const autoEps = userEstEps || sysEstEps || _shenEps;
+      const autoEps = userEstEps || _shenEps;
       if (autoEps != null) document.getElementById('vmEps').value = parseFloat(autoEps).toFixed(2);
     }
     if (!savedObj.vmDiv) {
-      // 股利優先順序：使用者預估股利 > 系統預估 > 沈董股利
-      const sysEstDiv = (_stockData && _stockData.sys_ann_div) || (_sysAnnual && _sysAnnual.details && _sysAnnual.details.est_div) || null;
-      const autoDiv = sysEstDiv || _shenDiv;
+      // 股利優先順序：使用者預估股利 > 沈董股利
+      const userEstDiv = savedObj.div ? parseFloat(savedObj.div) : null;
+      const autoDiv = userEstDiv || _shenDiv;
       if (autoDiv != null) document.getElementById('vmDiv').value = parseFloat(autoDiv).toFixed(2);
     }
     // 長期現金股利水準：綜合股利

@@ -1648,21 +1648,8 @@ function calcDerived(r) {
     }
   } catch(e) {}
 
-  // 預估等級 fallback：使用者沒存檔 → 用系統年度估算
-  if (r.est_grade == null && r.sys_ann_eps != null) {
-    const sEps = r.sys_ann_eps;
-    if (sEps <= 0) {
-      r.est_grade = 'X';
-    } else if (r.close != null && r.close > 0) {
-      const sPE = r.sys_ann_pe || (r.close / sEps);
-      const sYld = r.sys_ann_yld || 0;
-      r.est_grade = _calcMatrixGrade(sPE, sYld, r.code);
-      if (r.est_div == null && r.sys_ann_div) r.est_div = r.sys_ann_div;
-      if (r.est_yld == null && sYld > 0) r.est_yld = Math.round(sYld * 100) / 100;
-    }
-    if (r.est_eps == null) r.est_eps = sEps;
-    if (r.est_pe == null && r.sys_ann_pe) r.est_pe = r.sys_ann_pe;
-  }
+  // 預估等級 fallback：使用者沒存檔 → 用沈董（不用系統估算）
+  // est_eps/est_div 維持 null，讓評價門檻計算時 fallback 到 shen_eps/shen_div
 
   // 系統預估等級：優先用後端算好的 priority_grade，沒有才前端自算
   if (r.priority_grade) {
