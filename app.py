@@ -1432,9 +1432,9 @@ def sync_status():
         try:
             r = req.get(f"{RENDER_URL}/api/sync-status?counts_only=1", timeout=15)
             rd = r.json()
-            render_counts = {c['table']: c['local'] for c in rd.get('counts', [])}
-            for c in counts:
-                c['render'] = render_counts.get(c['table'], 0)
+            render_counts = {rc['table']: rc['local'] for rc in rd.get('counts', [])}
+            for ct in counts:
+                ct['render'] = render_counts.get(ct['table'], 0)
         except Exception: pass
 
     # 股價抽樣比對

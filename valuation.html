@@ -234,7 +234,8 @@ async function load() {
     updateCounts();
     renderTab();
   } catch(e) {
-    document.getElementById('content').innerHTML = '<div style="text-align:center;padding:60px;color:#ef4444">無法載入</div>';
+    console.error('valuation load error:', e);
+    document.getElementById('content').innerHTML = `<div style="text-align:center;padding:60px;color:#ef4444">無法載入：${e.message}</div>`;
   }
 }
 
