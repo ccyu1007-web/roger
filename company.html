@@ -2358,6 +2358,7 @@ function calcAnnual() {
   const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
   document.getElementById('annEPS').textContent = fmtNum(annEps, 2);
   calcValuation(annEps);
+  _syncToValMethod();
 }
 
 function calcFromPR() {
@@ -2370,6 +2371,7 @@ function calcFromPR() {
   }
   calcValuation(annEps);
   calcYldRange();
+  _syncToValMethod();
 }
 
 function calcFromDiv() {
@@ -2382,6 +2384,7 @@ function calcFromDiv() {
   }
   calcValuation(annEps);
   calcYldRange();
+  _syncToValMethod();
 }
 
 function calcValuation(annEps) {
@@ -2713,6 +2716,17 @@ function saveDDM() {
   saved.ddmDiv2 = document.getElementById('ddmDiv2')?.value || '';
   saved.ddmDiv3 = document.getElementById('ddmDiv3')?.value || '';
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+}
+
+function _syncToValMethod() {
+  // 預估 EPS 區 → 逍遙評價法連動
+  const q1 = parseNum('estQ1'), q2 = parseNum('estQ2'), q3 = parseNum('estQ3'), q4 = parseNum('estQ4');
+  const parts = [q1, q2, q3, q4].filter(v => v != null);
+  const annEps = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : null;
+  const annDiv = parseNum('annDiv');
+  if (annEps != null) document.getElementById('vmEps').value = annEps.toFixed(2);
+  if (annDiv != null) document.getElementById('vmDiv').value = annDiv.toFixed(2);
+  calcValMethod();
 }
 
 function calcValMethod() {
