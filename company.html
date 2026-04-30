@@ -753,6 +753,16 @@ async function loadDecision() {
     const blend_yld = (blend_div > 0 && close > 0) ? Math.round(blend_div / close * 10000) / 100 : null;
     const blend_grade = (blend_eps != null && blend_eps <= 0) ? 'X' : (blend_pe && blend_yld) ? _calcGrade(blend_pe, blend_yld) : null;
 
+    // 近四季 EPS（最近四季加總）
+    let trailing_eps = null;
+    { const e1 = stock.eps_1, e2 = stock.eps_2, e3 = stock.eps_3, e4 = stock.eps_4;
+      if (e1 != null && e2 != null && e3 != null && e4 != null) trailing_eps = Math.round((e1+e2+e3+e4)*100)/100;
+    }
+    const trailing_div = shen_div;  // 近四季用沈董股利
+    const trailing_pe = (trailing_eps > 0 && close) ? Math.round(close / trailing_eps * 100) / 100 : null;
+    const trailing_yld = (trailing_div > 0 && close > 0) ? Math.round(trailing_div / close * 10000) / 100 : null;
+    const trailing_grade = (trailing_eps != null && trailing_eps <= 0) ? 'X' : (trailing_pe && trailing_yld) ? _calcGrade(trailing_pe, trailing_yld) : null;
+
     // 預估
     let est_eps = userEps || (stock.sys_ann_eps != null ? stock.sys_ann_eps : null);
     let est_div = userDiv || (stock.sys_ann_div != null ? stock.sys_ann_div : null);
@@ -843,12 +853,14 @@ async function loadDecision() {
 
     html += '<div class="dec-section"><div class="dec-title">評估方法比較</div>';
     html += '<table class="dec-table"><thead><tr><th style="width:100px">方法</th><th>等級</th><th>PE</th><th>殖利率</th><th>EPS</th><th>股利</th></tr></thead><tbody>';
+    const weighted_grade = (weighted_eps != null && weighted_eps <= 0) ? 'X' : (weighted_pe && weighted_yld) ? _calcGrade(weighted_pe, weighted_yld) : null;
     const methods = [
       { name: '預估', grade: est_grade, eps: est_eps, pe: est_pe, yld: est_yld, div: est_div },
+      { name: '系統', grade: sys_grade, eps: stock.sys_ann_eps, pe: stock.sys_ann_pe, yld: stock.sys_ann_yld, div: stock.sys_ann_div },
       { name: '沈董', grade: shen_grade, eps: shen_eps, pe: shen_pe, yld: shen_yld, div: shen_div },
       { name: '綜合', grade: blend_grade, eps: blend_eps, pe: blend_pe, yld: blend_yld, div: blend_div },
-      { name: '加權', grade: null, eps: weighted_eps, pe: weighted_pe, yld: weighted_yld, div: weighted_div },
-      { name: '系統', grade: sys_grade, eps: stock.sys_ann_eps, pe: stock.sys_ann_pe, yld: stock.sys_ann_yld, div: stock.sys_ann_div },
+      { name: '加權', grade: weighted_grade, eps: weighted_eps, pe: weighted_pe, yld: weighted_yld, div: weighted_div },
+      { name: '近四季', grade: trailing_grade, eps: trailing_eps, pe: trailing_pe, yld: trailing_yld, div: trailing_div },
     ];
     methods.forEach(m => {
       html += `<tr><td class="row-label">${m.name}</td>`;
