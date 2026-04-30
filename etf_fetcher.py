@@ -10,23 +10,22 @@ etf_fetcher.py — 抓取 ETF 成分股持股明細
   python etf_fetcher.py 0050     # 只更新指定 ETF
 """
 
-import requests
 import db as sqlite3
 import json
 import time
 import re
 from datetime import datetime, date
 from bs4 import BeautifulSoup
+from fetcher_utils import create_session, DB_PATH
 
-DB_PATH = "stocks.db"
-
-_session = requests.Session()
-_session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-                  'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'application/json, text/html, */*',
-    'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
-})
+_session = create_session(
+    ua='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    extra_headers={
+        'Accept': 'application/json, text/html, */*',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+    }
+)
 
 # 追蹤的 ETF 清單（依規模×換股頻率×幅度篩選，2026/4 更新）
 TRACKED_ETFS = {

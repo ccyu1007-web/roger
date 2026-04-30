@@ -11,45 +11,24 @@ capital_fetcher.py — 從群益證券（嘉實系統）抓取財務三表
   現金流量表(年): zc3/zc3a.djhtm?a={code}
   現金流量表(季): zc3/zc3.djhtm?a={code}
 """
-import requests
 import db as sqlite3
 import time
 import random
 import re
 from datetime import datetime
-from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from bs4 import BeautifulSoup
+from fetcher_utils import (
+    create_session, parse_num as _parse_num,
+    fetch_page as _fetch_page_raw, DB_PATH
+)
 
-DB_PATH = "stocks.db"
-
-_session = requests.Session()
-_session.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
-
-
-def _parse_num(s):
-    """解析群益的數值（含千分位逗號、負號）"""
-    if not s:
-        return None
-    s = s.replace(',', '').replace('%', '').strip()
-    if s in ('', '-', '--', 'N/A'):
-        return None
-    try:
-        return float(s)
-    except:
-        return None
+_session = create_session()
 
 
 def _fetch_page(url):
     """抓取群益頁面並解析 table-cell"""
-    try:
-        r = _session.get(url, timeout=15)
-        r.encoding = 'big5'
-        soup = BeautifulSoup(r.text, 'html.parser')
-        cells = soup.find_all(class_=lambda x: x and 'table-cell' in x)
-        texts = [c.get_text(strip=True) for c in cells if c.get_text(strip=True)]
-        return texts
-    except:
-        return []
+    return _fetch_page_raw(_session, url)
 
 
 def _extract_yearly_data(texts, row_labels):

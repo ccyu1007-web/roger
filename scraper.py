@@ -22,6 +22,10 @@ import random
 import re
 import os
 from bs4 import BeautifulSoup
+from fetcher_utils import (
+    create_session, parse_num as safe_float,
+    parse_int as safe_int, DB_PATH
+)
 
 SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
 SYNC_HEADERS = {'X-Sync-Token': SYNC_TOKEN}
@@ -34,10 +38,7 @@ from guardian import (backup_raw_response, cleanup_old_backups,
                       snapshot_stock_states, fetch_material_news,
                       fetch_moneydj_news, auto_archive_old_news)
 
-DB_PATH = "stocks.db"
-
-_session = requests.Session()
-_session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; StockBot/1.0)"})
+_session = create_session(ua="Mozilla/5.0 (compatible; StockBot/1.0)")
 
 # 批次 API 回傳的資料日期（ROC 格式，如 "1150421"）
 _twse_batch_date = None
@@ -221,19 +222,8 @@ def _flush_health_log():
         pass
 
 
-def safe_float(val):
-    try:
-        v = str(val).replace(",", "").strip()
-        return float(v) if v not in ("", "--", "---", "N/A") else None
-    except:
-        return None
 
-def safe_int(val):
-    try:
-        v = str(val).replace(",", "").strip()
-        return int(v) if v not in ("", "--") else None
-    except:
-        return None
+# safe_float / safe_int 已移至 fetcher_utils.py（透過 import as 保持相容）
 
 def fetch_json(url, retries=3, backup_as=None):
     """
