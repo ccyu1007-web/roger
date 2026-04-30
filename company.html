@@ -2139,13 +2139,13 @@ async function initEstimator(sharesMillion) {
       const userEstEps = savedObj.q1 || savedObj.q2 || savedObj.q3 || savedObj.q4
         ? [savedObj.q1, savedObj.q2, savedObj.q3, savedObj.q4].filter(v => v).reduce((a, b) => parseFloat(a || 0) + parseFloat(b || 0), 0)
         : null;
-      const sysEstEps = _sysAnnual && _sysAnnual.est_eps ? _sysAnnual.est_eps : null;
+      const sysEstEps = (_stockData && _stockData.sys_ann_eps) || (_sysAnnual && _sysAnnual.est_eps) || null;
       const autoEps = userEstEps || sysEstEps || _shenEps;
       if (autoEps != null) document.getElementById('vmEps').value = parseFloat(autoEps).toFixed(2);
     }
     if (!savedObj.vmDiv) {
       // 股利優先順序：使用者預估股利 > 系統預估 > 沈董股利
-      const sysEstDiv = _sysAnnual && _sysAnnual.details && _sysAnnual.details.est_div ? _sysAnnual.details.est_div : null;
+      const sysEstDiv = (_stockData && _stockData.sys_ann_div) || (_sysAnnual && _sysAnnual.details && _sysAnnual.details.est_div) || null;
       const autoDiv = sysEstDiv || _shenDiv;
       if (autoDiv != null) document.getElementById('vmDiv').value = parseFloat(autoDiv).toFixed(2);
     }
