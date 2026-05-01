@@ -104,6 +104,7 @@ let _data = null;
 let _tab = 'aa';
 let _qualityOnly = false;
 let _qualitySet = new Set();
+let _focusTrackSet = new Set();
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
@@ -130,13 +131,16 @@ let removedByGrade = {};
 
 async function load() {
   try {
-    const [briefRes, stocksRes, listRes] = await Promise.all([
+    const [briefRes, stocksRes, listRes, focusRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/stocks'),
       fetch('/api/user-lists'),
+      fetch('/api/focus-tracking'),
     ]);
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
+    const focusData = await focusRes.json();
+    _focusTrackSet = new Set((focusData.tracked || []).map(r => r.code));
     _data = await briefRes.json();
     const stocksData = await stocksRes.json();
 
@@ -301,6 +305,7 @@ function renderList(mode) {
     }
 
     html += `<table class="val-table"><thead><tr>
+        <th style="width:36px;text-align:center">追蹤</th>
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
         <th style="width:70px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
@@ -321,7 +326,9 @@ function renderList(mode) {
       const rmHtml = (isRemoved && c.shen_grade) ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c.prev_grade}→${c.shen_grade}</span>` : '';
       const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
+      const isFocused = _focusTrackSet.has(c.code);
       html += `<tr${rowStyle}>
+        <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>
         <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
@@ -388,6 +395,25 @@ function renderChanges() {
 
   if (!changes.length) html = '<div style="text-align:center;padding:60px;color:#94a3b8">今日無評價等級異動</div>';
   document.getElementById('content').innerHTML = html;
+}
+
+function _toggleFocusTrack(cb) {
+  const code = cb.dataset.code;
+  const s = _stocks.find(r => r.code === code);
+  const price = s ? s.price : null;
+  if (cb.checked) {
+    _focusTrackSet.add(code);
+    fetch('/api/focus-tracking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action: 'add', code, price})
+    });
+  } else {
+    _focusTrackSet.delete(code);
+    fetch('/api/focus-tracking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action: 'remove', code})
+    });
+  }
 }
 
 load();

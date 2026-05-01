@@ -6,6 +6,7 @@ render_sync.py — 本機資料同步到 Render
 
 import logging
 import os
+import time
 import requests
 import db as sqlite3
 from fetcher_utils import DB_PATH
@@ -21,6 +22,23 @@ def _is_cloud():
     return bool(os.environ.get('DATABASE_URL'))
 
 
+def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
+    """POST with retry，最多重試 max_retries 次，間隔遞增（2s, 4s）"""
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(url, json=json_data, headers=SYNC_HEADERS, timeout=timeout)
+            if resp.status_code == 200:
+                return resp
+            if attempt == max_retries - 1:
+                print(f"  [{label}] HTTP {resp.status_code}（{max_retries}次重試後）")
+        except Exception as e:
+            if attempt == max_retries - 1:
+                print(f"  [{label}] 失敗（{max_retries}次重試後）: {e}")
+        if attempt < max_retries - 1:
+            time.sleep(2 * (attempt + 1))
+    return None
+
+
 def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500, clear_first=False):
     """
     通用全表同步：把本機任意資料表 push 到 Render
@@ -29,7 +47,7 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     pk: 主鍵欄位列表（用於 UPSERT）
     create_sql: 建表 SQL（Render 端自動建表）
     where: 可選的 WHERE 條件
-    clear_first: 同步前先清空 Render 端的表（避免殘留已刪除的資料）
+    clear_first: 由 Render 端在同一 transaction 裡清空+寫入（避免空窗期）
     """
     conn = sqlite3.connect(DB_PATH)
     col_str = ','.join(columns)
@@ -45,31 +63,19 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
 
     data = [{columns[j]: r[j] for j in range(len(columns))} for r in rows]
 
-    # 同步前清空 Render 端（整表替換，避免殘留已刪除的資料）
-    if clear_first:
-        try:
-            requests.post(
-                f'{RENDER_URL}/api/sync/clear-table',
-                json={'table': table},
-                headers=SYNC_HEADERS, timeout=30
-            )
-        except Exception:
-            pass
-
     failed = 0
     for i in range(0, len(data), batch_size):
         batch = data[i:i+batch_size]
-        try:
-            resp = requests.post(
-                f'{RENDER_URL}/api/sync/table',
-                json={'table': table, 'columns': columns, 'pk': pk,
-                      'create_sql': create_sql or '', 'data': batch},
-                headers=SYNC_HEADERS, timeout=60
-            )
-            if resp.status_code != 200:
-                failed += len(batch)
-        except Exception as e:
-            print(f"  [{table}] batch {i//batch_size+1} 失敗: {e}")
+        payload = {'table': table, 'columns': columns, 'pk': pk,
+                   'create_sql': create_sql or '', 'data': batch}
+        # 第一個 batch 帶 clear_first，Render 端在同一 transaction 清空+寫入
+        if clear_first and i == 0:
+            payload['clear_first'] = True
+
+        resp = _post_with_retry(
+            f'{RENDER_URL}/api/sync/table', payload,
+            label=f'{table} batch {i//batch_size+1}')
+        if not resp:
             failed += len(batch)
 
     msg = f"  [{table}] {len(data)} 筆"
@@ -208,6 +214,36 @@ def _push_all_to_render():
             'pk': ['code','period','period_type','report_type','item'],
             'where': "WHERE DATE(updated_at) = DATE('now')",
         },
+        {
+            'table': 'daily_price',
+            'columns': ['code','date','close_price','volume'],
+            'pk': ['code','date'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS daily_price (
+                code TEXT NOT NULL, date TEXT NOT NULL,
+                close_price REAL, volume INTEGER,
+                PRIMARY KEY (code, date))""",
+            'where': "WHERE date >= date('now', '-30 days')",
+        },
+        {
+            'table': 'focus_tracking',
+            'columns': ['code','focus_date','focus_price','signal_mode','mode_switch_date',
+                        'last_signal_date','last_signal_type','note'],
+            'pk': ['code'],
+            'clear_first': True,
+            'create_sql': """CREATE TABLE IF NOT EXISTS focus_tracking (
+                code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
+                signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
+                last_signal_date TEXT, last_signal_type TEXT, note TEXT)""",
+        },
+        {
+            'table': 'focus_signals',
+            'columns': ['code','date','signal_type','detail'],
+            'pk': ['code','date','signal_type'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS focus_signals (
+                code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
+                detail TEXT, PRIMARY KEY (code, date, signal_type))""",
+            'where': "WHERE date >= date('now', '-30 days')",
+        },
     ]
 
     for cfg in SYNC_TABLES:
@@ -239,7 +275,7 @@ def _push_news_to_render():
         data = [dict(r) for r in rows]
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
-            requests.post(f'{RENDER_URL}/api/sync/news', json={'rows': batch}, headers=SYNC_HEADERS, timeout=30)
+            _post_with_retry(f'{RENDER_URL}/api/sync/news', {'rows': batch}, timeout=30, label='新聞同步')
         print(f"[新聞同步] 已 push {len(data)} 筆到 Render")
     except Exception as e:
         print(f"[新聞同步] 失敗: {e}")
@@ -266,13 +302,9 @@ def _push_pe_history_to_render():
         failed = 0
         for i in range(0, len(data), 500):
             batch = data[i:i+500]
-            try:
-                resp = requests.post(f'{RENDER_URL}/api/sync/pe-history',
-                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
-                if resp.status_code != 200:
-                    failed += len(batch)
-            except Exception as e:
-                print(f"  [PE歷史同步] batch {i//500+1} 失敗: {e}")
+            resp = _post_with_retry(f'{RENDER_URL}/api/sync/pe-history',
+                                    {'data': batch}, label=f'PE歷史 batch {i//500+1}')
+            if not resp:
                 failed += len(batch)
         msg = f"[PE歷史同步] 已 push {len(data)} 筆到 Render"
         if failed:
@@ -302,13 +334,9 @@ def _push_financial_detail_to_render():
         failed = 0
         for i in range(0, len(data), 500):
             batch = data[i:i+500]
-            try:
-                resp = requests.post(f'{RENDER_URL}/api/sync/financial-detail',
-                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
-                if resp.status_code != 200:
-                    failed += len(batch)
-            except Exception as e:
-                print(f"  [財報明細同步] batch {i//500+1} 失敗: {e}")
+            resp = _post_with_retry(f'{RENDER_URL}/api/sync/financial-detail',
+                                    {'data': batch}, label=f'財報明細 batch {i//500+1}')
+            if not resp:
                 failed += len(batch)
         msg = f"[財報明細同步] 已 push {len(data)} 筆到 Render"
         if failed:
@@ -347,13 +375,9 @@ def _push_financial_annual_to_render():
         failed = 0
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
-            try:
-                resp = requests.post(f'{RENDER_URL}/api/sync/financial-annual',
-                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
-                if resp.status_code != 200:
-                    failed += len(batch)
-            except Exception as e:
-                print(f"  [年報同步] batch {i//200+1} 失敗: {e}")
+            resp = _post_with_retry(f'{RENDER_URL}/api/sync/financial-annual',
+                                    {'data': batch}, label=f'年報 batch {i//200+1}')
+            if not resp:
                 failed += len(batch)
         msg = f"[年報同步] 已 push {len(data)} 筆到 Render"
         if failed:
@@ -388,13 +412,9 @@ def _push_quarterly_to_render():
         failed = 0
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
-            try:
-                resp = requests.post(f'{RENDER_URL}/api/sync/quarterly',
-                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=60)
-                if resp.status_code != 200:
-                    failed += len(batch)
-            except Exception as e:
-                print(f"  [季報同步] batch {i//200+1} 失敗: {e}")
+            resp = _post_with_retry(f'{RENDER_URL}/api/sync/quarterly',
+                                    {'data': batch}, label=f'季報 batch {i//200+1}')
+            if not resp:
                 failed += len(batch)
         msg = f"[季報同步] 已 push {len(data)} 筆到 Render"
         if failed:
@@ -435,11 +455,17 @@ def _push_annual_to_render():
             'fin_grade_5','fin_grade_5y','fin_grade_6','fin_grade_6y']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
 
+        failed = 0
         for i in range(0, len(data), 200):
             batch = data[i:i+200]
-            requests.post(f'{RENDER_URL}/api/sync/annual',
-                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
-        print(f"[年度同步] 已 push {len(data)} 支到 Render")
+            resp = _post_with_retry(f'{RENDER_URL}/api/sync/annual',
+                                    {'data': batch}, timeout=30, label=f'年度 batch {i//200+1}')
+            if not resp:
+                failed += len(batch)
+        msg = f"[年度同步] 已 push {len(data)} 支到 Render"
+        if failed:
+            msg += f"（{failed} 支失敗）"
+        print(msg)
     except Exception as e:
         print(f"[年度同步] 失敗: {e}")
 
@@ -459,13 +485,9 @@ def _push_prices_to_render():
         failed = 0
         for i in range(0, len(data), 500):
             batch = data[i:i+500]
-            try:
-                resp = requests.post(f'{RENDER_URL}/api/sync/prices',
-                                    json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
-                if resp.status_code != 200:
-                    failed += len(batch)
-            except Exception as e:
-                print(f"  [股價同步] batch {i//500+1} 失敗: {e}")
+            resp = _post_with_retry(f'{RENDER_URL}/api/sync/prices',
+                                    {'data': batch}, timeout=30, label=f'股價 batch {i//500+1}')
+            if not resp:
                 failed += len(batch)
         msg = f"[股價同步] 已 push {len(data)} 支到 Render"
         if failed:
@@ -482,11 +504,17 @@ def _push_institutional_to_render():
         rows = conn.execute("SELECT code, inst_foreign, inst_trust, inst_dealer FROM stocks WHERE inst_foreign IS NOT NULL").fetchall()
         conn.close()
         data = [{'code': r[0], 'f': r[1], 't': r[2], 'd': r[3]} for r in rows]
+        failed = 0
         for i in range(0, len(data), 500):
             batch = data[i:i+500]
-            requests.post(f'{RENDER_URL}/api/refresh/institutional',
-                         json={'data': batch}, headers=SYNC_HEADERS, timeout=30)
-        print(f"[法人同步] 已 push {len(data)} 支到 Render")
+            resp = _post_with_retry(f'{RENDER_URL}/api/refresh/institutional',
+                                    {'data': batch}, timeout=30, label=f'法人 batch {i//500+1}')
+            if not resp:
+                failed += len(batch)
+        msg = f"[法人同步] 已 push {len(data)} 支到 Render"
+        if failed:
+            msg += f"（{failed} 支失敗）"
+        print(msg)
     except Exception as e:
         print(f"[法人同步] 失敗: {e}")
 
@@ -503,13 +531,11 @@ def _push_estimates_to_render():
         data = [dict(r) for r in rows]
         if not data:
             return
-        resp = requests.post(
-            f"{RENDER_URL}/api/sync/estimates",
-            json={"data": data}, headers=SYNC_HEADERS, timeout=30
-        )
-        if resp.status_code == 200:
+        resp = _post_with_retry(f"{RENDER_URL}/api/sync/estimates",
+                                {"data": data}, timeout=30, label='估算')
+        if resp:
             print(f"  估算 push 到 Render：{len(data)} 支")
         else:
-            print(f"  估算 push 失敗：{resp.status_code}")
+            print(f"  估算 push 失敗（3次重試後）")
     except Exception as e:
         print(f"  估算 push 失敗：{e}")

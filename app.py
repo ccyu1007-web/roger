@@ -1135,6 +1135,7 @@ def sync_table():
     pk = request.json.get('pk', [])
     rows = request.json.get('data', [])
     create_sql = request.json.get('create_sql', '')
+    clear_first = request.json.get('clear_first', False)
 
     # 安全檢查：只允許白名單內的表
     ALLOWED_TABLES = {
@@ -1144,6 +1145,7 @@ def sync_table():
         'system_eps_actual', 'system_eps_log',
         'quarterly_financial', 'financial_annual', 'financial_detail',
         'stocks', 'stock_checklist',
+        'daily_price', 'focus_tracking', 'focus_signals',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
@@ -1167,6 +1169,16 @@ def sync_table():
 
     updated = 0
     errors = []
+
+    # clear_first：在同一個 transaction 裡清空 + 寫入，避免空窗期
+    if clear_first:
+        try:
+            c.execute(f"DELETE FROM {table}")
+        except Exception as e:
+            errors.append(f"clear: {e}")
+            try: conn.rollback()
+            except Exception: pass
+
     if pk:
         # UPSERT: INSERT ON CONFLICT UPDATE
         non_pk = [col for col in columns if col not in pk]
@@ -1228,7 +1240,7 @@ def sync_clear_table():
     table = request.json.get('table', '').strip()
     ALLOWED_TABLES = {
         'material_news', 'etf_holdings', 'etf_changes', 'user_lists',
-        'user_notes', 'user_estimates',
+        'user_notes', 'user_estimates', 'focus_tracking', 'focus_signals',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
