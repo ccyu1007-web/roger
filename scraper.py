@@ -3023,11 +3023,12 @@ def quick_update():
             _push_prices_to_render()
             _push_annual_to_render()
             _push_estimates_to_render()
-            # push monthly_revenue 表
+            # push monthly_revenue 表（只推近兩年，避免全表 9 萬筆太慢）
             _push_table_to_render(
                 table='monthly_revenue',
                 columns=['code','year','month','revenue','updated_at'],
                 pk=['code','year','month'],
+                where='WHERE year >= 2025',
                 create_sql="""CREATE TABLE IF NOT EXISTS monthly_revenue (
                     code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
                     revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""",
