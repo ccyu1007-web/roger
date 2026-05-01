@@ -2160,6 +2160,12 @@ def fetch_company_monthly_revenue(code):
                   (code, year, month, revenue, updated_at)
                 VALUES (:code, :year, :month, :revenue, :updated_at)
             """, row)
+        # 更新 stocks 表的營收日期（取最新月份）
+        latest = max(rows, key=lambda r: (r['year'], r['month']))
+        old = c.execute("SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
+        if old and (latest['year'] > (old[0] or 0) or (latest['year'] == (old[0] or 0) and latest['month'] > (old[1] or 0))):
+            c.execute("UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=? WHERE code=?",
+                      (now_str[:10], latest['year'], latest['month'], code))
         conn.commit()
         conn.close()
 

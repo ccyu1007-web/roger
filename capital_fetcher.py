@@ -716,6 +716,25 @@ def fetch_capital_monthly_revenue(code):
                 saved += 1
             except Exception: pass
 
+    # 更新 stocks 表的營收日期（取 monthly_revenue 中最新月份）
+    if saved > 0:
+        try:
+            conn2 = sqlite3.connect(DB_PATH)
+            latest = conn2.execute(
+                "SELECT year, month FROM monthly_revenue WHERE code=? ORDER BY year DESC, month DESC LIMIT 1",
+                (code,)).fetchone()
+            if latest:
+                old = conn2.execute(
+                    "SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
+                if old and (latest[0] > (old[0] or 0) or (latest[0] == (old[0] or 0) and latest[1] > (old[1] or 0))):
+                    conn2.execute(
+                        "UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=? WHERE code=?",
+                        (now_str[:10], latest[0], latest[1], code))
+                    conn2.commit()
+            conn2.close()
+        except Exception:
+            pass
+
     conn.commit()
     conn.close()
     return saved
