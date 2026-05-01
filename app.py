@@ -1320,7 +1320,9 @@ def sync_prices():
             continue
         fields = []
         vals = []
-        for col in ['close', 'change', 'open', 'high', 'low', 'volume']:
+        for col in ['close', 'change', 'open', 'high', 'low', 'volume',
+                    'revenue_date', 'revenue_year', 'revenue_month',
+                    'revenue_yoy', 'revenue_mom', 'revenue_cum_yoy']:
             if col in r and r[col] is not None:
                 fields.append(f'{col}=?')
                 vals.append(r[col])

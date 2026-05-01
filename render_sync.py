@@ -494,15 +494,19 @@ def _push_annual_to_render():
 
 
 def _push_prices_to_render():
-    """本機股價 push 到 Render（close/change/open/high/low/volume）"""
+    """本機股價+營收欄位 push 到 Render"""
     if _is_cloud():
         return
     try:
         conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code, close, change, open, high, low, volume
+        rows = conn.execute("""SELECT code, close, change, open, high, low, volume,
+                              revenue_date, revenue_year, revenue_month,
+                              revenue_yoy, revenue_mom, revenue_cum_yoy
                               FROM stocks WHERE close IS NOT NULL""").fetchall()
         conn.close()
-        cols = ['code', 'close', 'change', 'open', 'high', 'low', 'volume']
+        cols = ['code', 'close', 'change', 'open', 'high', 'low', 'volume',
+                'revenue_date', 'revenue_year', 'revenue_month',
+                'revenue_yoy', 'revenue_mom', 'revenue_cum_yoy']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
 
         failed = 0
