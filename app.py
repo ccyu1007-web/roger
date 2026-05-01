@@ -1368,6 +1368,11 @@ def sync_annual():
                 if prefix in r:
                     fields.append(f'{prefix}=?')
                     vals.append(r[prefix])
+        # eps_ytd, deepest_val_level, val_cheap_days
+        for extra in ['eps_ytd', 'eps_ytd_label', 'deepest_val_level', 'val_cheap_days']:
+            if extra in r:
+                fields.append(f'{extra}=?')
+                vals.append(r[extra])
         if fields:
             vals.append(r['code'])
             c.execute(f"UPDATE stocks SET {', '.join(fields)} WHERE code=?", vals)

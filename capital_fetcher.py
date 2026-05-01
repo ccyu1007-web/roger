@@ -187,7 +187,7 @@ def fetch_capital_financials(code):
         if gross_profit is not None and operating_income is not None:
             opex = round(gross_profit - operating_income, 4)
 
-        # 群益損益表直接覆蓋（最高優先級）
+        # 群益損益表用 COALESCE（不覆蓋 MOPS 已有值，只補空欄位）
         try:
             c.execute("""INSERT INTO quarterly_financial
                 (code, quarter, revenue, cost, gross_profit, operating_expense,

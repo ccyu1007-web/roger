@@ -138,6 +138,7 @@ def _push_all_to_render():
             'table': 'monthly_revenue',
             'columns': ['code','year','month','revenue','updated_at'],
             'pk': ['code','year','month'],
+            'where': 'WHERE year >= 2020',
             'create_sql': """CREATE TABLE IF NOT EXISTS monthly_revenue (
                 code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
                 revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""",
@@ -187,11 +188,11 @@ def _push_all_to_render():
         },
         {
             'table': 'user_lists',
-            'columns': ['list_type','code','added_at'],
+            'columns': ['list_type','code','added_at','price_at'],
             'pk': ['list_type','code'],
             'clear_first': True,
             'create_sql': """CREATE TABLE IF NOT EXISTS user_lists (
-                list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT,
+                list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT, price_at REAL,
                 PRIMARY KEY (list_type, code))""",
         },
         {
@@ -478,12 +479,14 @@ def _push_annual_to_render():
             eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
             eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
             eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+            eps_ytd, eps_ytd_label,
             div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
             div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
             div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
             fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
             fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
-            fin_grade_5, fin_grade_5y, fin_grade_6, fin_grade_6y
+            fin_grade_5, fin_grade_5y, fin_grade_6, fin_grade_6y,
+            deepest_val_level, val_cheap_days
             FROM stocks WHERE close IS NOT NULL""").fetchall()
         conn.close()
 
@@ -491,12 +494,14 @@ def _push_annual_to_render():
             'eps_1','eps_1q','eps_2','eps_2q','eps_3','eps_3q','eps_4','eps_4q','eps_5','eps_5q',
             'eps_y1','eps_y1_label','eps_y2','eps_y2_label','eps_y3','eps_y3_label',
             'eps_y4','eps_y4_label','eps_y5','eps_y5_label','eps_y6','eps_y6_label',
+            'eps_ytd','eps_ytd_label',
             'div_c1','div_s1','div_1_label','div_c2','div_s2','div_2_label',
             'div_c3','div_s3','div_3_label','div_c4','div_s4','div_4_label',
             'div_c5','div_s5','div_5_label','div_c6','div_s6','div_6_label',
             'fin_grade_1','fin_grade_1y','fin_grade_2','fin_grade_2y',
             'fin_grade_3','fin_grade_3y','fin_grade_4','fin_grade_4y',
-            'fin_grade_5','fin_grade_5y','fin_grade_6','fin_grade_6y']
+            'fin_grade_5','fin_grade_5y','fin_grade_6','fin_grade_6y',
+            'deepest_val_level','val_cheap_days']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
 
         failed = 0
@@ -573,7 +578,8 @@ def _push_estimates_to_render():
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute("""SELECT code, sys_ann_eps, sys_ann_div, sys_ann_pe,
-                               sys_ann_yld, sys_ann_confidence
+                               sys_ann_yld, sys_ann_confidence,
+                               sys_est_eps, sys_est_quarter, sys_est_confidence
                                FROM stocks WHERE sys_ann_eps IS NOT NULL""").fetchall()
         conn.close()
         data = [dict(r) for r in rows]
