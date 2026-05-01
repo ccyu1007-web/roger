@@ -139,13 +139,20 @@ def _parse_mops_quarterly_table(soup):
         if len(rows) < 3:
             continue
 
-        # 找標題行
+        # 找標題行（一般行業 or 金融業）
         header_row = None
+        is_financial = False
         for row in rows[:3]:
             cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
             if any('營業收入' in c for c in cells) and any('營業成本' in c for c in cells):
                 header_row = cells
                 break
+            # 金融業（銀行/金控/保險/證券）：沒有營業收入/營業成本，改用其他欄位
+            if any('公司代號' in c for c in cells) and any('基本每股盈餘' in c for c in cells):
+                if any('利息' in c or '淨收益' in c or '收入' == c for c in cells):
+                    header_row = cells
+                    is_financial = True
+                    break
 
         if not header_row:
             continue
@@ -182,7 +189,10 @@ def _parse_mops_quarterly_table(soup):
             elif '基本每股盈餘' in h:
                 col_map['eps'] = i
 
-        if 'code' not in col_map or 'revenue' not in col_map:
+        # 一般行業需要 revenue，金融業只需要 code + eps
+        if 'code' not in col_map:
+            continue
+        if not is_financial and 'revenue' not in col_map:
             continue
 
         # 解析資料行

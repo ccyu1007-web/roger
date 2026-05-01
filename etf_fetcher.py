@@ -45,6 +45,7 @@ TRACKED_ETFS = {
     '0056':   {'name': '元大高股息',           'issuer': 'yuanta',  'category': '指標型'},
     '00878':  {'name': '國泰永續高股息',       'issuer': 'cathay',  'category': '指標型'},
     '0050':   {'name': '元大台灣50',           'issuer': 'yuanta',  'category': '指標型'},
+    '006208': {'name': '富邦台50',             'issuer': 'ftse_tw50_sync', 'category': '指標型'},
     # ── 國際指數（僅展示成分股，不追蹤異動）──
     'MSCI_TW':   {'name': 'MSCI台灣指數',     'issuer': 'msci',    'category': '國際指數', 'track_changes': False},
     'FTSE_TW50': {'name': 'FTSE台灣50指數',   'issuer': 'ftse',    'category': '國際指數', 'track_changes': False},
@@ -475,6 +476,13 @@ def fetch_etf_holdings(etf_code):
 
     if etf_code == 'FTSE_TW50':
         holdings = _fetch_ftse_tw50()
+        if holdings:
+            return _save_holdings(etf_code, holdings)
+        return 0
+
+    # 006208 富邦台50：與 0050 追蹤同一指數，直接同步
+    if etf_code == '006208':
+        holdings = _fetch_ftse_tw50()  # 同樣從 0050 同步
         if holdings:
             return _save_holdings(etf_code, holdings)
         return 0
