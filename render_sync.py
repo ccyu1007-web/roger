@@ -23,7 +23,7 @@ def _is_cloud():
 
 
 # 最近一次同步結果（供 health API 讀取）
-_last_sync_result = {'time': None, 'failures': [], 'ok': True}
+_last_sync_result = {'time': None, 'last_success': None, 'failures': [], 'ok': True}
 
 
 def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
@@ -271,10 +271,13 @@ def _push_all_to_render():
             failures.append(f"{cfg['table']}: {e}")
 
     from datetime import datetime
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    is_ok = len(failures) == 0
     _last_sync_result = {
-        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'time': now_str,
+        'last_success': now_str if is_ok else _last_sync_result.get('last_success'),
         'failures': failures,
-        'ok': len(failures) == 0,
+        'ok': is_ok,
     }
     if failures:
         print(f"[全量同步] 完成，{len(failures)} 張表有失敗: {', '.join(failures)}")

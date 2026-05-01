@@ -403,11 +403,19 @@ async function loadAll() {
   const rsEl = document.getElementById('renderSync');
   const rs = health.render_sync || {};
   if (rs.time) {
-    const rsColor = rs.ok ? '#22c55e' : '#ef4444';
-    const rsIcon = rs.ok ? '全部成功' : `${rs.failures.length} 張表失敗`;
+    // 檢查最後成功時間是否超過 24 小時
+    let staleHours = null;
+    let isStale = false;
+    if (rs.last_success) {
+      staleHours = ((Date.now() - new Date(rs.last_success).getTime()) / 3600000).toFixed(1);
+      isStale = staleHours >= 24;
+    }
+    const rsColor = isStale ? '#ef4444' : (rs.ok ? '#22c55e' : '#f59e0b');
+    const rsIcon = isStale ? '超過 24 小時未成功同步' : (rs.ok ? '全部成功' : `${rs.failures.length} 張表失敗`);
     let rsHtml = `<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
       <div style="font-size:1.1rem;font-weight:700;color:${rsColor}">${rsIcon}</div>
-      <div>最後同步：${rs.time}</div></div>`;
+      <div>最後成功：${rs.last_success || '從未成功'}</div>
+      <div>最後嘗試：${rs.time}</div></div>`;
     if (rs.failures && rs.failures.length > 0) {
       rsHtml += `<div style="margin-top:8px;color:#ef4444;font-size:.85rem">${rs.failures.join('<br>')}</div>`;
     }

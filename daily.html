@@ -71,6 +71,7 @@
 </div>
 
 <script>
+const _USER_HEADERS = {'Content-Type':'application/json', 'X-API-Key':'roger-stock-2026'};
 let _news = [];
 let _currentTab = 'today';
 
@@ -308,13 +309,13 @@ function statusLabel(n) {
 }
 
 async function upgradeNews(id, el) {
-  await fetch(`/api/news/${id}/upgrade`, {method:'POST'});
+  await fetch(`/api/news/${id}/upgrade`, {method:'POST', headers: _USER_HEADERS});
   el.closest('.stock-row').style.opacity = '1';
   el.closest('.stock-row').innerHTML = '<span style="color:#059669;font-size:.82rem">已升級到一般訊息</span>';
 }
 
 async function markNews(id, status, el) {
-  await fetch(`/api/news/${id}/status`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+  await fetch(`/api/news/${id}/status`, {method:'POST', headers: _USER_HEADERS, body:JSON.stringify({status})});
   // 更新本地資料
   const item = _news.find(n => n.id === id);
   if (item) item.status = status;
@@ -323,7 +324,7 @@ async function markNews(id, status, el) {
 }
 
 async function undoNews(id, el) {
-  await fetch(`/api/news/${id}/status`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status: null})});
+  await fetch(`/api/news/${id}/status`, {method:'POST', headers: _USER_HEADERS, body:JSON.stringify({status: null})});
   const item = _news.find(n => n.id === id);
   if (item) item.status = null;
   updateCounts();

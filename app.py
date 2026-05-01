@@ -50,10 +50,14 @@ def check_sync_token():
     return True
 
 # ── User API Token 驗證（防止外部隨機 POST 灌垃圾）─────────
-USER_API_TOKEN = os.environ.get('USER_API_TOKEN', 'roger-stock-2026')
+USER_API_TOKEN = os.environ.get('USER_API_TOKEN')
+if not USER_API_TOKEN:
+    print("[警告] USER_API_TOKEN 未設定！使用者寫入 API 無保護！請設定環境變數。")
 
 def check_user_token():
     """驗證使用者寫入 API 的 token（header 或 query param）"""
+    if not USER_API_TOKEN:
+        return True  # 未設定 token 時不擋（本機開發用），但啟動時會印警告
     token = request.headers.get('X-API-Key') or request.args.get('api_key')
     return token == USER_API_TOKEN
 
@@ -2329,6 +2333,8 @@ def news():
 @app.route("/api/news/<int:nid>/upgrade", methods=["POST"])
 def upgrade_news(nid):
     """把 Tier 0 升級到 Tier 1（使用者認為被誤過濾）"""
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE material_news SET tier=1, matched_rule='使用者升級' WHERE id=? AND tier=0", (nid,))
@@ -2338,6 +2344,8 @@ def upgrade_news(nid):
 
 @app.route("/api/news/<int:nid>/status", methods=["POST"])
 def update_news_status(nid):
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     status = request.json.get("status") if request.is_json else request.args.get("status")
     if status not in ('important', 'dismissed', None):
         return jsonify({"error": "status must be important, dismissed, or null"}), 400
