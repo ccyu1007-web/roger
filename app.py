@@ -711,7 +711,8 @@ def get_stocks():
     # 確保新欄位存在（Render PostgreSQL 可能還沒有）
     try:
         conn_init = sqlite3.connect(DB_PATH)
-        for col, typ in [('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER'),
+        for col, typ in [('revenue_year','INTEGER'),('revenue_month','INTEGER'),
+                        ('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER'),
                         ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT'),
                         ('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
                         ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT'),
