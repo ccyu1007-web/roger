@@ -1751,22 +1751,24 @@ function calcDerived(r) {
     r.weighted_grade = _calcMatrixGrade(r.weighted_pe, r.weighted_yld, r.code);
   }
 
-  // 權重混合（沈董 × A% + 加權 × B%）
-  const bS = _blendShen / 100, bW = _blendWt / 100;
+  // 權重混合（沈董 × A% + 加權 × B%，正規化為加權平均）
+  const bS = _blendShen, bW = _blendWt;
+  const bTotal = bS + bW;
   r.blend_eps = null;
   r.blend_div = null;
   r.blend_pe = null;
   r.blend_yld = null;
   r.blend_grade = null;
-  if (bS + bW > 0) {
+  if (bTotal > 0) {
+    const nS = bS / bTotal, nW = bW / bTotal;  // 正規化權重，確保合計=1
     // EPS
     const se = r.shen_eps, we = r.weighted_eps;
-    if (se != null && we != null) r.blend_eps = Math.round((se * bS + we * bW) * 100) / 100;
+    if (se != null && we != null) r.blend_eps = Math.round((se * nS + we * nW) * 100) / 100;
     else if (se != null) r.blend_eps = Math.round(se * 100) / 100;
     else if (we != null) r.blend_eps = Math.round(we * 100) / 100;
     // 股利
     const sd = r.shen_div, wd = r.weighted_div;
-    if (sd != null && wd != null) r.blend_div = Math.round((sd * bS + wd * bW) * 100) / 100;
+    if (sd != null && wd != null) r.blend_div = Math.round((sd * nS + wd * nW) * 100) / 100;
     else if (sd != null) r.blend_div = Math.round(sd * 100) / 100;
     else if (wd != null) r.blend_div = Math.round(wd * 100) / 100;
     // PE & 殖利率
