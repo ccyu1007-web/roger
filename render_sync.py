@@ -22,6 +22,10 @@ def _is_cloud():
     return bool(os.environ.get('DATABASE_URL'))
 
 
+# 最近一次同步結果（供 health API 讀取）
+_last_sync_result = {'time': None, 'failures': [], 'ok': True}
+
+
 def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
     """POST with retry，最多重試 max_retries 次，間隔遞增（2s, 4s）"""
     for attempt in range(max_retries):
@@ -85,21 +89,27 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     return len(data) - failed
 
 
+def get_last_sync_result():
+    """供 health API 讀取最近一次同步結果"""
+    return _last_sync_result
+
+
 def _push_all_to_render():
     """一次 push 所有資料到 Render — 通用全表同步"""
+    global _last_sync_result
     if _is_cloud():
         return
     print("[全量同步] 開始 push 到 Render...")
+    failures = []
 
     # 既有的專用 push（stocks 表結構特殊，保留原函式）
-    try: _push_prices_to_render()
-    except Exception as e: print(f"  [prices] 失敗: {e}")
-    try: _push_annual_to_render()
-    except Exception as e: print(f"  [annual] 失敗: {e}")
-    try: _push_institutional_to_render()
-    except Exception as e: print(f"  [institutional] 失敗: {e}")
-    try: _push_estimates_to_render()
-    except Exception as e: print(f"  [estimates] 失敗: {e}")
+    for name, fn in [('prices', _push_prices_to_render), ('annual', _push_annual_to_render),
+                     ('institutional', _push_institutional_to_render), ('estimates', _push_estimates_to_render)]:
+        try:
+            fn()
+        except Exception as e:
+            print(f"  [{name}] 失敗: {e}")
+            failures.append(f"{name}: {e}")
 
     # 通用全表同步 — 所有獨立資料表
     SYNC_TABLES = [
@@ -258,8 +268,18 @@ def _push_all_to_render():
             )
         except Exception as e:
             print(f"  [{cfg['table']}] 失敗: {e}")
+            failures.append(f"{cfg['table']}: {e}")
 
-    print("[全量同步] 完成")
+    from datetime import datetime
+    _last_sync_result = {
+        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'failures': failures,
+        'ok': len(failures) == 0,
+    }
+    if failures:
+        print(f"[全量同步] 完成，{len(failures)} 張表有失敗: {', '.join(failures)}")
+    else:
+        print("[全量同步] 完成，全部成功")
 
 
 def _push_news_to_render():

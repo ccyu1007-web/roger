@@ -49,6 +49,14 @@ def check_sync_token():
         return False
     return True
 
+# ── User API Token 驗證（防止外部隨機 POST 灌垃圾）─────────
+USER_API_TOKEN = os.environ.get('USER_API_TOKEN', 'roger-stock-2026')
+
+def check_user_token():
+    """驗證使用者寫入 API 的 token（header 或 query param）"""
+    token = request.headers.get('X-API-Key') or request.args.get('api_key')
+    return token == USER_API_TOKEN
+
 # ── 快取控制 ──────────────────────────────────────────────
 # HTML 不快取（確保載入最新版），API JSON 短快取（減少重複請求）
 @app.after_request
@@ -2053,7 +2061,14 @@ def sync_status():
 
 @app.route("/api/health")
 def health():
-    return jsonify(generate_health_report())
+    report = generate_health_report()
+    # 附加 Render 同步狀態
+    try:
+        from render_sync import get_last_sync_result
+        report['render_sync'] = get_last_sync_result()
+    except Exception:
+        pass
+    return jsonify(report)
 
 @app.route("/api/cross-validate", methods=["POST"])
 def run_cross_validate():
@@ -2634,12 +2649,12 @@ if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'tr
         # 每 30 分鐘快速更新（股價 + 最新營收 + EPS）
         scheduler.add_job(quick_update, 'interval', minutes=30,
                           id='quick_update', replace_existing=True)
-        # 每天早上 6:30 完整爬蟲（錯開本機 06:00，避免撞車）
-        scheduler.add_job(scraper_run, 'cron', hour=6, minute=30,
+        # 每天 07:00 完整爬蟲（本機 06:00 跑 28~41 分鐘，錯開 1 小時避免撞車）
+        scheduler.add_job(scraper_run, 'cron', hour=7, minute=0,
                           id='daily_scrape', replace_existing=True)
-        # 週一到週五 15:00 盤後更新（錯開本機 14:30，避免撞車）
+        # 週一到週五 15:30 盤後更新（本機 14:30 跑完+push 約需 40 分鐘）
         scheduler.add_job(scraper_run, 'cron', day_of_week='mon-fri',
-                          hour=15, minute=0,
+                          hour=15, minute=30,
                           id='afternoon_scrape', replace_existing=True)
         # 三大法人：Render 上群益會被擋，不排程
         # 法人資料由本機 17:10 抓完後 push 到 Render（/api/refresh/institutional POST with data）
@@ -2721,6 +2736,8 @@ def get_user_lists():
 
 @app.route("/api/user-lists/<list_type>", methods=["POST"])
 def update_user_list(list_type):
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     from datetime import datetime
     if list_type not in ('watch', 'hold', 'focus', 'quality'):
         return jsonify({"error": "invalid list_type"}), 400
@@ -2773,6 +2790,8 @@ def get_focus_tracking():
 @app.route("/api/focus-tracking", methods=["POST"])
 def update_focus_tracking():
     """勾選/取消重點追蹤"""
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     from datetime import datetime as dt
     data = request.json
     action = data.get('action')  # 'add' or 'remove'
@@ -2825,6 +2844,8 @@ def get_user_settings():
 
 @app.route("/api/user-settings", methods=["POST"])
 def save_user_settings():
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     from datetime import datetime
     data = request.json
     if not data:
@@ -2853,6 +2874,8 @@ def get_user_note(code):
 
 @app.route("/api/user-notes/<code>", methods=["POST"])
 def save_user_note(code):
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     from datetime import datetime
     content = request.json.get('content', '')
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -2897,6 +2920,8 @@ def get_user_estimate(code):
 
 @app.route("/api/user-estimates/<code>", methods=["POST"])
 def save_user_estimate(code):
+    if not check_user_token():
+        return jsonify({"error": "unauthorized"}), 403
     from datetime import datetime
     import json
     params = request.json

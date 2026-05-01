@@ -121,6 +121,9 @@
 <h2>資料庫健康</h2>
 <div class="card" id="dbStatus"></div>
 
+<h2>Render 同步狀態</h2>
+<div class="card" id="renderSync"></div>
+
 <h2>備份狀態</h2>
 <div class="card" id="backupInfo"></div>
 
@@ -395,6 +398,23 @@ async function loadAll() {
       <div>iCloud：<strong style="color:${icColor}">${icText}</strong></div>
       <div style="font-size:.8rem;color:#94a3b8">${db.last_check || '尚未執行過檢查'}</div>
     </div>`;
+
+  // Render 同步狀態
+  const rsEl = document.getElementById('renderSync');
+  const rs = health.render_sync || {};
+  if (rs.time) {
+    const rsColor = rs.ok ? '#22c55e' : '#ef4444';
+    const rsIcon = rs.ok ? '全部成功' : `${rs.failures.length} 張表失敗`;
+    let rsHtml = `<div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:1.1rem;font-weight:700;color:${rsColor}">${rsIcon}</div>
+      <div>最後同步：${rs.time}</div></div>`;
+    if (rs.failures && rs.failures.length > 0) {
+      rsHtml += `<div style="margin-top:8px;color:#ef4444;font-size:.85rem">${rs.failures.join('<br>')}</div>`;
+    }
+    rsEl.innerHTML = rsHtml;
+  } else {
+    rsEl.innerHTML = '<span style="color:#94a3b8">尚未執行過同步</span>';
+  }
 
   const bEl = document.getElementById('backupInfo');
   const b = health.backup_status || {};

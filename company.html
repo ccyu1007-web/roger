@@ -575,6 +575,7 @@
 
 <script>
 const CODE = new URLSearchParams(location.search).get('code');
+const _USER_HEADERS = {'Content-Type':'application/json', 'X-API-Key':'roger-stock-2026'};
 if (!CODE) { document.getElementById('panel').innerHTML = '<div class="loading">缺少股票代碼</div>'; }
 
 let currentTab = 'financial';
@@ -2005,13 +2006,13 @@ function onNotesInput() {
       localStorage.setItem('notes_' + CODE, text);
       // 同步到 DB
       fetch(`/api/user-notes/${CODE}`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+        method: 'POST', headers: _USER_HEADERS,
         body: JSON.stringify({content: text})
       });
     } else {
       localStorage.removeItem('notes_' + CODE);
       fetch(`/api/user-notes/${CODE}`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+        method: 'POST', headers: _USER_HEADERS,
         body: JSON.stringify({content: ''})
       });
     }
@@ -2642,7 +2643,7 @@ function saveValParams() {
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB
   fetch(`/api/user-estimates/${CODE}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
+    method: 'POST', headers: _USER_HEADERS,
     body: JSON.stringify(saved)
   });
   document.getElementById('valParamsDate').textContent = '已儲存：' + now;
@@ -2671,7 +2672,7 @@ function clearValParams() {
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB
   fetch(`/api/user-estimates/${CODE}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
+    method: 'POST', headers: _USER_HEADERS,
     body: JSON.stringify(saved)
   });
   document.getElementById('valParamsDate').textContent = '';
