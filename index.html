@@ -1153,7 +1153,10 @@ function evalGradeFilters(r) {
   for (const [key, grades] of Object.entries(_gradeFilters)) {
     if (!grades || !grades.length) continue;
     const val = r[key];
-    if (!val || !grades.includes(val)) return false;
+    if (!val) return false;
+    // 去掉 +/- 後綴再比對（A+ → A, AA- → AA）
+    const base = val.replace(/[+-]/g, '');
+    if (!grades.includes(val) && !grades.includes(base)) return false;
   }
   return true;
 }
