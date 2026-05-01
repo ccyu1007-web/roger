@@ -195,6 +195,27 @@ def _push_all_to_render():
                 PRIMARY KEY (list_type, code))""",
         },
         {
+            'table': 'user_notes',
+            'columns': ['code', 'content', 'updated_at'],
+            'pk': ['code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS user_notes (
+                code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""",
+        },
+        {
+            'table': 'user_settings',
+            'columns': ['key', 'value', 'updated_at'],
+            'pk': ['key'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS user_settings (
+                key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""",
+        },
+        {
+            'table': 'user_estimates',
+            'columns': ['code', 'params', 'updated_at', 'est_year'],
+            'pk': ['code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS user_estimates (
+                code TEXT PRIMARY KEY, params TEXT, updated_at TEXT, est_year TEXT)""",
+        },
+        {
             'table': 'stock_checklist',
             'columns': ['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
                         'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12','chk_13',

@@ -1345,6 +1345,13 @@ def run(scheduled=True):
         rt_count = _refresh_realtime()
         print(f"[股價修正] 即時 API 更新 {rt_count} 支")
 
+    # MOPS 季報（第一優先）
+    try:
+        from mops_fetcher import fetch_latest_mops_quarterly
+        fetch_latest_mops_quarterly()
+    except Exception as e:
+        print(f"[MOPS季報] 失敗: {e}")
+
     # 7. 補回 DELETE+INSERT 不包含的資料（產業別、年度EPS歷史、財務等級）
     print("[後處理] 補回輔助資料...")
     _post_process_after_save()
@@ -2792,8 +2799,13 @@ def quick_update():
                 continue
             old_y, old_m = row[0], row[1]
 
-            # 新月份 → 設 revenue_date 為今天
-            # 同月份 → 用政府官方值覆蓋（確保數據正確），但不改 revenue_date
+            # 同月份 → 用政府官方值覆蓋 yoy/mom/cum_yoy（確保數據正確）
+            # 新月份 → 更新 revenue_date/year/month
+            # 舊月份（MOPS 已更新到更新的月份）→ 跳過，不降級
+            if old_y is not None and old_m is not None:
+                if west_year < old_y or (west_year == old_y and month < old_m):
+                    # t187ap05 的月份比 MOPS 已更新的舊，跳過不降級
+                    continue
             if old_y == west_year and old_m == month:
                 c.execute("""UPDATE stocks SET
                     revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, revenue_note=?

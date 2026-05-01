@@ -194,15 +194,15 @@ def fetch_capital_financials(code):
                  operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(code, quarter) DO UPDATE SET
-                revenue=excluded.revenue,
-                cost=excluded.cost,
-                gross_profit=excluded.gross_profit,
-                operating_expense=excluded.operating_expense,
-                operating_income=excluded.operating_income,
-                non_operating=excluded.non_operating,
-                pretax_income=excluded.pretax_income,
-                net_income_parent=excluded.net_income_parent,
-                eps=excluded.eps,
+                revenue=COALESCE(quarterly_financial.revenue, excluded.revenue),
+                cost=COALESCE(quarterly_financial.cost, excluded.cost),
+                gross_profit=COALESCE(quarterly_financial.gross_profit, excluded.gross_profit),
+                operating_expense=COALESCE(quarterly_financial.operating_expense, excluded.operating_expense),
+                operating_income=COALESCE(quarterly_financial.operating_income, excluded.operating_income),
+                non_operating=COALESCE(quarterly_financial.non_operating, excluded.non_operating),
+                pretax_income=COALESCE(quarterly_financial.pretax_income, excluded.pretax_income),
+                net_income_parent=COALESCE(quarterly_financial.net_income_parent, excluded.net_income_parent),
+                eps=COALESCE(quarterly_financial.eps, excluded.eps),
                 updated_at=excluded.updated_at""",
                 (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
                  non_operating, pretax_income, net_income, eps, now_str))
