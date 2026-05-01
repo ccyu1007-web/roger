@@ -40,6 +40,30 @@
   .market-btns { display: flex; gap: 4px; }
   .watch-btns { display: flex; gap: 6px; align-items: center; }
   .watch-cb { width: 18px; height: 18px; cursor: pointer; accent-color: #f97316; }
+  .focus-cb { width: 18px; height: 18px; cursor: pointer; accent-color: #2563eb; }
+  /* 重點追蹤置頂區 */
+  .focus-panel {
+    background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+    border: 1.5px solid #93c5fd; border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 16px;
+  }
+  .focus-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; cursor: pointer;
+  }
+  .focus-panel-header h3 { font-size: 1rem; color: #1e3a5f; font-weight: 700; }
+  .focus-panel .signal-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: .72rem; font-weight: 700; margin-left: 4px;
+  }
+  .signal-price { background: #fef3c7; color: #92400e; }
+  .signal-volume { background: #dbeafe; color: #1d4ed8; }
+  .signal-cheap-exit { background: #dcfce7; color: #166534; }
+  .focus-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .focus-table th { background: #1e3a5f; color: #fff; padding: 6px 12px; text-align: left; white-space: nowrap; }
+  .focus-table td { padding: 6px 12px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  .focus-table tr:hover { background: #dbeafe; }
+  .focus-row-signal { background: #fefce8; }
   .tb-group {
     display: flex; align-items: center; gap: 5px;
     padding: 3px 8px; border-radius: 6px; background: #f8fafc;
@@ -81,26 +105,29 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前五欄：觀察 + 體質 + 檢核 + 股票代碼 + 公司名稱 */
+  /* 凍結前六欄：追蹤 + 觀察 + 體質 + 檢核 + 股票代碼 + 公司名稱 */
   thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3),
-  thead th:nth-child(4), thead th:nth-child(5) { position: sticky; top: 0; z-index: 4; }
+  thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6) { position: sticky; top: 0; z-index: 4; }
   thead th:nth-child(1) { left: 0; }
   thead th:nth-child(2) { left: 0; }
   thead th:nth-child(3) { left: 0; }
   thead th:nth-child(4) { left: 0; }
-  thead th:nth-child(5) { left: 0; border-right: 2px solid #93c5fd; }
+  thead th:nth-child(5) { left: 0; }
+  thead th:nth-child(6) { left: 0; border-right: 2px solid #93c5fd; }
   tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3),
-  tbody td:nth-child(4), tbody td:nth-child(5) { position: sticky; background: #fff; z-index: 1; }
+  tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6) { position: sticky; background: #fff; z-index: 1; }
   tbody td:nth-child(1) { left: 0; }
   tbody td:nth-child(2) { left: 0; }
   tbody td:nth-child(3) { left: 0; }
   tbody td:nth-child(4) { left: 0; }
-  tbody td:nth-child(5) { left: 0; border-right: 2px solid #e2e8f0; }
+  tbody td:nth-child(5) { left: 0; }
+  tbody td:nth-child(6) { left: 0; border-right: 2px solid #e2e8f0; }
   tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2), tbody tr:nth-child(even) td:nth-child(3),
-  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5) { background: #f8fafc; }
+  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5), tbody tr:nth-child(even) td:nth-child(6) { background: #f8fafc; }
   tbody tr:hover td:nth-child(1),
   tbody tr:hover td:nth-child(2),
-  tbody tr:hover td:nth-child(3) { background: #dbeafe; }
+  tbody tr:hover td:nth-child(3),
+  tbody tr:hover td:nth-child(4) { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -444,6 +471,7 @@
       <thead>
         <tr>
           <!-- 識別 -->
+          <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
@@ -2365,8 +2393,10 @@ function render() {
     const isIncomplete = r.close == null || (r.eps_1 == null && r.eps_y1 == null);
     const cls = [isRevNew?'rev-new':'', isEpsNew?'eps-new':'', isWatched?'watched':'', isQuality?'q-pass':'', isIncomplete&&!isWatched?'incomplete':''].filter(Boolean).join(' ');
 
+    const isFocused = focusTrackSet.has(r.code);
     return `<tr${cls ? ` class="${cls}"` : ''}>
       <!-- 識別 -->
+      <td style="text-align:center"><input type="checkbox" class="focus-cb" data-code="${r.code}" ${isFocused?'checked':''} onchange="toggleFocusTrack(this)">${_focusSignalBadge(r.code)}</td>
       <td style="text-align:center">${(() => {
         const wp = watchPrices[r.code];
         const tip = wp && r.close ? (() => {
