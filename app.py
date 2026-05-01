@@ -1921,11 +1921,15 @@ def get_monthly_revenue(code):
     if not cache_valid and not is_cloud:
         if rows:
             def _bg_rev(c=code):
-                try: fetch_company_monthly_revenue(c)
+                try:
+                    from capital_fetcher import fetch_capital_monthly_revenue
+                    fetch_capital_monthly_revenue(c)
                 except Exception: pass
             threading.Thread(target=_bg_rev, daemon=True).start()
         else:
-            try: fetch_company_monthly_revenue(code)
+            try:
+                from capital_fetcher import fetch_capital_monthly_revenue
+                fetch_capital_monthly_revenue(code)
             except Exception: pass
             rows = query_db(
                 "SELECT * FROM monthly_revenue WHERE code = ? ORDER BY year DESC, month ASC",

@@ -933,6 +933,11 @@ function initWatchSettings() {
   document.getElementById('wsYld').value = _wSettings.yld;
   document.getElementById('wsRequireQuality').checked = _wSettings.requireQuality;
   document.getElementById('wsPositiveEps').checked = _wSettings.positiveEps;
+  // 確保預設值寫入 localStorage（不然 syncUserSettings 抓不到）
+  if (!localStorage.getItem('watch_settings')) {
+    localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
+    syncUserSettings();
+  }
 }
 
 function saveWatchSettings() {
@@ -2051,6 +2056,10 @@ function initGlobalVal() {
   document.getElementById('gYldFloor').value = _globalVal.yldFloor;
   document.getElementById('gYldHigh').value = _globalVal.yldHigh;
   document.getElementById('gYldMax').value = _globalVal.yldMax;
+  if (!localStorage.getItem('global_val_params')) {
+    localStorage.setItem('global_val_params', JSON.stringify(_globalVal));
+    syncUserSettings();
+  }
 }
 
 function onGlobalValChange() {
