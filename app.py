@@ -49,17 +49,6 @@ def check_sync_token():
         return False
     return True
 
-# ── User API Token 驗證（防止外部隨機 POST 灌垃圾）─────────
-USER_API_TOKEN = os.environ.get('USER_API_TOKEN')
-if not USER_API_TOKEN:
-    print("[警告] USER_API_TOKEN 未設定！使用者寫入 API 無保護！請設定環境變數。")
-
-def check_user_token():
-    """驗證使用者寫入 API 的 token（header 或 query param）"""
-    if not USER_API_TOKEN:
-        return True  # 未設定 token 時不擋（本機開發用），但啟動時會印警告
-    token = request.headers.get('X-API-Key') or request.args.get('api_key')
-    return token == USER_API_TOKEN
 
 # ── 快取控制 ──────────────────────────────────────────────
 # HTML 不快取（確保載入最新版），API JSON 短快取（減少重複請求）
@@ -2333,8 +2322,7 @@ def news():
 @app.route("/api/news/<int:nid>/upgrade", methods=["POST"])
 def upgrade_news(nid):
     """把 Tier 0 升級到 Tier 1（使用者認為被誤過濾）"""
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE material_news SET tier=1, matched_rule='使用者升級' WHERE id=? AND tier=0", (nid,))
@@ -2344,8 +2332,7 @@ def upgrade_news(nid):
 
 @app.route("/api/news/<int:nid>/status", methods=["POST"])
 def update_news_status(nid):
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     status = request.json.get("status") if request.is_json else request.args.get("status")
     if status not in ('important', 'dismissed', None):
         return jsonify({"error": "status must be important, dismissed, or null"}), 400
@@ -2744,8 +2731,7 @@ def get_user_lists():
 
 @app.route("/api/user-lists/<list_type>", methods=["POST"])
 def update_user_list(list_type):
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     from datetime import datetime
     if list_type not in ('watch', 'hold', 'focus', 'quality'):
         return jsonify({"error": "invalid list_type"}), 400
@@ -2798,8 +2784,7 @@ def get_focus_tracking():
 @app.route("/api/focus-tracking", methods=["POST"])
 def update_focus_tracking():
     """勾選/取消重點追蹤"""
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     from datetime import datetime as dt
     data = request.json
     action = data.get('action')  # 'add' or 'remove'
@@ -2852,8 +2837,7 @@ def get_user_settings():
 
 @app.route("/api/user-settings", methods=["POST"])
 def save_user_settings():
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     from datetime import datetime
     data = request.json
     if not data:
@@ -2882,8 +2866,7 @@ def get_user_note(code):
 
 @app.route("/api/user-notes/<code>", methods=["POST"])
 def save_user_note(code):
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     from datetime import datetime
     content = request.json.get('content', '')
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -2928,8 +2911,7 @@ def get_user_estimate(code):
 
 @app.route("/api/user-estimates/<code>", methods=["POST"])
 def save_user_estimate(code):
-    if not check_user_token():
-        return jsonify({"error": "unauthorized"}), 403
+
     from datetime import datetime
     import json
     params = request.json

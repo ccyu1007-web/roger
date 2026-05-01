@@ -585,7 +585,6 @@
 <script>
 const TODAY = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 const CUR_ROC_YEAR = new Date().getFullYear() - 1911;
-const _USER_HEADERS = {'Content-Type':'application/json', 'X-API-Key':'roger-stock-2026'};
 
 // ── 等級標籤 HTML（共用）──
 function gradeHtml(g) {
@@ -746,7 +745,7 @@ function syncUserSettings() {
   });
   if (Object.keys(payload).length) {
     fetch('/api/user-settings', {
-      method: 'POST', headers: _USER_HEADERS,
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     }).catch(() => {});
   }
@@ -765,7 +764,7 @@ async function loadUserLists() {
     for (const [type, localKey, setRef] of [['quality','qualityList',qualitySet],['watch','watchList',watchSet],['hold','holdList',holdSet],['focus','focusList',focusSet]]) {
       if ((!data[type] || !data[type].length) && setRef.size > 0) {
         fetch(`/api/user-lists/${type}`, {
-          method: 'POST', headers: _USER_HEADERS,
+          method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({action: 'sync', codes: [...setRef]})
         }).catch(() => {});
       }
@@ -776,7 +775,7 @@ async function loadUserLists() {
 
 function _syncList(type, action, code, price) {
   fetch(`/api/user-lists/${type}`, {
-    method: 'POST', headers: _USER_HEADERS,
+    method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action, code, price})
   }).catch(() => {});
 }
@@ -1010,7 +1009,7 @@ function autoWatchCheck() {
 
   // 批次同步到 DB（挑選結果整批寫入，清除舊的再寫入新的）
   fetch('/api/user-lists/watch', {
-    method: 'POST', headers: _USER_HEADERS,
+    method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action: 'sync', codes: [...watchSet]})
   }).catch(() => {});
 
@@ -1447,7 +1446,7 @@ function toggleFocusTrack(cb) {
   if (cb.checked) {
     focusTrackSet.add(code);
     fetch('/api/focus-tracking', {
-      method: 'POST', headers: _USER_HEADERS,
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({action: 'add', code, price})
     }).then(() => loadFocusTracking());
   } else {
@@ -1455,7 +1454,7 @@ function toggleFocusTrack(cb) {
     delete focusTrackData[code];
     delete focusSignals[code];
     fetch('/api/focus-tracking', {
-      method: 'POST', headers: _USER_HEADERS,
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({action: 'remove', code})
     }).then(() => loadFocusTracking());
   }
@@ -1540,7 +1539,7 @@ function renderFocusPanel() {
       <td>${t.focus_date || '－'}</td>
       <td style="font-size:.78rem;color:#64748b">${modeLabel}</td>
       <td>${signalHtml || '<span style="color:#cbd5e1">無</span>'}</td>
-      <td><button onclick="if(confirm('確定取消追蹤 ${code}？')){focusTrackSet.delete('${code}');fetch('/api/focus-tracking',{method:'POST',headers:_USER_HEADERS,body:JSON.stringify({action:'remove',code:'${code}'})}).then(()=>loadFocusTracking()).then(()=>render())}" style="border:none;background:none;color:#ef4444;cursor:pointer;font-weight:700">x</button></td>
+      <td><button onclick="if(confirm('確定取消追蹤 ${code}？')){focusTrackSet.delete('${code}');fetch('/api/focus-tracking',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove',code:'${code}'})}).then(()=>loadFocusTracking()).then(()=>render())}" style="border:none;background:none;color:#ef4444;cursor:pointer;font-weight:700">x</button></td>
     </tr>`;
   }).join('');
 

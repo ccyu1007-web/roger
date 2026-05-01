@@ -126,7 +126,6 @@ function _calcShenGrade(pe, yld) {
   return (col>=0&&row>=0)?grades[row][col]:null;
 }
 
-const _USER_HEADERS = {'Content-Type':'application/json', 'X-API-Key':'roger-stock-2026'};
 let _stocks = [];
 let removedByGrade = {};
 
@@ -405,13 +404,13 @@ function _toggleFocusTrack(cb) {
   if (cb.checked) {
     _focusTrackSet.add(code);
     fetch('/api/focus-tracking', {
-      method: 'POST', headers: _USER_HEADERS,
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({action: 'add', code, price})
     });
   } else {
     _focusTrackSet.delete(code);
     fetch('/api/focus-tracking', {
-      method: 'POST', headers: _USER_HEADERS,
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({action: 'remove', code})
     });
   }
