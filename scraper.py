@@ -2808,6 +2808,67 @@ def quick_update():
 
     print(f"[營收] 更新 {rev_updated} 支")
 
+    # ── 1b. MOPS 即時營收補充（t187ap05 更新較慢，MOPS 即時有資料）──
+    try:
+        from bs4 import BeautifulSoup as BS4
+        cur_roc = date.today().year - 1911
+        cur_month = date.today().month
+        # 判斷該抓哪個月：每月1~10日公布上月營收
+        mops_month = cur_month - 1 if cur_month > 1 else 12
+        mops_year = cur_roc if cur_month > 1 else cur_roc - 1
+        mops_west_year = mops_year + 1911
+        # 只在 t187ap05 還沒更新到該月份時才用 MOPS 補充
+        conn_chk = sqlite3.connect(DB_PATH)
+        sample = conn_chk.execute(
+            "SELECT COUNT(*) FROM stocks WHERE revenue_year=? AND revenue_month=?",
+            (mops_west_year, mops_month)).fetchone()[0]
+        conn_chk.close()
+        if sample < 10:  # t187ap05 尚未批次更新
+            mops_rev = 0
+            conn_m = sqlite3.connect(DB_PATH)
+            cm = conn_m.cursor()
+            for mtype, mpath in [('上市', 'sii'), ('上櫃', 'otc')]:
+                try:
+                    murl = f"https://mopsov.twse.com.tw/nas/t21/{mpath}/t21sc03_{mops_year}_{mops_month}_0.html"
+                    mr = _session.get(murl, timeout=15)
+                    mr.encoding = 'big5'
+                    soup = BS4(mr.text, 'html.parser')
+                    for tr in soup.find_all('tr'):
+                        tds = tr.find_all(['td', 'th'])
+                        texts = [td.get_text(strip=True) for td in tds]
+                        if len(texts) < 8 or not texts[0].isdigit() or len(texts[0]) != 4:
+                            continue
+                        mcode = texts[0]
+                        mrev = safe_float(texts[2].replace(',', ''))
+                        if mrev is None or mrev <= 0:
+                            continue
+                        mrev_val = mrev * 1000  # MOPS 單位千元
+                        myoy = safe_float(texts[6].replace(',', ''))
+                        mmom = safe_float(texts[5].replace(',', ''))
+                        mcum_yoy = safe_float(texts[9].replace(',', '')) if len(texts) > 9 else None
+                        # 寫 monthly_revenue
+                        cm.execute("""INSERT INTO monthly_revenue (code, year, month, revenue, updated_at)
+                            VALUES (?,?,?,?,?) ON CONFLICT(code, year, month) DO UPDATE SET
+                            revenue=excluded.revenue, updated_at=excluded.updated_at""",
+                            (mcode, mops_west_year, mops_month, mrev_val, now_str))
+                        # 更新 stocks 表
+                        old_rm = cm.execute("SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (mcode,)).fetchone()
+                        if old_rm and (mops_west_year > (old_rm[0] or 0) or (mops_west_year == (old_rm[0] or 0) and mops_month > (old_rm[1] or 0))):
+                            cm.execute("""UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=?,
+                                revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=? WHERE code=?""",
+                                (today_str, mops_west_year, mops_month, myoy, mmom, mcum_yoy, mcode))
+                        mops_rev += 1
+                except Exception as e:
+                    print(f"  [MOPS-{mtype}] {e}")
+            conn_m.commit()
+            conn_m.close()
+            if mops_rev:
+                print(f"[MOPS營收] 補充 {mops_rev} 支（{mops_year}年{mops_month}月）")
+        else:
+            pass  # t187ap05 已有批次資料，不需 MOPS
+    except Exception as e:
+        print(f"[MOPS營收] 失敗: {e}")
+
     # ── 2. 批次 EPS（TWSE + TPEX）──
     # t187ap14 的 EPS 是「累計」值：
     #   Q1 累計=單季, Q2 累計=Q1+Q2, Q3 累計=Q1+Q2+Q3, Q4 累計=全年
