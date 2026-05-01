@@ -658,15 +658,18 @@ async function loadUserSettings() {
   try {
     const res = await fetch('/api/user-settings');
     const data = await res.json();
-    let hasDB = false;
+    let needSync = false;
     SYNC_KEYS.forEach(key => {
       if (data[key]) {
+        // DB 有值 → 覆蓋 localStorage
         localStorage.setItem(key, data[key]);
-        hasDB = true;
+      } else if (localStorage.getItem(key)) {
+        // DB 沒有但 localStorage 有 → 標記需要同步
+        needSync = true;
       }
     });
-    if (!hasDB) {
-      // DB 沒有設定 → 把 localStorage 的推上去（首次遷移）
+    if (needSync) {
+      // 把 localStorage 有但 DB 沒有的推上去
       syncUserSettings();
     }
     // 重新讀取覆蓋後的值
