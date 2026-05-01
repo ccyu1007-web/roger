@@ -765,7 +765,14 @@ async function loadDecision() {
         const hit = c.v != null && close != null && close <= c.v;
         html += `<td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:600;color:${c.cls}${hit ? ';background:#fef3c7' : ''}">${f(c.v)}</td>`;
       });
-      html += '</tr></tbody></table></div>';
+      html += '</tr></tbody></table>';
+      // 資料來源註記
+      const _epsSrc = _estEps != null ? '預估EPS' : (stock.shen_eps != null ? '沈董EPS' : '無');
+      const _divSrc = _estDiv != null ? '預估股利' : (stock.shen_div != null ? '沈董股利' : '無');
+      const _ltSrc = cl.lt_div != null ? '綜合股利（沈董×60%+加權×40%）' : '無';
+      html += `<div style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.6">`;
+      html += `EPS設定來源：${_epsSrc}　|　股利設定來源：${_divSrc}　|　長期現金股利水準來源：${_ltSrc}`;
+      html += '</div></div>';
     }
 
     // === 質性研究筆記 ===
@@ -1544,6 +1551,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         </div>
       </div>
       <div id="vmResultContainer"></div>
+      <div id="vmSourceNote" style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.6"></div>
     </div>
 
     <!-- 股利折現模式 -->
@@ -1602,6 +1610,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
           </tr>
         </tbody>
       </table>
+      <div id="ddmSourceNote" style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.6"></div>
     </div>
 
     <!-- 質性研究筆記 -->
@@ -1849,23 +1858,56 @@ async function initEstimator(sharesMillion) {
     }
 
     // === 逍遙評價法預設值（預估 > 沈董，與總表評價一致）===
+    let _vmEpsSrc = '', _vmDivSrc = '', _vmLtDivSrc = '';
     if (!savedObj.vmEps) {
-      // EPS 優先順序：使用者預估EPS > 沈董EPS
       const userEstEps = savedObj.q1 || savedObj.q2 || savedObj.q3 || savedObj.q4
         ? [savedObj.q1, savedObj.q2, savedObj.q3, savedObj.q4].filter(v => v).reduce((a, b) => parseFloat(a || 0) + parseFloat(b || 0), 0)
         : null;
       const autoEps = userEstEps || _shenEps;
       if (autoEps != null) document.getElementById('vmEps').value = parseFloat(autoEps).toFixed(2);
+      _vmEpsSrc = userEstEps ? '預估EPS（Q1~Q4加總）' : (_shenEps ? '沈董EPS' : '無資料');
+    } else {
+      _vmEpsSrc = '手動設定';
     }
     if (!savedObj.vmDiv) {
-      // 股利優先順序：使用者預估股利 > 沈董股利
       const userEstDiv = savedObj.div ? parseFloat(savedObj.div) : null;
       const autoDiv = userEstDiv || _shenDiv;
       if (autoDiv != null) document.getElementById('vmDiv').value = parseFloat(autoDiv).toFixed(2);
+      _vmDivSrc = userEstDiv ? '預估股利' : (_shenDiv ? '沈董股利' : '無資料');
+    } else {
+      _vmDivSrc = '手動設定';
     }
-    // 長期現金股利水準：綜合股利
     if (!savedObj.vmLtDiv && _blendDiv != null) {
       document.getElementById('vmLtDiv').value = _blendDiv.toFixed(2);
+      _vmLtDivSrc = '綜合股利（沈董×60%+加權×40%）';
+    } else if (savedObj.vmLtDiv) {
+      _vmLtDivSrc = '手動設定';
+    } else {
+      _vmLtDivSrc = '無資料';
+    }
+    // 顯示來源註記
+    const vmNote = document.getElementById('vmSourceNote');
+    if (vmNote) {
+      vmNote.innerHTML = `EPS設定來源：${_vmEpsSrc}　|　股利設定來源：${_vmDivSrc}　|　長期現金股利水準來源：${_vmLtDivSrc}`;
+    }
+
+    // DDM 來源註記
+    let _ddmEpsSrc = '', _ddmDivSrc = '';
+    if (userEps && !isNaN(userEps) && userEps > 0) {
+      _ddmEpsSrc = '手動設定';
+    } else if (sysEps != null && _shenEps != null) {
+      _ddmEpsSrc = `min(系統${sysEps}, 沈董${_shenEps})`;
+    } else if (sysEps) {
+      _ddmEpsSrc = '系統EPS';
+    } else if (_shenEps) {
+      _ddmEpsSrc = '沈董EPS';
+    } else {
+      _ddmEpsSrc = '無資料';
+    }
+    _ddmDivSrc = _blendDiv != null ? '綜合股利' : '無資料';
+    const ddmNote = document.getElementById('ddmSourceNote');
+    if (ddmNote) {
+      ddmNote.innerHTML = `三年後預估EPS來源：${_ddmEpsSrc}　|　現金股利來源：${_ddmDivSrc}`;
     }
   }
 
