@@ -2052,7 +2052,11 @@ def snapshot_stock_states():
         matrix_grade, grade_source = _calc_priority_grade(row, close, uvp)
         vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
 
-        # 折價%：已在 _calc_val_levels() 中按等級正確計算，不覆蓋
+        # 折價%：統一用 val_aa 門檻算（只看相對於AA級的折價幅度）
+        if vl['val_aa'] and vl['val_aa'] > 0 and close:
+            vl['discount_pct'] = round((vl['val_aa'] - close) / vl['val_aa'] * 100, 2)
+        else:
+            vl['discount_pct'] = None
 
         c.execute("""INSERT INTO stock_state
                      (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
