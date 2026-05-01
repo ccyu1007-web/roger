@@ -2619,12 +2619,12 @@ if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'tr
         # 每 30 分鐘快速更新（股價 + 最新營收 + EPS）
         scheduler.add_job(quick_update, 'interval', minutes=30,
                           id='quick_update', replace_existing=True)
-        # 每天早上 6:00 完整爬蟲
-        scheduler.add_job(scraper_run, 'cron', hour=6,
+        # 每天早上 6:30 完整爬蟲（錯開本機 06:00，避免撞車）
+        scheduler.add_job(scraper_run, 'cron', hour=6, minute=30,
                           id='daily_scrape', replace_existing=True)
-        # 週一到週五 14:30 盤後更新
+        # 週一到週五 15:00 盤後更新（錯開本機 14:30，避免撞車）
         scheduler.add_job(scraper_run, 'cron', day_of_week='mon-fri',
-                          hour=14, minute=30,
+                          hour=15, minute=0,
                           id='afternoon_scrape', replace_existing=True)
         # 三大法人：Render 上群益會被擋，不排程
         # 法人資料由本機 17:10 抓完後 push 到 Render（/api/refresh/institutional POST with data）
