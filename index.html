@@ -392,10 +392,10 @@
       <div id="customConditions" style="display:inline"></div>
       <button onclick="addCondition()" style="padding:2px 8px;border:1px solid #6366f1;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#6366f1;font-weight:600">+ 自訂</button>
     </div>
-    <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #8b5cf6">
-      <span class="wb-label" style="color:#8b5cf6">等級篩選：</span>
+    <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #f59e0b;padding-left:18px">
+      <span class="wb-label" style="color:#f59e0b">等級篩選：</span>
       <div id="gradeFilterContainer" style="display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center"></div>
-      <button onclick="clearGradeFilters()" style="padding:2px 8px;border:1px solid #8b5cf6;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#8b5cf6;font-weight:600">全清</button>
+      <button onclick="clearGradeFilters()" style="padding:2px 8px;border:1px solid #f59e0b;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#f59e0b;font-weight:600">全清</button>
     </div>
 
     <div class="weight-bar" style="margin-top:8px">
@@ -946,6 +946,11 @@ function autoWatchCheck() {
       excluded[r.code] = '自訂條件不符';
       return;
     }
+    // 等級篩選
+    if (Object.keys(_gradeFilters).length > 0 && !evalGradeFilters(r)) {
+      excluded[r.code] = '等級篩選不符';
+      return;
+    }
 
     watchSet.add(r.code);
     passed++;
@@ -985,6 +990,10 @@ function autoWatchCheck() {
     ..._customConditions.map(c => {
       const label = FIELD_OPTIONS.find(f => f.key === c.field)?.label || c.field;
       return `${label} ${c.op} ${c.value}`;
+    }),
+    ...Object.entries(_gradeFilters).map(([k, v]) => {
+      const label = GRADE_METHODS.find(m => m.key === k)?.label || k;
+      return `${label}等級：${v.join('/')}`;
     }),
   ].filter(Boolean).map((c, i) => `  ${i+1}. ${c}`).join('\n');
 
@@ -2100,8 +2109,7 @@ function applyFilter() {
     const qualityOk = !qualityOnly || qualitySet.has(r.code);
     const etfOk = !etfVal || (etfVal === 'any' ? !!r.etf_tags : (r.etf_tags || '').includes(etfVal + ':'));
     const indOk = !indVal || r.industry === indVal;
-    const gradeOk = evalGradeFilters(r);
-    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk && indOk && gradeOk;
+    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && etfOk && indOk;
   });
   page = 1;
   applySort();
