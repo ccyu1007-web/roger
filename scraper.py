@@ -2830,7 +2830,10 @@ def quick_update():
     # ── 1c. MOPS 季報（第一優先，累積值自動反算單季）──
     try:
         from mops_fetcher import fetch_latest_mops_quarterly
-        fetch_latest_mops_quarterly()
+        mops_q_count = fetch_latest_mops_quarterly()
+        # MOPS 有更新季報 → 同步 quarterly_financial 的 EPS 到 stocks 表
+        if mops_q_count and mops_q_count > 0:
+            _sync_eps_from_quarterly()
     except Exception as e:
         print(f"[MOPS季報] 失敗: {e}")
 
@@ -2891,6 +2894,18 @@ def quick_update():
                 continue
             old_q1 = row[0]
             old_y1_label = row[1]
+
+            # 防降級：如果 stocks 已有更新的季度（MOPS 先更新），t187ap05 不覆蓋
+            if old_q1 and quarter_label:
+                try:
+                    old_parts = old_q1.replace('Q', ' ').split()
+                    new_parts = quarter_label.replace('Q', ' ').split()
+                    old_num = int(old_parts[0]) * 10 + int(old_parts[1])
+                    new_num = int(new_parts[0]) * 10 + int(new_parts[1])
+                    if new_num < old_num:
+                        continue  # t187ap05 的季度比已有的舊，跳過
+                except Exception:
+                    pass
 
             # Q4 累計 = 全年 EPS → 只更新 eps_y1，不放入 eps_1（單季）
             if season == '4':
