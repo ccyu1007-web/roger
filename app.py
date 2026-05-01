@@ -725,7 +725,8 @@ def get_stocks():
     except Exception: pass
 
     sql    = """SELECT code, name, market, industry, close, change, change_240d, volume,
-                       revenue_date, revenue_yoy, revenue_mom, revenue_cum_yoy,
+                       revenue_date, revenue_year, revenue_month,
+                       revenue_yoy, revenue_mom, revenue_cum_yoy,
                        eps_date, eps_1, eps_1q, eps_2, eps_2q,
                        eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
                        eps_y1, eps_y1_label, eps_y2, eps_y2_label,
