@@ -2500,3 +2500,155 @@ def generate_health_report():
 
     conn.close()
     return report
+
+
+# ═══════════════════════════════════════════════════════════════
+#  重點追蹤訊號檢查
+# ═══════════════════════════════════════════════════════════════
+
+def focus_signal_check():
+    """
+    檢查所有重點追蹤股票的訊號：
+    1. 價格突破：initial 模式 → 股價 > focus_price × 1.03
+       超過 20 個交易日沒突破 → 切換 ma20 模式 → 股價 > 近 20 日均價
+    2. 量能放大：當日成交量 > 近 20 日均量 × 1.5
+    3. 脫離便宜區：評價等級從 ≤A 往上跳到 above
+    """
+    DB_PATH = os.environ.get('STOCK_DB_PATH', 'stocks.db')
+    today_str = date.today().strftime('%Y-%m-%d')
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # 確保表存在
+    c.execute("""CREATE TABLE IF NOT EXISTS focus_tracking (
+        code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
+        signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
+        last_signal_date TEXT, last_signal_type TEXT, note TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS focus_signals (
+        code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
+        detail TEXT, PRIMARY KEY (code, date, signal_type))""")
+
+    # 讀取所有追蹤中的股票
+    tracked = [dict(r) for r in c.execute("SELECT * FROM focus_tracking").fetchall()]
+    if not tracked:
+        conn.close()
+        print("[重點追蹤] 無追蹤標的")
+        return []
+
+    signals_today = []
+
+    for t in tracked:
+        code = t['code']
+        focus_date = t['focus_date']
+        focus_price = t['focus_price']
+        signal_mode = t['signal_mode'] or 'initial'
+
+        # 取得當前股價
+        row = c.execute("SELECT close, volume FROM stocks WHERE code=?", (code,)).fetchone()
+        if not row or not row['close']:
+            continue
+        cur_price = row['close']
+        cur_volume = row['volume']
+
+        # 取得近 20 日價量資料
+        dp_rows = c.execute(
+            """SELECT close_price, volume FROM daily_price
+               WHERE code=? AND date <= ? ORDER BY date DESC LIMIT 20""",
+            (code, today_str)
+        ).fetchall()
+
+        # ── 1. 模式切換判斷（initial → ma20）──
+        if signal_mode == 'initial' and focus_date:
+            trading_days = c.execute(
+                "SELECT COUNT(*) FROM daily_price WHERE code=? AND date > ?",
+                (code, focus_date)
+            ).fetchone()[0]
+            if trading_days >= 20:
+                signal_mode = 'ma20'
+                c.execute(
+                    "UPDATE focus_tracking SET signal_mode='ma20', mode_switch_date=? WHERE code=?",
+                    (today_str, code))
+                print(f"[重點追蹤] {code} 已滿 20 交易日，切換為 MA20 模式")
+
+        # ── 2. 價格訊號 ──
+        price_signal = False
+        price_detail = ''
+        if signal_mode == 'initial' and focus_price:
+            threshold = round(focus_price * 1.03, 2)
+            if cur_price > threshold:
+                price_signal = True
+                price_detail = f'突破追蹤價 {focus_price}×1.03={threshold}，現價 {cur_price}'
+        elif signal_mode == 'ma20' and len(dp_rows) >= 20:
+            ma20 = sum(r['close_price'] for r in dp_rows[:20] if r['close_price']) / 20
+            ma20 = round(ma20, 2)
+            if cur_price > ma20:
+                price_signal = True
+                price_detail = f'突破 MA20={ma20}，現價 {cur_price}'
+
+        if price_signal:
+            # 避免重複：同日同類型不重複
+            exists = c.execute(
+                "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='price'",
+                (code, today_str)).fetchone()
+            if not exists:
+                c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
+                          (code, today_str, 'price', price_detail))
+                c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='price' WHERE code=?",
+                          (today_str, code))
+                signals_today.append({'code': code, 'type': 'price', 'detail': price_detail})
+                print(f"[重點追蹤] {code} 價格訊號: {price_detail}")
+
+        # ── 3. 量能訊號 ──
+        if cur_volume and len(dp_rows) >= 20:
+            volumes = [r['volume'] for r in dp_rows[:20] if r['volume'] and r['volume'] > 0]
+            if volumes:
+                avg_vol = sum(volumes) / len(volumes)
+                if avg_vol > 0 and cur_volume > avg_vol * 1.5:
+                    exists = c.execute(
+                        "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='volume'",
+                        (code, today_str)).fetchone()
+                    if not exists:
+                        vol_detail = f'成交量 {cur_volume:,} > 均量 {int(avg_vol):,}×1.5={int(avg_vol*1.5):,}'
+                        c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
+                                  (code, today_str, 'volume', vol_detail))
+                        c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='volume' WHERE code=?",
+                                  (today_str, code))
+                        signals_today.append({'code': code, 'type': 'volume', 'detail': vol_detail})
+                        print(f"[重點追蹤] {code} 量能訊號: {vol_detail}")
+
+        # ── 4. 脫離便宜區訊號 ──
+        CHEAP_GRADES = {'AA', 'A1', 'A2', 'A'}
+        # 查昨天和今天的 val_level
+        yesterday_row = c.execute(
+            "SELECT val_level FROM stock_state WHERE stock_id=? AND date < ? ORDER BY date DESC LIMIT 1",
+            (code, today_str)).fetchone()
+        today_row = c.execute(
+            "SELECT val_level FROM stock_state WHERE stock_id=? AND date=?",
+            (code, today_str)).fetchone()
+
+        if yesterday_row and today_row:
+            old_level = yesterday_row['val_level'] or ''
+            new_level = today_row['val_level'] or ''
+            if old_level in CHEAP_GRADES and new_level not in CHEAP_GRADES:
+                exists = c.execute(
+                    "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='cheap_exit'",
+                    (code, today_str)).fetchone()
+                if not exists:
+                    exit_detail = f'脫離便宜區: {old_level} → {new_level}'
+                    c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
+                              (code, today_str, 'cheap_exit', exit_detail))
+                    c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='cheap_exit' WHERE code=?",
+                              (today_str, code))
+                    signals_today.append({'code': code, 'type': 'cheap_exit', 'detail': exit_detail})
+                    print(f"[重點追蹤] {code} {exit_detail}")
+
+    conn.commit()
+    conn.close()
+
+    if signals_today:
+        print(f"[重點追蹤] 今日共 {len(signals_today)} 個訊號")
+    else:
+        print(f"[重點追蹤] 今日無訊號（追蹤 {len(tracked)} 支）")
+    return signals_today

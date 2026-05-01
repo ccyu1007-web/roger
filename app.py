@@ -2740,6 +2740,61 @@ def update_user_list(list_type):
     conn.close()
     return jsonify({"status": "ok"})
 
+# ── 重點追蹤 ──────────────────────────────────────────────
+@app.route("/api/focus-tracking")
+def get_focus_tracking():
+    """取得所有重點追蹤股票 + 最近訊號"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # 追蹤清單
+    tracked = [dict(r) for r in conn.execute(
+        "SELECT * FROM focus_tracking ORDER BY focus_date DESC").fetchall()]
+    # 近 7 天訊號
+    signals = [dict(r) for r in conn.execute(
+        "SELECT * FROM focus_signals WHERE date >= date('now', '-7 days') ORDER BY date DESC").fetchall()]
+    conn.close()
+    return jsonify({"tracked": tracked, "signals": signals})
+
+@app.route("/api/focus-tracking", methods=["POST"])
+def update_focus_tracking():
+    """勾選/取消重點追蹤"""
+    from datetime import datetime as dt
+    data = request.json
+    action = data.get('action')  # 'add' or 'remove'
+    code = data.get('code')
+    if not code:
+        return jsonify({"error": "missing code"}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # 確保表存在
+    c.execute("""CREATE TABLE IF NOT EXISTS focus_tracking (
+        code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
+        signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
+        last_signal_date TEXT, last_signal_type TEXT, note TEXT)""")
+
+    if action == 'add':
+        price = data.get('price')
+        note = data.get('note', '')
+        now = dt.now().strftime('%Y-%m-%d')
+        c.execute("""INSERT OR REPLACE INTO focus_tracking
+                     (code, focus_date, focus_price, signal_mode, note)
+                     VALUES (?,?,?,'initial',?)""",
+                  (code, now, price, note))
+    elif action == 'remove':
+        c.execute("DELETE FROM focus_tracking WHERE code=?", (code,))
+        c.execute("DELETE FROM focus_signals WHERE code=?", (code,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/focus-signals/<code>")
+def get_focus_signals(code):
+    """取得單一股票的訊號歷史"""
+    rows = query_db(
+        "SELECT * FROM focus_signals WHERE code=? ORDER BY date DESC LIMIT 30", (code,))
+    return jsonify(rows)
+
 # ── 使用者設定（跨裝置同步）────────────────────────────────
 @app.route("/api/user-settings")
 def get_user_settings():

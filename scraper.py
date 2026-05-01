@@ -37,7 +37,8 @@ from guardian import (backup_raw_response, cleanup_old_backups,
                       get_active_provider, log_provider_switch,
                       sanity_check, audit_changes,
                       snapshot_stock_states, fetch_material_news,
-                      fetch_moneydj_news, auto_archive_old_news)
+                      fetch_moneydj_news, auto_archive_old_news,
+                      focus_signal_check)
 from render_sync import (
     _push_table_to_render, _push_all_to_render, _push_news_to_render,
     _push_pe_history_to_render, _push_financial_detail_to_render,
@@ -1354,6 +1355,8 @@ def run(scheduled=True):
     _flush_health_log()
     _save_daily_price()
     snapshot_stock_states()
+    try: focus_signal_check()
+    except Exception as e: print(f"[重點追蹤] 訊號檢查失敗: {e}")
 
     # 觀察清單個股資料預抓取（年度財報 + 月營收 + 季度財報 + 歷史PE）
     _prefetch_watchlist_details()
@@ -2975,6 +2978,8 @@ def quick_update():
     _flush_health_log()
     _save_daily_price()
     snapshot_stock_states()
+    try: focus_signal_check()
+    except Exception as e: print(f"[重點追蹤] 訊號檢查失敗: {e}")
     try: fetch_material_news()
     except Exception: pass
     try: fetch_moneydj_news()
