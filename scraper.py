@@ -3016,6 +3016,66 @@ def quick_update():
             except Exception: pass
         print(f"[即時重算] 完成")
 
+    # ── 8. 自動 push 到 Render（僅本機）──
+    if not os.environ.get('DATABASE_URL'):
+        try:
+            # push stocks 表（含營收/EPS/等級等核心欄位）
+            _push_prices_to_render()
+            _push_annual_to_render()
+            _push_estimates_to_render()
+            # push monthly_revenue 表
+            _push_table_to_render(
+                table='monthly_revenue',
+                columns=['code','year','month','revenue','updated_at'],
+                pk=['code','year','month'],
+                create_sql="""CREATE TABLE IF NOT EXISTS monthly_revenue (
+                    code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
+                    revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""",
+            )
+            # push stock_state（評價快照）
+            _push_table_to_render(
+                table='stock_state',
+                columns=['stock_id','date','price','price_pos','fair_low','fair_mid','fair_high',
+                         'shen_eps','shen_pe','shen_yld','fin_grade','updated_at',
+                         'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct'],
+                pk=['stock_id','date'],
+                create_sql="""CREATE TABLE IF NOT EXISTS stock_state (
+                    stock_id TEXT NOT NULL, date TEXT NOT NULL,
+                    price REAL, price_pos REAL, fair_low REAL, fair_mid REAL, fair_high REAL,
+                    shen_eps REAL, shen_pe REAL, shen_yld REAL, fin_grade TEXT, updated_at TEXT,
+                    val_level TEXT, val_aa REAL, val_a1 REAL, val_a2 REAL, val_a REAL,
+                    val_lt6 REAL, discount_pct REAL,
+                    PRIMARY KEY (stock_id, date))""",
+            )
+            # push stock_checklist（體質檢核）
+            _push_table_to_render(
+                table='stock_checklist',
+                columns=['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
+                         'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12','chk_13',
+                         'pass_count','total_count','detail',
+                         'eps_setting','div_setting','yld_high','yld_max','pe_high','pe_low',
+                         'lt_div','lt_yld','val_a','val_a1','val_a2','val_aa','lt5','lt6','lt7',
+                         'updated_at'],
+                pk=['code'],
+                create_sql="""CREATE TABLE IF NOT EXISTS stock_checklist (
+                    code TEXT PRIMARY KEY,
+                    chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
+                    chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
+                    chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
+                    chk_13 INTEGER,
+                    pass_count INTEGER, total_count INTEGER DEFAULT 13,
+                    detail TEXT,
+                    eps_setting REAL, div_setting REAL,
+                    yld_high REAL, yld_max REAL, pe_high REAL, pe_low REAL,
+                    lt_div REAL, lt_yld REAL,
+                    val_a REAL, val_a1 REAL, val_a2 REAL, val_aa REAL,
+                    lt5 REAL, lt6 REAL, lt7 REAL,
+                    updated_at TEXT)""",
+            )
+            print(f"[quick_update] 已 push 到 Render")
+        except Exception as e:
+            print(f"[quick_update] push Render 失敗: {e}")
+
     elapsed = time.time() - t0
     print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
 

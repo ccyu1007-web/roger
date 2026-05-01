@@ -39,6 +39,19 @@ app = Flask(__name__, static_folder=".", static_url_path="")
 app.config['COMPRESS_MIMETYPES'] = ['application/json']
 DB_PATH = "stocks.db"
 
+def _bg_push_table(table, columns, pk, create_sql=None, where=None, clear_first=False):
+    """背景 push 單一表到 Render（僅本機執行）"""
+    if os.environ.get('DATABASE_URL'):
+        return
+    def _do():
+        try:
+            from render_sync import _push_table_to_render
+            _push_table_to_render(table=table, columns=columns, pk=pk,
+                                  create_sql=create_sql, where=where, clear_first=clear_first)
+        except Exception as e:
+            print(f"[bg_push] {table} 失敗: {e}")
+    threading.Thread(target=_do, daemon=True).start()
+
 # ── Sync API Token 驗證 ─────────────────────────────────────
 SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
 
@@ -2328,6 +2341,14 @@ def upgrade_news(nid):
     c.execute("UPDATE material_news SET tier=1, matched_rule='使用者升級' WHERE id=? AND tier=0", (nid,))
     conn.commit()
     conn.close()
+    _bg_push_table('material_news',
+        ['id','code','name','date','time','subject','description','tier',
+         'matched_rule','created_at','direction','link','status'],
+        ['id'], clear_first=True,
+        create_sql="""CREATE TABLE IF NOT EXISTS material_news (
+            id INTEGER PRIMARY KEY, code TEXT, name TEXT, date TEXT, time TEXT,
+            subject TEXT, description TEXT, tier INTEGER, matched_rule TEXT,
+            created_at TEXT, direction TEXT, link TEXT, status TEXT)""")
     return jsonify({"status": "ok"})
 
 @app.route("/api/news/<int:nid>/status", methods=["POST"])
@@ -2341,6 +2362,14 @@ def update_news_status(nid):
     c.execute("UPDATE material_news SET status=? WHERE id=?", (status, nid))
     conn.commit()
     conn.close()
+    _bg_push_table('material_news',
+        ['id','code','name','date','time','subject','description','tier',
+         'matched_rule','created_at','direction','link','status'],
+        ['id'], clear_first=True,
+        create_sql="""CREATE TABLE IF NOT EXISTS material_news (
+            id INTEGER PRIMARY KEY, code TEXT, name TEXT, date TEXT, time TEXT,
+            subject TEXT, description TEXT, tier INTEGER, matched_rule TEXT,
+            created_at TEXT, direction TEXT, link TEXT, status TEXT)""")
     return jsonify({"status": "ok"})
 
 @app.route("/api/news-flags")
@@ -2764,6 +2793,11 @@ def update_user_list(list_type):
 
     conn.commit()
     conn.close()
+    _bg_push_table('user_lists', ['list_type','code','added_at','price_at'],
+                   ['list_type','code'], clear_first=True,
+                   create_sql="""CREATE TABLE IF NOT EXISTS user_lists (
+                       list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT, price_at REAL,
+                       PRIMARY KEY (list_type, code))""")
     return jsonify({"status": "ok"})
 
 # ── 重點追蹤 ──────────────────────────────────────────────
@@ -2813,6 +2847,21 @@ def update_focus_tracking():
         c.execute("DELETE FROM focus_signals WHERE code=?", (code,))
     conn.commit()
     conn.close()
+    _bg_push_table('focus_tracking',
+        ['code','focus_date','focus_price','signal_mode','mode_switch_date',
+         'last_signal_date','last_signal_type','note'],
+        ['code'], clear_first=True,
+        create_sql="""CREATE TABLE IF NOT EXISTS focus_tracking (
+            code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
+            signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
+            last_signal_date TEXT, last_signal_type TEXT, note TEXT)""")
+    _bg_push_table('focus_signals',
+        ['code','date','signal_type','detail'],
+        ['code','date','signal_type'],
+        where="WHERE date >= date('now', '-30 days')",
+        create_sql="""CREATE TABLE IF NOT EXISTS focus_signals (
+            code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
+            detail TEXT, PRIMARY KEY (code, date, signal_type))""")
     return jsonify({"status": "ok"})
 
 @app.route("/api/focus-signals/<code>")
@@ -2854,6 +2903,9 @@ def save_user_settings():
                   (key, value, now))
     conn.commit()
     conn.close()
+    _bg_push_table('user_settings', ['key','value','updated_at'], ['key'],
+                   create_sql="""CREATE TABLE IF NOT EXISTS user_settings (
+                       key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
     return jsonify({"status": "ok"})
 
 
@@ -2879,6 +2931,9 @@ def save_user_note(code):
         c.execute("DELETE FROM user_notes WHERE code=?", (code,))
     conn.commit()
     conn.close()
+    _bg_push_table('user_notes', ['code','content','updated_at'], ['code'],
+                   create_sql="""CREATE TABLE IF NOT EXISTS user_notes (
+                       code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
     return jsonify({"status": "ok"})
 
 # ── 檢核表 API ─────────────────────────────────────────────
