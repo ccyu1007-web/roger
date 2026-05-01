@@ -24,6 +24,9 @@ TABLE_PK = {
     'stock_state':          ['stock_id', 'date'],
     'material_news':        ['id'],
     'provider_switch_log':  ['id'],
+    'daily_price':          ['code', 'date'],
+    'focus_tracking':       ['code'],
+    'focus_signals':        ['code', 'date', 'signal_type'],
 }
 
 

@@ -850,6 +850,10 @@ def refresh():
             _is_refreshing = True
             try:
                 refresh_prices()
+                # 存入每日價量
+                from scraper import _save_daily_price
+                try: _save_daily_price()
+                except Exception: pass
                 # 同步 EPS + 快照 + 新聞
                 from scraper import _sync_eps_from_quarterly
                 from guardian import snapshot_stock_states, fetch_material_news, fetch_moneydj_news

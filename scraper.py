@@ -182,6 +182,33 @@ def init_db():
         try:
             c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
         except Exception: pass
+    # ── 每日價量歷史（給 MA20 和量能訊號用）──
+    c.execute("""CREATE TABLE IF NOT EXISTS daily_price (
+        code TEXT NOT NULL,
+        date TEXT NOT NULL,
+        close_price REAL,
+        volume INTEGER,
+        PRIMARY KEY (code, date)
+    )""")
+    # ── 重點追蹤 ──
+    c.execute("""CREATE TABLE IF NOT EXISTS focus_tracking (
+        code TEXT PRIMARY KEY,
+        focus_date TEXT,
+        focus_price REAL,
+        signal_mode TEXT DEFAULT 'initial',
+        mode_switch_date TEXT,
+        last_signal_date TEXT,
+        last_signal_type TEXT,
+        note TEXT
+    )""")
+    # ── 重點追蹤訊號歷史 ──
+    c.execute("""CREATE TABLE IF NOT EXISTS focus_signals (
+        code TEXT NOT NULL,
+        date TEXT NOT NULL,
+        signal_type TEXT NOT NULL,
+        detail TEXT,
+        PRIMARY KEY (code, date, signal_type)
+    )""")
     conn.commit()
     conn.close()
     print("[DB] 資料表已就緒")
@@ -1325,6 +1352,7 @@ def run(scheduled=True):
     rev_hit = sum(1 for r in all_rows if r.get('revenue_yoy') is not None)
     eps_hit = sum(1 for r in all_rows if r.get('eps_1') is not None)
     _flush_health_log()
+    _save_daily_price()
     snapshot_stock_states()
 
     # 觀察清單個股資料預抓取（年度財報 + 月營收 + 季度財報 + 歷史PE）
@@ -2945,6 +2973,7 @@ def quick_update():
 
     elapsed = time.time() - t0
     _flush_health_log()
+    _save_daily_price()
     snapshot_stock_states()
     try: fetch_material_news()
     except Exception: pass
@@ -3461,6 +3490,30 @@ def fetch_institutional():
 
 
 
+
+
+def _save_daily_price():
+    """將 stocks 表的當天收盤價/成交量存入 daily_price（每天一筆）"""
+    try:
+        today_str = date.today().strftime('%Y-%m-%d')
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS daily_price (
+            code TEXT NOT NULL, date TEXT NOT NULL,
+            close_price REAL, volume INTEGER,
+            PRIMARY KEY (code, date))""")
+        rows = conn.execute(
+            "SELECT code, close, volume FROM stocks WHERE close IS NOT NULL"
+        ).fetchall()
+        for code, close, volume in rows:
+            c.execute("""INSERT OR REPLACE INTO daily_price
+                         (code, date, close_price, volume) VALUES (?,?,?,?)""",
+                      (code, today_str, close, volume))
+        conn.commit()
+        conn.close()
+        print(f"[每日價量] 已存入 {len(rows)} 筆 ({today_str})")
+    except Exception as e:
+        print(f"[每日價量] 存入失敗: {e}")
 
 
 def refresh_prices():
