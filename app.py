@@ -1420,18 +1420,21 @@ def sync_financial_annual():
 
 # ── 背景更新佇列 ─────────────────────────────────────────
 _bg_updating = set()  # 正在背景更新的股票代碼
+_bg_updating_lock = threading.Lock()
 
 def _bg_update_financials(code):
     """背景更新個股全部資料"""
-    if code in _bg_updating:
-        return
-    _bg_updating.add(code)
+    with _bg_updating_lock:
+        if code in _bg_updating:
+            return
+        _bg_updating.add(code)
     def _do():
         try:
             fetch_company_financials(code)
         except Exception: pass
         finally:
-            _bg_updating.discard(code)
+            with _bg_updating_lock:
+                _bg_updating.discard(code)
     threading.Thread(target=_do, daemon=True).start()
 
 # ── 個股年度財報 ────────────────────────────────────────────
