@@ -105,32 +105,27 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前七欄：追蹤 + 不追蹤 + 觀察 + 體質 + 檢核 + 股票代碼 + 公司名稱 */
+  /* 凍結前六欄：追蹤 + 不追蹤 + 觀察 + 體質 + 檢核 + 代碼/名稱 */
   thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3),
-  thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6), thead th:nth-child(7) { position: sticky; top: 0; z-index: 4; }
+  thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6) { position: sticky; top: 0; z-index: 4; }
   thead th:nth-child(1) { left: 0; }
   thead th:nth-child(2) { left: 0; }
   thead th:nth-child(3) { left: 0; }
   thead th:nth-child(4) { left: 0; }
   thead th:nth-child(5) { left: 0; }
-  thead th:nth-child(6) { left: 0; }
-  thead th:nth-child(7) { left: 0; border-right: 2px solid #93c5fd; }
+  thead th:nth-child(6) { left: 0; border-right: 2px solid #93c5fd; }
   tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3),
-  tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6), tbody td:nth-child(7) { position: sticky; background: #fff; z-index: 1; }
+  tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6) { position: sticky; background: #fff; z-index: 1; }
   tbody td:nth-child(1) { left: 0; }
   tbody td:nth-child(2) { left: 0; }
   tbody td:nth-child(3) { left: 0; }
   tbody td:nth-child(4) { left: 0; }
   tbody td:nth-child(5) { left: 0; }
-  tbody td:nth-child(6) { left: 0; }
-  tbody td:nth-child(7) { left: 0; border-right: 2px solid #e2e8f0; }
+  tbody td:nth-child(6) { left: 0; border-right: 2px solid #e2e8f0; }
   tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2), tbody tr:nth-child(even) td:nth-child(3),
-  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5), tbody tr:nth-child(even) td:nth-child(6), tbody tr:nth-child(even) td:nth-child(7) { background: #f8fafc; }
-  tbody tr:hover td:nth-child(1),
-  tbody tr:hover td:nth-child(2),
-  tbody tr:hover td:nth-child(3),
-  tbody tr:hover td:nth-child(4),
-  tbody tr:hover td:nth-child(5) { background: #dbeafe; }
+  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5), tbody tr:nth-child(even) td:nth-child(6) { background: #f8fafc; }
+  tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2), tbody tr:hover td:nth-child(3),
+  tbody tr:hover td:nth-child(4), tbody tr:hover td:nth-child(5), tbody tr:hover td:nth-child(6) { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -515,8 +510,7 @@
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
-          <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
-          <th onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
+          <th onclick="sortBy('code')">代碼/名稱<span class="sort-icon" id="si_code">↕</span></th>
           <th class="g-mkt no-sort">市場</th>
           <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
           <!-- 股價 -->
@@ -2754,8 +2748,7 @@ function render() {
       })()}</td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
-      <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
-      <td>${r.name}</td>
+      <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong> ${r.name}${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
       <td class="g-mkt">${mktBadge}</td>
       <td class="g-mkt" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
       <!-- 股價 -->
@@ -2918,10 +2911,10 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const ths = [1,2,3,4,5,6,7].map(i => document.querySelector(`thead th:nth-child(${i})`));
+  const ths = [1,2,3,4,5,6].map(i => document.querySelector(`thead th:nth-child(${i})`));
   if (!ths[0]) return;
   let left = 0;
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 6; i++) {
     if (!ths[i]) break;
     const n = i + 1;
     const l = left;
