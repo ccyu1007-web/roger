@@ -1716,6 +1716,16 @@ def get_quarterly(code):
                 (code,)
             )
 
+    # 批次查詢所有年度的股數（避免逐筆查詢）
+    _shares_map = {}
+    try:
+        fa_rows = query_db(
+            "SELECT year, weighted_shares FROM financial_annual WHERE code=?", (code,))
+        for fr in fa_rows:
+            if fr.get('weighted_shares'):
+                _shares_map[fr['year']] = fr['weighted_shares']
+    except Exception: pass
+
     # fallback 股數（找一季能反算的）
     _fallback_shares = None
     for r in rows:
@@ -1762,12 +1772,8 @@ def get_quarterly(code):
             try:
                 roc_yr = int(quarter.split('Q')[0])
                 west_yr = roc_yr + 1911
-                fa_row = query_db(
-                    "SELECT weighted_shares FROM financial_annual WHERE code=? AND year=?",
-                    (code, west_yr)
-                )
-                if fa_row and fa_row[0].get('weighted_shares'):
-                    ann_shares = fa_row[0]['weighted_shares']  # 千股
+                ann_shares = _shares_map.get(west_yr)
+                if ann_shares:
                     d['weighted_shares'] = round(ann_shares, 0)
                     shares_raw = ann_shares * 1000  # 轉為股
             except Exception: pass
@@ -2659,9 +2665,12 @@ def news():
     tier = int(request.args.get("tier", 1))
     limit = int(request.args.get("limit", 50))
     if request.args.get("important") == "1" and code:
-        rows = query_db("""SELECT * FROM material_news
-                          WHERE code=? AND status='important' AND created_at > datetime('now', '-30 days')
-                          ORDER BY created_at DESC LIMIT ?""", (code, limit))
+        try:
+            rows = query_db("""SELECT * FROM material_news
+                              WHERE code=? AND status='important' AND created_at > datetime('now', '-30 days')
+                              ORDER BY created_at DESC LIMIT ?""", (code, limit))
+        except Exception:
+            rows = []
         return jsonify(rows)
     return jsonify(get_recent_news(code, tier, limit))
 
