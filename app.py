@@ -524,13 +524,13 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # ── 成長加分 ──
 
-    # 7. 涅夫保守成長率 >= 7%
+    # 7. 聶夫保守成長率 >= 7%
     gi = r.get('_gi') or {}
     neff_c = gi.get('neff_c')
     checks[7] = 1 if neff_c is not None and neff_c >= 7 and not gi.get('neff_gray') else 0
     detail['chk_7'] = f'保守成長率={neff_c}%' if neff_c is not None else None
 
-    # 8. 涅夫Neff比率 >= 0.7
+    # 8. 聶夫Neff比率 >= 0.7
     neff_d = gi.get('neff_d')
     checks[8] = 1 if neff_d is not None and neff_d >= 0.7 and not gi.get('neff_gray') else 0
     detail['chk_8'] = f'Neff比率={neff_d}' if neff_d is not None else None
@@ -604,7 +604,7 @@ def calc_all_checklists():
     except Exception:
         pass
 
-    # 批次計算成長率指標（涅夫/林區）
+    # 批次計算成長率指標（聶夫/林區）
     gi_map = {}
     try:
         with app.test_request_context():
@@ -2277,10 +2277,10 @@ def bulk_revenue():
         'last_year': last_year,
     })
 
-# ── 涅夫 & 林區 成長率指標 API ─────────────────────────────────
+# ── 聶夫 & 林區 成長率指標 API ─────────────────────────────────
 @app.route("/api/growth-indicators")
 def growth_indicators():
-    """計算涅夫總報酬率法 + 林區PEG法所需欄位"""
+    """計算聶夫總報酬率法 + 林區PEG法所需欄位"""
     import json as _json
     from datetime import date as _dt
 
@@ -2365,7 +2365,7 @@ def growth_indicators():
         if neff_a is None:
             continue
 
-        # ── 保守成長率（C）：涅夫三重驗證
+        # ── 保守成長率（C）：聶夫三重驗證
         a_pct = neff_a * 100
         b_pct = (neff_b * 100) if neff_b is not None else a_pct
         min_cagr = min(a_pct, b_pct)

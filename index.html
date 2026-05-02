@@ -516,7 +516,7 @@
           <th class="g-val" onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
           <th class="g-val" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
           <th class="g-val" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
-          <!-- 涅夫總報酬率法（可收合） -->
+          <!-- 聶夫總報酬率法（可收合） -->
           <th class="g-neff col-div" onclick="sortBy('neff_a')">5年CAGR<span class="sort-icon" id="si_neff_a">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_b')">3年CAGR<span class="sort-icon" id="si_neff_b">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_c')">保守成長率<span class="sort-icon" id="si_neff_c">↕</span></th>
@@ -621,7 +621,7 @@ function gradeHtml(g) {
 const COL_GROUPS = [
   { key: 'g-mkt', label: '市場產業', default: true },
   { key: 'g-val', label: '評價', default: true },
-  { key: 'g-neff', label: '涅夫', default: false },
+  { key: 'g-neff', label: '聶夫', default: false },
   { key: 'g-lynch', label: '林區', default: false },
   { key: 'g-rev', label: '營收', default: true },
   { key: 'g-inst', label: '法人買賣', default: true },
@@ -1140,10 +1140,10 @@ const FIELD_OPTIONS = [
   {label:'加權本益比', key:'weighted_pe'},
   {label:'加權殖利率', key:'weighted_yld'},
   {label:'合約負債變動率', key:'contract_chg'},
-  {label:'涅夫5年CAGR', key:'_gi.neff_a'},
-  {label:'涅夫3年CAGR', key:'_gi.neff_b'},
-  {label:'涅夫保守成長率', key:'_gi.neff_c'},
-  {label:'涅夫Neff比率', key:'_gi.neff_d'},
+  {label:'聶夫5年CAGR', key:'_gi.neff_a'},
+  {label:'聶夫3年CAGR', key:'_gi.neff_b'},
+  {label:'聶夫保守成長率', key:'_gi.neff_c'},
+  {label:'聶夫Neff比率', key:'_gi.neff_d'},
   {label:'林區算術平均', key:'_gi.lynch_b'},
   {label:'林區一致性', key:'_gi.lynch_c'},
   {label:'林區PEG', key:'_gi.lynch_d'},
@@ -2669,7 +2669,7 @@ function render() {
       <td class="g-val"${r.val_a2 != null && r.close != null && r.close <= r.val_a2 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a2 != null ? r.val_a2.toFixed(2) : '－'}</td>
       <td class="g-val"${r.val_a != null && r.close != null && r.close <= r.val_a ? ' style="background:#dbeafe;color:#1d4ed8;font-weight:700"' : ''}>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
       <td class="g-val"${r.val_lt6 != null && r.close != null && r.close <= r.val_lt6 ? ' style="background:#dcfce7;color:#166534;font-weight:700"' : ''}>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
-      <!-- 涅夫 -->
+      <!-- 聶夫 -->
       <td class="g-neff col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_a != null ? r._gi.neff_a.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_b != null ? r._gi.neff_b.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(1) + '%' : '－'}</td>
