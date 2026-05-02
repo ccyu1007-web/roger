@@ -496,12 +496,12 @@
           <th class="no-sort" data-freeze style="width:40px;text-align:center">體質</th>
           <th class="no-sort" data-freeze style="width:50px;text-align:center">檢核</th>
           <th data-freeze onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
-          <th data-freeze onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
-          <th class="g-mkt no-sort" data-freeze>市場</th>
-          <th class="g-mkt" data-freeze onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
+          <th data-freeze data-freeze-last onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
+          <th class="g-mkt no-sort">市場</th>
+          <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
           <!-- 股價 -->
-          <th class="col-div" data-freeze onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
-          <th data-freeze data-freeze-last onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
+          <th class="col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
+          <th onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
           <!-- 評價（可收合） -->
           <th class="g-val col-div" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
           <th class="g-val" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
