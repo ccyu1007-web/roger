@@ -3155,10 +3155,26 @@ def _calc_fin_grade(roe, operating_margin, fcf, revenue):
 
 
 def _refresh_fin_grades():
-    """從 financial_annual 快取重算所有公司的財務等級（純 DB 運算）"""
+    """從 financial_annual 快取重算所有公司的財務等級（純 DB 運算）
+
+    年報公告規則：
+    - 每年度年報在隔年 3/31 前公告完畢
+    - 等級建置：隔年 4/15 後才納入（確保大部分公司已公告）
+    - 只保留最近 5 年
+
+    例：115年(2026)年報 → 2027/4/15 後才建置 115 年等級
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
+
+    # 計算可納入等級的最新年度（西元）
+    # 規則：隔年 4/15 後才納入 → 今年 4/15 後可納入去年的年報
+    today = date.today()
+    if today.month > 4 or (today.month == 4 and today.day >= 15):
+        max_year = today.year - 1  # 4/15 後：可納入去年
+    else:
+        max_year = today.year - 2  # 4/15 前：只能納入前年
 
     # 找所有有 financial_annual 資料的公司
     c.execute("SELECT DISTINCT code FROM financial_annual")
@@ -3171,8 +3187,8 @@ def _refresh_fin_grades():
     for code in codes:
         c.execute("""SELECT year, revenue, operating_income, net_income,
                             total_equity, operating_cf, capex
-                     FROM financial_annual WHERE code = ?
-                     ORDER BY year DESC LIMIT 6""", (code,))
+                     FROM financial_annual WHERE code = ? AND year <= ?
+                     ORDER BY year DESC LIMIT 5""", (code, max_year))
         rows = c.fetchall()
         if not rows:
             continue
@@ -3194,6 +3210,7 @@ def _refresh_fin_grades():
             updates[f'fin_grade_{i}'] = grade
             updates[f'fin_grade_{i}y'] = str(row['year'] - 1911)
 
+        # 只保留最近 5 年，第 6 年清空
         for i in range(len(rows) + 1, 7):
             updates[f'fin_grade_{i}'] = None
             updates[f'fin_grade_{i}y'] = None
