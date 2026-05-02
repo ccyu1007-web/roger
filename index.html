@@ -2467,9 +2467,10 @@ function applyFilter() {
     const focusOk = !focusOnly || focusSet.has(r.code);
     const qualityOk = !qualityOnly || qualitySet.has(r.code);
     const focusTrackOk = !focusTrackOnly || focusTrackSet.has(r.code);
+    const skipOk = !skipOnly || skipSet.has(r.code);
     const etfOk = !etfVal || (etfVal === 'any' ? !!r.etf_tags : (r.etf_tags || '').includes(etfVal + ':'));
     const indOk = !indVal || r.industry === indVal;
-    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && focusTrackOk && etfOk && indOk;
+    return mktOk && qOk && watchOk && holdOk && focusOk && qualityOk && focusTrackOk && skipOk && etfOk && indOk;
   });
   page = 1;
   applySort();
