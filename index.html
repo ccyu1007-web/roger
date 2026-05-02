@@ -2912,18 +2912,20 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const ths = [1,2,3,4,5,6].map(i => document.querySelector(`thead th:nth-child(${i})`));
-  if (!ths[0]) return;
-  let left = 0;
-  for (let i = 0; i < 6; i++) {
-    if (!ths[i]) break;
-    const n = i + 1;
-    const l = left;
-    document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
-      el.style.left = l + 'px';
-    });
-    left += ths[i].offsetWidth;
-  }
+  setTimeout(() => {
+    const ths = [1,2,3,4,5,6].map(i => document.querySelector(`thead th:nth-child(${i})`));
+    if (!ths[0] || ths[0].offsetWidth === 0) return;
+    let left = 0;
+    for (let i = 0; i < 6; i++) {
+      if (!ths[i]) break;
+      const n = i + 1;
+      const l = left;
+      document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
+        el.style.left = l + 'px';
+      });
+      left += ths[i].offsetWidth;
+    }
+  }, 50);
 }
 
 function renderPagination() {
