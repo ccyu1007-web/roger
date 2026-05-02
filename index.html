@@ -105,12 +105,13 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結欄位：由 fixFrozenColumns() 動態設定 left 值 */
-  .frozen-col { position: sticky !important; z-index: 1; background: #fff; }
-  thead .frozen-col { z-index: 4 !important; }
-  .frozen-col-last { border-right: 2px solid #93c5fd; }
-  tbody tr:nth-child(even) .frozen-col { background: #f8fafc; }
-  tbody tr:hover .frozen-col { background: #dbeafe; }
+  /* 凍結前七欄：追蹤 + 不追蹤 + 觀察 + 體質 + 檢核 + 代碼 + 名稱 */
+  thead th:nth-child(-n+7) { position: sticky; top: 0; z-index: 4; }
+  tbody td:nth-child(-n+7) { position: sticky; background: #fff; z-index: 1; }
+  thead th:nth-child(7) { border-right: 2px solid #93c5fd; }
+  tbody td:nth-child(7) { border-right: 2px solid #e2e8f0; }
+  tbody tr:nth-child(even) td:nth-child(-n+7) { background: #f8fafc; }
+  tbody tr:hover td:nth-child(-n+7) { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -490,13 +491,13 @@
       <thead>
         <tr>
           <!-- 識別 -->
-          <th class="no-sort" data-freeze style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
-          <th class="no-sort" data-freeze style="width:36px;text-align:center;font-size:.72rem;color:#94a3b8">不追蹤</th>
-          <th class="no-sort" data-freeze style="width:40px;text-align:center">觀察</th>
-          <th class="no-sort" data-freeze style="width:40px;text-align:center">體質</th>
-          <th class="no-sort" data-freeze style="width:50px;text-align:center">檢核</th>
-          <th data-freeze onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
-          <th data-freeze data-freeze-last onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
+          <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
+          <th class="no-sort" style="width:36px;text-align:center;font-size:.72rem;color:#94a3b8">不追蹤</th>
+          <th class="no-sort" style="width:40px;text-align:center">觀察</th>
+          <th class="no-sort" style="width:40px;text-align:center">體質</th>
+          <th class="no-sort" style="width:50px;text-align:center">檢核</th>
+          <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
+          <th-last onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
           <th class="g-mkt no-sort">市場</th>
           <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
           <!-- 股價 -->
@@ -2898,37 +2899,22 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  // 清除舊的凍結 class
-  document.querySelectorAll('.frozen-col').forEach(el => {
-    el.classList.remove('frozen-col', 'frozen-col-last');
-    el.style.left = '';
-  });
-
-  // 找出表頭中有 data-freeze 且可見的欄位
-  const allThs = Array.from(document.querySelectorAll('thead tr th'));
-  const freezeIndices = []; // 記錄要凍結的 th 的 index（nth-child 是 1-based）
-  let lastFreezeIdx = -1;
-  allThs.forEach((th, i) => {
-    if (th.hasAttribute('data-freeze') && th.offsetParent !== null) {
-      freezeIndices.push(i);
-      if (th.hasAttribute('data-freeze-last')) lastFreezeIdx = i;
-    }
-  });
-  if (!freezeIndices.length) return;
-  if (lastFreezeIdx < 0) lastFreezeIdx = freezeIndices[freezeIndices.length - 1];
-
-  // 計算累積 left
+  const FREEZE_COUNT = 7;
+  const ths = [];
+  for (let i = 1; i <= FREEZE_COUNT; i++) {
+    ths.push(document.querySelector(`thead th:nth-child(${i})`));
+  }
+  if (!ths[0]) return;
   let left = 0;
-  freezeIndices.forEach(idx => {
-    const n = idx + 1;
-    const isLast = idx === lastFreezeIdx;
+  for (let i = 0; i < FREEZE_COUNT; i++) {
+    if (!ths[i]) break;
+    const n = i + 1;
+    const l = left;
     document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
-      el.classList.add('frozen-col');
-      el.style.left = left + 'px';
-      if (isLast) el.classList.add('frozen-col-last');
+      el.style.left = l + 'px';
     });
-    left += allThs[idx].offsetWidth;
-  });
+    left += ths[i].offsetWidth;
+  }
 }
 
 function renderPagination() {
