@@ -537,7 +537,7 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 9. 林區PEG <= 1.0
     lynch_d = gi.get('lynch_d')
-    checks[9] = 1 if lynch_d is not None and lynch_d <= 1.0 and not gi.get('lynch_gray') else 0
+    checks[9] = 1 if lynch_d is not None and lynch_d <= 1.0 else 0
     detail['chk_9'] = f'PEG={lynch_d}' if lynch_d is not None else None
 
     # 10. 林區成長一致性 >= 0.5
