@@ -1999,7 +1999,9 @@ async function initEstimator(sharesMillion) {
 }
 
 let _notesTimer = null;
-const ANALYSIS_PROMPT = `請分析 ${CODE} ${STOCK_NAME} 的質性研究。
+function getAnalysisPrompt() {
+  const name = document.querySelector('.chk-price')?.textContent?.split(' ')[1] || '';
+  return `請分析 ${CODE} ${name} 的質性研究。
 規則：有把握才寫，不確定標「待查證」，每個結論附判斷依據。
 
 一、商務模式：三句話講清楚靠什麼賺錢、賣給誰、定價權如何
@@ -2010,9 +2012,10 @@ const ANALYSIS_PROMPT = `請分析 ${CODE} ${STOCK_NAME} 的質性研究。
 六、賣出條件：發生什麼事立即賣？區分暫時利空 vs 結構惡化
 七、成長展望：當年度營運動能、未來1~2年成長驅動力與隱憂
 八、追蹤指標：真正該看的1~3個指標、為什麼、領先訊號`;
+}
 
 function copyAnalysisPrompt() {
-  navigator.clipboard.writeText(ANALYSIS_PROMPT).then(() => {
+  navigator.clipboard.writeText(getAnalysisPrompt()).then(() => {
     const el = document.getElementById('notesStatus');
     if (el) el.textContent = '分析指令已複製到剪貼簿';
     setTimeout(() => { if (el) el.textContent = ''; }, 2000);
@@ -2022,7 +2025,7 @@ function copyAnalysisPrompt() {
 function togglePromptPreview() {
   const el = document.getElementById('promptPreview');
   if (el.style.display === 'none') {
-    el.textContent = ANALYSIS_PROMPT;
+    el.textContent = getAnalysisPrompt();
     el.style.display = 'block';
   } else {
     el.style.display = 'none';
