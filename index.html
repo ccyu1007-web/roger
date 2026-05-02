@@ -105,7 +105,7 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 不凍結，由 fixFrozenColumns() 動態處理 */
+  /* 無凍結窗格 */
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -2892,42 +2892,7 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  setTimeout(() => {
-    const FC = 6;
-    const ths = [];
-    for (let i = 1; i <= FC; i++) ths.push(document.querySelector(`thead th:nth-child(${i})`));
-    if (!ths[0] || ths[0].offsetWidth === 0) return;
-
-    // 算每欄累積 left
-    const lefts = [];
-    let acc = 0;
-    for (let i = 0; i < FC; i++) {
-      lefts.push(acc);
-      acc += ths[i] ? ths[i].getBoundingClientRect().width : 0;
-    }
-
-    // 設定 sticky + left + z-index
-    for (let i = 0; i < FC; i++) {
-      const n = i + 1;
-      const l = lefts[i];
-      const isLast = i === FC - 1;
-      document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
-        el.style.position = 'sticky';
-        el.style.left = l + 'px';
-        el.style.zIndex = el.tagName === 'TH' ? '4' : '2';
-        el.style.background = el.style.background || '#fff';
-        if (isLast) el.style.borderRight = '2px solid #93c5fd';
-      });
-    }
-    // tbody 背景色修正
-    document.querySelectorAll('tbody tr').forEach(tr => {
-      const isEven = Array.from(tr.parentNode.children).indexOf(tr) % 2 === 1;
-      for (let i = 1; i <= FC; i++) {
-        const td = tr.querySelector(`td:nth-child(${i})`);
-        if (td) td.style.background = isEven ? '#f8fafc' : '#fff';
-      }
-    });
-  }, 100);
+  // 無凍結窗格
 }
 
 function renderPagination() {
