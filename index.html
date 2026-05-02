@@ -105,29 +105,32 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前六欄：追蹤 + 觀察 + 體質 + 檢核 + 股票代碼 + 公司名稱 */
+  /* 凍結前七欄：追蹤 + 觀察 + 已研究 + 體質 + 檢核 + 股票代碼 + 公司名稱 */
   thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3),
-  thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6) { position: sticky; top: 0; z-index: 4; }
+  thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6), thead th:nth-child(7) { position: sticky; top: 0; z-index: 4; }
   thead th:nth-child(1) { left: 0; }
   thead th:nth-child(2) { left: 0; }
   thead th:nth-child(3) { left: 0; }
   thead th:nth-child(4) { left: 0; }
   thead th:nth-child(5) { left: 0; }
-  thead th:nth-child(6) { left: 0; border-right: 2px solid #93c5fd; }
+  thead th:nth-child(6) { left: 0; }
+  thead th:nth-child(7) { left: 0; border-right: 2px solid #93c5fd; }
   tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3),
-  tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6) { position: sticky; background: #fff; z-index: 1; }
+  tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6), tbody td:nth-child(7) { position: sticky; background: #fff; z-index: 1; }
   tbody td:nth-child(1) { left: 0; }
   tbody td:nth-child(2) { left: 0; }
   tbody td:nth-child(3) { left: 0; }
   tbody td:nth-child(4) { left: 0; }
   tbody td:nth-child(5) { left: 0; }
-  tbody td:nth-child(6) { left: 0; border-right: 2px solid #e2e8f0; }
+  tbody td:nth-child(6) { left: 0; }
+  tbody td:nth-child(7) { left: 0; border-right: 2px solid #e2e8f0; }
   tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2), tbody tr:nth-child(even) td:nth-child(3),
-  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5), tbody tr:nth-child(even) td:nth-child(6) { background: #f8fafc; }
+  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5), tbody tr:nth-child(even) td:nth-child(6), tbody tr:nth-child(even) td:nth-child(7) { background: #f8fafc; }
   tbody tr:hover td:nth-child(1),
   tbody tr:hover td:nth-child(2),
   tbody tr:hover td:nth-child(3),
-  tbody tr:hover td:nth-child(4) { background: #dbeafe; }
+  tbody tr:hover td:nth-child(4),
+  tbody tr:hover td:nth-child(5) { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -351,6 +354,12 @@
         <span class="count-badge" id="focusCount"></span>
       </div>
       <div class="tb-group">
+        <span class="tb-label" style="color:#94a3b8">已研究</span>
+        <button class="mkt-btn" id="btnSkipFilter" onclick="toggleSkipFilter()" style="border-color:#94a3b8;color:#94a3b8">顯示</button>
+        <button class="mkt-btn" onclick="clearSkip()" style="border-color:#ef4444;color:#ef4444">全清</button>
+        <span class="count-badge" id="skipCount" style="color:#94a3b8"></span>
+      </div>
+      <div class="tb-group">
         <span class="tb-label">體質</span>
         <button class="mkt-btn" id="btnQualityFilter" onclick="toggleQualityFilter()" style="border-color:#059669;color:#059669">顯示</button>
         <button class="mkt-btn" onclick="autoQualityCheck()" style="border-color:#059669;color:#059669">判斷</button>
@@ -502,6 +511,7 @@
           <!-- 識別 -->
           <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
+          <th class="no-sort" style="width:40px;text-align:center;font-size:.72rem;color:#94a3b8">已研究</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
           <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
@@ -718,6 +728,7 @@ function applyColVisibility() {
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
 let watchSet = new Set(JSON.parse(localStorage.getItem('watchList') || '[]'));
 let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
+let skipSet  = new Set(JSON.parse(localStorage.getItem('skipList') || '[]'));
 
 // ── 使用者設定同步（DB ↔ localStorage）──────────────────
 const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings',
@@ -826,8 +837,9 @@ async function loadUserLists() {
     if (data.hold && data.hold.length) { holdSet = new Set(data.hold.map(r => r.code)); localStorage.setItem('holdList', JSON.stringify([...holdSet])); }
     if (data.focus && data.focus.length) { focusSet = new Set(data.focus.map(r => r.code)); localStorage.setItem('focusList', JSON.stringify([...focusSet])); }
     if (data.quality && data.quality.length) { qualitySet = new Set(data.quality.map(r => r.code)); localStorage.setItem('qualityList', JSON.stringify([...qualitySet])); }
+    if (data.skip && data.skip.length) { skipSet = new Set(data.skip.map(r => r.code)); localStorage.setItem('skipList', JSON.stringify([...skipSet])); }
     // 自動遷移：localStorage 有但 DB 沒有 → 推上去
-    for (const [type, localKey, setRef] of [['quality','qualityList',qualitySet],['watch','watchList',watchSet],['hold','holdList',holdSet],['focus','focusList',focusSet]]) {
+    for (const [type, localKey, setRef] of [['quality','qualityList',qualitySet],['watch','watchList',watchSet],['hold','holdList',holdSet],['focus','focusList',focusSet],['skip','skipList',skipSet]]) {
       if ((!data[type] || !data[type].length) && setRef.size > 0) {
         fetch(`/api/user-lists/${type}`, {
           method: 'POST', headers: {'Content-Type':'application/json'},
@@ -835,7 +847,7 @@ async function loadUserLists() {
         }).catch(() => {});
       }
     }
-    updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount();
+    updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount(); updateSkipCount();
   } catch(e) {}
 }
 
@@ -844,6 +856,46 @@ function _syncList(type, action, code, price) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action, code, price})
   }).catch(() => {});
+}
+
+// ── 已研究清單 ─────────────────────────────────────────────
+let skipOnly = false;
+
+function saveSkip() {
+  localStorage.setItem('skipList', JSON.stringify([...skipSet]));
+  updateSkipCount();
+}
+function updateSkipCount() {
+  const el = document.getElementById('skipCount');
+  if (el) el.textContent = skipSet.size ? `${skipSet.size} 支` : '';
+}
+function toggleSkip(cb) {
+  const code = cb.dataset.code;
+  if (cb.checked) {
+    skipSet.add(code);
+    _syncList('skip', 'add', code);
+  } else {
+    skipSet.delete(code);
+    _syncList('skip', 'remove', code);
+  }
+  saveSkip();
+}
+function toggleSkipFilter() {
+  skipOnly = !skipOnly;
+  const btn = document.getElementById('btnSkipFilter');
+  btn.classList.toggle('active', skipOnly);
+  page = 1;
+  applyFilter();
+}
+function clearSkip() {
+  if (!confirm('確定全部清除已研究標記？')) return;
+  skipSet.clear();
+  saveSkip();
+  fetch('/api/user-lists/skip', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action: 'sync', codes: []})
+  }).catch(() => {});
+  render();
 }
 
 // ── 持股清單 ─────────────────────────────────────────────
@@ -2661,6 +2713,7 @@ function render() {
         })() : '';
         return `<div class="watch-wrap"><input type="checkbox" class="watch-cb" data-code="${r.code}" ${isWatched?'checked':''} onchange="toggleWatch(this)">${tip}</div>`;
       })()}</td>
+      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
