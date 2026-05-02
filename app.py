@@ -2227,6 +2227,230 @@ def bulk_revenue():
         'last_year': last_year,
     })
 
+# ── 涅夫 & 林區 成長率指標 API ─────────────────────────────────
+@app.route("/api/growth-indicators")
+def growth_indicators():
+    """計算涅夫總報酬率法 + 林區PEG法所需欄位"""
+    import json as _json
+    from datetime import date as _dt
+
+    current_year = _dt.today().year
+
+    # ── 1. 抓最近7年 financial_annual（需要6年算5年CAGR）
+    min_year = current_year - 6
+    fa_rows = query_db(
+        "SELECT code, year, net_income, eps, weighted_shares, common_stock "
+        "FROM financial_annual WHERE year >= ? ORDER BY code, year",
+        (min_year,)
+    )
+    # 按 code 分組
+    fa_map = {}
+    for r in fa_rows:
+        fa_map.setdefault(r['code'], []).append(r)
+
+    # ── 2. 抓 stocks 表（股價、沈董估算）
+    st_rows = query_db(
+        "SELECT code, close, sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld FROM stocks"
+    )
+    st_map = {r['code']: r for r in st_rows}
+
+    # ── 3. 抓 user_estimates（個股自訂參數）
+    ue_rows = query_db("SELECT code, params FROM user_estimates WHERE params IS NOT NULL")
+    ue_map = {}
+    for r in ue_rows:
+        try:
+            ue_map[r['code']] = _json.loads(r['params'])
+        except Exception:
+            pass
+
+    # ── 4. 逐支計算
+    result = {}
+    for code, rows in fa_map.items():
+        # 按年份排序
+        rows.sort(key=lambda x: x['year'])
+        st = st_map.get(code)
+        if not st or not st.get('close'):
+            continue
+        close = st['close']
+
+        # 取有 net_income 且 > 0 的年份清單
+        valid = [(r['year'], r['net_income'], r['eps']) for r in rows
+                 if r.get('net_income') and r['net_income'] > 0
+                 and r.get('eps') and r['eps'] > 0]
+
+        if len(valid) < 4:
+            continue  # 至少需要4年（算3年CAGR）
+
+        years = [v[0] for v in valid]
+        nis = [v[1] for v in valid]
+        epss = [v[2] for v in valid]
+        latest_yr = years[-1]
+
+        # ── 5年淨利CAGR（A）
+        neff_a = None
+        if len(valid) >= 6:
+            ni_start = nis[-6]
+            ni_end = nis[-1]
+            if ni_start > 0 and ni_end > 0:
+                neff_a = (ni_end / ni_start) ** (1.0 / 5) - 1
+        elif len(valid) >= 5:
+            ni_start = nis[-5]
+            ni_end = nis[-1]
+            n = len(valid) - 1
+            if ni_start > 0 and ni_end > 0 and n >= 4:
+                neff_a = (ni_end / ni_start) ** (1.0 / (years[-1] - years[-5])) - 1
+
+        # ── 3年淨利CAGR（B）
+        neff_b = None
+        if len(valid) >= 4:
+            ni_start3 = nis[-4]
+            ni_end3 = nis[-1]
+            if ni_start3 > 0 and ni_end3 > 0:
+                neff_b = (ni_end3 / ni_start3) ** (1.0 / 3) - 1
+
+        # 如果只能算3年，A也用3年
+        if neff_a is None and neff_b is not None:
+            neff_a = neff_b
+
+        if neff_a is None:
+            continue
+
+        # ── 保守成長率（C）：涅夫三重驗證
+        a_pct = neff_a * 100
+        b_pct = (neff_b * 100) if neff_b is not None else a_pct
+        min_cagr = min(a_pct, b_pct)
+
+        # 折扣係數：差距大打更重折
+        gap = abs(a_pct - b_pct)
+        if gap > 5:
+            discount = 0.7
+        elif gap > 3:
+            discount = 0.75
+        else:
+            discount = 0.8
+
+        neff_c = min_cagr * discount
+
+        # ── 警示判斷
+        warnings = []
+        if a_pct > 20:
+            warnings.append('CAGR>20%不可信')
+        if b_pct < a_pct - 3:
+            warnings.append('近期成長減速')
+
+        # ── 原始EPS CAGR（輔助對照）
+        eps_cagr_5y = None
+        if len(valid) >= 6:
+            e_start = epss[-6]
+            e_end = epss[-1]
+            if e_start > 0 and e_end > 0:
+                eps_cagr_5y = ((e_end / e_start) ** (1.0 / 5) - 1) * 100
+
+        # 股本變動率
+        shares_change = None
+        shares_list = [(r['year'], r.get('weighted_shares') or r.get('common_stock'))
+                       for r in rows if r.get('weighted_shares') or r.get('common_stock')]
+        if len(shares_list) >= 2:
+            s_start = shares_list[0][1]
+            s_end = shares_list[-1][1]
+            if s_start and s_start > 0:
+                shares_change = (s_end - s_start) / s_start * 100
+
+        # EPS CAGR 與淨利 CAGR 差距警示
+        if eps_cagr_5y is not None and abs(eps_cagr_5y - a_pct) > 3:
+            warnings.append('EPS與淨利成長率差距大')
+
+        # ── 殖利率：預估 > 沈董
+        ue = ue_map.get(code, {})
+        div_val = None
+        # 優先用 user_estimates 的預估股利
+        vm_div = ue.get('vmDiv')
+        if vm_div and str(vm_div).strip():
+            try:
+                div_val = float(vm_div)
+            except Exception:
+                pass
+        # fallback: 沈董股利
+        if not div_val and st.get('sys_ann_div'):
+            div_val = st['sys_ann_div']
+
+        yld = (div_val / close * 100) if div_val and close > 0 else 0
+
+        # ── PE：預估 > 沈董
+        pe = None
+        # 優先用 user_estimates 的預估EPS算PE
+        vm_eps = ue.get('vmEps')
+        if vm_eps and str(vm_eps).strip():
+            try:
+                est_eps = float(vm_eps)
+                if est_eps > 0:
+                    pe = close / est_eps
+            except Exception:
+                pass
+        # fallback: 沈董EPS
+        if pe is None and st.get('sys_ann_eps') and st['sys_ann_eps'] > 0:
+            pe = close / st['sys_ann_eps']
+
+        if pe is None or pe <= 0:
+            continue
+
+        # ── Neff比率（D）= (保守成長率 + 殖利率) / PE
+        total_return = neff_c + yld
+        neff_d = total_return / pe if pe > 0 else None
+
+        # ── 林區：算術平均成長率（B）
+        yoy_list = []
+        for i in range(1, len(valid)):
+            prev_eps = epss[i - 1]
+            curr_eps = epss[i]
+            if prev_eps > 0:
+                yoy_list.append((curr_eps - prev_eps) / prev_eps * 100)
+
+        # 取最近5個YoY
+        recent_yoy = yoy_list[-5:] if len(yoy_list) >= 5 else yoy_list
+        lynch_b = sum(recent_yoy) / len(recent_yoy) if recent_yoy else None
+
+        # ── 林區：成長一致性（C）
+        lynch_c = None
+        if lynch_b is not None and a_pct > 0:
+            lynch_c = 1 - abs(lynch_b - a_pct) / a_pct
+            if lynch_c < 0:
+                lynch_c = 0
+
+        # 一致性太低警示
+        if lynch_c is not None and lynch_c < 0.5:
+            warnings.append('景氣循環股不適用PEG')
+
+        # ── PEG（D）= PE / (保守成長率 + 殖利率)
+        lynch_d = pe / total_return if total_return > 0 else None
+
+        # ── 灰色標記判斷
+        gray = False
+        if a_pct > 20 or (lynch_c is not None and lynch_c < 0.5):
+            gray = True
+
+        entry = {
+            'neff_a': round(a_pct, 2),
+            'neff_b': round(b_pct, 2),
+            'neff_c': round(neff_c, 2),
+            'neff_d': round(neff_d, 2) if neff_d is not None else None,
+            'lynch_a': round(a_pct, 2),
+            'lynch_b': round(lynch_b, 2) if lynch_b is not None else None,
+            'lynch_c': round(lynch_c, 2) if lynch_c is not None else None,
+            'lynch_d': round(lynch_d, 2) if lynch_d is not None else None,
+            'eps_cagr_5y': round(eps_cagr_5y, 2) if eps_cagr_5y is not None else None,
+            'shares_change': round(shares_change, 2) if shares_change is not None else None,
+            'yield': round(yld, 2),
+            'pe': round(pe, 2),
+            'discount': discount,
+            'gray': gray,
+            'warnings': warnings,
+        }
+        result[code] = entry
+
+    return jsonify(result)
+
+
 # ── 沈董系統用的儲存 API ─────────────────────────────────────
 @app.route("/api/shendong/estimates/<code>", methods=["GET"])
 def shendong_get_estimate(code):

@@ -264,6 +264,122 @@
   </div>
 </div>
 
+<!-- 涅夫總報酬率法 -->
+<div class="section" id="sec-neff">
+  <div class="section-title" onclick="toggleSection(this)">涅夫總報酬率法 (John Neff) <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr>
+        <td class="field">5年CAGR</td>
+        <td>過去5年淨利年複合成長率</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新年度淨利 / 5年前淨利)^(1/5) - 1</span><br>
+        <span class="note">使用淨利而非EPS，避免股本變動造成失真</span></td>
+      </tr>
+      <tr>
+        <td class="field">3年CAGR</td>
+        <td>過去3年淨利年複合成長率（檢查近期趨勢）</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新年度淨利 / 3年前淨利)^(1/3) - 1</span><br>
+        <span class="note">若3年CAGR明顯低於5年CAGR，代表成長正在減速</span></td>
+      </tr>
+      <tr>
+        <td class="field">保守成長率</td>
+        <td>涅夫「三重驗證」後的保守估計</td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(5年CAGR, 3年CAGR) × 折扣係數</span><br>
+        折扣係數規則：<br>
+        <span class="note">
+          兩者差距 ≤ 3%：× 0.8（成長穩定）<br>
+          差距 3~5%：× 0.75（略有減速）<br>
+          差距 > 5%：× 0.7（明顯減速，更保守）
+        </span></td>
+      </tr>
+      <tr>
+        <td class="field">Neff比率</td>
+        <td>總報酬率與本益比的比值，越高越具投資價值</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(保守成長率 + 殖利率) / PE</span><br>
+        判斷標準：<br>
+        <span class="note">
+          <span style="color:#dc2626;font-weight:700">≥ 1.0</span>：極佳買點（紅色）<br>
+          <span style="color:#ea580c;font-weight:600">0.7 ~ 1.0</span>：合格買點（橘色）<br>
+          <span style="color:#94a3b8">< 0.7</span>：不具吸引力（灰色）
+        </span></td>
+      </tr>
+    </table>
+    <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
+      <div style="font-weight:700;margin-bottom:8px;color:#1e3a5f">涅夫的取捨原則</div>
+      <table style="max-width:500px">
+        <tr><th>成長率範圍</th><th>涅夫的態度</th></tr>
+        <tr><td>< 7%</td><td style="color:#94a3b8">太慢，純看殖利率</td></tr>
+        <tr><td style="color:#059669;font-weight:600">7% ~ 12%</td><td style="color:#059669;font-weight:600">主力投資區（最愛）</td></tr>
+        <tr><td>12% ~ 20%</td><td>可投資但要更便宜</td></tr>
+        <tr><td style="color:#dc2626">> 20%</td><td style="color:#dc2626">不可信，直接放棄</td></tr>
+      </table>
+      <div class="note" style="margin-top:8px">
+        殖利率來源：預估股利 / 股價（優先用個股自訂，無則用沈董股利）<br>
+        PE來源：股價 / 預估EPS（優先用個股自訂，無則用沈董EPS）<br>
+        CAGR > 20% 或成長一致性 < 0.5 的公司會以灰色標記
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 林區PEG法 -->
+<div class="section" id="sec-lynch">
+  <div class="section-title" onclick="toggleSection(this)">林區PEG法 (Peter Lynch) <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr>
+        <td class="field">5年CAGR</td>
+        <td>過去5年淨利年複合成長率（幾何平均）</td>
+        <td><span class="src-calc">計算</span> 同涅夫的5年CAGR<br>
+        <span class="note">林區稱此為「幾何平均」成長率</span></td>
+      </tr>
+      <tr>
+        <td class="field">算術平均</td>
+        <td>過去5年EPS逐年成長率的簡單平均</td>
+        <td><span class="src-calc">計算</span> <span class="formula">Σ(各年EPS YoY成長率) / 年數</span><br>
+        <span class="note">例：5年個別成長率為 10%, 15%, 8%, 12%, 20%，算術平均 = 13%</span></td>
+      </tr>
+      <tr>
+        <td class="field">一致性</td>
+        <td>成長品質指標：算術平均與CAGR的吻合度</td>
+        <td><span class="src-calc">計算</span> <span class="formula">1 - |算術平均 - CAGR| / CAGR</span><br>
+        判斷標準：<br>
+        <span class="note">
+          <span style="color:#16a34a;font-weight:600">≥ 0.9</span>：極穩定成長，PEG可信度高（綠色）<br>
+          0.5 ~ 0.9：穩定，正常使用<br>
+          <span style="color:#94a3b8">< 0.5</span>：景氣循環股，不適用PEG（灰色標記）
+        </span><br>
+        <span class="note">林區的洞見：算術平均 >> CAGR 時，代表成長波動大，是景氣循環股而非成長股</span></td>
+      </tr>
+      <tr>
+        <td class="field">PEG</td>
+        <td>本益比成長比，越低代表成長性相對股價越便宜</td>
+        <td><span class="src-calc">計算</span> <span class="formula">PE / (保守成長率 + 殖利率)</span><br>
+        判斷標準：<br>
+        <span class="note">
+          <span style="color:#dc2626;font-weight:700">≤ 1.0</span>：低估，值得關注（紅色）<br>
+          <span style="color:#ea580c;font-weight:600">1.0 ~ 1.5</span>：合理偏貴（橘色）<br>
+          <span style="color:#94a3b8">> 1.5</span>：偏貴（灰色）
+        </span><br>
+        <span class="note">林區修正版：將殖利率加入分母，對高配息公司更公平（傳統PEG = PE / 成長率）</span></td>
+      </tr>
+    </table>
+    <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
+      <div style="font-weight:700;margin-bottom:8px;color:#1e3a5f">涅夫 vs 林區 的關係</div>
+      <div class="note">
+        Neff比率 = (保守成長率 + 殖利率) / PE<br>
+        PEG = PE / (保守成長率 + 殖利率)<br>
+        <strong>兩者互為倒數</strong>：Neff比率 = 1 / PEG<br><br>
+        差異在於輔助判斷：<br>
+        涅夫用「5年CAGR vs 3年CAGR」判斷成長是否減速<br>
+        林區用「算術平均 vs CAGR」判斷成長是否穩定（排除景氣循環股）
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 矩陣等級 -->
 <div class="section" id="sec-matrix">
   <div class="section-title" onclick="toggleSection(this)">矩陣等級對照表 <span class="arrow">▼</span></div>
