@@ -629,42 +629,64 @@ async function loadDecision() {
     const fmtV = v => v != null ? Number(v).toFixed(2) : '-';
     const chgStr = chg != null ? `<span style="color:${chg > 0 ? '#dc2626' : chg < 0 ? '#16a34a' : '#64748b'};font-weight:600">${chg > 0 ? '+' : ''}${chg.toFixed(2)}</span>` : '-';
 
-    const condLabels = [
+    const baseLabels = [
       '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上',
-      '累積營收年增率 >= -10% 且 < 0%',
       '累積營收年增率 >= 0%',
-      '沈董本益比 > 0 且 < 14',
-      '沈董殖利率 >= 5.5%',
-      '沈董等級 A 級以上',
-      '綜合等級 A 級以上',
-      '加權等級 A 級以上',
-      '預估等級 A 級以上',
-      '目前股價低於總表評價 A',
+      '最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）',
       '目前股價低於總表評價 AA',
       '綜合殖利率 >= 6%',
       '股利折現模式現價潛在年報酬 >= 10%',
     ];
+    const bonusLabels = [
+      '涅夫保守成長率 >= 7%',
+      '涅夫 Neff 比率 >= 0.7',
+      '林區 PEG <= 1.0',
+      '林區成長一致性 >= 0.5',
+    ];
 
     const detail = cl.detail || {};
-    const passCount = cl.pass_count || 0;
-    const totalCount = cl.total_count || 13;
-    const scoreClass = passCount >= totalCount * 0.8 ? 'chk-score-pass' : passCount >= totalCount * 0.5 ? 'chk-score-warn' : 'chk-score-fail';
+    const baseCount = cl.base_count || 0;
+    const bonusCount = cl.bonus_count || 0;
+    const baseClass = baseCount >= 5 ? 'chk-score-pass' : baseCount >= 3 ? 'chk-score-warn' : 'chk-score-fail';
+    const bonusClass = bonusCount >= 3 ? 'chk-score-pass' : bonusCount >= 1 ? 'chk-score-warn' : 'chk-score-fail';
 
     let html = '';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score ${scoreClass}">${passCount} / ${totalCount} 通過</span>`;
+    html += `<span class="chk-score ${baseClass}">基本 ${baseCount}/6</span>`;
+    html += `<span class="chk-score ${bonusClass}" style="margin-left:8px">加分 ${bonusCount}/4</span>`;
     html += '</div>';
 
+    // 基本門檻
     html += '<table class="chk-table">';
-    html += '<thead><tr><th>#</th><th>條件</th><th>是</th><th>否</th></tr></thead>';
+    html += '<thead><tr><th>#</th><th>基本門檻</th><th>是</th><th>否</th></tr></thead>';
     html += '<tbody>';
-    for (let i = 1; i <= 13; i++) {
-      const pass = cl[`chk_${i}`] === 1;
-      const d = detail[`chk_${i}`] || '';
+    for (let i = 0; i < 6; i++) {
+      const chkIdx = i + 1;
+      const pass = cl[`chk_${chkIdx}`] === 1;
+      const d = detail[`chk_${chkIdx}`] || '';
       html += '<tr>';
-      html += `<td>${i}</td>`;
-      html += `<td class="chk-cond">${condLabels[i-1]}`;
+      html += `<td>${chkIdx}</td>`;
+      html += `<td class="chk-cond">${baseLabels[i]}`;
+      if (d) html += `<div class="chk-detail">${d}</div>`;
+      html += '</td>';
+      html += `<td class="chk-yes">${pass ? 'V' : ''}</td>`;
+      html += `<td class="chk-no">${pass ? '' : 'X'}</td>`;
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+
+    // 成長加分
+    html += '<table class="chk-table" style="margin-top:12px">';
+    html += '<thead><tr><th>#</th><th>成長加分</th><th>是</th><th>否</th></tr></thead>';
+    html += '<tbody>';
+    for (let i = 0; i < 4; i++) {
+      const chkIdx = i + 7;
+      const pass = cl[`chk_${chkIdx}`] === 1;
+      const d = detail[`chk_${chkIdx}`] || '';
+      html += '<tr>';
+      html += `<td>${chkIdx}</td>`;
+      html += `<td class="chk-cond">${bonusLabels[i]}`;
       if (d) html += `<div class="chk-detail">${d}</div>`;
       html += '</td>';
       html += `<td class="chk-yes">${pass ? 'V' : ''}</td>`;

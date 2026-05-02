@@ -67,24 +67,26 @@
 <div class="section" id="sec-decision">
   <div class="section-title" onclick="toggleSection(this)">檢核清單 — 檢核清單 <span class="arrow">▼</span></div>
   <div class="section-body">
+    <div style="font-weight:700;padding:8px 12px;color:#1e3a5f">基本門檻（6 項）</div>
     <table>
       <tr><th width="40">#</th><th width="240">條件</th><th>判定邏輯</th></tr>
       <tr><td>1</td><td class="field">近五年財務等級 B 級以上 >= 3 年，且近兩年都 B 級以上</td><td>B 級以上 = AA/A1/A2/A/B2A/B1A/B1/B2/BA1/BA2（含 +）<div class="note">帶 - 的（如 B1-）算 B 級以下；C/D/X 也算不過</div></td></tr>
-      <tr><td>2</td><td class="field">累積營收年增率 >= -10% 且 < 0%</td><td>stocks 表 revenue_cum_yoy 欄位<div class="note">與第 3 條互斥，衰退但在可接受範圍</div></td></tr>
-      <tr><td>3</td><td class="field">累積營收年增率 >= 0%</td><td>stocks 表 revenue_cum_yoy 欄位<div class="note">與第 2 條互斥，營收持平或成長</div></td></tr>
-      <tr><td>4</td><td class="field">沈董本益比 > 0 且 < 14</td><td><span class="formula">沈董PE = 收盤價 / 沈董EPS</span></td></tr>
-      <tr><td>5</td><td class="field">沈董殖利率 >= 5.5%</td><td><span class="formula">沈董殖利率 = 沈董股利 / 收盤價 × 100</span></td></tr>
-      <tr><td>6</td><td class="field">沈董等級 A 級以上</td><td>A 級 = AA/A1/A2/A（含 +），由 PE×殖利率矩陣判定</td></tr>
-      <tr><td>7</td><td class="field">綜合等級 A 級以上</td><td>綜合 = 沈董EPS×權重% + 加權EPS×權重%</td></tr>
-      <tr><td>8</td><td class="field">加權等級 A 級以上</td><td>加權 = 五年加權平均 EPS（30/25/20/15/10）</td></tr>
-      <tr><td>9</td><td class="field">預估等級 A 級以上</td><td>預估 EPS/股利 優先順序見下方說明</td></tr>
-      <tr><td>10</td><td class="field">股價低於總表評價 A</td><td><span class="formula">收盤價 <= val_a + 0.005</span></td></tr>
-      <tr><td>11</td><td class="field">股價低於總表評價 AA</td><td><span class="formula">收盤價 <= val_aa + 0.005</span></td></tr>
-      <tr><td>12</td><td class="field">綜合殖利率 >= 6%</td><td><span class="formula">綜合殖利率 = 綜合股利 / 收盤價 × 100</span></td></tr>
-      <tr><td>13</td><td class="field">股利折現模式現價潛在年報酬 >= 10%</td><td>EPS：預估EPS > 沈董EPS、PE：預設14、股利：綜合股利（三年同值）<div class="note">年報酬 = ((賣出價+三年股利) / 現價) ^ (1/3) - 1</div></td></tr>
+      <tr><td>2</td><td class="field">累積營收年增率 >= 0%</td><td>stocks 表 revenue_cum_yoy 欄位</td></tr>
+      <tr><td>3</td><td class="field">最佳等級 AA 級</td><td>依優先順序取第一個有值的：預估 > 系統 > 沈董 > 綜合 > 加權 > 近四季<div class="note">只要其中一個達到 AA 就通過</div></td></tr>
+      <tr><td>4</td><td class="field">股價低於總表評價 AA</td><td><span class="formula">收盤價 <= val_aa + 0.005</span></td></tr>
+      <tr><td>5</td><td class="field">綜合殖利率 >= 6%</td><td><span class="formula">綜合殖利率 = 綜合股利 / 收盤價 × 100</span></td></tr>
+      <tr><td>6</td><td class="field">股利折現模式現價潛在年報酬 >= 10%</td><td>EPS：預估EPS > 沈董EPS、PE：預設14、股利：綜合股利（三年同值）<div class="note">年報酬 = ((賣出價+三年股利) / 現價) ^ (1/3) - 1</div></td></tr>
+    </table>
+    <div style="font-weight:700;padding:8px 12px;color:#059669;margin-top:12px">成長加分（4 項）</div>
+    <table>
+      <tr><th width="40">#</th><th width="240">條件</th><th>判定邏輯</th></tr>
+      <tr><td>7</td><td class="field">涅夫保守成長率 >= 7%</td><td><span class="formula">min(5年CAGR, 3年CAGR) × 折扣係數</span><div class="note">涅夫主力投資區為 7~12%；灰色標記的股票不計入</div></td></tr>
+      <tr><td>8</td><td class="field">涅夫 Neff 比率 >= 0.7</td><td><span class="formula">(保守成長率 + 殖利率) / PE</span><div class="note">>= 1.0 極佳、>= 0.7 合格；灰色標記的股票不計入</div></td></tr>
+      <tr><td>9</td><td class="field">林區 PEG <= 1.0</td><td><span class="formula">PE / (保守成長率 + 殖利率)</span><div class="note">林區修正版，將殖利率納入分母；灰色標記的股票不計入</div></td></tr>
+      <tr><td>10</td><td class="field">林區成長一致性 >= 0.5</td><td><span class="formula">1 - |算術平均 - CAGR| / CAGR</span><div class="note">< 0.5 視為景氣循環股，不適用 PEG 估值</div></td></tr>
     </table>
     <div class="legend">
-      <span>頂部顯示「N / 13 通過」：>= 80% 綠色、>= 50% 黃色、< 50% 紅色</span>
+      <span>頂部顯示「基本 X/6 + 加分 Y/4」：基本 >= 5 綠色、>= 3 黃色、< 3 紅色</span>
     </div>
   </div>
 </div>
