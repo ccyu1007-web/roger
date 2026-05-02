@@ -380,6 +380,58 @@
   </div>
 </div>
 
+<!-- 涅夫/林區灰色標記說明 -->
+<div class="section" id="sec-neff-lynch-gray">
+  <div class="section-title" onclick="toggleSection(this)">涅夫/林區 灰色標記說明 <span class="arrow">▼</span></div>
+  <div class="section-body" style="padding:16px">
+    <div style="font-weight:700;margin-bottom:10px;color:#1e3a5f">什麼是灰色標記？</div>
+    <div style="margin-bottom:12px;line-height:1.6">
+      灰色標記代表<strong>「數字算得出來，但方法論本身認為不適用這支股票」</strong>。<br>
+      即使 Neff 比率或 PEG 的數字看起來符合標準，灰色標記提醒你這個結果要打問號。
+    </div>
+    <table>
+      <tr><th width="160">灰色條件</th><th width="200">原因</th><th>來自誰的規則</th></tr>
+      <tr>
+        <td class="field" style="color:#94a3b8">5年CAGR > 20%</td>
+        <td>涅夫認為超過 20% 的成長率不可持續、無法可靠預測，直接放棄不評估</td>
+        <td>涅夫（John Neff）<br><span class="note">「成長率超過 20%，無法可靠預測，直接放棄。」</span></td>
+      </tr>
+      <tr>
+        <td class="field" style="color:#94a3b8">成長一致性 < 0.5</td>
+        <td>算術平均成長率和 CAGR 差距太大，代表 EPS 波動劇烈，是<strong>景氣循環股</strong>而非成長股，PEG 估值無意義</td>
+        <td>林區（Peter Lynch）<br><span class="note">「算術平均看起來像高成長，但 CAGR 很低——這是景氣循環股，不是成長股！不能用 PEG 估值。」</span></td>
+      </tr>
+    </table>
+    <div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+      <div style="font-weight:700;margin-bottom:6px;color:#1e3a5f">範例</div>
+      <table style="max-width:700px">
+        <tr><th>股票</th><th>情境</th><th>數字</th><th>結果</th></tr>
+        <tr>
+          <td>A公司</td>
+          <td>5年CAGR = 8%，一致性 = 0.95</td>
+          <td>Neff = 1.2，PEG = 0.83</td>
+          <td style="color:#059669;font-weight:600">正常顯示，可照數字判斷</td>
+        </tr>
+        <tr>
+          <td>B公司</td>
+          <td>5年CAGR = 27%，一致性 = 0.86</td>
+          <td>Neff = 0.53，PEG = 1.88</td>
+          <td style="color:#94a3b8">灰色標記（CAGR > 20% 不可信）</td>
+        </tr>
+        <tr>
+          <td>C公司</td>
+          <td>5年CAGR = 15%，一致性 = 0.35</td>
+          <td>Neff = 0.9，PEG = 1.1</td>
+          <td style="color:#94a3b8">灰色標記（景氣循環股，PEG 無意義）</td>
+        </tr>
+      </table>
+    </div>
+    <div class="note" style="margin-top:12px">
+      簡單記法：<strong>白色 = 可以照數字判斷，灰色 = 方法論本身說不適用這支股票</strong>
+    </div>
+  </div>
+</div>
+
 <!-- 矩陣等級 -->
 <div class="section" id="sec-matrix">
   <div class="section-title" onclick="toggleSection(this)">矩陣等級對照表 <span class="arrow">▼</span></div>
