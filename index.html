@@ -332,7 +332,14 @@
       <div class="tb-group">
         <span class="tb-label" style="color:#2563eb">追蹤</span>
         <button class="mkt-btn" id="btnFocusTrackFilter2" onclick="toggleFocusTrackFilter()" style="border-color:#2563eb;color:#2563eb">顯示</button>
+        <button class="mkt-btn" onclick="clearFocusTrack()" style="border-color:#ef4444;color:#ef4444">全清</button>
         <span class="count-badge" id="focusTrackCount2" style="color:#2563eb"></span>
+      </div>
+      <div class="tb-group">
+        <span class="tb-label" style="color:#94a3b8">不追蹤</span>
+        <button class="mkt-btn" id="btnSkipFilter" onclick="toggleSkipFilter()" style="border-color:#94a3b8;color:#94a3b8">顯示</button>
+        <button class="mkt-btn" onclick="clearSkip()" style="border-color:#ef4444;color:#ef4444">全清</button>
+        <span class="count-badge" id="skipCount" style="color:#94a3b8"></span>
       </div>
       <div class="tb-group">
         <span class="tb-label">觀察</span>
@@ -352,12 +359,6 @@
         <button class="mkt-btn" id="btnFocusFilter" onclick="toggleFocusFilter()" style="border-color:#7c3aed;color:#7c3aed">顯示</button>
         <button class="mkt-btn" onclick="openFocusPanel()" style="border-color:#7c3aed;color:#7c3aed">編輯</button>
         <span class="count-badge" id="focusCount"></span>
-      </div>
-      <div class="tb-group">
-        <span class="tb-label" style="color:#94a3b8">已研究</span>
-        <button class="mkt-btn" id="btnSkipFilter" onclick="toggleSkipFilter()" style="border-color:#94a3b8;color:#94a3b8">顯示</button>
-        <button class="mkt-btn" onclick="clearSkip()" style="border-color:#ef4444;color:#ef4444">全清</button>
-        <span class="count-badge" id="skipCount" style="color:#94a3b8"></span>
       </div>
       <div class="tb-group">
         <span class="tb-label">體質</span>
@@ -510,8 +511,8 @@
         <tr>
           <!-- 識別 -->
           <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
+          <th class="no-sort" style="width:36px;text-align:center;font-size:.72rem;color:#94a3b8">不追蹤</th>
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
-          <th class="no-sort" style="width:40px;text-align:center;font-size:.72rem;color:#94a3b8">已研究</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
           <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
@@ -1598,6 +1599,24 @@ function updateFocusTrackCount() {
   const el2 = document.getElementById('focusTrackCount2');
   if (el) el.textContent = txt;
   if (el2) el2.textContent = txt;
+}
+
+function clearFocusTrack() {
+  if (!confirm('確定全部清除追蹤標記？')) return;
+  const codes = [...focusTrackSet];
+  focusTrackSet.clear();
+  focusTrackData = {};
+  focusSignals = {};
+  // 逐一從 DB 刪除
+  codes.forEach(code => {
+    fetch('/api/focus-tracking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action: 'remove', code})
+    }).catch(() => {});
+  });
+  updateFocusTrackCount();
+  renderFocusPanel();
+  render();
 }
 
 function toggleFocusTrackFilter() {
@@ -2724,6 +2743,7 @@ function render() {
     return `<tr${cls ? ` class="${cls}"` : ''}>
       <!-- 識別 -->
       <td style="text-align:center"><input type="checkbox" class="focus-cb" data-code="${r.code}" ${isFocused?'checked':''} onchange="toggleFocusTrack(this)">${_focusSignalBadge(r.code)}</td>
+      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
       <td style="text-align:center">${(() => {
         const wp = watchPrices[r.code];
         const tip = wp && r.close ? (() => {
@@ -2732,7 +2752,6 @@ function render() {
         })() : '';
         return `<div class="watch-wrap"><input type="checkbox" class="watch-cb" data-code="${r.code}" ${isWatched?'checked':''} onchange="toggleWatch(this)">${tip}</div>`;
       })()}</td>
-      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
