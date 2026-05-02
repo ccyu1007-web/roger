@@ -2282,7 +2282,15 @@ def bulk_revenue():
 def growth_indicators():
     """計算聶夫總報酬率法 + 林區PEG法所需欄位"""
     import json as _json
+    import traceback
     from datetime import date as _dt
+    try:
+        return _calc_growth_indicators(_json, _dt)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+def _calc_growth_indicators(_json, _dt):
 
     current_year = _dt.today().year
 
