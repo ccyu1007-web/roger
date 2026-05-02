@@ -105,27 +105,7 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前六欄：追蹤 + 不追蹤 + 觀察 + 體質 + 檢核 + 代碼/名稱 */
-  thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3),
-  thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6) { position: sticky; top: 0; z-index: 4; }
-  thead th:nth-child(1) { left: 0; }
-  thead th:nth-child(2) { left: 0; }
-  thead th:nth-child(3) { left: 0; }
-  thead th:nth-child(4) { left: 0; }
-  thead th:nth-child(5) { left: 0; }
-  thead th:nth-child(6) { left: 0; border-right: 2px solid #93c5fd; }
-  tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3),
-  tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6) { position: sticky; background: #fff; z-index: 1; }
-  tbody td:nth-child(1) { left: 0; }
-  tbody td:nth-child(2) { left: 0; }
-  tbody td:nth-child(3) { left: 0; }
-  tbody td:nth-child(4) { left: 0; }
-  tbody td:nth-child(5) { left: 0; }
-  tbody td:nth-child(6) { left: 0; border-right: 2px solid #e2e8f0; }
-  tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2), tbody tr:nth-child(even) td:nth-child(3),
-  tbody tr:nth-child(even) td:nth-child(4), tbody tr:nth-child(even) td:nth-child(5), tbody tr:nth-child(even) td:nth-child(6) { background: #f8fafc; }
-  tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2), tbody tr:hover td:nth-child(3),
-  tbody tr:hover td:nth-child(4), tbody tr:hover td:nth-child(5), tbody tr:hover td:nth-child(6) { background: #dbeafe; }
+  /* 不凍結，由 fixFrozenColumns() 動態處理 */
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -2913,19 +2893,41 @@ function exportCSV() {
 
 function fixFrozenColumns() {
   setTimeout(() => {
-    const ths = [1,2,3,4,5,6].map(i => document.querySelector(`thead th:nth-child(${i})`));
+    const FC = 6;
+    const ths = [];
+    for (let i = 1; i <= FC; i++) ths.push(document.querySelector(`thead th:nth-child(${i})`));
     if (!ths[0] || ths[0].offsetWidth === 0) return;
-    let left = 0;
-    for (let i = 0; i < 6; i++) {
-      if (!ths[i]) break;
-      const n = i + 1;
-      const l = left;
-      document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
-        el.style.left = l + 'px';
-      });
-      left += ths[i].offsetWidth;
+
+    // 算每欄累積 left
+    const lefts = [];
+    let acc = 0;
+    for (let i = 0; i < FC; i++) {
+      lefts.push(acc);
+      acc += ths[i] ? ths[i].getBoundingClientRect().width : 0;
     }
-  }, 50);
+
+    // 設定 sticky + left + z-index
+    for (let i = 0; i < FC; i++) {
+      const n = i + 1;
+      const l = lefts[i];
+      const isLast = i === FC - 1;
+      document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
+        el.style.position = 'sticky';
+        el.style.left = l + 'px';
+        el.style.zIndex = el.tagName === 'TH' ? '4' : '2';
+        el.style.background = el.style.background || '#fff';
+        if (isLast) el.style.borderRight = '2px solid #93c5fd';
+      });
+    }
+    // tbody 背景色修正
+    document.querySelectorAll('tbody tr').forEach(tr => {
+      const isEven = Array.from(tr.parentNode.children).indexOf(tr) % 2 === 1;
+      for (let i = 1; i <= FC; i++) {
+        const td = tr.querySelector(`td:nth-child(${i})`);
+        if (td) td.style.background = isEven ? '#f8fafc' : '#fff';
+      }
+    });
+  }, 100);
 }
 
 function renderPagination() {
