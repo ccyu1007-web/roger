@@ -1617,8 +1617,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="notes-wrap">
       <div class="notes-header">
         <span class="notes-title">質性研究筆記</span>
-        <button onclick="applyAnalysisTemplate()" style="padding:3px 10px;border:1px solid #6366f1;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#6366f1;font-weight:600;margin-left:8px">套用分析模板</button>
-        <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製分析指令</button>
+        <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
         <span class="notes-status" id="notesStatus"></span>
       </div>
       <textarea class="notes-area" id="notesArea" oninput="onNotesInput()"
@@ -1997,26 +1996,6 @@ async function initEstimator(sharesMillion) {
 }
 
 let _notesTimer = null;
-const ANALYSIS_TEMPLATE = `【質性研究】${CODE} ${STOCK_NAME}
-分析日期：${new Date().toLocaleDateString('zh-TW')}
-
-一、商務模式：三句話講清楚靠什麼賺錢、賣給誰、定價權如何
-
-二、護城河：類型、具體證據、近期加深或變淺
-
-三、產業地圖：上下游、主要對手與市佔、替代威脅、客戶集中度
-
-四、經營者：資本配置歷史、股權結構、誠信紀錄
-
-五、風險清單：前三大風險（這家公司最可能怎麼死）
-
-六、賣出條件：發生什麼事立即賣？區分暫時利空 vs 結構惡化
-
-七、成長展望：當年度營運動能、未來1~2年成長驅動力與隱憂
-
-八、追蹤指標：真正該看的1~3個指標、為什麼、領先訊號
-`;
-
 const ANALYSIS_PROMPT = `請分析 ${CODE} ${STOCK_NAME} 的質性研究。
 規則：有把握才寫，不確定標「待查證」，每個結論附判斷依據。
 
@@ -2028,14 +2007,6 @@ const ANALYSIS_PROMPT = `請分析 ${CODE} ${STOCK_NAME} 的質性研究。
 六、賣出條件：發生什麼事立即賣？區分暫時利空 vs 結構惡化
 七、成長展望：當年度營運動能、未來1~2年成長驅動力與隱憂
 八、追蹤指標：真正該看的1~3個指標、為什麼、領先訊號`;
-
-function applyAnalysisTemplate() {
-  const area = document.getElementById('notesArea');
-  const existing = area.value.trim();
-  if (existing && !confirm('筆記已有內容，要在最前面插入模板嗎？')) return;
-  area.value = existing ? ANALYSIS_TEMPLATE + '\n\n───── 原有筆記 ─────\n\n' + existing : ANALYSIS_TEMPLATE;
-  onNotesInput();
-}
 
 function copyAnalysisPrompt() {
   navigator.clipboard.writeText(ANALYSIS_PROMPT).then(() => {
