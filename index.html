@@ -1950,23 +1950,36 @@ function calcDerived(r) {
     ? Math.round((r.contract_1 - r.contract_2) / Math.abs(r.contract_2) * 10000) / 100
     : null;
 
-  // 預估 EPS + 等級（從 localStorage 讀取）
+  // 預估 EPS + 等級（優先 DB，fallback localStorage）
   r.est_eps = null;
   r.est_pe = null;
   r.est_grade = null;
   try {
-    const saved = localStorage.getItem('estimate_' + r.code);
-    if (saved) {
-      const d = JSON.parse(saved);
-      const qs = [d.q1, d.q2, d.q3, d.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
-      if (qs.length > 0) {
-        r.est_eps = Math.round(qs.reduce((a, b) => a + b, 0) * 100) / 100;
-        r.est_pe = (r.est_eps > 0 && r.close != null)
-          ? Math.round(r.close / r.est_eps * 100) / 100 : null;
-      }
+    // 優先用 DB 的 user_estimates，沒有才 fallback localStorage
+    let d = r._ue;
+    if (!d) {
+      const saved = localStorage.getItem('estimate_' + r.code);
+      if (saved) d = JSON.parse(saved);
+    }
+    if (d) {
+      // 同步 DB 值到 localStorage（確保一致）
+      if (r._ue) localStorage.setItem('estimate_' + r.code, JSON.stringify(r._ue));
 
-      // 預估股利 + 殖利率
-      const estDiv = d.div ? parseFloat(d.div) : null;
+      // EPS：優先 vmEps > q1~q4 加總
+      if (d.vmEps && parseFloat(d.vmEps)) {
+        r.est_eps = Math.round(parseFloat(d.vmEps) * 100) / 100;
+      } else {
+        const qs = [d.q1, d.q2, d.q3, d.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
+        if (qs.length > 0) {
+          r.est_eps = Math.round(qs.reduce((a, b) => a + b, 0) * 100) / 100;
+        }
+      }
+      r.est_pe = (r.est_eps && r.est_eps > 0 && r.close != null)
+        ? Math.round(r.close / r.est_eps * 100) / 100 : null;
+
+      // 預估股利：優先 vmDiv > div
+      const estDiv = (d.vmDiv && parseFloat(d.vmDiv)) ? parseFloat(d.vmDiv)
+        : (d.div ? parseFloat(d.div) : null);
       r.est_div = estDiv;
       r.est_yld = (estDiv && r.close && r.close > 0) ? Math.round(estDiv / r.close * 10000) / 100 : null;
 
@@ -2226,25 +2239,31 @@ let PAGE_SIZE = 50;
 // ── 初始載入 ────────────────────────────────────────────────
 async function loadData() {
   try {
-    const [sRes, stRes, nfRes, giRes] = await Promise.all([
+    const [sRes, stRes, nfRes, giRes, ueRes] = await Promise.all([
       fetch('/api/status'),
       fetch('/api/stocks'),
       fetch('/api/news-flags'),
       fetch('/api/growth-indicators'),
+      fetch('/api/user-estimates-all'),
     ]);
     const status = await sRes.json();
     const stocks = await stRes.json();
     try { _newsFlags = await nfRes.json(); } catch(e) { _newsFlags = {}; }
     let _growthData = {};
     try { _growthData = await giRes.json(); } catch(e) { _growthData = {}; }
+    let _userEstimates = {};
+    try { _userEstimates = await ueRes.json(); } catch(e) { _userEstimates = {}; }
 
     updateStatusBar(status);
     setRefreshingUI(status.is_refreshing);
 
     allData  = stocks.data;
 
-    // 合併成長率指標資料
-    allData.forEach(r => { r._gi = _growthData[r.code] || null; });
+    // 合併成長率指標資料 + 個股估值參數
+    allData.forEach(r => {
+      r._gi = _growthData[r.code] || null;
+      r._ue = _userEstimates[r.code] || null;
+    });
 
     // 計算多數公司的最新季度（用來判斷哪些公司有「新」EPS）
     const qCount = {};

@@ -3274,6 +3274,19 @@ def refresh_checklist():
     count = calc_all_checklists()
     return jsonify({"status": "ok", "count": count})
 
+@app.route("/api/user-estimates-all")
+def get_all_user_estimates():
+    """批次取得所有個股估值參數"""
+    import json as _json
+    rows = query_db("SELECT code, params FROM user_estimates WHERE params IS NOT NULL")
+    result = {}
+    for r in rows:
+        try:
+            result[r['code']] = _json.loads(r['params'])
+        except Exception:
+            pass
+    return jsonify(result)
+
 @app.route("/api/user-estimates/<code>", methods=["GET"])
 def get_user_estimate(code):
     rows = query_db("SELECT params, updated_at FROM user_estimates WHERE code=?", (code,))
