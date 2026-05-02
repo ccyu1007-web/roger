@@ -527,17 +527,17 @@ def _calc_checklist_for_stock(r, user_params=None):
     # 7. 涅夫保守成長率 >= 7%
     gi = r.get('_gi') or {}
     neff_c = gi.get('neff_c')
-    checks[7] = 1 if neff_c is not None and neff_c >= 7 and not gi.get('gray') else 0
+    checks[7] = 1 if neff_c is not None and neff_c >= 7 and not gi.get('neff_gray') else 0
     detail['chk_7'] = f'保守成長率={neff_c}%' if neff_c is not None else None
 
     # 8. 涅夫Neff比率 >= 0.7
     neff_d = gi.get('neff_d')
-    checks[8] = 1 if neff_d is not None and neff_d >= 0.7 and not gi.get('gray') else 0
+    checks[8] = 1 if neff_d is not None and neff_d >= 0.7 and not gi.get('neff_gray') else 0
     detail['chk_8'] = f'Neff比率={neff_d}' if neff_d is not None else None
 
     # 9. 林區PEG <= 1.0
     lynch_d = gi.get('lynch_d')
-    checks[9] = 1 if lynch_d is not None and lynch_d <= 1.0 and not gi.get('gray') else 0
+    checks[9] = 1 if lynch_d is not None and lynch_d <= 1.0 and not gi.get('lynch_gray') else 0
     detail['chk_9'] = f'PEG={lynch_d}' if lynch_d is not None else None
 
     # 10. 林區成長一致性 >= 0.5
@@ -2481,10 +2481,10 @@ def growth_indicators():
         # ── PEG（D）= PE / (保守成長率 + 殖利率)
         lynch_d = pe / total_return if total_return > 0 else None
 
-        # ── 灰色標記判斷
-        gray = False
-        if neff_c < 0 or a_pct > 20 or (lynch_c is not None and lynch_c < 0.5) or gap_years >= 2:
-            gray = True
+        # ── 灰色標記判斷（分開判斷）
+        neff_gray = neff_c < 0 or a_pct > 20 or gap_years >= 2
+        lynch_gray = (lynch_c is not None and lynch_c < 0.5)
+        gray = neff_gray or lynch_gray
 
         entry = {
             'neff_a': round(a_pct, 2),
@@ -2501,6 +2501,8 @@ def growth_indicators():
             'pe': round(pe, 2),
             'discount': discount,
             'gray': gray,
+            'neff_gray': neff_gray,
+            'lynch_gray': lynch_gray,
             'warnings': warnings,
         }
         result[code] = entry
