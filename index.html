@@ -106,14 +106,12 @@
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
   /* 凍結前4欄：代碼+名稱+收盤價+漲跌 */
-  thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3), thead th:nth-child(4) { position: sticky !important; z-index: 10 !important; }
-  tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3), tbody td:nth-child(4) { position: sticky !important; z-index: 5 !important; background: #fff; }
-  thead th:nth-child(4) { border-right: 2px solid #93c5fd; }
-  tbody td:nth-child(4) { border-right: 2px solid #e2e8f0; }
-  tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2),
-  tbody tr:nth-child(even) td:nth-child(3), tbody tr:nth-child(even) td:nth-child(4) { background: #f8fafc; }
-  tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2),
-  tbody tr:hover td:nth-child(3), tbody tr:hover td:nth-child(4) { background: #dbeafe; }
+  thead th:nth-child(-n+4), tbody td:nth-child(-n+4) { position: sticky !important; }
+  thead th:nth-child(-n+4) { z-index: 10 !important; }
+  tbody td:nth-child(-n+4) { z-index: 5 !important; background: #fff; }
+  thead th:nth-child(4), tbody td:nth-child(4) { border-right: 2px solid #93c5fd; }
+  tbody tr:nth-child(even) td:nth-child(-n+4) { background: #f8fafc !important; }
+  tbody tr:hover td:nth-child(-n+4) { background: #dbeafe !important; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -2901,19 +2899,20 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  // 前4欄是凍結欄（代碼、名稱、收盤價、漲跌）
-  const ths = [1,2,3,4].map(i => document.querySelector(`thead th:nth-child(${i})`));
-  if (!ths[0]) return;
-  let left = 0;
-  for (let i = 0; i < 4; i++) {
-    if (!ths[i]) break;
-    const n = i + 1;
-    const l = left;
-    document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
-      el.style.left = l + 'px';
-    });
-    left += ths[i].offsetWidth;
-  }
+  requestAnimationFrame(() => {
+    const ths = [1,2,3,4].map(i => document.querySelector(`thead th:nth-child(${i})`));
+    if (!ths[0] || !ths[0].offsetWidth) return;
+    let left = 0;
+    for (let i = 0; i < 4; i++) {
+      if (!ths[i]) break;
+      const n = i + 1;
+      const l = left;
+      document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
+        el.style.left = l + 'px';
+      });
+      left += ths[i].offsetWidth;
+    }
+  });
 }
 
 function renderPagination() {
