@@ -3075,7 +3075,7 @@ def get_user_lists():
 def update_user_list(list_type):
 
     from datetime import datetime
-    if list_type not in ('watch', 'hold', 'focus', 'quality'):
+    if list_type not in ('watch', 'hold', 'focus', 'quality', 'skip'):
         return jsonify({"error": "invalid list_type"}), 400
     data = request.json
     action = data.get('action')  # 'add' or 'remove' or 'sync'
