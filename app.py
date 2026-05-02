@@ -2296,11 +2296,20 @@ def _calc_growth_indicators(_json, _dt):
 
     # ── 1. 抓最近7年 financial_annual（需要6年算5年CAGR）
     min_year = current_year - 6
-    fa_rows = query_db(
-        "SELECT code, year, net_income, eps, weighted_shares, common_stock "
-        "FROM financial_annual WHERE year >= ? ORDER BY code, year",
-        (min_year,)
-    )
+    try:
+        fa_rows = query_db(
+            "SELECT code, year, net_income, eps, weighted_shares, common_stock "
+            "FROM financial_annual WHERE year >= ? ORDER BY code, year",
+            (min_year,)
+        )
+    except Exception:
+        fa_rows = query_db(
+            "SELECT code, year, net_income, eps, common_stock "
+            "FROM financial_annual WHERE year >= ? ORDER BY code, year",
+            (min_year,)
+        )
+        for r in fa_rows:
+            r['weighted_shares'] = None
     # 按 code 分組
     fa_map = {}
     for r in fa_rows:
