@@ -2629,12 +2629,11 @@ function render() {
       ? (c240 > 0 ? `▲ ${c240.toFixed(2)}%` : c240 < 0 ? `▼ ${Math.abs(c240).toFixed(2)}%` : '－')
       : '－';
 
-    // 營收更新日期
+    // 營收更新日期（可點進個股月營收）
     let revDateHtml = '－';
     if (r.revenue_date) {
-      revDateHtml = isRevNew
-        ? `<span style="color:#ef4444;font-weight:700">${r.revenue_date}</span>`
-        : r.revenue_date;
+      const _revStyle = isRevNew ? 'color:#ef4444;font-weight:700' : 'color:#2563eb';
+      revDateHtml = `<a href="/company.html?code=${r.code}&tab=revenue" target="_blank" style="${_revStyle};text-decoration:none;font-size:.82rem" title="查看歷年月營收">${r.revenue_date}</a>`;
     }
 
     // EPS 更新日期（eps_date 是今天才紅色，隔天自動恢復）

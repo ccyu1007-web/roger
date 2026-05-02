@@ -3236,6 +3236,8 @@ if (CODE) {
   const _initTab = new URLSearchParams(location.search).get('tab');
   if (_initTab === 'decision') {
     switchTab('decision');
+  } else if (_initTab === 'revenue') {
+    switchTab('revenue');
   } else {
     loadFinancial();
   }
