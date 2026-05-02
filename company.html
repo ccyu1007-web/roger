@@ -2787,7 +2787,16 @@ function saveEstimate() {
     vmLtDiv: document.getElementById('vmLtDiv').value,
     date: now,
   };
-  localStorage.setItem('estimate_' + CODE, JSON.stringify(d));
+  // 合併既有參數（避免覆蓋 valParams 區的設定）
+  let existing = {};
+  try { existing = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  Object.assign(existing, d);
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(existing));
+  // 同步到 DB
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(existing)
+  });
   document.getElementById('estDate').textContent = '已儲存：' + now;
 }
 
@@ -2800,6 +2809,10 @@ function clearEstimateQ() {
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   ['rev1','rev2','rev3','gm','opex','nonop','tax','pw'].forEach(k => delete saved[k]);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(saved)
+  });
   calcEstimate();
 }
 
@@ -2812,6 +2825,10 @@ function clearEstimateY() {
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   ['revYear','growthRate','gmYear','opexYear','nonopYear','taxYear','pwYear'].forEach(k => delete saved[k]);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(saved)
+  });
   calcEstimateYear();
 }
 
