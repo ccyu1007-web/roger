@@ -490,19 +490,19 @@
     <table id="stockTable" style="display:none">
       <thead>
         <tr>
+          <!-- 凍結四欄：代碼+名稱+收盤價+漲跌 -->
+          <th class="fz" onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
+          <th class="fz" onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
+          <th class="fz" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
+          <th class="fz fz-last" onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
           <!-- 識別 -->
           <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
           <th class="no-sort" style="width:36px;text-align:center;font-size:.72rem;color:#94a3b8">不追蹤</th>
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
-          <th class="fz" onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
-          <th class="fz" onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
           <th class="g-mkt no-sort">市場</th>
           <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
-          <!-- 股價 -->
-          <th class="fz col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
-          <th class="fz fz-last" onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
           <!-- 評價（可收合） -->
           <th class="g-val col-div" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
           <th class="g-val" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
@@ -2722,6 +2722,11 @@ function render() {
 
     const isFocused = focusTrackSet.has(r.code);
     return `<tr${cls ? ` class="${cls}"` : ''}>
+      <!-- 凍結四欄 -->
+      <td class="fz"><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
+      <td class="fz">${r.name}</td>
+      <td class="fz"><strong>${fmt(r.close)}</strong></td>
+      <td class="fz fz-last ${chgClass}">${chgStr}</td>
       <!-- 識別 -->
       <td style="text-align:center"><input type="checkbox" class="focus-cb" data-code="${r.code}" ${isFocused?'checked':''} onchange="toggleFocusTrack(this)">${_focusSignalBadge(r.code)}</td>
       <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
@@ -2735,13 +2740,8 @@ function render() {
       })()}</td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
-      <td class="fz"><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
-      <td class="fz">${r.name}</td>
       <td class="g-mkt">${mktBadge}</td>
       <td class="g-mkt" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
-      <!-- 股價 -->
-      <td class="fz col-div"><strong>${fmt(r.close)}</strong></td>
-      <td class="fz fz-last ${chgClass}">${chgStr}</td>
       <!-- 評價 -->
       <td class="g-val col-div"${r.val_aa != null && r.close != null && r.close <= r.val_aa ? ' style="background:#fee2e2;color:#dc2626;font-weight:700"' : ''}>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
       <td class="g-val"${r.val_a1 != null && r.close != null && r.close <= r.val_a1 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
@@ -2899,25 +2899,19 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  // 找表頭中的 .fz 欄位，計算各自的 nth-child 索引
-  const allThs = Array.from(document.querySelectorAll('thead tr:last-child th'));
-  const fzIndices = [];
-  allThs.forEach((th, i) => {
-    if (th.classList.contains('fz')) fzIndices.push(i);
-  });
-  if (!fzIndices.length) return;
-
-  // 計算累積 left（只算可見的 fz 欄位前面的寬度）
-  // 先算每個 fz 欄位左邊所有 fz 欄位的累積寬度
+  // 前4欄是凍結欄（代碼、名稱、收盤價、漲跌）
+  const ths = [1,2,3,4].map(i => document.querySelector(`thead th:nth-child(${i})`));
+  if (!ths[0]) return;
   let left = 0;
-  fzIndices.forEach(idx => {
-    const n = idx + 1;
+  for (let i = 0; i < 4; i++) {
+    if (!ths[i]) break;
+    const n = i + 1;
     const l = left;
     document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
       el.style.left = l + 'px';
     });
-    left += allThs[idx].offsetWidth;
-  });
+    left += ths[i].offsetWidth;
+  }
 }
 
 function renderPagination() {
