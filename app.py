@@ -561,7 +561,7 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     return {
         'code': r['code'],
-        **{f'chk_{i}': checks.get(i, 0) for i in range(1, 14)},
+        **{f'chk_{i}': checks.get(i, 0) for i in range(1, 11)},
         'pass_count': pass_count,
         'total_count': 10,
         'base_count': base_count,
@@ -638,18 +638,17 @@ def calc_all_checklists():
 
         c.execute("""INSERT INTO stock_checklist
                      (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
-                      chk_7, chk_8, chk_9, chk_10, chk_11, chk_12, chk_13,
+                      chk_7, chk_8, chk_9, chk_10,
                       pass_count, total_count, base_count, bonus_count, detail,
                       eps_setting, div_setting, yld_high, yld_max, pe_high, pe_low,
                       lt_div, lt_yld, val_a, val_a1, val_a2, val_aa, lt5, lt6, lt7,
                       updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                      ON CONFLICT(code) DO UPDATE SET
                       chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
                       chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
                       chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
-                      chk_10=excluded.chk_10, chk_11=excluded.chk_11, chk_12=excluded.chk_12,
-                      chk_13=excluded.chk_13,
+                      chk_10=excluded.chk_10,
                       pass_count=excluded.pass_count, total_count=excluded.total_count,
                       base_count=excluded.base_count, bonus_count=excluded.bonus_count,
                       detail=excluded.detail,
@@ -664,7 +663,7 @@ def calc_all_checklists():
                   (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
                    result['chk_4'], result['chk_5'], result['chk_6'],
                    result['chk_7'], result['chk_8'], result['chk_9'],
-                   result['chk_10'], result['chk_11'], result['chk_12'], result.get('chk_13', 0),
+                   result['chk_10'],
                    result['pass_count'], result['total_count'],
                    result['base_count'], result['bonus_count'], result['detail'],
                    result['eps_setting'], result['div_setting'],
