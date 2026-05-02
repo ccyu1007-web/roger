@@ -105,7 +105,13 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 不凍結欄位 */
+  /* 凍結欄位（代碼+名稱+收盤價+漲跌） */
+  .fz { position: sticky; z-index: 1; background: #fff; }
+  thead .fz { z-index: 4; }
+  .fz-last { border-right: 2px solid #93c5fd !important; }
+  tbody .fz-last { border-right: 2px solid #e2e8f0 !important; }
+  tbody tr:nth-child(even) .fz { background: #f8fafc; }
+  tbody tr:hover .fz { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -490,13 +496,13 @@
           <th class="no-sort" style="width:40px;text-align:center">觀察</th>
           <th class="no-sort" style="width:40px;text-align:center">體質</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
-          <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
-          <th onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
+          <th class="fz" onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
+          <th class="fz" onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
           <th class="g-mkt no-sort">市場</th>
           <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
           <!-- 股價 -->
-          <th class="col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
-          <th onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
+          <th class="fz col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
+          <th class="fz fz-last" onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
           <!-- 評價（可收合） -->
           <th class="g-val col-div" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
           <th class="g-val" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
@@ -2729,13 +2735,13 @@ function render() {
       })()}</td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
-      <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
-      <td>${r.name}</td>
+      <td class="fz"><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
+      <td class="fz">${r.name}</td>
       <td class="g-mkt">${mktBadge}</td>
       <td class="g-mkt" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
       <!-- 股價 -->
-      <td class="col-div"><strong>${fmt(r.close)}</strong></td>
-      <td class="${chgClass}">${chgStr}</td>
+      <td class="fz col-div"><strong>${fmt(r.close)}</strong></td>
+      <td class="fz fz-last ${chgClass}">${chgStr}</td>
       <!-- 評價 -->
       <td class="g-val col-div"${r.val_aa != null && r.close != null && r.close <= r.val_aa ? ' style="background:#fee2e2;color:#dc2626;font-weight:700"' : ''}>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
       <td class="g-val"${r.val_a1 != null && r.close != null && r.close <= r.val_a1 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
@@ -2893,7 +2899,25 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  // 凍結窗格已取消
+  // 找表頭中的 .fz 欄位，計算各自的 nth-child 索引
+  const allThs = Array.from(document.querySelectorAll('thead tr:last-child th'));
+  const fzIndices = [];
+  allThs.forEach((th, i) => {
+    if (th.classList.contains('fz')) fzIndices.push(i);
+  });
+  if (!fzIndices.length) return;
+
+  // 計算累積 left（只算可見的 fz 欄位前面的寬度）
+  // 先算每個 fz 欄位左邊所有 fz 欄位的累積寬度
+  let left = 0;
+  fzIndices.forEach(idx => {
+    const n = idx + 1;
+    const l = left;
+    document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
+      el.style.left = l + 'px';
+    });
+    left += allThs[idx].offsetWidth;
+  });
 }
 
 function renderPagination() {
