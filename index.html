@@ -105,13 +105,15 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結欄位（代碼+名稱+收盤價+漲跌） */
-  .fz { position: sticky; z-index: 3; background: #fff; }
-  thead .fz { z-index: 5; }
-  .fz-last { border-right: 2px solid #93c5fd !important; }
-  tbody .fz-last { border-right: 2px solid #e2e8f0 !important; }
-  tbody tr:nth-child(even) .fz { background: #f8fafc; }
-  tbody tr:hover .fz { background: #dbeafe; }
+  /* 凍結前4欄：代碼+名稱+收盤價+漲跌 */
+  thead th:nth-child(1), thead th:nth-child(2), thead th:nth-child(3), thead th:nth-child(4) { position: sticky !important; z-index: 10 !important; }
+  tbody td:nth-child(1), tbody td:nth-child(2), tbody td:nth-child(3), tbody td:nth-child(4) { position: sticky !important; z-index: 5 !important; background: #fff; }
+  thead th:nth-child(4) { border-right: 2px solid #93c5fd; }
+  tbody td:nth-child(4) { border-right: 2px solid #e2e8f0; }
+  tbody tr:nth-child(even) td:nth-child(1), tbody tr:nth-child(even) td:nth-child(2),
+  tbody tr:nth-child(even) td:nth-child(3), tbody tr:nth-child(even) td:nth-child(4) { background: #f8fafc; }
+  tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2),
+  tbody tr:hover td:nth-child(3), tbody tr:hover td:nth-child(4) { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -491,10 +493,10 @@
       <thead>
         <tr>
           <!-- 凍結四欄：代碼+名稱+收盤價+漲跌 -->
-          <th class="fz" onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
-          <th class="fz" onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
-          <th class="fz" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
-          <th class="fz fz-last" onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
+          <th  onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
+          <th  onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
+          <th  onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
+          <th  onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
           <!-- 識別 -->
           <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem">追蹤</th>
           <th class="no-sort" style="width:36px;text-align:center;font-size:.72rem;color:#94a3b8">不追蹤</th>
@@ -2723,10 +2725,10 @@ function render() {
     const isFocused = focusTrackSet.has(r.code);
     return `<tr${cls ? ` class="${cls}"` : ''}>
       <!-- 凍結四欄 -->
-      <td class="fz"><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
-      <td class="fz">${r.name}</td>
-      <td class="fz"><strong>${fmt(r.close)}</strong></td>
-      <td class="fz fz-last ${chgClass}">${chgStr}</td>
+      <td ><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
+      <td >${r.name}</td>
+      <td ><strong>${fmt(r.close)}</strong></td>
+      <td class="${chgClass}">${chgStr}</td>
       <!-- 識別 -->
       <td style="text-align:center"><input type="checkbox" class="focus-cb" data-code="${r.code}" ${isFocused?'checked':''} onchange="toggleFocusTrack(this)">${_focusSignalBadge(r.code)}</td>
       <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
