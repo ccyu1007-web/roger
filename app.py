@@ -533,12 +533,22 @@ def _calc_checklist_for_stock(r, user_params=None):
     # 8. 聶夫Neff比率 >= 0.7
     neff_d = gi.get('neff_d')
     checks[8] = 1 if neff_d is not None and neff_d >= 0.7 and not gi.get('neff_gray') else 0
-    detail['chk_8'] = f'Neff比率={neff_d}' if neff_d is not None else None
+    if neff_d is not None:
+        _gi_yld = gi.get('yield', 0)
+        _gi_pe = gi.get('pe', 0)
+        detail['chk_8'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {neff_d}'
+    else:
+        detail['chk_8'] = None
 
     # 9. 林區PEG <= 1.0
     lynch_d = gi.get('lynch_d')
     checks[9] = 1 if lynch_d is not None and lynch_d <= 1.0 else 0
-    detail['chk_9'] = f'PEG={lynch_d}' if lynch_d is not None else None
+    if lynch_d is not None:
+        _gi_yld = gi.get('yield', 0)
+        _gi_pe = gi.get('pe', 0)
+        detail['chk_9'] = f'PEG={lynch_d}　PE{_gi_pe} / (保守成長率{neff_c}% + 殖利率{_gi_yld}%) = {lynch_d}'
+    else:
+        detail['chk_9'] = None
 
     # 10. 林區成長一致性 >= 0.5
     lynch_c = gi.get('lynch_c')
