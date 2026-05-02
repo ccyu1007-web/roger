@@ -105,13 +105,13 @@
   thead th:hover { background: #2563eb; }
   thead th.no-sort { cursor: default; }
   thead th.no-sort:hover { background: #1e3a5f; }
-  /* 凍結前七欄：追蹤 + 不追蹤 + 觀察 + 體質 + 檢核 + 代碼 + 名稱 */
-  thead th:nth-child(-n+7) { position: sticky; top: 0; z-index: 4; }
-  tbody td:nth-child(-n+7) { position: sticky; background: #fff; z-index: 1; }
-  thead th:nth-child(7) { border-right: 2px solid #93c5fd; }
-  tbody td:nth-child(7) { border-right: 2px solid #e2e8f0; }
-  tbody tr:nth-child(even) td:nth-child(-n+7) { background: #f8fafc; }
-  tbody tr:hover td:nth-child(-n+7) { background: #dbeafe; }
+  /* 凍結前11欄：追蹤~漲跌（含可隱藏的市場/產業別） */
+  thead th:nth-child(-n+11) { position: sticky; top: 0; z-index: 4; }
+  tbody td:nth-child(-n+11) { position: sticky; background: #fff; z-index: 1; }
+  thead th:nth-child(11) { border-right: 2px solid #93c5fd; }
+  tbody td:nth-child(11) { border-right: 2px solid #e2e8f0; }
+  tbody tr:nth-child(even) td:nth-child(-n+11) { background: #f8fafc; }
+  tbody tr:hover td:nth-child(-n+11) { background: #dbeafe; }
   .sort-icon { margin-left: 4px; opacity: .6; font-size: .75rem; }
   tbody tr { transition: background .1s; }
   tbody tr:nth-child(even) { background: #f8fafc; }
@@ -2899,7 +2899,7 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const FREEZE_COUNT = 7;
+  const FREEZE_COUNT = 11;
   const ths = [];
   for (let i = 1; i <= FREEZE_COUNT; i++) {
     ths.push(document.querySelector(`thead th:nth-child(${i})`));
