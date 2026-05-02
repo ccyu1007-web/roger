@@ -2147,6 +2147,14 @@ function calcEstimate() {
   // 估計 EPS
   const eps = (nip != null && _estSharesMillion && _estSharesMillion !== 0) ? nip / _estSharesMillion : null;
   document.getElementById('estEPS').textContent = fmtNum(eps, 2);
+
+  // EPS-本業 = 營業利益 * (1-稅率) * 歸屬權重 / 股數
+  const epsCore = (oi != null && taxRate != null && pw != null && _estSharesMillion) ? oi * (1 - taxRate / 100) * pw / 100 / _estSharesMillion : null;
+  document.getElementById('estEPScore').textContent = fmtNum(epsCore, 2);
+
+  // EPS-業外 = EPS - EPS本業
+  const epsNonop = (eps != null && epsCore != null) ? eps - epsCore : null;
+  document.getElementById('estEPSnonop').textContent = fmtNum(epsNonop, 2);
 }
 
 function calcEstimateYear() {
