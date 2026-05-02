@@ -2333,10 +2333,17 @@ def growth_indicators():
 
         # ── 警示判斷
         warnings = []
+        if neff_c < 0:
+            warnings.append('負成長不適用')
         if a_pct > 20:
             warnings.append('CAGR>20%不可信')
         if b_pct < a_pct - 3:
             warnings.append('近期成長減速')
+        # 中間有虧損年被跳過
+        all_years = [r['year'] for r in rows]
+        gap_years = len(all_years) - len(valid)
+        if gap_years > 0:
+            warnings.append(f'有{gap_years}年虧損被排除')
 
         # ── 原始EPS CAGR（輔助對照）
         eps_cagr_5y = None
@@ -2426,7 +2433,7 @@ def growth_indicators():
 
         # ── 灰色標記判斷
         gray = False
-        if a_pct > 20 or (lynch_c is not None and lynch_c < 0.5):
+        if neff_c < 0 or a_pct > 20 or (lynch_c is not None and lynch_c < 0.5) or gap_years >= 2:
             gray = True
 
         entry = {
