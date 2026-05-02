@@ -1091,6 +1091,13 @@ const FIELD_OPTIONS = [
   {label:'加權本益比', key:'weighted_pe'},
   {label:'加權殖利率', key:'weighted_yld'},
   {label:'合約負債變動率', key:'contract_chg'},
+  {label:'涅夫5年CAGR', key:'_gi.neff_a'},
+  {label:'涅夫3年CAGR', key:'_gi.neff_b'},
+  {label:'涅夫保守成長率', key:'_gi.neff_c'},
+  {label:'涅夫Neff比率', key:'_gi.neff_d'},
+  {label:'林區算術平均', key:'_gi.lynch_b'},
+  {label:'林區一致性', key:'_gi.lynch_c'},
+  {label:'林區PEG', key:'_gi.lynch_d'},
 ];
 
 let _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
@@ -1141,7 +1148,8 @@ function saveCustomConditions() {
 
 function evalCustomConditions(r) {
   for (const c of _customConditions) {
-    const v = parseFloat(r[c.field]);
+    let raw = c.field.includes('.') ? c.field.split('.').reduce((o, k) => o?.[k], r) : r[c.field];
+    const v = parseFloat(raw);
     const target = parseFloat(c.value);
     if (isNaN(v) || isNaN(target)) return false;
     switch(c.op) {
