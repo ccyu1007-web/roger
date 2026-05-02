@@ -526,17 +526,26 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 7. 聶夫保守成長率 >= 7%
     gi = r.get('_gi') or {}
+    neff_a = gi.get('neff_a')
+    neff_b = gi.get('neff_b')
     neff_c = gi.get('neff_c')
+    _discount = gi.get('discount')
     checks[7] = 1 if neff_c is not None and neff_c >= 7 and not gi.get('neff_gray') else 0
-    detail['chk_7'] = f'保守成長率={neff_c}%' if neff_c is not None else None
+    if neff_c is not None:
+        _gray_note = '（灰色標記：不計入）' if gi.get('neff_gray') else ''
+        detail['chk_7'] = f'保守成長率={neff_c}%　min(5年CAGR {neff_a}%, 3年CAGR {neff_b}%) × 折扣{_discount} = {neff_c}%{_gray_note}'
+    else:
+        detail['chk_7'] = None
 
     # 8. 聶夫Neff比率 >= 0.7
     neff_d = gi.get('neff_d')
+    _gi_yld = gi.get('yield', 0)
+    _gi_pe = gi.get('pe', 0)
     checks[8] = 1 if neff_d is not None and neff_d >= 0.7 and not gi.get('neff_gray') else 0
     if neff_d is not None:
-        _gi_yld = gi.get('yield', 0)
-        _gi_pe = gi.get('pe', 0)
-        detail['chk_8'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {neff_d}'
+        _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
+        _gray_note = '（灰色標記：不計入）' if gi.get('neff_gray') else ''
+        detail['chk_8'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {_total_ret}/{_gi_pe} = {neff_d}{_gray_note}'
     else:
         detail['chk_8'] = None
 
@@ -544,16 +553,20 @@ def _calc_checklist_for_stock(r, user_params=None):
     lynch_d = gi.get('lynch_d')
     checks[9] = 1 if lynch_d is not None and lynch_d <= 1.0 else 0
     if lynch_d is not None:
-        _gi_yld = gi.get('yield', 0)
-        _gi_pe = gi.get('pe', 0)
-        detail['chk_9'] = f'PEG={lynch_d}　PE{_gi_pe} / (保守成長率{neff_c}% + 殖利率{_gi_yld}%) = {lynch_d}'
+        _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
+        _lynch_gray_note = '（景氣循環股：PEG參考用）' if gi.get('lynch_gray') else ''
+        detail['chk_9'] = f'PEG={lynch_d}　PE{_gi_pe} / (保守成長率{neff_c}% + 殖利率{_gi_yld}%) = {_gi_pe}/{_total_ret} = {lynch_d}{_lynch_gray_note}'
     else:
         detail['chk_9'] = None
 
     # 10. 林區成長一致性 >= 0.5
+    lynch_b = gi.get('lynch_b')
     lynch_c = gi.get('lynch_c')
     checks[10] = 1 if lynch_c is not None and lynch_c >= 0.5 else 0
-    detail['chk_10'] = f'一致性={lynch_c}' if lynch_c is not None else None
+    if lynch_c is not None:
+        detail['chk_10'] = f'一致性={lynch_c}　1 - |算術平均{lynch_b}% - CAGR{neff_a}%| / CAGR{neff_a}% = {lynch_c}'
+    else:
+        detail['chk_10'] = None
 
     base_count = sum(checks[i] for i in range(1, 7))
     bonus_count = sum(checks[i] for i in range(7, 11))
