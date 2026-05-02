@@ -203,7 +203,8 @@
   body.hide-g-po .g-po,
   body.hide-g-trail .g-trail,
   body.hide-g-mkt .g-mkt,
-  body.hide-g-rev .g-rev,
+  body.hide-g-revchg .g-revchg,
+  body.hide-g-revmon .g-revmon,
   body.hide-g-val .g-val,
   body.hide-g-blend .g-blend,
   body.hide-g-inst .g-inst,
@@ -529,11 +530,11 @@
           <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
           <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
           <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
-          <th class="g-rev col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
+          <th class="g-revchg col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
-          <th class="g-rev" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
-          <th class="g-rev" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
-          <th class="g-rev" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
+          <th class="g-revchg" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
+          <th class="g-revchg" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
+          <th class="g-revchg" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 動態月營收欄位（JS 插入） -->
           <template id="monthlyRevHeaders"></template>
           <!-- 等級排列：預估→沈董→綜合→近四季→加權 -->
@@ -590,7 +591,7 @@
           <th class="g-cl" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
           <!-- ETF 成分股 -->
           <th class="g-etf col-div">ETF 成分股</th>
-          <th class="g-rev">營收備註</th>
+          <th class="g-revchg">營收備註</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -623,7 +624,8 @@ const COL_GROUPS = [
   { key: 'g-val', label: '評價', default: true },
   { key: 'g-neff', label: '聶夫', default: false },
   { key: 'g-lynch', label: '林區', default: false },
-  { key: 'g-rev', label: '營收', default: true },
+  { key: 'g-revchg', label: '營收變化', default: true },
+  { key: 'g-revmon', label: '當年度營收', default: false },
   { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-shen', label: '沈董明細', default: false },
   { key: 'g-blend', label: '綜合明細', default: false },
@@ -670,7 +672,7 @@ function initMonthlyRevHeaders() {
   const frag = document.createDocumentFragment();
   _revMonths.forEach(m => {
     const th = document.createElement('th');
-    th.className = 'g-rev';
+    th.className = 'g-revmon';
     th.style.cssText = 'font-size:.78rem;white-space:nowrap;cursor:pointer';
     th.setAttribute('onclick', `sortBy('rev_m${m}')`);
     th.innerHTML = `${_curRocYear}/${m}月<br><span style="font-size:.68rem;color:#94a3b8;font-weight:400">千元</span><span class="sort-icon" id="si_rev_m${m}">↕</span>`;
@@ -2688,15 +2690,15 @@ function render() {
       <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
       <td class="g-inst">${fmtInst(r.inst_trust)}</td>
       <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
-      <td class="g-rev col-div">${revDateHtml}</td>
+      <td class="g-revchg col-div">${revDateHtml}</td>
       <!-- 成長性 -->
-      <td class="g-rev">${fmtRevPct(r.revenue_cum_yoy)}</td>
-      <td class="g-rev">${fmtRevPct(r.revenue_yoy)}</td>
-      <td class="g-rev">${fmtRevPct(r.revenue_mom)}</td>
+      <td class="g-revchg">${fmtRevPct(r.revenue_cum_yoy)}</td>
+      <td class="g-revchg">${fmtRevPct(r.revenue_yoy)}</td>
+      <td class="g-revchg">${fmtRevPct(r.revenue_mom)}</td>
       ${_revMonths.map(m => {
         const v = r[`rev_m${m}`];
-        if (v == null) return '<td class="g-rev" style="font-size:.76rem;color:#cbd5e1;text-align:right">－</td>';
-        return `<td class="g-rev" style="font-size:.76rem;text-align:right">${Math.round(v / 1000).toLocaleString('zh-TW')}</td>`;
+        if (v == null) return '<td class="g-revmon" style="font-size:.76rem;color:#cbd5e1;text-align:right">－</td>';
+        return `<td class="g-revmon" style="font-size:.76rem;text-align:right">${Math.round(v / 1000).toLocaleString('zh-TW')}</td>`;
       }).join('')}
       <!-- 預估 -->
       <td class="g-est col-div">${gradeHtml(r.est_grade)}</td>
@@ -2759,7 +2761,7 @@ function render() {
       <td class="g-cl">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
       <td class="g-etf col-div">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
-      <td class="g-rev" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
+      <td class="g-revchg" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
     </tr>`;
   }).join('');
 
