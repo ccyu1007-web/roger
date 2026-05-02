@@ -1618,7 +1618,10 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div class="notes-header">
         <span class="notes-title">質性研究筆記</span>
         <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
+        <button onclick="togglePromptPreview()" style="padding:3px 10px;border:1px solid #94a3b8;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#94a3b8;font-weight:600">查看指令內容</button>
         <span class="notes-status" id="notesStatus"></span>
+      </div>
+      <div id="promptPreview" style="display:none;margin:0 12px 12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;color:#475569;line-height:1.7;white-space:pre-wrap">
       </div>
       <textarea class="notes-area" id="notesArea" oninput="onNotesInput()"
         placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點..."></textarea>
@@ -2014,6 +2017,16 @@ function copyAnalysisPrompt() {
     if (el) el.textContent = '分析指令已複製到剪貼簿';
     setTimeout(() => { if (el) el.textContent = ''; }, 2000);
   });
+}
+
+function togglePromptPreview() {
+  const el = document.getElementById('promptPreview');
+  if (el.style.display === 'none') {
+    el.textContent = ANALYSIS_PROMPT;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function onNotesInput() {
