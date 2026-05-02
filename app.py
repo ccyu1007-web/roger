@@ -2288,14 +2288,25 @@ def bulk_revenue():
     })
 
 # ── 聶夫 & 林區 成長率指標 API ─────────────────────────────────
+_gi_cache = None
+_gi_cache_time = 0
+
 @app.route("/api/growth-indicators")
 def growth_indicators():
-    """計算聶夫總報酬率法 + 林區PEG法所需欄位"""
+    """計算聶夫總報酬率法 + 林區PEG法所需欄位（30秒快取）"""
     import json as _json
     import traceback
     from datetime import date as _dt
+    import time as _time
+    global _gi_cache, _gi_cache_time
+    now = _time.time()
+    if _gi_cache is not None and now - _gi_cache_time < 30:
+        return jsonify(_gi_cache)
     try:
-        return _calc_growth_indicators(_json, _dt)
+        result = _calc_growth_indicators(_json, _dt)
+        _gi_cache = result.get_json()
+        _gi_cache_time = now
+        return result
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
