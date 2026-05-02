@@ -3124,9 +3124,14 @@ def get_user_settings():
             key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
         conn.commit()
     except Exception: pass
-    rows = conn.execute("SELECT key, value FROM user_settings").fetchall()
+    rows = conn.execute("SELECT key, value, updated_at FROM user_settings").fetchall()
     conn.close()
-    return jsonify({r[0]: r[1] for r in rows})
+    result = {r[0]: r[1] for r in rows}
+    # 回傳最後更新時間
+    times = [r[2] for r in rows if r[2]]
+    if times:
+        result['_updated_at'] = max(times)
+    return jsonify(result)
 
 @app.route("/api/user-settings", methods=["POST"])
 def save_user_settings():

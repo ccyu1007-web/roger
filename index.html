@@ -463,6 +463,10 @@
       <button onclick="resetGlobalVal()" style="padding:3px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer;font-size:.78rem;color:#64748b">預設值</button>
       <span style="font-size:.76rem;color:#94a3b8">未設定個股參數時套用</span>
     </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px;padding:8px 16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0">
+      <button onclick="saveAllSettingsToDb()" style="padding:6px 18px;border:none;border-radius:6px;background:#059669;color:#fff;cursor:pointer;font-size:.85rem;font-weight:700">儲存所有參數到 DB</button>
+      <span id="settingsSaveStatus" style="font-size:.78rem;color:#64748b"></span>
+    </div>
   </div>
 
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
@@ -764,6 +768,51 @@ function syncUserSettings() {
       body: JSON.stringify(payload)
     }).catch(() => {});
   }
+}
+
+async function saveAllSettingsToDb() {
+  const btn = event.target;
+  const statusEl = document.getElementById('settingsSaveStatus');
+  btn.disabled = true;
+  btn.textContent = '儲存中...';
+  try {
+    // 確保所有當前值都寫入 localStorage
+    saveWatchSettings();
+    saveQualitySettings();
+    onBlendChange();
+    onWeightChange();
+    onGlobalValChange();
+    // 收集所有設定
+    const payload = {};
+    SYNC_KEYS.forEach(key => {
+      const val = localStorage.getItem(key);
+      if (val) payload[key] = val;
+    });
+    const res = await fetch('/api/user-settings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('儲存失敗');
+    const now = new Date().toLocaleString('zh-TW');
+    statusEl.innerHTML = `<span style="color:#059669;font-weight:600">已儲存</span> ${now}`;
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;font-weight:600">儲存失敗：${e.message}</span>`;
+  }
+  btn.disabled = false;
+  btn.textContent = '儲存所有參數到 DB';
+}
+
+// 頁面載入時顯示 DB 最後儲存時間
+async function showLastSaveTime() {
+  try {
+    const res = await fetch('/api/user-settings');
+    const data = await res.json();
+    // 找最新的 updated_at
+    const el = document.getElementById('settingsSaveStatus');
+    if (el && data._updated_at) {
+      el.textContent = `上次儲存：${data._updated_at}`;
+    }
+  } catch(e) {}
 }
 
 // 從 DB 載入清單（覆蓋 localStorage）
@@ -2167,6 +2216,7 @@ async function loadData() {
       });
     }
     await loadUserSettings();  // 從 DB 載入設定（覆蓋 localStorage）
+    showLastSaveTime();
     initColToggle();
     await loadUserLists();  // 從 DB 載入清單
     await loadFocusTracking();  // 從 DB 載入重點追蹤
