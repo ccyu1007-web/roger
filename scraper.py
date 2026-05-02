@@ -2818,6 +2818,8 @@ def quick_update():
                     (today_str, west_year, month, yoy, mom, cum_yoy, note, code))
                 rev_updated += 1
 
+    conn.commit()
+    conn.close()
     print(f"[營收] 更新 {rev_updated} 支")
 
     # ── 1b. MOPS 即時營收（第一優先，比 t187ap05 更即時）──
@@ -2840,6 +2842,8 @@ def quick_update():
     # ── 2. 批次 EPS（TWSE + TPEX）──
     # t187ap14 的 EPS 是「累計」值：
     #   Q1 累計=單季, Q2 累計=Q1+Q2, Q3 累計=Q1+Q2+Q3, Q4 累計=全年
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
     eps_updated = 0
     eps_y_updated = 0
     for label, url, code_key, eps_key, year_key, season_key, date_key in [
