@@ -272,25 +272,23 @@
       <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
       <tr>
         <td class="field">5年CAGR</td>
-        <td>過去5年淨利年複合成長率</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(最新年度淨利 / 5年前淨利)^(1/5) - 1</span><br>
-        <span class="note">使用淨利而非EPS，避免股本變動造成失真</span></td>
+        <td>過去5年 EPS 年複合成長率</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新年度EPS / 5年前EPS)^(1/5) - 1</span><br>
+        <span class="note">使用 EPS（每股盈餘），站在股東角度衡量成長。淨利成長但股本膨脹 = 對股東沒意義。</span></td>
       </tr>
       <tr>
         <td class="field">3年CAGR</td>
-        <td>過去3年淨利年複合成長率（檢查近期趨勢）</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(最新年度淨利 / 3年前淨利)^(1/3) - 1</span><br>
+        <td>過去3年 EPS 年複合成長率（檢查近期趨勢）</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新年度EPS / 3年前EPS)^(1/3) - 1</span><br>
         <span class="note">若3年CAGR明顯低於5年CAGR，代表成長正在減速</span></td>
       </tr>
       <tr>
         <td class="field">保守成長率</td>
-        <td>聶夫「三重驗證」後的保守估計</td>
-        <td><span class="src-calc">計算</span> <span class="formula">min(5年CAGR, 3年CAGR) × 折扣係數</span><br>
-        折扣係數規則：<br>
+        <td>取兩個 CAGR 中較低者，不額外打折</td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(5年EPS CAGR, 3年EPS CAGR)</span><br>
         <span class="note">
-          兩者差距 ≤ 3%：× 0.8（成長穩定）<br>
-          差距 3~5%：× 0.75（略有減速）<br>
-          差距 > 5%：× 0.7（明顯減速，更保守）
+          取 min 本身就是保守動作（在兩個合理數字中選較不樂觀的）。<br>
+          不需要額外乘折扣係數，保守由低本益比提供安全邊際。
         </span></td>
       </tr>
       <tr>
@@ -299,71 +297,35 @@
         <td><span class="src-calc">計算</span> <span class="formula">(保守成長率 + 殖利率) / PE</span><br>
         判斷標準：<br>
         <span class="note">
-          <span style="color:#dc2626;font-weight:700">≥ 1.3</span>：特價買進區（紅色）<br>
-          <span style="color:#ea580c;font-weight:600">0.9 ~ 1.3</span>：合理買進區（橘色）<br>
-          <span style="color:#d97706">0.7 ~ 0.9</span>：邊緣買進區<br>
-          <span style="color:#94a3b8">< 0.7</span>：不買區（灰色）
-        </span><br>
-        <span class="note">保守成長率 = min(5年CAGR, 3年CAGR, 內生成長率) × 0.75，上限 12%</span></td>
-      </tr>
-      <tr>
-        <td class="field">內生成長率</td>
-        <td>公司不靠外力能達到的真實成長能力</td>
-        <td><span class="src-calc">計算</span> <span class="formula">平均ROE × (1 - 平均配息率)</span><br>
-        <span class="note">取近5年的 ROE 和配息率平均。若實際CAGR遠高於內生成長率，代表靠外部因素支撐，不可持續。</span></td>
-      </tr>
-      <tr>
-        <td class="field">品質</td>
-        <td>五層金字塔品質評級 A~E</td>
-        <td><span class="src-calc">計算</span> 五層逐層過濾：<br>
-        <span class="note">
-          <strong>L1 護城河</strong>：平均ROE ≥18% 強 / ≥12% 中 / ≥8% 弱 / <8% 無（殖利率≥7%例外）<br>
-          <strong>L2 真實性</strong>：內生成長率 vs 實際CAGR 差距 <3% 真實 / <5% 可接受 / <10% 警示 / ≥10% 疑似操弄<br>
-          <strong>L3 動能</strong>：3年CAGR ≥ 5年CAGR 加速 / 差距<3% 穩定 / 差距≥3% 減速<br>
-          <strong>L4 兌現</strong>：股息CAGR ≥ 淨利CAGR 完全兌現 / ≥70% 基本 / <50% 不足<br>
-          <strong>L5 智慧</strong>：高ROE低配息=聰明 / 低ROE高配息=聰明 / 低ROE低配息=毀滅價值<br><br>
-          <span style="color:#dc2626;font-weight:700">A</span> 全部通過（聶夫最愛）
-          <span style="color:#ea580c;font-weight:600">B</span> L4/L5失敗或有警示
-          <span style="color:#d97706">C</span> L2/L3失敗（減速或會計可疑）
-          <span style="color:#94a3b8">D</span> L1失敗（無護城河）
-          <span style="color:#cbd5e1">E</span> 多項嚴重失敗
+          <span style="color:#dc2626;font-weight:700">≥ 1.3</span>：顯著低估（紅色）<br>
+          <span style="color:#ea580c;font-weight:600">0.9 ~ 1.3</span>：合理偏低（橘色）<br>
+          <span style="color:#d97706">0.7 ~ 0.9</span>：中性<br>
+          <span style="color:#94a3b8">< 0.7</span>：偏貴（灰色）
         </span></td>
-      </tr>
-      <tr>
-        <td class="field">決策</td>
-        <td>Neff比率 × 品質等級的雙軸矩陣</td>
-        <td><span class="src-calc">計算</span> 矩陣判斷：<br>
-        <table style="font-size:.78rem;margin-top:4px;text-align:center">
-          <tr><th></th><th style="color:#dc2626">A級</th><th style="color:#ea580c">B級</th><th style="color:#d97706">C級</th><th style="color:#94a3b8">D/E級</th></tr>
-          <tr><td style="font-weight:600">Neff ≥ 1.3（特價）</td><td style="color:#dc2626;font-weight:700">重倉</td><td style="color:#dc2626;font-weight:700">標準買進</td><td style="color:#d97706">試單</td><td style="color:#94a3b8">不買*</td></tr>
-          <tr><td style="font-weight:600">Neff 0.9~1.3（合理）</td><td style="color:#dc2626;font-weight:700">標準買進</td><td style="color:#d97706">試單</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
-          <tr><td style="font-weight:600">Neff 0.7~0.9（邊緣）</td><td style="color:#d97706">試單</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
-          <tr><td style="font-weight:600">Neff < 0.7</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
-        </table>
-        <span class="note">* D級例外：殖利率≥7% 且 Neff≥1.3 的純配息族可試單<br>
-        核心精神：用品質決定要不要看，用價格決定要不要買。</span></td>
       </tr>
     </table>
     <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
       <div style="font-weight:700;margin-bottom:8px;color:#1e3a5f">聶夫的取捨原則</div>
       <table style="max-width:500px">
         <tr><th>成長率範圍</th><th>聶夫的態度</th><th>原因</th></tr>
-        <tr><td style="color:#94a3b8">< 7%</td><td style="color:#94a3b8">太慢，純看殖利率</td><td style="color:#94a3b8">被通膨吃掉，成長無意義</td></tr>
+        <tr><td style="color:#94a3b8">< 7%</td><td style="color:#94a3b8">成長太弱，不適用此法</td><td style="color:#94a3b8">被通膨吃掉，成長無意義（灰色標記）</td></tr>
         <tr><td style="color:#059669;font-weight:600">7% ~ 12%</td><td style="color:#059669;font-weight:600">甜蜜點（主力投資區）</td><td style="color:#059669">可預測、可持續，聶夫最愛</td></tr>
-        <tr><td>12% ~ 20%</td><td>可投資但需高度警惕</td><td>成長可能不持續，要求更便宜的價格</td></tr>
-        <tr><td style="color:#dc2626;font-weight:600">> 20%</td><td style="color:#dc2626;font-weight:600">完全不可預測，避開</td><td style="color:#dc2626">無法可靠預測，直接放棄不評估</td></tr>
+        <tr><td>12% ~ 20%</td><td>可投資但需警惕</td><td>成長可能不持續，要求更便宜的價格</td></tr>
+        <tr><td style="color:#dc2626;font-weight:600">> 20%</td><td style="color:#dc2626;font-weight:600">不可預測，放棄</td><td style="color:#dc2626">無法可靠預測，直接灰色標記</td></tr>
       </table>
-      <div style="margin-top:12px;font-weight:700;color:#1e3a5f">成長品質判斷</div>
+      <div style="margin-top:12px;font-weight:700;color:#1e3a5f">五層內建保守機制</div>
       <table style="max-width:600px;margin-top:6px">
-        <tr><th width="80">品質</th><th>特徵</th></tr>
-        <tr><td style="color:#059669;font-weight:700">高品質</td><td>既有業務擴張（同店銷售/產能利用率提升）、利潤率改善、市佔率提升、不依賴財務槓桿、不依賴一次性事件</td></tr>
-        <tr><td style="color:#dc2626;font-weight:700">低品質</td><td>併購灌水（人造成長）、會計政策變更、資產處分（一次性）、財務槓桿（借錢買成長）、減資造成 EPS 提升（股本變動）</td></tr>
+        <tr><th width="50">#</th><th>機制</th><th>說明</th></tr>
+        <tr><td>1</td><td>取 min</td><td>在兩個合理的歷史數字中選較不樂觀的</td></tr>
+        <tr><td>2</td><td>20% 硬上限</td><td>超過 20% 直接灰色標記，不評估</td></tr>
+        <tr><td>3</td><td>營收驗證</td><td>EPS 成長 > 營收成長 ×1.5 → 警示（利潤率變化）</td></tr>
+        <tr><td>4</td><td>低本益比</td><td>用低 PE 買進本身就是最大的安全邊際</td></tr>
+        <tr><td>5</td><td>總報酬門檻</td><td>Neff 比率 >= 0.7 才值得關注</td></tr>
       </table>
-      <div class="note" style="margin-top:6px">聶夫只投資高品質成長的公司。低品質成長即使數字漂亮也不可信。</div>
       <div class="note" style="margin-top:8px">
         殖利率來源：預估股利 / 股價（優先用個股自訂，無則用沈董股利）<br>
         PE來源：股價 / 預估EPS（優先用個股自訂，無則用沈董EPS）<br>
-        CAGR > 20% 或成長一致性 < 0.5 的公司會以灰色標記
+        品質判斷請搭配「財務等級」和「體質檢查表」，不在聶夫公式內重複做
       </div>
     </div>
   </div>
@@ -377,13 +339,13 @@
       <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
       <tr>
         <td class="field">5年CAGR</td>
-        <td>過去5年淨利年複合成長率（幾何平均）</td>
-        <td><span class="src-calc">計算</span> 同聶夫的5年CAGR<br>
+        <td>過去5年 EPS 年複合成長率（幾何平均）</td>
+        <td><span class="src-calc">計算</span> 同聶夫的5年 EPS CAGR<br>
         <span class="note">林區稱此為「幾何平均」成長率</span></td>
       </tr>
       <tr>
         <td class="field">算術平均</td>
-        <td>過去5年EPS逐年成長率的簡單平均</td>
+        <td>過去5年 EPS 逐年成長率的簡單平均</td>
         <td><span class="src-calc">計算</span> <span class="formula">Σ(各年EPS YoY成長率) / 年數</span><br>
         <span class="note">例：5年個別成長率為 10%, 15%, 8%, 12%, 20%，算術平均 = 13%</span></td>
       </tr>
@@ -397,7 +359,7 @@
           0.5 ~ 0.9：穩定，正常使用<br>
           <span style="color:#94a3b8">< 0.5</span>：景氣循環股，不適用PEG（灰色標記）
         </span><br>
-        <span class="note">林區的洞見：算術平均 >> CAGR 時，代表成長波動大，是景氣循環股而非成長股</span></td>
+        <span class="note">林區的洞見：算術平均 >> CAGR 時，代表 EPS 波動劇烈，是景氣循環股而非成長股</span></td>
       </tr>
       <tr>
         <td class="field">PEG</td>
@@ -438,14 +400,19 @@
     <table>
       <tr><th width="160">灰色條件</th><th width="200">原因</th><th>來自誰的規則</th></tr>
       <tr>
+        <td class="field" style="color:#94a3b8">保守成長率 < 7%</td>
+        <td>成長太弱，被通膨吃掉就沒意義了，聶夫法不適用</td>
+        <td>聶夫（John Neff）<br><span class="note">聶夫主力投資區是 7%~12%，低於 7% 不值得用總報酬率法分析</span></td>
+      </tr>
+      <tr>
         <td class="field" style="color:#94a3b8">5年CAGR > 20%</td>
-        <td>聶夫認為超過 20% 的成長率不可持續、無法可靠預測，直接放棄不評估</td>
+        <td>成長率不可持續、無法可靠預測，直接放棄不評估</td>
         <td>聶夫（John Neff）<br><span class="note">「成長率超過 20%，無法可靠預測，直接放棄。」</span></td>
       </tr>
       <tr>
         <td class="field" style="color:#94a3b8">成長一致性 < 0.5</td>
-        <td>算術平均成長率和 CAGR 差距太大，代表 EPS 波動劇烈，是<strong>景氣循環股</strong>而非成長股，PEG 估值無意義</td>
-        <td>林區（Peter Lynch）<br><span class="note">「算術平均看起來像高成長，但 CAGR 很低——這是景氣循環股，不是成長股！不能用 PEG 估值。」</span></td>
+        <td>算術平均和 CAGR 差距太大，代表 EPS 波動劇烈，是<strong>景氣循環股</strong>而非成長股，PEG 估值無意義</td>
+        <td>林區（Peter Lynch）<br><span class="note">「算術平均看起來像高成長，但 CAGR 很低——這是景氣循環股，不是成長股！」</span></td>
       </tr>
     </table>
     <div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">

@@ -529,11 +529,10 @@ def _calc_checklist_for_stock(r, user_params=None):
     neff_a = gi.get('neff_a')
     neff_b = gi.get('neff_b')
     neff_c = gi.get('neff_c')
-    _discount = gi.get('discount')
     checks[7] = 1 if neff_c is not None and neff_c >= 7 and not gi.get('neff_gray') else 0
     if neff_c is not None:
         _gray_note = '（灰色標記：不計入）' if gi.get('neff_gray') else ''
-        detail['chk_7'] = f'保守成長率={neff_c}%　min(5年CAGR {neff_a}%, 3年CAGR {neff_b}%) × 折扣{_discount} = {neff_c}%{_gray_note}'
+        detail['chk_7'] = f'保守成長率={neff_c}%　min(5年EPS CAGR {neff_a}%, 3年EPS CAGR {neff_b}%) = {neff_c}%{_gray_note}'
     else:
         detail['chk_7'] = None
 
@@ -2393,10 +2392,9 @@ def _calc_growth_indicators(_json, _dt):
             continue
         close = st['close']
 
-        # 取有 net_income 且 > 0 的年份清單
-        valid = [(r['year'], r['net_income'], r['eps']) for r in rows
-                 if r.get('net_income') and r['net_income'] > 0
-                 and r.get('eps') and r['eps'] > 0]
+        # 取 EPS > 0 的年份（聶夫用 EPS，不用淨利）
+        valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
+                 if r.get('eps') and r['eps'] > 0]
 
         if len(valid) < 4:
             continue  # 至少需要4年（算3年CAGR）
@@ -2404,29 +2402,29 @@ def _calc_growth_indicators(_json, _dt):
         years = [v[0] for v in valid]
         nis = [v[1] for v in valid]
         epss = [v[2] for v in valid]
-        latest_yr = years[-1]
+        revs = [v[3] for v in valid]
 
-        # ── 5年淨利CAGR（A）
+        # ── 5年 EPS CAGR（A）
         neff_a = None
         if len(valid) >= 6:
-            ni_start = nis[-6]
-            ni_end = nis[-1]
-            if ni_start > 0 and ni_end > 0:
-                neff_a = (ni_end / ni_start) ** (1.0 / 5) - 1
+            e_start = epss[-6]
+            e_end = epss[-1]
+            if e_start > 0 and e_end > 0:
+                neff_a = (e_end / e_start) ** (1.0 / 5) - 1
         elif len(valid) >= 5:
-            ni_start = nis[-5]
-            ni_end = nis[-1]
-            n = len(valid) - 1
-            if ni_start > 0 and ni_end > 0 and n >= 4:
-                neff_a = (ni_end / ni_start) ** (1.0 / (years[-1] - years[-5])) - 1
+            e_start = epss[-5]
+            e_end = epss[-1]
+            n_years = years[-1] - years[-5]
+            if e_start > 0 and e_end > 0 and n_years >= 4:
+                neff_a = (e_end / e_start) ** (1.0 / n_years) - 1
 
-        # ── 3年淨利CAGR（B）
+        # ── 3年 EPS CAGR（B）
         neff_b = None
         if len(valid) >= 4:
-            ni_start3 = nis[-4]
-            ni_end3 = nis[-1]
-            if ni_start3 > 0 and ni_end3 > 0:
-                neff_b = (ni_end3 / ni_start3) ** (1.0 / 3) - 1
+            e_start3 = epss[-4]
+            e_end3 = epss[-1]
+            if e_start3 > 0 and e_end3 > 0:
+                neff_b = (e_end3 / e_start3) ** (1.0 / 3) - 1
 
         # 如果只能算3年，A也用3年
         if neff_a is None and neff_b is not None:
@@ -2435,28 +2433,17 @@ def _calc_growth_indicators(_json, _dt):
         if neff_a is None:
             continue
 
-        # ── 保守成長率（C）：聶夫三重驗證
+        # ── 保守成長率（C）：min(5年, 3年)，不打折
         a_pct = neff_a * 100
         b_pct = (neff_b * 100) if neff_b is not None else a_pct
-        min_cagr = min(a_pct, b_pct)
-
-        # 折扣係數：差距大打更重折
-        gap = abs(a_pct - b_pct)
-        if gap > 5:
-            discount = 0.7
-        elif gap > 3:
-            discount = 0.75
-        else:
-            discount = 0.8
-
-        neff_c = min_cagr * discount
+        neff_c = min(a_pct, b_pct)
 
         # ── 警示判斷
         warnings = []
-        if neff_c < 0:
-            warnings.append('負成長不適用')
+        if neff_c < 7:
+            warnings.append('成長率<7%，不適合聶夫法')
         if a_pct > 20:
-            warnings.append('CAGR>20%不可信')
+            warnings.append('CAGR>20%不可預測')
         if b_pct < a_pct - 3:
             warnings.append('近期成長減速')
         # 中間有虧損年被跳過
@@ -2465,15 +2452,25 @@ def _calc_growth_indicators(_json, _dt):
         if gap_years > 0:
             warnings.append(f'有{gap_years}年虧損被排除')
 
-        # ── 原始EPS CAGR（輔助對照）
-        eps_cagr_5y = None
-        if len(valid) >= 6:
-            e_start = epss[-6]
-            e_end = epss[-1]
-            if e_start > 0 and e_end > 0:
-                eps_cagr_5y = ((e_end / e_start) ** (1.0 / 5) - 1) * 100
+        # ── 營收 CAGR 驗證（EPS 成長是否有營收支撐）
+        rev_cagr_5y = None
+        valid_revs = [(y, rv) for y, _, _, rv in valid if rv and rv > 0]
+        if len(valid_revs) >= 6:
+            rv_start = valid_revs[-6][1]
+            rv_end = valid_revs[-1][1]
+            if rv_start > 0 and rv_end > 0:
+                rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / 5) - 1) * 100
+        elif len(valid_revs) >= 5:
+            rv_start = valid_revs[-5][1]
+            rv_end = valid_revs[-1][1]
+            n_rv = valid_revs[-1][0] - valid_revs[-5][0]
+            if rv_start > 0 and rv_end > 0 and n_rv >= 4:
+                rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / n_rv) - 1) * 100
 
-        # 股本變動率
+        if rev_cagr_5y is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
+            warnings.append('EPS成長遠快於營收，注意利潤率變化')
+
+        # 股本變動率（輔助資訊）
         shares_change = None
         shares_list = [(r['year'], r.get('weighted_shares') or r.get('common_stock'))
                        for r in rows if r.get('weighted_shares') or r.get('common_stock')]
@@ -2482,10 +2479,6 @@ def _calc_growth_indicators(_json, _dt):
             s_end = shares_list[-1][1]
             if s_start and s_start > 0:
                 shares_change = (s_end - s_start) / s_start * 100
-
-        # EPS CAGR 與淨利 CAGR 差距警示
-        if eps_cagr_5y is not None and abs(eps_cagr_5y - a_pct) > 3:
-            warnings.append('EPS與淨利成長率差距大')
 
         # ── 殖利率：預估 > 沈董
         ue = ue_map.get(code, {})
@@ -2545,230 +2538,37 @@ def _calc_growth_indicators(_json, _dt):
             warnings.append('景氣循環股不適用PEG')
 
         # ── PEG（D）= PE / (保守成長率 + 殖利率)
-        # 注意：PEG 用原始保守成長率（neff_c 會在品質系統裡被重算）
         _peg_return = neff_c + yld
         lynch_d = pe / _peg_return if _peg_return > 0 else None
 
-        # ── 灰色標記判斷（分開判斷）
-        neff_gray = neff_c < 0 or a_pct > 20 or gap_years >= 2
-        lynch_gray = (lynch_c is not None and lynch_c < 0.5)
-        gray = neff_gray or lynch_gray
-
-        # ── 五層金字塔品質評級 + 決策矩陣 ──
-        # 從 rows 取 ROE / 配息率 / 營收CAGR / 股息CAGR
-        roe_list = []
-        payout_list = []
-        rev_list = []
-        div_list = []
-        for rr in rows:
-            ni = rr.get('net_income')
-            eq = rr.get('total_equity')
-            e = rr.get('eps')
-            cd = rr.get('cash_dividend')
-            rv = rr.get('revenue')
-            if ni and eq and eq > 0:
-                roe_list.append(ni / eq)
-            if e and e > 0 and cd is not None:
-                payout_list.append(cd / e)
-            if rv and rv > 0:
-                rev_list.append(rv)
-            if cd and cd > 0:
-                div_list.append(cd)
-
-        # 內生成長率 = 平均ROE × (1 - 平均配息率)
-        intrinsic_growth = None
-        avg_roe = None
-        avg_roe_pct = None
-        avg_payout = None
-        if len(roe_list) >= 3 and len(payout_list) >= 3:
-            avg_roe = sum(roe_list) / len(roe_list)
-            avg_roe_pct = round(avg_roe * 100, 2)
-            avg_payout = sum(payout_list) / len(payout_list)
-            if avg_payout < 1:
-                intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
-
-        # 股息 CAGR
-        div_cagr = None
-        if len(div_list) >= 4:
-            if div_list[0] > 0 and div_list[-1] > 0:
-                div_cagr = ((div_list[-1] / div_list[0]) ** (1.0 / (len(div_list) - 1)) - 1) * 100
-
-        # ── 五層金字塔品質評級 ──
-        quality_details = []
-        layer_results = [None, None, None, None, None]  # 5層結果
-
-        # 第1層：護城河測試（平均ROE >= 12% 才通過）
-        if avg_roe_pct is not None:
-            if avg_roe_pct >= 18:
-                layer_results[0] = 'strong'
-                quality_details.append(f'L1:護城河強(ROE {avg_roe_pct}%)')
-            elif avg_roe_pct >= 12:
-                layer_results[0] = 'mid'
-                quality_details.append(f'L1:護城河中(ROE {avg_roe_pct}%)')
-            else:
-                layer_results[0] = 'fail'
-                # 例外：殖利率 >= 7% 視為純配息族
-                if yld >= 7:
-                    quality_details.append(f'L1:無護城河但高殖利率{round(yld,1)}%(ROE {avg_roe_pct}%)')
-                    layer_results[0] = 'dividend'
-                else:
-                    quality_details.append(f'L1:無護城河(ROE {avg_roe_pct}%)')
-
-        # 第2層：真實性測試（內生成長率 vs 實際CAGR，差距 < 5% 通過）
-        if intrinsic_growth is not None:
-            ig_gap = abs(intrinsic_growth - a_pct)
-            if ig_gap < 5:
-                layer_results[1] = 'pass'
-                quality_details.append(f'L2:真實成長(差距{round(ig_gap,1)}%)')
-            else:
-                layer_results[1] = 'fail'
-                quality_details.append(f'L2:會計可疑(差距{round(ig_gap,1)}%)')
-
-        # 第3層：動能測試（3年CAGR vs 5年CAGR）
-        cagr_gap = b_pct - a_pct
-        if cagr_gap >= 0:
-            layer_results[2] = 'pass'
-            quality_details.append(f'L3:成長加速')
-        elif cagr_gap > -3:
-            layer_results[2] = 'ok'
-            quality_details.append(f'L3:成長穩定(差距{round(cagr_gap,1)}%)')
-        else:
-            layer_results[2] = 'fail'
-            quality_details.append(f'L3:成長減速(差距{round(cagr_gap,1)}%)')
-
-        # 第4層：兌現測試（股息CAGR >= 淨利CAGR × 0.7 才通過）
-        if div_cagr is not None and a_pct > 0:
-            div_ratio = div_cagr / a_pct if a_pct != 0 else 0
-            if div_ratio >= 0.7:
-                layer_results[3] = 'pass'
-                quality_details.append(f'L4:股息兌現(股息CAGR {round(div_cagr,1)}% / 淨利CAGR {round(a_pct,1)}% = {round(div_ratio*100)}%)')
-            else:
-                layer_results[3] = 'fail'
-                quality_details.append(f'L4:兌現不足(股息CAGR {round(div_cagr,1)}% / 淨利CAGR {round(a_pct,1)}% = {round(div_ratio*100)}%)')
-
-        # 第5層：智慧測試（管理層資本配置）
-        if avg_roe_pct is not None and avg_payout is not None:
-            pr = avg_payout * 100
-            if avg_roe_pct > 15 and pr < 50:
-                layer_results[4] = 'pass'
-                quality_details.append(f'L5:聰明配置(高ROE低配息{round(pr)}%)')
-            elif avg_roe_pct > 15 and pr > 60:
-                layer_results[4] = 'fail'
-                quality_details.append(f'L5:應留更多(高ROE但配息{round(pr)}%)')
-            elif avg_roe_pct < 12 and pr > 50:
-                layer_results[4] = 'pass'
-                quality_details.append(f'L5:聰明配置(低ROE高配息{round(pr)}%)')
-            elif avg_roe_pct < 12 and pr < 30:
-                layer_results[4] = 'fail'
-                quality_details.append(f'L5:毀滅價值(低ROE低配息{round(pr)}%)')
-            else:
-                layer_results[4] = 'ok'
-                quality_details.append(f'L5:中性(ROE{avg_roe_pct}% 配息{round(pr)}%)')
-
-        # ── 綜合評級（層層過濾）──
-        # 第1層失敗 → D（除非高殖利率純配息族）
-        # 第2層失敗 → C
-        # 第3層失敗 → C
-        # 第4層失敗 → B
-        # 第5層失敗 → B
-        # 多項嚴重失敗 → E
-        fail_count = sum(1 for r in layer_results if r == 'fail')
-        none_count = sum(1 for r in layer_results if r is None)
-        passed = sum(1 for r in layer_results if r in ('pass', 'strong', 'mid'))
-
-        # 綜合評級：嚴格按層次判定
-        if fail_count >= 3 or (layer_results[0] == 'fail' and fail_count >= 2):
-            quality_grade = 'E'  # 多項嚴重失敗
-        elif layer_results[0] == 'fail':
-            quality_grade = 'D'  # L1 失敗（無護城河）
-        elif layer_results[1] == 'fail' or layer_results[2] == 'fail':
-            quality_grade = 'C'  # L2 或 L3 失敗（會計可疑/減速）
-        elif layer_results[3] == 'fail' or layer_results[4] == 'fail':
-            quality_grade = 'B'  # L4 或 L5 失敗（兌現/配置偏弱）
-        elif none_count > 0:
-            quality_grade = 'B'  # 有資料不足，最高 B
-        elif passed == 5:
-            quality_grade = 'A'  # 五層全部通過
-        else:
-            quality_grade = 'B'
-
-        quality_score = passed
-
-        # ── 保守成長率（新版）：加入內生成長率和12%上限 ──
-        candidates = [a_pct, b_pct]
-        if intrinsic_growth is not None:
-            candidates.append(intrinsic_growth)
-        conservative_growth = min(candidates) * 0.75
-        conservative_growth = min(conservative_growth, 12)  # 上限12%
-        neff_c = round(conservative_growth, 2)
-
-        # 重算 Neff 比率（用新的保守成長率）
+        # ── Neff 比率 = (保守成長率 + 殖利率) / PE
+        neff_c = round(neff_c, 2)
         total_return = neff_c + yld
         neff_d = total_return / pe if pe > 0 else None
 
-        # ── 四級 Neff 分級 + 5×4 決策矩陣 ──
-        if neff_d is not None:
-            if neff_d >= 1.3:
-                neff_tier = '特價'
-            elif neff_d >= 0.9:
-                neff_tier = '合理'
-            elif neff_d >= 0.7:
-                neff_tier = '邊緣'
-            else:
-                neff_tier = '不買'
-        else:
-            neff_tier = None
-
-        # 決策矩陣
-        decision = None
-        if neff_gray:
-            decision = '不適用'
-        elif neff_d is not None:
-            if quality_grade == 'A':
-                if neff_d >= 1.3: decision = '立刻研究'
-                elif neff_d >= 0.9: decision = '優先研究'
-                elif neff_d >= 0.7: decision = '觀察'
-                else: decision = '不買'
-            elif quality_grade == 'B':
-                if neff_d >= 1.3: decision = '研究'
-                elif neff_d >= 0.9: decision = '觀察'
-                else: decision = '不買'
-            elif quality_grade == 'D':
-                # D級例外：殖利率>=7% 且 Neff>=1.3 的純配息族
-                if yld >= 7 and neff_d >= 1.3 and layer_results[0] == 'dividend':
-                    decision = '觀察(配息族)'
-                else:
-                    decision = '不買'
-            else:  # C, E
-                decision = '不買'
+        # ── 灰色標記判斷
+        # 聶夫：<7% 成長太弱、>20% 不可預測、虧損年太多
+        neff_gray = neff_c < 7 or a_pct > 20 or gap_years >= 2
+        # 林區：一致性太低 = 景氣循環股
+        lynch_gray = (lynch_c is not None and lynch_c < 0.5)
+        gray = neff_gray or lynch_gray
 
         entry = {
             'neff_a': round(a_pct, 2),
             'neff_b': round(b_pct, 2),
-            'neff_c': round(neff_c, 2),
+            'neff_c': neff_c,
             'neff_d': round(neff_d, 2) if neff_d is not None else None,
             'lynch_a': round(a_pct, 2),
             'lynch_b': round(lynch_b, 2) if lynch_b is not None else None,
             'lynch_c': round(lynch_c, 2) if lynch_c is not None else None,
             'lynch_d': round(lynch_d, 2) if lynch_d is not None else None,
-            'eps_cagr_5y': round(eps_cagr_5y, 2) if eps_cagr_5y is not None else None,
+            'rev_cagr_5y': round(rev_cagr_5y, 2) if rev_cagr_5y is not None else None,
             'shares_change': round(shares_change, 2) if shares_change is not None else None,
             'yield': round(yld, 2),
             'pe': round(pe, 2),
-            'discount': discount,
             'gray': gray,
             'neff_gray': neff_gray,
             'lynch_gray': lynch_gray,
-            'intrinsic_growth': intrinsic_growth,
-            'quality_grade': quality_grade,
-            'quality_score': quality_score,
-            'quality_details': quality_details,
-            'layer_pass': [
-                layer_results[1] in ('pass', 'strong', 'mid') if layer_results[1] is not None else None,  # (1)真實性
-                layer_results[2] in ('pass', 'strong', 'mid', 'ok') if layer_results[2] is not None else None,  # (2)動能
-                layer_results[3] in ('pass', 'strong', 'mid') if layer_results[3] is not None else None,  # (3)兌現
-            ],
-            'decision': decision,
             'warnings': warnings,
         }
         result[code] = entry
