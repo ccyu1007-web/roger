@@ -2393,7 +2393,7 @@ function applySort() {
     else if (sortCol.startsWith('_fg_')) { const y = sortCol.slice(4); av = a._fg[y]; bv = b._fg[y]; }
     else if (sortCol === 'neff_ig') { av = a._gi?.intrinsic_growth; bv = b._gi?.intrinsic_growth; }
     else if (sortCol === 'neff_qg') { const m = {'A':5,'B':4,'C':3,'D':2,'E':1}; av = m[a._gi?.quality_grade]??0; bv = m[b._gi?.quality_grade]??0; }
-    else if (sortCol === 'neff_dec') { const m = {'買':3,'觀察':2,'不買':1,'不適用':0}; av = m[a._gi?.decision]??-1; bv = m[b._gi?.decision]??-1; }
+    else if (sortCol === 'neff_dec') { const m = {'重倉':5,'標準買進':4,'試單':3,'試單(配息族)':3,'不買':1,'不適用':0}; av = m[a._gi?.decision]??-1; bv = m[b._gi?.decision]??-1; }
     else if (sortCol.startsWith('neff_') || sortCol.startsWith('lynch_')) { av = a._gi?.[sortCol]; bv = b._gi?.[sortCol]; }
     else { av = a[sortCol]; bv = b[sortCol]; }
     const isNum = numCols.includes(sortCol) || sortCol.startsWith('_');
