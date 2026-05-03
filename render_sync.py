@@ -309,6 +309,8 @@ def _push_all_to_render():
 
 def _push_news_to_render():
     """把本機今天的新聞 push 到 Render"""
+    if _is_cloud():
+        return
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -552,6 +554,8 @@ def _push_prices_to_render():
 
 def _push_institutional_to_render():
     """本機法人資料 push 到 Render PostgreSQL"""
+    if _is_cloud():
+        return
     try:
         conn = sqlite3.connect(DB_PATH)
         rows = conn.execute("SELECT code, inst_foreign, inst_trust, inst_dealer FROM stocks WHERE inst_foreign IS NOT NULL").fetchall()
@@ -574,6 +578,8 @@ def _push_institutional_to_render():
 
 def _push_estimates_to_render():
     """將本機估算結果 push 到 Render"""
+    if _is_cloud():
+        return
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
