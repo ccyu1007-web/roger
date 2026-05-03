@@ -2689,6 +2689,7 @@ def _calc_growth_indicators(_json, _dt):
         # 多項嚴重失敗 → E
         fail_count = sum(1 for r in layer_results if r == 'fail')
         warn_count = sum(1 for r in layer_results if r == 'warn')
+        none_count = sum(1 for r in layer_results if r is None)
 
         if fail_count >= 3 or (layer_results[0] == 'fail' and fail_count >= 2):
             quality_grade = 'E'
@@ -2698,16 +2699,14 @@ def _calc_growth_indicators(_json, _dt):
             quality_grade = 'C'
         elif layer_results[3] == 'fail' or layer_results[4] == 'fail' or fail_count > 0:
             quality_grade = 'B'
-        elif warn_count >= 2:
+        elif warn_count > 0 or none_count > 0:
             quality_grade = 'B'
-        elif warn_count == 1:
-            quality_grade = 'B' if layer_results[0] in ('strong',) else 'A'
-        elif all(r in ('pass', 'strong', 'mid') for r in layer_results if r is not None):
+        elif all(r in ('pass', 'strong', 'mid') for r in layer_results):
             quality_grade = 'A'
         else:
             quality_grade = 'B'
 
-        quality_score = sum(1 for r in layer_results if r in ('pass', 'strong', 'mid', 'ok'))
+        quality_score = sum(1 for r in layer_results if r in ('pass', 'strong', 'mid'))
 
         # ── 保守成長率（新版）：加入內生成長率和12%上限 ──
         candidates = [a_pct, b_pct]
