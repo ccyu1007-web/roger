@@ -524,27 +524,25 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # ── 成長加分 ──
 
-    # 7. 聶夫保守成長率 >= 7%
+    # 7. 保守成長率 > 0%（有正成長）
     gi = r.get('_gi') or {}
     neff_a = gi.get('neff_a')
     neff_b = gi.get('neff_b')
     neff_c = gi.get('neff_c')
-    checks[7] = 1 if neff_c is not None and neff_c >= 7 and not gi.get('neff_gray') else 0
+    checks[7] = 1 if neff_c is not None and neff_c > 0 else 0
     if neff_c is not None:
-        _gray_note = '（灰色標記：不計入）' if gi.get('neff_gray') else ''
-        detail['chk_7'] = f'保守成長率={neff_c}%　min(5年EPS CAGR {neff_a}%, 3年EPS CAGR {neff_b}%) = {neff_c}%{_gray_note}'
+        detail['chk_7'] = f'保守成長率={neff_c}%　min(5年淨利CAGR {neff_a}%, 3年淨利CAGR {neff_b}%)，>20%以20%計'
     else:
         detail['chk_7'] = None
 
-    # 8. 聶夫Neff比率 >= 0.7
+    # 8. Neff比率 >= 0.7
     neff_d = gi.get('neff_d')
     _gi_yld = gi.get('yield', 0)
     _gi_pe = gi.get('pe', 0)
-    checks[8] = 1 if neff_d is not None and neff_d >= 0.7 and not gi.get('neff_gray') else 0
+    checks[8] = 1 if neff_d is not None and neff_d >= 0.7 else 0
     if neff_d is not None:
         _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
-        _gray_note = '（灰色標記：不計入）' if gi.get('neff_gray') else ''
-        detail['chk_8'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {_total_ret}/{_gi_pe} = {neff_d}{_gray_note}'
+        detail['chk_8'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {_total_ret}/{_gi_pe} = {neff_d}'
     else:
         detail['chk_8'] = None
 
@@ -563,7 +561,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     lynch_c = gi.get('lynch_c')
     checks[10] = 1 if lynch_c is not None and lynch_c >= 0.5 else 0
     if lynch_c is not None:
-        detail['chk_10'] = f'一致性={lynch_c}　1 - |算術平均{lynch_b}% - CAGR{neff_a}%| / CAGR{neff_a}% = {lynch_c}'
+        detail['chk_10'] = f'一致性={lynch_c}　1 - |算術平均{lynch_b}% - 5年淨利CAGR{neff_a}%| / {neff_a}% = {lynch_c}'
     else:
         detail['chk_10'] = None
 
