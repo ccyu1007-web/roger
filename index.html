@@ -640,9 +640,9 @@ function initMonthlyRevHeaders() {
   const tpl = document.getElementById('monthlyRevHeaders');
   if (!tpl) return;
   const frag = document.createDocumentFragment();
-  _revMonths.forEach(m => {
+  _revMonths.forEach((m, idx) => {
     const th = document.createElement('th');
-    th.className = 'g-revmon';
+    th.className = 'g-revmon' + (idx === 0 ? ' col-div' : '');
     th.style.cssText = 'font-size:.78rem;white-space:nowrap;cursor:pointer';
     th.setAttribute('onclick', `sortBy('rev_m${m}')`);
     th.innerHTML = `${_curRocYear}/${m}月<br><span style="font-size:.68rem;color:#94a3b8;font-weight:400">千元</span><span class="sort-icon" id="si_rev_m${m}">↕</span>`;
@@ -2634,10 +2634,11 @@ function render() {
       <td class="g-revchg">${fmtRevPct(r.revenue_cum_yoy)}</td>
       <td class="g-revchg">${fmtRevPct(r.revenue_yoy)}</td>
       <td class="g-revchg">${fmtRevPct(r.revenue_mom)}</td>
-      ${_revMonths.map(m => {
+      ${_revMonths.map((m, idx) => {
         const v = r[`rev_m${m}`];
-        if (v == null) return '<td class="g-revmon" style="font-size:.76rem;color:#cbd5e1;text-align:right">－</td>';
-        return `<td class="g-revmon" style="font-size:.76rem;text-align:right">${Math.round(v / 1000).toLocaleString('zh-TW')}</td>`;
+        const divCls = idx === 0 ? ' col-div' : '';
+        if (v == null) return `<td class="g-revmon${divCls}" style="font-size:.76rem;color:#cbd5e1;text-align:right">－</td>`;
+        return `<td class="g-revmon${divCls}" style="font-size:.76rem;text-align:right">${Math.round(v / 1000).toLocaleString('zh-TW')}</td>`;
       }).join('')}
       <!-- 預估 -->
       <td class="g-est col-div">${gradeHtml(r.est_grade)}</td>
