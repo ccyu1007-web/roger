@@ -2537,18 +2537,40 @@ def _calc_growth_indicators(_json, _dt):
         if lynch_c is not None and lynch_c < 0.5:
             warnings.append('景氣循環股不適用PEG')
 
-        # ── PEG（D）= PE / (保守成長率 + 殖利率)
-        _peg_return = neff_c + yld
-        lynch_d = pe / _peg_return if _peg_return > 0 else None
+        # ── 內生成長率（僅顯示用，不參與計算）
+        intrinsic_growth = None
+        roe_list = []
+        payout_list = []
+        for rr in rows:
+            ni = rr.get('net_income')
+            eq = rr.get('total_equity')
+            e = rr.get('eps')
+            cd = rr.get('cash_dividend')
+            if ni and eq and eq > 0:
+                roe_list.append(ni / eq)
+            if e and e > 0 and cd is not None:
+                payout_list.append(cd / e)
+        if len(roe_list) >= 3 and len(payout_list) >= 3:
+            avg_roe = sum(roe_list) / len(roe_list)
+            avg_payout = sum(payout_list) / len(payout_list)
+            if avg_payout < 1:
+                intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
 
-        # ── Neff 比率 = (保守成長率 + 殖利率) / PE
+        # ── 保守成長率有效範圍判斷：7%~20%，超出不算 Neff/PEG
         neff_c = round(neff_c, 2)
-        total_return = neff_c + yld
-        neff_d = total_return / pe if pe > 0 else None
+        neff_out_of_range = neff_c < 7 or a_pct > 20
+        neff_gray = neff_out_of_range or gap_years >= 2
 
-        # ── 灰色標記判斷
-        # 聶夫：<7% 成長太弱、>20% 不可預測、虧損年太多
-        neff_gray = neff_c < 7 or a_pct > 20 or gap_years >= 2
+        if not neff_out_of_range:
+            # 在有效範圍內才計算 Neff 比率和 PEG
+            total_return = neff_c + yld
+            neff_d = total_return / pe if pe > 0 else None
+            _peg_return = neff_c + yld
+            lynch_d = pe / _peg_return if _peg_return > 0 else None
+        else:
+            neff_d = None
+            lynch_d = None
+
         # 林區：一致性太低 = 景氣循環股
         lynch_gray = (lynch_c is not None and lynch_c < 0.5)
         gray = neff_gray or lynch_gray
@@ -2558,6 +2580,7 @@ def _calc_growth_indicators(_json, _dt):
             'neff_b': round(b_pct, 2),
             'neff_c': neff_c,
             'neff_d': round(neff_d, 2) if neff_d is not None else None,
+            'intrinsic_growth': intrinsic_growth,
             'lynch_a': round(a_pct, 2),
             'lynch_b': round(lynch_b, 2) if lynch_b is not None else None,
             'lynch_c': round(lynch_c, 2) if lynch_c is not None else None,
