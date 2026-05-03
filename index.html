@@ -2777,14 +2777,17 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const ths = [1,2,3,4,5].map(i => document.querySelector(`thead th:nth-child(${i})`));
+  const FC = 7; // 追蹤 + 不追蹤 + 觀察 + 體質 + 檢核 + 代碼 + 名稱
+  const ths = [];
+  for (let i = 1; i <= FC; i++) ths.push(document.querySelector(`thead th:nth-child(${i})`));
   if (!ths[0]) return;
   let left = 0;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < FC; i++) {
     if (!ths[i]) break;
     const n = i + 1;
+    const l = left;
     document.querySelectorAll(`thead th:nth-child(${n}), tbody td:nth-child(${n})`).forEach(el => {
-      el.style.left = left + 'px';
+      el.style.left = l + 'px';
     });
     left += ths[i].offsetWidth;
   }
