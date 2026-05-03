@@ -645,8 +645,17 @@ async function loadDecision() {
     ];
 
     const detail = cl.detail || {};
-    const baseCount = cl.base_count || 0;
-    const bonusCount = cl.bonus_count || 0;
+    // 容錯：Render DB 可能沒有 base_count/bonus_count 欄位，自己算
+    let baseCount = cl.base_count;
+    let bonusCount = cl.bonus_count;
+    if (baseCount == null) {
+      baseCount = 0;
+      for (let i = 1; i <= 6; i++) if (cl[`chk_${i}`] === 1) baseCount++;
+    }
+    if (bonusCount == null) {
+      bonusCount = 0;
+      for (let i = 7; i <= 10; i++) if (cl[`chk_${i}`] === 1) bonusCount++;
+    }
     const baseClass = baseCount >= 5 ? 'chk-score-pass' : baseCount >= 3 ? 'chk-score-warn' : 'chk-score-fail';
     const bonusClass = bonusCount >= 3 ? 'chk-score-pass' : bonusCount >= 1 ? 'chk-score-warn' : 'chk-score-fail';
 
@@ -815,7 +824,8 @@ async function loadDecision() {
 
     panel.innerHTML = html;
   } catch(e) {
-    panel.innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
+    console.error('檢核清單錯誤:', e);
+    panel.innerHTML = `<div class="loading" style="color:#ef4444">載入失敗: ${e.message}</div>`;
   }
 }
 
