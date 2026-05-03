@@ -304,6 +304,40 @@
           <span style="color:#94a3b8">< 0.7</span>：不具吸引力（灰色）
         </span></td>
       </tr>
+      <tr>
+        <td class="field">內生成長率</td>
+        <td>公司不靠外力能達到的真實成長能力</td>
+        <td><span class="src-calc">計算</span> <span class="formula">平均ROE × (1 - 平均配息率)</span><br>
+        <span class="note">取近5年以上的 ROE 和配息率平均。若實際成長率遠高於內生成長率，代表靠外部因素（槓桿/併購/會計）支撐，不可持續。</span></td>
+      </tr>
+      <tr>
+        <td class="field">品質</td>
+        <td>成長品質評級 A~F（5分制）</td>
+        <td><span class="src-calc">計算</span> 五項指標各得1分：<br>
+        <span class="note">
+          1. 營收CAGR vs 淨利CAGR 差距 < 3%（營收淨利同步）<br>
+          2. 股息CAGR > 淨利CAGR × 70%（股息跟上成長）<br>
+          3. ROE 標準差 < 3%（ROE穩定）<br>
+          4. 5年CAGR vs 3年CAGR 差距 < 3%（成長穩定）<br>
+          5. 內生成長率 vs 實際CAGR 差距 < 3%（內生成長吻合）<br><br>
+          <span style="color:#dc2626;font-weight:700">A(5分)</span> 聶夫最愛
+          <span style="color:#ea580c;font-weight:600">B(4分)</span> 可投資
+          <span style="color:#d97706">C(3分)</span> 觀察
+          <span style="color:#94a3b8">D(2分) E(1分) F(0分)</span> 不投資
+        </span></td>
+      </tr>
+      <tr>
+        <td class="field">決策</td>
+        <td>Neff比率 × 品質等級的綜合判斷</td>
+        <td><span class="src-calc">計算</span> 矩陣判斷：<br>
+        <table style="font-size:.78rem;margin-top:4px;text-align:center">
+          <tr><th></th><th style="color:#dc2626">A/B級</th><th style="color:#d97706">C級</th><th style="color:#94a3b8">D/E/F級</th></tr>
+          <tr><td style="font-weight:600">Neff ≥ 0.8</td><td style="color:#dc2626;font-weight:700">買</td><td style="color:#d97706">觀察</td><td style="color:#94a3b8">不買</td></tr>
+          <tr><td style="font-weight:600">Neff 0.7~0.8</td><td style="color:#dc2626;font-weight:700">買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
+          <tr><td style="font-weight:600">Neff < 0.7</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
+        </table>
+        <span class="note">即使 Neff 比率高，品質低也不買。灰色標記的股票顯示「不適用」。</span></td>
+      </tr>
     </table>
     <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
       <div style="font-weight:700;margin-bottom:8px;color:#1e3a5f">聶夫的取捨原則</div>

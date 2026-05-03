@@ -492,6 +492,9 @@
           <th class="g-neff" onclick="sortBy('neff_b')">3年CAGR<span class="sort-icon" id="si_neff_b">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_c')">保守成長率<span class="sort-icon" id="si_neff_c">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_d')">Neff比率<span class="sort-icon" id="si_neff_d">↕</span></th>
+          <th class="g-neff" onclick="sortBy('neff_ig')">內生成長率<span class="sort-icon" id="si_neff_ig">↕</span></th>
+          <th class="g-neff" onclick="sortBy('neff_qg')">品質<span class="sort-icon" id="si_neff_qg">↕</span></th>
+          <th class="g-neff" onclick="sortBy('neff_dec')">決策<span class="sort-icon" id="si_neff_dec">↕</span></th>
           <!-- 林區PEG法（可收合） -->
           <th class="g-lynch col-div" onclick="sortBy('lynch_a')">5年CAGR<span class="sort-icon" id="si_lynch_a">↕</span></th>
           <th class="g-lynch" onclick="sortBy('lynch_b')">算術平均<span class="sort-icon" id="si_lynch_b">↕</span></th>
@@ -2352,7 +2355,7 @@ function sortBy(col) {
    'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
    'contract_1','contract_2','contract_3','contract_chg',
-   'neff_a','neff_b','neff_c','neff_d','lynch_a','lynch_b','lynch_c','lynch_d',
+   'neff_a','neff_b','neff_c','neff_d','neff_ig','neff_qg','neff_dec','lynch_a','lynch_b','lynch_c','lynch_d',
    'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'].forEach(c => {
     const el = document.getElementById(`si_${c}`);
     if (el) el.textContent = '↕';
@@ -2377,7 +2380,7 @@ function applySort() {
                    'blend_eps','blend_pe','blend_div','blend_yld','blend_grade',
                    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
                    'contract_1','contract_2','contract_3','contract_chg',
-                   'neff_a','neff_b','neff_c','neff_d','lynch_a','lynch_b','lynch_c','lynch_d',
+                   'neff_a','neff_b','neff_c','neff_d','neff_ig','neff_qg','neff_dec','lynch_a','lynch_b','lynch_c','lynch_d',
                    'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'];
   filtered.sort((a, b) => {
     let av, bv;
@@ -2388,6 +2391,9 @@ function applySort() {
     else if (sortCol.startsWith('_divs_')) { const y = sortCol.slice(6); av = a._div[y]?.s; bv = b._div[y]?.s; }
     else if (sortCol.startsWith('_po_')) { const y = sortCol.slice(4); av = a._po[y]; bv = b._po[y]; }
     else if (sortCol.startsWith('_fg_')) { const y = sortCol.slice(4); av = a._fg[y]; bv = b._fg[y]; }
+    else if (sortCol === 'neff_ig') { av = a._gi?.intrinsic_growth; bv = b._gi?.intrinsic_growth; }
+    else if (sortCol === 'neff_qg') { av = a._gi?.quality_score; bv = b._gi?.quality_score; }
+    else if (sortCol === 'neff_dec') { const m = {'買':3,'觀察':2,'不買':1,'不適用':0}; av = m[a._gi?.decision]??-1; bv = m[b._gi?.decision]??-1; }
     else if (sortCol.startsWith('neff_') || sortCol.startsWith('lynch_')) { av = a._gi?.[sortCol]; bv = b._gi?.[sortCol]; }
     else { av = a[sortCol]; bv = b[sortCol]; }
     const isNum = numCols.includes(sortCol) || sortCol.startsWith('_');
@@ -2622,6 +2628,9 @@ function render() {
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_b != null ? r._gi.neff_b.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff" style="${r._gi?.neff_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.neff_d >= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.neff_d >= 0.7 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
+      <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}">${r._gi?.intrinsic_growth != null ? r._gi.intrinsic_growth.toFixed(1) + '%' : '－'}</td>
+      <td class="g-neff" style="${r._gi?.quality_grade ? ({'A':'color:#dc2626;font-weight:700','B':'color:#ea580c;font-weight:600','C':'color:#d97706','D':'color:#94a3b8','E':'color:#cbd5e1','F':'color:#cbd5e1'}[r._gi.quality_grade] || '') : ''}" title="${r._gi?.quality_details?.join(', ') || ''}">${r._gi?.quality_grade || '－'}${r._gi?.quality_score != null ? '(' + r._gi.quality_score + ')' : ''}</td>
+      <td class="g-neff" style="${r._gi?.decision === '買' ? 'color:#dc2626;font-weight:700' : r._gi?.decision === '觀察' ? 'color:#d97706;font-weight:600' : 'color:#94a3b8'}">${r._gi?.decision || '－'}</td>
       <!-- 林區 -->
       <td class="g-lynch col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_a != null ? r._gi.lynch_a.toFixed(1) + '%' : '－'}</td>
       <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_b != null ? r._gi.lynch_b.toFixed(1) + '%' : '－'}</td>

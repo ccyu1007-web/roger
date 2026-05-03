@@ -2337,18 +2337,32 @@ def _calc_growth_indicators(_json, _dt):
     min_year = current_year - 6
     try:
         fa_rows = query_db(
-            "SELECT code, year, net_income, eps, weighted_shares, common_stock "
+            "SELECT code, year, net_income, eps, weighted_shares, common_stock, "
+            "revenue, total_equity, cash_dividend "
             "FROM financial_annual WHERE year >= ? ORDER BY code, year",
             (min_year,)
         )
     except Exception:
-        fa_rows = query_db(
-            "SELECT code, year, net_income, eps, common_stock "
-            "FROM financial_annual WHERE year >= ? ORDER BY code, year",
-            (min_year,)
-        )
-        for r in fa_rows:
-            r['weighted_shares'] = None
+        try:
+            fa_rows = query_db(
+                "SELECT code, year, net_income, eps, common_stock, "
+                "revenue, total_equity, cash_dividend "
+                "FROM financial_annual WHERE year >= ? ORDER BY code, year",
+                (min_year,)
+            )
+            for r in fa_rows:
+                r['weighted_shares'] = None
+        except Exception:
+            fa_rows = query_db(
+                "SELECT code, year, net_income, eps, common_stock "
+                "FROM financial_annual WHERE year >= ? ORDER BY code, year",
+                (min_year,)
+            )
+            for r in fa_rows:
+                r['weighted_shares'] = None
+                r['revenue'] = None
+                r['total_equity'] = None
+                r['cash_dividend'] = None
     # 按 code 分組
     fa_map = {}
     for r in fa_rows:
@@ -2542,6 +2556,98 @@ def _calc_growth_indicators(_json, _dt):
         lynch_gray = (lynch_c is not None and lynch_c < 0.5)
         gray = neff_gray or lynch_gray
 
+        # ── 內生成長率 + 成長品質 + 決策矩陣 ──
+        # 從 rows 取 ROE / 配息率 / 營收CAGR / 股息CAGR
+        roe_list = []
+        payout_list = []
+        rev_list = []
+        div_list = []
+        for rr in rows:
+            ni = rr.get('net_income')
+            eq = rr.get('total_equity')
+            e = rr.get('eps')
+            cd = rr.get('cash_dividend')
+            rv = rr.get('revenue')
+            if ni and eq and eq > 0:
+                roe_list.append(ni / eq)
+            if e and e > 0 and cd is not None:
+                payout_list.append(cd / e)
+            if rv and rv > 0:
+                rev_list.append(rv)
+            if cd and cd > 0:
+                div_list.append(cd)
+
+        # 內生成長率 = 平均ROE × (1 - 平均配息率)
+        intrinsic_growth = None
+        avg_roe = None
+        avg_payout = None
+        if len(roe_list) >= 3 and len(payout_list) >= 3:
+            avg_roe = sum(roe_list) / len(roe_list)
+            avg_payout = sum(payout_list) / len(payout_list)
+            if avg_payout < 1:  # 配息率不超過100%才合理
+                intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
+
+        # 成長品質評級 A~F（5分制）
+        quality_score = 0
+        quality_details = []
+
+        # 1. 營收CAGR vs 淨利CAGR 同步（差距 < 3%）
+        rev_cagr = None
+        if len(rev_list) >= 5:
+            if rev_list[0] > 0 and rev_list[-1] > 0:
+                rev_cagr = ((rev_list[-1] / rev_list[0]) ** (1.0 / (len(rev_list) - 1)) - 1) * 100
+        if rev_cagr is not None and abs(rev_cagr - a_pct) < 3:
+            quality_score += 1
+            quality_details.append('營收淨利同步')
+
+        # 2. 股息CAGR > 淨利CAGR × 0.7
+        div_cagr = None
+        if len(div_list) >= 4:
+            if div_list[0] > 0 and div_list[-1] > 0:
+                div_cagr = ((div_list[-1] / div_list[0]) ** (1.0 / (len(div_list) - 1)) - 1) * 100
+        if div_cagr is not None and a_pct > 0 and div_cagr > a_pct * 0.7:
+            quality_score += 1
+            quality_details.append('股息跟上成長')
+
+        # 3. ROE 標準差 < 3%
+        roe_std = None
+        if len(roe_list) >= 3:
+            avg = sum(roe_list) / len(roe_list)
+            roe_std = (sum((r - avg) ** 2 for r in roe_list) / len(roe_list)) ** 0.5
+            if roe_std < 0.03:
+                quality_score += 1
+                quality_details.append('ROE穩定')
+
+        # 4. 3年CAGR vs 5年CAGR 接近（差距 < 3%）
+        if abs(a_pct - b_pct) < 3:
+            quality_score += 1
+            quality_details.append('成長穩定')
+
+        # 5. 內生成長率 ≈ 實際成長率（差距 < 3%）
+        if intrinsic_growth is not None and abs(intrinsic_growth - a_pct) < 3:
+            quality_score += 1
+            quality_details.append('內生成長吻合')
+
+        quality_grade = {5:'A', 4:'B', 3:'C', 2:'D', 1:'E', 0:'F'}.get(quality_score, 'F')
+
+        # 決策矩陣：Neff比率 × 品質等級
+        decision = None
+        if neff_d is not None and not neff_gray:
+            if quality_grade in ('A', 'B'):
+                if neff_d >= 0.7:
+                    decision = '買'
+                else:
+                    decision = '不買'
+            elif quality_grade == 'C':
+                if neff_d >= 0.8:
+                    decision = '觀察'
+                else:
+                    decision = '不買'
+            else:  # D, E, F
+                decision = '不買'
+        elif neff_gray:
+            decision = '不適用'
+
         entry = {
             'neff_a': round(a_pct, 2),
             'neff_b': round(b_pct, 2),
@@ -2559,6 +2665,11 @@ def _calc_growth_indicators(_json, _dt):
             'gray': gray,
             'neff_gray': neff_gray,
             'lynch_gray': lynch_gray,
+            'intrinsic_growth': intrinsic_growth,
+            'quality_grade': quality_grade,
+            'quality_score': quality_score,
+            'quality_details': quality_details,
+            'decision': decision,
             'warnings': warnings,
         }
         result[code] = entry
