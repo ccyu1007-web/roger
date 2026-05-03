@@ -272,20 +272,20 @@
       <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
       <tr>
         <td class="field">5年CAGR</td>
-        <td>過去5年 EPS 年複合成長率</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(最新年度EPS / 5年前EPS)^(1/5) - 1</span><br>
-        <span class="note">使用 EPS（每股盈餘），站在股東角度衡量成長。淨利成長但股本膨脹 = 對股東沒意義。</span></td>
+        <td>過去5年稅後淨利年複合成長率</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新年度淨利 / 5年前淨利)^(1/5) - 1</span><br>
+        <span class="note">使用稅後淨利而非 EPS，排除股本變動（增資、減資、庫藏股）對成長率的干擾，反映公司真實獲利能力變化。</span></td>
       </tr>
       <tr>
         <td class="field">3年CAGR</td>
-        <td>過去3年 EPS 年複合成長率（檢查近期趨勢）</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(最新年度EPS / 3年前EPS)^(1/3) - 1</span><br>
+        <td>過去3年稅後淨利年複合成長率（檢查近期趨勢）</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新年度淨利 / 3年前淨利)^(1/3) - 1</span><br>
         <span class="note">若3年CAGR明顯低於5年CAGR，代表成長正在減速</span></td>
       </tr>
       <tr>
         <td class="field">保守成長率</td>
         <td>取兩個 CAGR 中較低者，不額外打折</td>
-        <td><span class="src-calc">計算</span> <span class="formula">min(5年EPS CAGR, 3年EPS CAGR)</span><br>
+        <td><span class="src-calc">計算</span> <span class="formula">min(5年淨利CAGR, 3年淨利CAGR)</span><br>
         <span class="note">
           取 min 本身就是保守動作（在兩個合理數字中選較不樂觀的）。<br>
           不需要額外乘折扣係數，保守由低本益比提供安全邊際。
@@ -339,14 +339,14 @@
       <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
       <tr>
         <td class="field">5年CAGR</td>
-        <td>過去5年 EPS 年複合成長率（幾何平均）</td>
-        <td><span class="src-calc">計算</span> 同聶夫的5年 EPS CAGR<br>
+        <td>過去5年稅後淨利年複合成長率（幾何平均）</td>
+        <td><span class="src-calc">計算</span> 同聶夫的5年淨利 CAGR<br>
         <span class="note">林區稱此為「幾何平均」成長率</span></td>
       </tr>
       <tr>
         <td class="field">算術平均</td>
-        <td>過去5年 EPS 逐年成長率的簡單平均</td>
-        <td><span class="src-calc">計算</span> <span class="formula">Σ(各年EPS YoY成長率) / 年數</span><br>
+        <td>過去5年淨利逐年成長率的簡單平均</td>
+        <td><span class="src-calc">計算</span> <span class="formula">Σ(各年淨利 YoY成長率) / 年數</span><br>
         <span class="note">例：5年個別成長率為 10%, 15%, 8%, 12%, 20%，算術平均 = 13%</span></td>
       </tr>
       <tr>

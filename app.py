@@ -2392,9 +2392,9 @@ def _calc_growth_indicators(_json, _dt):
             continue
         close = st['close']
 
-        # 取 EPS > 0 的年份（聶夫用 EPS，不用淨利）
+        # 取稅後淨利 > 0 的年份（用稅後淨利算 CAGR，排除股本變動干擾）
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
-                 if r.get('eps') and r['eps'] > 0]
+                 if r.get('net_income') and r['net_income'] > 0]
 
         if len(valid) < 4:
             continue  # 至少需要4年（算3年CAGR）
@@ -2404,27 +2404,27 @@ def _calc_growth_indicators(_json, _dt):
         epss = [v[2] for v in valid]
         revs = [v[3] for v in valid]
 
-        # ── 5年 EPS CAGR（A）
+        # ── 5年稅後淨利 CAGR（A）
         neff_a = None
         if len(valid) >= 6:
-            e_start = epss[-6]
-            e_end = epss[-1]
-            if e_start > 0 and e_end > 0:
-                neff_a = (e_end / e_start) ** (1.0 / 5) - 1
+            ni_start = nis[-6]
+            ni_end = nis[-1]
+            if ni_start > 0 and ni_end > 0:
+                neff_a = (ni_end / ni_start) ** (1.0 / 5) - 1
         elif len(valid) >= 5:
-            e_start = epss[-5]
-            e_end = epss[-1]
+            ni_start = nis[-5]
+            ni_end = nis[-1]
             n_years = years[-1] - years[-5]
-            if e_start > 0 and e_end > 0 and n_years >= 4:
-                neff_a = (e_end / e_start) ** (1.0 / n_years) - 1
+            if ni_start > 0 and ni_end > 0 and n_years >= 4:
+                neff_a = (ni_end / ni_start) ** (1.0 / n_years) - 1
 
-        # ── 3年 EPS CAGR（B）
+        # ── 3年稅後淨利 CAGR（B）
         neff_b = None
         if len(valid) >= 4:
-            e_start3 = epss[-4]
-            e_end3 = epss[-1]
-            if e_start3 > 0 and e_end3 > 0:
-                neff_b = (e_end3 / e_start3) ** (1.0 / 3) - 1
+            ni_start3 = nis[-4]
+            ni_end3 = nis[-1]
+            if ni_start3 > 0 and ni_end3 > 0:
+                neff_b = (ni_end3 / ni_start3) ** (1.0 / 3) - 1
 
         # 如果只能算3年，A也用3年
         if neff_a is None and neff_b is not None:
@@ -2468,7 +2468,7 @@ def _calc_growth_indicators(_json, _dt):
                 rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / n_rv) - 1) * 100
 
         if rev_cagr_5y is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
-            warnings.append('EPS成長遠快於營收，注意利潤率變化')
+            warnings.append('淨利成長遠快於營收，注意利潤率變化')
 
         # 股本變動率（輔助資訊）
         shares_change = None
@@ -2514,13 +2514,13 @@ def _calc_growth_indicators(_json, _dt):
         if pe is None or pe <= 0:
             continue
 
-        # ── 林區：算術平均成長率（B）
+        # ── 林區：算術平均成長率（B）用稅後淨利
         yoy_list = []
         for i in range(1, len(valid)):
-            prev_eps = epss[i - 1]
-            curr_eps = epss[i]
-            if prev_eps > 0:
-                yoy_list.append((curr_eps - prev_eps) / prev_eps * 100)
+            prev_ni = nis[i - 1]
+            curr_ni = nis[i]
+            if prev_ni > 0:
+                yoy_list.append((curr_ni - prev_ni) / prev_ni * 100)
 
         # 取最近5個YoY
         recent_yoy = yoy_list[-5:] if len(yoy_list) >= 5 else yoy_list
