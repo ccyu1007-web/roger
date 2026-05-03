@@ -2597,7 +2597,7 @@ def _calc_growth_indicators(_json, _dt):
         quality_details = []
         layer_results = [None, None, None, None, None]  # 5層結果
 
-        # 第1層：護城河測試（平均ROE）
+        # 第1層：護城河測試（平均ROE >= 12% 才通過）
         if avg_roe_pct is not None:
             if avg_roe_pct >= 18:
                 layer_results[0] = 'strong'
@@ -2605,9 +2605,6 @@ def _calc_growth_indicators(_json, _dt):
             elif avg_roe_pct >= 12:
                 layer_results[0] = 'mid'
                 quality_details.append(f'L1:護城河中(ROE {avg_roe_pct}%)')
-            elif avg_roe_pct >= 8:
-                layer_results[0] = 'weak'
-                quality_details.append(f'L1:護城河弱(ROE {avg_roe_pct}%)')
             else:
                 layer_results[0] = 'fail'
                 # 例外：殖利率 >= 7% 視為純配息族
@@ -2617,21 +2614,15 @@ def _calc_growth_indicators(_json, _dt):
                 else:
                     quality_details.append(f'L1:無護城河(ROE {avg_roe_pct}%)')
 
-        # 第2層：真實性測試（內生成長率 vs 實際CAGR）
+        # 第2層：真實性測試（內生成長率 vs 實際CAGR，差距 < 5% 通過）
         if intrinsic_growth is not None:
             ig_gap = abs(intrinsic_growth - a_pct)
-            if ig_gap < 3:
+            if ig_gap < 5:
                 layer_results[1] = 'pass'
-                quality_details.append(f'L2:高度真實(差距{round(ig_gap,1)}%)')
-            elif ig_gap < 5:
-                layer_results[1] = 'ok'
-                quality_details.append(f'L2:可接受(差距{round(ig_gap,1)}%)')
-            elif ig_gap < 10:
-                layer_results[1] = 'warn'
-                quality_details.append(f'L2:警示(差距{round(ig_gap,1)}%)')
+                quality_details.append(f'L2:真實成長(差距{round(ig_gap,1)}%)')
             else:
                 layer_results[1] = 'fail'
-                quality_details.append(f'L2:疑似操弄(差距{round(ig_gap,1)}%)')
+                quality_details.append(f'L2:會計可疑(差距{round(ig_gap,1)}%)')
 
         # 第3層：動能測試（3年CAGR vs 5年CAGR）
         cagr_gap = b_pct - a_pct
@@ -2645,21 +2636,15 @@ def _calc_growth_indicators(_json, _dt):
             layer_results[2] = 'fail'
             quality_details.append(f'L3:成長減速(差距{round(cagr_gap,1)}%)')
 
-        # 第4層：兌現測試（股息CAGR vs 淨利CAGR）
+        # 第4層：兌現測試（股息CAGR >= 淨利CAGR × 0.7 才通過）
         if div_cagr is not None and a_pct > 0:
             div_ratio = div_cagr / a_pct if a_pct != 0 else 0
-            if div_cagr >= a_pct:
+            if div_ratio >= 0.7:
                 layer_results[3] = 'pass'
-                quality_details.append(f'L4:完全兌現(股息CAGR {round(div_cagr,1)}%)')
-            elif div_ratio >= 0.7:
-                layer_results[3] = 'ok'
-                quality_details.append(f'L4:基本兌現(股息CAGR {round(div_cagr,1)}%)')
-            elif div_ratio >= 0.5:
-                layer_results[3] = 'warn'
-                quality_details.append(f'L4:兌現不足(股息CAGR {round(div_cagr,1)}%)')
+                quality_details.append(f'L4:股息兌現(股息CAGR {round(div_cagr,1)}% / 淨利CAGR {round(a_pct,1)}% = {round(div_ratio*100)}%)')
             else:
                 layer_results[3] = 'fail'
-                quality_details.append(f'L4:嚴重不兌現(股息CAGR {round(div_cagr,1)}%)')
+                quality_details.append(f'L4:兌現不足(股息CAGR {round(div_cagr,1)}% / 淨利CAGR {round(a_pct,1)}% = {round(div_ratio*100)}%)')
 
         # 第5層：智慧測試（管理層資本配置）
         if avg_roe_pct is not None and avg_payout is not None:
@@ -2668,7 +2653,7 @@ def _calc_growth_indicators(_json, _dt):
                 layer_results[4] = 'pass'
                 quality_details.append(f'L5:聰明配置(高ROE低配息{round(pr)}%)')
             elif avg_roe_pct > 15 and pr > 60:
-                layer_results[4] = 'warn'
+                layer_results[4] = 'fail'
                 quality_details.append(f'L5:應留更多(高ROE但配息{round(pr)}%)')
             elif avg_roe_pct < 12 and pr > 50:
                 layer_results[4] = 'pass'
@@ -2688,25 +2673,26 @@ def _calc_growth_indicators(_json, _dt):
         # 第5層失敗 → B
         # 多項嚴重失敗 → E
         fail_count = sum(1 for r in layer_results if r == 'fail')
-        warn_count = sum(1 for r in layer_results if r == 'warn')
         none_count = sum(1 for r in layer_results if r is None)
+        passed = sum(1 for r in layer_results if r in ('pass', 'strong', 'mid'))
 
+        # 綜合評級：嚴格按層次判定
         if fail_count >= 3 or (layer_results[0] == 'fail' and fail_count >= 2):
-            quality_grade = 'E'
+            quality_grade = 'E'  # 多項嚴重失敗
         elif layer_results[0] == 'fail':
-            quality_grade = 'D'
+            quality_grade = 'D'  # L1 失敗（無護城河）
         elif layer_results[1] == 'fail' or layer_results[2] == 'fail':
-            quality_grade = 'C'
-        elif layer_results[3] == 'fail' or layer_results[4] == 'fail' or fail_count > 0:
-            quality_grade = 'B'
-        elif warn_count > 0 or none_count > 0:
-            quality_grade = 'B'
-        elif all(r in ('pass', 'strong', 'mid') for r in layer_results):
-            quality_grade = 'A'
+            quality_grade = 'C'  # L2 或 L3 失敗（會計可疑/減速）
+        elif layer_results[3] == 'fail' or layer_results[4] == 'fail':
+            quality_grade = 'B'  # L4 或 L5 失敗（兌現/配置偏弱）
+        elif none_count > 0:
+            quality_grade = 'B'  # 有資料不足，最高 B
+        elif passed == 5:
+            quality_grade = 'A'  # 五層全部通過
         else:
             quality_grade = 'B'
 
-        quality_score = sum(1 for r in layer_results if r in ('pass', 'strong', 'mid'))
+        quality_score = passed
 
         # ── 保守成長率（新版）：加入內生成長率和12%上限 ──
         candidates = [a_pct, b_pct]
