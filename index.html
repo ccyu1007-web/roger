@@ -703,8 +703,15 @@ async function loadUserSettings() {
     let needSync = false;
     SYNC_KEYS.forEach(key => {
       if (data[key]) {
-        // DB 有值 → 覆蓋 localStorage
-        localStorage.setItem(key, data[key]);
+        const dbVal = data[key];
+        const localVal = localStorage.getItem(key);
+        // DB 值是空容器（[] 或 {}）且 localStorage 有實際內容 → 不覆蓋
+        if ((dbVal === '[]' || dbVal === '{}') && localVal && localVal !== '[]' && localVal !== '{}') {
+          needSync = true;  // 反向推 localStorage 到 DB
+        } else {
+          // DB 有值 → 覆蓋 localStorage
+          localStorage.setItem(key, dbVal);
+        }
       } else if (localStorage.getItem(key)) {
         // DB 沒有但 localStorage 有 → 標記需要同步
         needSync = true;
