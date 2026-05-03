@@ -2629,7 +2629,7 @@ function render() {
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff" style="${r._gi?.neff_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.neff_d >= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.neff_d >= 0.7 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
       <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}">${r._gi?.intrinsic_growth != null ? r._gi.intrinsic_growth.toFixed(1) + '%' : '－'}</td>
-      <td class="g-neff" style="${r._gi?.quality_grade ? ({'A':'color:#dc2626;font-weight:700','B':'color:#ea580c;font-weight:600','C':'color:#d97706','D':'color:#94a3b8','E':'color:#cbd5e1','F':'color:#cbd5e1'}[r._gi.quality_grade] || '') : ''}" title="${r._gi?.quality_details?.join(', ') || ''}">${r._gi?.quality_grade || '－'}${r._gi?.quality_score != null ? '(' + r._gi.quality_score + ')' : ''}</td>
+      <td class="g-neff" style="${r._gi?.quality_grade ? ({'A':'color:#dc2626;font-weight:700','B':'color:#ea580c;font-weight:600','C':'color:#d97706','D':'color:#94a3b8','E':'color:#cbd5e1','F':'color:#cbd5e1'}[r._gi.quality_grade] || '') : ''}" title="${r._gi?.quality_details?.join(', ') || ''}">${r._gi?.quality_grade || '－'}</td>
       <td class="g-neff" style="${r._gi?.decision === '買' ? 'color:#dc2626;font-weight:700' : r._gi?.decision === '觀察' ? 'color:#d97706;font-weight:600' : 'color:#94a3b8'}">${r._gi?.decision || '－'}</td>
       <!-- 林區 -->
       <td class="g-lynch col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_a != null ? r._gi.lynch_a.toFixed(1) + '%' : '－'}</td>
