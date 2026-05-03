@@ -2916,6 +2916,15 @@ def quick_update():
             if not code or eps is None or not year or not season:
                 continue
 
+            # 年度防呆：民國年不能超過 cur_roc-1（如 2026 年最新年報是 114 年）
+            try:
+                yr_int = int(year)
+                max_year = datetime.now().year - 1911 - 1
+                if yr_int > max_year:
+                    continue
+            except Exception:
+                continue
+
             # 出表日期（民國格式 1150429 → 2026-04-29）
             pub_date_str = str(d.get(date_key, '')).strip()
             pub_date = today_str  # fallback
