@@ -3274,11 +3274,10 @@ def get_user_settings():
     except Exception: pass
     rows = conn.execute("SELECT key, value, updated_at FROM user_settings").fetchall()
     conn.close()
-    result = {r[0]: r[1] for r in rows}
-    # 回傳最後更新時間
-    times = [r[2] for r in rows if r[2]]
-    if times:
-        result['_updated_at'] = max(times)
+    result = {}
+    for r in rows:
+        result[r[0]] = r[1]
+        result[r[0] + '_time'] = r[2] or '2000-01-01'
     return jsonify(result)
 
 @app.route("/api/user-settings", methods=["POST"])

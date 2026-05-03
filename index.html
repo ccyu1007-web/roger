@@ -702,23 +702,29 @@ async function loadUserSettings() {
     const data = await res.json();
     let needSync = false;
     SYNC_KEYS.forEach(key => {
-      if (data[key]) {
-        const dbVal = data[key];
-        const localVal = localStorage.getItem(key);
-        // DB 值是空容器（[] 或 {}）且 localStorage 有實際內容 → 不覆蓋
-        if ((dbVal === '[]' || dbVal === '{}') && localVal && localVal !== '[]' && localVal !== '{}') {
-          needSync = true;  // 反向推 localStorage 到 DB
-        } else {
-          // DB 有值 → 覆蓋 localStorage
+      const dbVal = data[key] || null;
+      const dbTime = data[key + '_time'] || '2000-01-01';  // DB 的更新時間
+      const localVal = localStorage.getItem(key);
+      const localTime = localStorage.getItem(key + '_time') || '2000-01-01';
+
+      if (dbVal && localVal) {
+        // 兩邊都有值 → 比時間戳，新的贏
+        if (dbTime >= localTime) {
           localStorage.setItem(key, dbVal);
+          localStorage.setItem(key + '_time', dbTime);
+        } else {
+          needSync = true;  // localStorage 比較新 → 推回 DB
         }
-      } else if (localStorage.getItem(key)) {
-        // DB 沒有但 localStorage 有 → 標記需要同步
+      } else if (dbVal && !localVal) {
+        // 只有 DB 有 → 拉到 localStorage
+        localStorage.setItem(key, dbVal);
+        localStorage.setItem(key + '_time', dbTime);
+      } else if (!dbVal && localVal) {
+        // 只有 localStorage 有 → 推到 DB
         needSync = true;
       }
     });
     if (needSync) {
-      // 把 localStorage 有但 DB 沒有的推上去
       syncUserSettings();
     }
     // 重新讀取覆蓋後的值
@@ -739,9 +745,14 @@ async function loadUserSettings() {
 
 function syncUserSettings() {
   const payload = {};
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   SYNC_KEYS.forEach(key => {
     const val = localStorage.getItem(key);
-    if (val) payload[key] = val;
+    if (val) {
+      payload[key] = val;
+      // 更新本地時間戳
+      localStorage.setItem(key + '_time', now);
+    }
   });
   if (Object.keys(payload).length) {
     fetch('/api/user-settings', {
