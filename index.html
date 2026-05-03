@@ -1189,7 +1189,16 @@ function autoWatchCheck() {
     }),
   ].filter(Boolean).map((c, i) => `  ${i+1}. ${c}`).join('\n');
 
-  alert(`自動挑選完成：${passed} 支\n\n篩選條件：\n${condText}\n\n排除統計：\n${reasonText}`);
+  // debug: 排除原因細分
+  const stepCounts = {};
+  Object.values(excluded).forEach(r => {
+    const step = r.split('(')[0].split('=')[0].trim();
+    stepCounts[step] = (stepCounts[step]||0) + 1;
+  });
+  const stepText = Object.entries(stepCounts).sort((a,b) => b[1]-a[1])
+    .map(([r, n]) => `  ${r}：${n} 支`).join('\n');
+
+  alert(`自動挑選完成：${passed} 支\n\n篩選條件：\n${condText}\n\n排除原因（前5大）：\n${stepText}\n\n自訂條件數量：${_customConditions.length}\n等級篩選：${JSON.stringify(_gradeFilters)}`);
 }
 
 // ── 自訂條件 ─────────────────────────────────────────────
