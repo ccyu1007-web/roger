@@ -2440,10 +2440,10 @@ def _calc_growth_indicators(_json, _dt):
 
         # ── 警示判斷
         warnings = []
-        if neff_c < 7:
-            warnings.append('成長率<7%，不適合聶夫法')
-        if a_pct > 20:
-            warnings.append('CAGR>20%不可預測')
+        if 0 < neff_c < 7:
+            warnings.append('成長率<7%，聶夫法參考用')
+        if min(a_pct, b_pct) > 20:
+            warnings.append('保守成長率>20%，已封頂20%計算')
         if b_pct < a_pct - 3:
             warnings.append('近期成長減速')
         # 中間有虧損年被跳過
@@ -2556,13 +2556,15 @@ def _calc_growth_indicators(_json, _dt):
             if avg_payout < 1:
                 intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
 
-        # ── 保守成長率有效範圍判斷：7%~20%，超出不算 Neff/PEG
+        # ── 保守成長率上限封頂 + 負值不計算
         neff_c = round(neff_c, 2)
-        neff_out_of_range = neff_c < 7 or a_pct > 20
-        neff_gray = neff_out_of_range or gap_years >= 2
+        if neff_c > 20:
+            neff_c = 20.0  # 超過20%以20%計
+        neff_negative = neff_c <= 0
+        neff_gray = neff_negative or gap_years >= 2
 
-        if not neff_out_of_range:
-            # 在有效範圍內才計算 Neff 比率和 PEG
+        if not neff_negative:
+            # 正值才計算 Neff 比率和 PEG
             total_return = neff_c + yld
             neff_d = total_return / pe if pe > 0 else None
             _peg_return = neff_c + yld
