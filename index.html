@@ -1189,16 +1189,24 @@ function autoWatchCheck() {
     }),
   ].filter(Boolean).map((c, i) => `  ${i+1}. ${c}`).join('\n');
 
-  // debug: 排除原因細分
-  const stepCounts = {};
+  // debug: 排除原因按步驟統計
+  const stepCounts = {'未通過體質':0,'EPS非正數':0,'PE無值':0,'PE不在範圍':0,
+    '累積營收':0,'殖利率':0,'自訂條件不符':0,'等級篩選不符':0};
   Object.values(excluded).forEach(r => {
-    const step = r.split('(')[0].split('=')[0].trim();
-    stepCounts[step] = (stepCounts[step]||0) + 1;
+    if (r.includes('體質')) stepCounts['未通過體質']++;
+    else if (r.includes('EPS')) stepCounts['EPS非正數']++;
+    else if (r === 'PE無值') stepCounts['PE無值']++;
+    else if (r.includes('PE=')) stepCounts['PE不在範圍']++;
+    else if (r.includes('累積營收')) stepCounts['累積營收']++;
+    else if (r.includes('殖利率')) stepCounts['殖利率']++;
+    else if (r.includes('自訂條件')) stepCounts['自訂條件不符']++;
+    else if (r.includes('等級篩選')) stepCounts['等級篩選不符']++;
   });
-  const stepText = Object.entries(stepCounts).sort((a,b) => b[1]-a[1])
+  const stepText = Object.entries(stepCounts).filter(([,n]) => n > 0)
     .map(([r, n]) => `  ${r}：${n} 支`).join('\n');
+  const totalExcluded = Object.values(stepCounts).reduce((a,b)=>a+b,0);
 
-  alert(`自動挑選完成：${passed} 支\n\n篩選條件：\n${condText}\n\n排除原因（前5大）：\n${stepText}\n\n自訂條件數量：${_customConditions.length}\n等級篩選：${JSON.stringify(_gradeFilters)}`);
+  alert(`自動挑選完成：${passed} 支（排除 ${totalExcluded} 支）\n總股票數：${allData.length}\n\n篩選條件：\n${condText}\n\n排除統計（逐步）：\n${stepText}\n\n自訂條件內容：${JSON.stringify(_customConditions)}`);
 }
 
 // ── 自訂條件 ─────────────────────────────────────────────
