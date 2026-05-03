@@ -3223,6 +3223,10 @@ def _init_all_db():
             )""")
             conn.commit()
             conn.close()
+        # 建立查詢索引
+        conn = sqlite3.connect()
+        sqlite3.ensure_indexes(conn)
+        conn.close()
         print("[DB] 初始化完成")
     except Exception as e:
         print(f"[DB] 初始化失敗（表格可能已存在）: {e}")

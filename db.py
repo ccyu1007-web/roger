@@ -236,3 +236,28 @@ else:
 
     def connect(path=None):
         return _sqlite3.connect(path or 'stocks.db')
+
+
+# ── 索引建立（提升查詢效能）──────────────────────────────────
+def ensure_indexes(conn):
+    """建立常用查詢索引，已存在則跳過"""
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_monthly_revenue_code ON monthly_revenue(code)",
+        "CREATE INDEX IF NOT EXISTS idx_quarterly_financial_code ON quarterly_financial(code)",
+        "CREATE INDEX IF NOT EXISTS idx_financial_annual_code ON financial_annual(code)",
+        "CREATE INDEX IF NOT EXISTS idx_etf_holdings_stock_code ON etf_holdings(stock_code)",
+        "CREATE INDEX IF NOT EXISTS idx_stock_state_code ON stock_state(stock_id)",
+        "CREATE INDEX IF NOT EXISTS idx_daily_price_code ON daily_price(code)",
+        "CREATE INDEX IF NOT EXISTS idx_pe_history_code ON pe_history(code)",
+        "CREATE INDEX IF NOT EXISTS idx_financial_detail_code ON financial_detail(code)",
+        "CREATE INDEX IF NOT EXISTS idx_material_news_code ON material_news(code)",
+        "CREATE INDEX IF NOT EXISTS idx_focus_signals_code ON focus_signals(code)",
+    ]
+    c = conn.cursor() if hasattr(conn, 'cursor') else conn
+    for sql in indexes:
+        try:
+            c.execute(sql)
+        except Exception:
+            pass
+    if hasattr(conn, 'commit'):
+        conn.commit()

@@ -1882,33 +1882,35 @@ _init_stock_state_table()
 
 
 def _calc_shen_eps(row):
-    """後端版沈董 EPS 計算（與前端 calcDerived 邏輯一致）"""
-    cur_roc = date.today().year - 1911
-
-    # 收集所有季度 EPS
-    all_eps = []
-    for i in range(1, 6):
-        q = row.get(f'eps_{i}q')
-        v = row.get(f'eps_{i}')
-        if q and v is not None:
-            all_eps.append((q, v))
-
-    # 當年度已公佈的季度
-    cur_year_eps = [(q, v) for q, v in all_eps if q and q.split('Q')[0] == str(cur_roc)]
-    n = len(cur_year_eps)
-
-    if n >= 4:
-        return round(sum(v for _, v in cur_year_eps), 2)
-    elif n > 0:
-        s = sum(v for _, v in cur_year_eps)
-        return round(s / n * 4, 2)
-    else:
-        # fallback: 近四季加總 → 年度EPS
-        eps4 = [row.get(f'eps_{i}') for i in range(1, 5)]
-        eps4 = [v for v in eps4 if v is not None]
-        if len(eps4) == 4:
-            return round(sum(eps4), 2)
-        return row.get('eps_y1') or row.get('eps_ytd')
+    """後端版沈董 EPS 計算 — 委託 app._calc_shen_fields 統一邏輯"""
+    try:
+        from app import _calc_shen_fields
+        cur_roc = date.today().year - 1911
+        r = dict(row)
+        _calc_shen_fields(r, cur_roc)
+        return r.get('shen_eps')
+    except Exception:
+        # fallback: 原地計算（避免循環 import 失敗時中斷）
+        cur_roc = date.today().year - 1911
+        all_eps = []
+        for i in range(1, 6):
+            q = row.get(f'eps_{i}q')
+            v = row.get(f'eps_{i}')
+            if q and v is not None:
+                all_eps.append((q, v))
+        cur_year_eps = [(q, v) for q, v in all_eps if q and q.split('Q')[0] == str(cur_roc)]
+        n = len(cur_year_eps)
+        if n >= 4:
+            return round(sum(v for _, v in cur_year_eps), 2)
+        elif n > 0:
+            s = sum(v for _, v in cur_year_eps)
+            return round(s / n * 4, 2)
+        else:
+            eps4 = [row.get(f'eps_{i}') for i in range(1, 5)]
+            eps4 = [v for v in eps4 if v is not None]
+            if len(eps4) == 4:
+                return round(sum(eps4), 2)
+            return row.get('eps_y1') or row.get('eps_ytd')
 
 
 def _calc_price_pos(close, shen_eps, pe_high=None, pe_low=None):

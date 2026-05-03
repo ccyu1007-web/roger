@@ -928,7 +928,7 @@ def fetch_contract_liabilities(codes, old_meta):
         print(f"[合約負債] 開始抓取 {len(need_codes)} 支（已依優先權排序）...")
         done = 0
         fail_streak = 0
-        with ThreadPoolExecutor(max_workers=10) as pool:
+        with ThreadPoolExecutor(max_workers=10) as pool:  # 群益逐支抓取，10 並發（I/O 密集）
             futures = {pool.submit(_fetch_contract_liability, c, cl_start): c
                        for c in need_codes}
             for f in as_completed(futures):
@@ -1215,7 +1215,7 @@ def run(scheduled=True):
     # 0. 讀取舊資料
     old_meta = read_old_meta()
 
-    # 1. 平行抓取股價
+    # 1. 平行抓取股價（僅 TWSE+TPEX 兩個來源，max_workers=2 剛好）
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_twse = pool.submit(fetch_twse)
         f_tpex = pool.submit(fetch_tpex)
@@ -1224,7 +1224,7 @@ def run(scheduled=True):
     all_rows = twse_rows + tpex_rows
     all_codes = [r['code'] for r in all_rows]
 
-    # 2. 平行抓取 240 日歷史
+    # 2. 平行抓取 240 日歷史（僅 TWSE+TPEX 兩個來源）
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_twse_h = pool.submit(fetch_twse_history_240d)
         f_tpex_h = pool.submit(fetch_tpex_history_240d)
@@ -1461,16 +1461,21 @@ def _post_process_after_save():
 
     # ── 年度EPS歷史（TWSE/TPEX 本益比反推） ──
     hist = fetch_eps_annual_history()
-    for code, years in hist.items():
-        for yr, eps_val in years.items():
-            # 只填空的年度
-            for i in range(1, 7):
-                c.execute(f"SELECT eps_y{i}_label FROM stocks WHERE code=?", (code,))
-                r = c.fetchone()
-                if r and r[0] == yr: break  # 已有
-                if r and r[0] is None:
-                    c.execute(f"UPDATE stocks SET eps_y{i}=?, eps_y{i}_label=? WHERE code=?", (eps_val, yr, code))
-                    break
+    if hist:
+        # 批次讀取所有 eps_y labels，避免逐支 SELECT
+        label_cols = ', '.join(f'eps_y{i}_label' for i in range(1, 7))
+        all_labels = {}
+        for r in c.execute(f"SELECT code, {label_cols} FROM stocks WHERE code IN ({','.join('?' * len(hist))})", list(hist.keys())).fetchall():
+            all_labels[r[0]] = [r[j] for j in range(1, 7)]
+        for code, years in hist.items():
+            labels = all_labels.get(code, [None] * 6)
+            for yr, eps_val in years.items():
+                for i in range(6):
+                    if labels[i] == yr: break  # 已有
+                    if labels[i] is None:
+                        c.execute(f"UPDATE stocks SET eps_y{i+1}=?, eps_y{i+1}_label=? WHERE code=?", (eps_val, yr, code))
+                        labels[i] = yr  # 更新本地快取
+                        break
 
     conn.commit()
     conn.close()
@@ -1704,23 +1709,32 @@ def _check_annual_dividend_completeness():
             print(f"  股利補抓進度：{i+1}/{len(missing_codes)}")
             time.sleep(0.5)
 
-    # 從 financial_annual 同步到 stocks 表
+    # 從 financial_annual 同步到 stocks 表（批次查詢）
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    for code in missing_codes:
-        rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
-                           WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
-                           ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
-        if not rows:
-            continue
-        for i, r in enumerate(rows, 1):
-            roc_yr = str(r[0] - 1911)
-            c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
-                      (r[1], r[2], roc_yr, code))
-        for i in range(len(rows) + 1, 7):
-            c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
-                      (code,))
-        updated += 1
+    if missing_codes:
+        placeholders = ','.join('?' * len(missing_codes))
+        all_divs = c.execute(f"""SELECT code, year, cash_dividend, stock_dividend FROM financial_annual
+                               WHERE code IN ({placeholders}) AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
+                               ORDER BY code, year DESC""", missing_codes).fetchall()
+        # 分組：每支取最新 6 年
+        from collections import defaultdict
+        div_by_code = defaultdict(list)
+        for r in all_divs:
+            if len(div_by_code[r[0]]) < 6:
+                div_by_code[r[0]].append(r)
+        for code in missing_codes:
+            rows = div_by_code.get(code, [])
+            if not rows:
+                continue
+            for i, r in enumerate(rows, 1):
+                roc_yr = str(r[1] - 1911)
+                c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
+                          (r[2], r[3], roc_yr, code))
+            for i in range(len(rows) + 1, 7):
+                c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
+                          (code,))
+            updated += 1
 
     conn.commit()
     conn.close()
@@ -1829,19 +1843,27 @@ def _sync_contract_from_quarterly():
     c = conn.cursor()
     codes = [r[0] for r in c.execute('SELECT code FROM stocks WHERE close IS NOT NULL ORDER BY code').fetchall()]
 
+    # 批次查詢所有合約負債資料
+    all_cl = c.execute('''SELECT code, quarter, contract_liability FROM quarterly_financial
+                         WHERE contract_liability IS NOT NULL
+                         ORDER BY code,
+                         CAST(SUBSTR(quarter,1,INSTR(quarter,"Q")-1) AS INTEGER) DESC,
+                         CAST(SUBSTR(quarter,INSTR(quarter,"Q")+1) AS INTEGER) DESC''').fetchall()
+    from collections import defaultdict
+    cl_by_code = defaultdict(list)
+    for r in all_cl:
+        if len(cl_by_code[r[0]]) < 3:
+            cl_by_code[r[0]].append((r[1], r[2]))
+
     updated = 0
     for code in codes:
-        rows = c.execute('''SELECT quarter, contract_liability FROM quarterly_financial
-                           WHERE code=? AND contract_liability IS NOT NULL
-                           ORDER BY CAST(SUBSTR(quarter,1,INSTR(quarter,"Q")-1) AS INTEGER) DESC,
-                                    CAST(SUBSTR(quarter,INSTR(quarter,"Q")+1) AS INTEGER) DESC
-                           LIMIT 3''', (code,)).fetchall()
+        rows = cl_by_code.get(code, [])
         if not rows:
             c.execute('UPDATE stocks SET contract_1=NULL, contract_1q=NULL, contract_2=NULL, contract_2q=NULL, contract_3=NULL, contract_3q=NULL WHERE code=?', (code,))
             continue
-        for i, r in enumerate(rows, 1):
+        for i, (q, val) in enumerate(rows, 1):
             c.execute(f'UPDATE stocks SET contract_{i}=?, contract_{i}q=? WHERE code=?',
-                      (r[1], r[0], code))
+                      (val, q, code))
         for i in range(len(rows) + 1, 4):
             c.execute(f'UPDATE stocks SET contract_{i}=NULL, contract_{i}q=NULL WHERE code=?', (code,))
         updated += 1
@@ -1870,6 +1892,17 @@ def _sync_eps_from_quarterly():
     # 當前民國年
     cur_roc = datetime.now().year - 1911
 
+    # 批次讀取現有 eps_1, eps_1q 用於判斷是否需更新 eps_date
+    all_codes = list(qf.keys())
+    old_eps = {}
+    if all_codes:
+        batch_size = 500
+        for start in range(0, len(all_codes), batch_size):
+            batch = all_codes[start:start+batch_size]
+            ph = ','.join('?' * len(batch))
+            for r in c.execute(f"SELECT code, eps_1, eps_1q FROM stocks WHERE code IN ({ph})", batch).fetchall():
+                old_eps[r[0]] = (r[1], r[2])
+
     updated = 0
     for code, quarters in qf.items():
         vals = {}
@@ -1893,10 +1926,15 @@ def _sync_eps_from_quarterly():
             vals['eps_ytd'] = None
             vals['eps_ytd_label'] = None
 
-        # 只在 eps_1/eps_1q 有變動時才更新 eps_date
-        old = c.execute("SELECT eps_1, eps_1q FROM stocks WHERE code=?", (code,)).fetchone()
+        # EPS 跳變攔截：新舊 EPS 差異 > 10 倍且舊值有效 → 跳過（避免異常值汙染）
+        old = old_eps.get(code)
         old_eps1 = old[0] if old else None
         old_eps1q = old[1] if old else None
+        if old_eps1 is not None and vals['eps_1'] is not None and old_eps1 != 0:
+            ratio = abs(vals['eps_1'] / old_eps1) if old_eps1 != 0 else 0
+            if ratio > 10 and abs(vals['eps_1']) > 1:
+                print(f"  [EPS跳變攔截] {code}: {old_eps1} → {vals['eps_1']}（{ratio:.1f}倍），跳過")
+                continue
         new_date = datetime.now().strftime('%Y-%m-%d') if (vals['eps_1'] != old_eps1 or vals['eps_1q'] != old_eps1q) else None
 
         if new_date:
@@ -2268,7 +2306,7 @@ def _fetch_financials_finmind(code):
         'cf': 'TaiwanStockCashFlowsStatement',
     }
     raw = {}
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:  # FinMind 3 個 dataset 並行
         futures = {}
         for key, ds in datasets.items():
             url = (f"https://api.finmindtrade.com/api/v4/data"
@@ -2540,7 +2578,7 @@ def _fetch_quarterly_finmind(code):
         'bs': 'TaiwanStockBalanceSheet',
     }
     raw = {}
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:  # FinMind 2 個 dataset 並行
         futures = {}
         for key, ds in datasets.items():
             url = (f"https://api.finmindtrade.com/api/v4/data"
@@ -3562,7 +3600,7 @@ def fetch_institutional():
     print(f"[法人] 開始抓取 {len(codes)} 支股票的三大法人買賣超...")
 
     results = []
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:  # 群益逐支抓取，8 並發平衡速度與頻率限制
         futures = []
         for i, code in enumerate(codes):
             futures.append(pool.submit(_fetch_inst_one, code))
@@ -3680,7 +3718,7 @@ def refresh_prices():
     # 批次收盤 API（先檢查資料日期是否為今天）
     today_roc = _today_roc()
 
-    # 先用 TWSE 批次 API 嘗試，順便取得資料日期
+    # 先用 TWSE 批次 API 嘗試，順便取得資料日期（僅 TWSE+TPEX 兩來源）
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_twse = pool.submit(fetch_twse)
         f_tpex = pool.submit(fetch_tpex)

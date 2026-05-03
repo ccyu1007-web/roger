@@ -32,7 +32,7 @@ def fetch_yahoo_financials(session, crumb, code, market):
         if r.status_code != 200:
             return None
         return r.json().get('quoteSummary', {}).get('result', [{}])[0]
-    except:
+    except Exception:
         return None
 
 
@@ -115,7 +115,7 @@ def save_yahoo_to_db(code, data):
                     (total_assets, total_equity, common_stock,
                      operating_cf, capex, now_str, code, yr))
                 annual_saved += 1
-            except:
+            except Exception:
                 pass
             continue
 
@@ -152,7 +152,7 @@ def save_yahoo_to_db(code, data):
                  pretax_income, tax, net_income, total_assets, total_equity,
                  common_stock, operating_cf, capex, now_str))
             annual_saved += 1
-        except:
+        except Exception:
             pass
 
     # ── 季度損益表 ──
@@ -188,7 +188,7 @@ def save_yahoo_to_db(code, data):
                 (code, quarter, revenue, cost, gross_profit, operating_income,
                  pretax_income, tax, net_income, eps, now_str))
             quarterly_saved += 1
-        except:
+        except Exception:
             pass
 
     conn.commit()
@@ -250,7 +250,7 @@ def backfill_all():
             try:
                 session, crumb = _get_yahoo_session()
                 fail_streak = 0
-            except:
+            except Exception:
                 print(f"  session 建立失敗，停止")
                 break
 

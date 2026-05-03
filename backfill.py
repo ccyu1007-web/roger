@@ -71,7 +71,7 @@ def backfill():
                 try:
                     session, crumb = _get_yahoo_session()
                     yahoo_fail = 0
-                except:
+                except Exception:
                     break
             time.sleep(random.uniform(0.1, 0.3))
         print(f"  Yahoo 完成: {yahoo_done} 支")
@@ -104,7 +104,7 @@ def backfill():
                     roc_year = int(ym_str[:-2])
                     month = int(ym_str[-2:])
                     west_year = roc_year + 1911
-                except:
+                except Exception:
                     continue
                 c.execute("""INSERT OR IGNORE INTO monthly_revenue
                     (code, year, month, revenue, updated_at) VALUES (?,?,?,?,?)""",
@@ -151,7 +151,7 @@ def backfill():
                         print(f"  FinMind 額度用完，已完成 {fm_done} 支")
                         break
                     time.sleep(random.uniform(0.1, 0.3))
-                except:
+                except Exception:
                     fm_fail += 1
                     if fm_fail >= 20:
                         break
