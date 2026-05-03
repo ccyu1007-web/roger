@@ -498,9 +498,6 @@
           <th class="g-lynch" onclick="sortBy('lynch_b')">算術平均<span class="sort-icon" id="si_lynch_b">↕</span></th>
           <th class="g-lynch" onclick="sortBy('lynch_c')">一致性<span class="sort-icon" id="si_lynch_c">↕</span></th>
           <th class="g-lynch" onclick="sortBy('lynch_d')">PEG<span class="sort-icon" id="si_lynch_d">↕</span></th>
-          <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
-          <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
-          <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
           <th class="g-revchg col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
           <th class="g-revchg" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
@@ -555,6 +552,10 @@
           <!-- 動態欄位 -->
           <th id="dynColAnchor" style="display:none"></th>
           <!-- 權重估值已移到預估值後面 -->
+          <!-- 法人買賣（可收合） -->
+          <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
+          <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
+          <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
           <!-- 合約負債（可收合） -->
           <th class="g-cl col-div" onclick="sortBy('contract_1')"><span id="hdr_cl1">合約負債1</span><span class="sort-icon" id="si_contract_1">↕</span></th>
           <th class="g-cl" onclick="sortBy('contract_2')"><span id="hdr_cl2">合約負債2</span><span class="sort-icon" id="si_contract_2">↕</span></th>
@@ -595,7 +596,6 @@ const COL_GROUPS = [
   { key: 'g-val', label: '評價', default: true },
   { key: 'g-neff', label: '聶夫', default: false },
   { key: 'g-lynch', label: '林區', default: false },
-  { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-revchg', label: '營收變化', default: true },
   { key: 'g-revmon', label: '當年度營收', default: false },
   { key: 'g-est',  label: '預估明細', default: false },
@@ -611,6 +611,7 @@ const COL_GROUPS = [
   { key: 'g-divc', label: '現金股利', default: false },
   { key: 'g-divs', label: '股票股利', default: false },
   { key: 'g-po',   label: '配息率', default: false },
+  { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-cl',   label: '合約負債', default: true },
   { key: 'g-etf',  label: 'ETF成分股', default: true },
 ];
@@ -2630,9 +2631,6 @@ function render() {
       <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_b != null ? r._gi.lynch_b.toFixed(1) + '%' : '－'}</td>
       <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}" style="${r._gi?.lynch_c != null ? (r._gi.lynch_c >= 0.9 ? 'color:#16a34a;font-weight:600' : r._gi.lynch_c < 0.5 ? 'color:#94a3b8' : '') : ''}">${r._gi?.lynch_c != null ? r._gi.lynch_c.toFixed(2) : '－'}</td>
       <td class="g-lynch" style="${r._gi?.lynch_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.lynch_d <= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.lynch_d <= 1.5 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.lynch_d != null ? r._gi.lynch_d.toFixed(2) : '－'}</td>
-      <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
-      <td class="g-inst">${fmtInst(r.inst_trust)}</td>
-      <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
       <td class="g-revchg col-div">${revDateHtml}</td>
       <!-- 成長性 -->
       <td class="g-revchg">${fmtRevPct(r.revenue_cum_yoy)}</td>
@@ -2698,6 +2696,10 @@ function render() {
       ${_fixedD.map((y, i) => { const d = r._div[y]; return `<td class="g-divc${i===0?' col-div':''}">${d ? d.c.toFixed(2) : '－'}</td>`; }).join('')}
       ${_fixedD.map((y, i) => { const d = r._div[y]; return `<td class="g-divs${i===0?' col-div':''}">${d ? d.s.toFixed(2) : '－'}</td>`; }).join('')}
       ${_fixedD.map((y, i) => { const p = r._po[y]; return `<td class="g-po${i===0?' col-div':''}">${p != null ? p.toFixed(2) + '%' : '－'}</td>`; }).join('')}
+      <!-- 法人買賣 -->
+      <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
+      <td class="g-inst">${fmtInst(r.inst_trust)}</td>
+      <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
       <!-- 合約負債 -->
       <td class="g-cl col-div">${r.contract_1 != null ? (r.contract_1 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl">${r.contract_2 != null ? (r.contract_2 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
