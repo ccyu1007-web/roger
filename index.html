@@ -491,8 +491,8 @@
           <th class="g-neff col-div" onclick="sortBy('neff_a')">5年CAGR<span class="sort-icon" id="si_neff_a">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_b')">3年CAGR<span class="sort-icon" id="si_neff_b">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_c')">保守成長率<span class="sort-icon" id="si_neff_c">↕</span></th>
-          <th class="g-neff" onclick="sortBy('neff_d')">Neff比率<span class="sort-icon" id="si_neff_d">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_ig')">內生成長率<span class="sort-icon" id="si_neff_ig">↕</span></th>
+          <th class="g-neff" onclick="sortBy('neff_d')">Neff比率<span class="sort-icon" id="si_neff_d">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_qg')">品質<span class="sort-icon" id="si_neff_qg">↕</span></th>
           <th class="g-neff" onclick="sortBy('neff_dec')">決策<span class="sort-icon" id="si_neff_dec">↕</span></th>
           <!-- 林區PEG法（可收合） -->
@@ -2393,7 +2393,7 @@ function applySort() {
     else if (sortCol.startsWith('_fg_')) { const y = sortCol.slice(4); av = a._fg[y]; bv = b._fg[y]; }
     else if (sortCol === 'neff_ig') { av = a._gi?.intrinsic_growth; bv = b._gi?.intrinsic_growth; }
     else if (sortCol === 'neff_qg') { const m = {'A':5,'B':4,'C':3,'D':2,'E':1}; av = m[a._gi?.quality_grade]??0; bv = m[b._gi?.quality_grade]??0; }
-    else if (sortCol === 'neff_dec') { const m = {'重倉':5,'標準買進':4,'試單':3,'試單(配息族)':3,'不買':1,'不適用':0}; av = m[a._gi?.decision]??-1; bv = m[b._gi?.decision]??-1; }
+    else if (sortCol === 'neff_dec') { const m = {'立刻研究':5,'優先研究':4,'研究':3,'觀察':2,'觀察(配息族)':2,'不買':1,'不適用':0}; av = m[a._gi?.decision]??-1; bv = m[b._gi?.decision]??-1; }
     else if (sortCol.startsWith('neff_') || sortCol.startsWith('lynch_')) { av = a._gi?.[sortCol]; bv = b._gi?.[sortCol]; }
     else { av = a[sortCol]; bv = b[sortCol]; }
     const isNum = numCols.includes(sortCol) || sortCol.startsWith('_');
@@ -2627,10 +2627,10 @@ function render() {
       <td class="g-neff col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_a != null ? r._gi.neff_a.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_b != null ? r._gi.neff_b.toFixed(1) + '%' : '－'}</td>
       <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(1) + '%' : '－'}</td>
-      <td class="g-neff" style="${r._gi?.neff_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.neff_d >= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.neff_d >= 0.7 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
       <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}">${r._gi?.intrinsic_growth != null ? r._gi.intrinsic_growth.toFixed(1) + '%' : '－'}</td>
+      <td class="g-neff" style="${r._gi?.neff_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.neff_d >= 1.3 ? 'color:#dc2626;font-weight:700' : r._gi.neff_d >= 0.9 ? 'color:#ea580c;font-weight:600' : r._gi.neff_d >= 0.7 ? 'color:#d97706' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
       <td class="g-neff" style="${r._gi?.quality_grade ? ({'A':'color:#dc2626;font-weight:700','B':'color:#ea580c;font-weight:600','C':'color:#d97706','D':'color:#94a3b8','E':'color:#cbd5e1','F':'color:#cbd5e1'}[r._gi.quality_grade] || '') : ''}" title="${r._gi?.quality_details?.join(', ') || ''}">${r._gi?.quality_grade || '－'}</td>
-      <td class="g-neff" style="${r._gi?.decision === '買' ? 'color:#dc2626;font-weight:700' : r._gi?.decision === '觀察' ? 'color:#d97706;font-weight:600' : 'color:#94a3b8'}">${r._gi?.decision || '－'}</td>
+      <td class="g-neff" style="${r._gi?.decision?.includes('研究') ? 'color:#dc2626;font-weight:700' : r._gi?.decision === '觀察' || r._gi?.decision === '觀察(配息族)' ? 'color:#d97706;font-weight:600' : 'color:#94a3b8'}">${r._gi?.decision || '－'}</td>
       <!-- 林區 -->
       <td class="g-lynch col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_a != null ? r._gi.lynch_a.toFixed(1) + '%' : '－'}</td>
       <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_b != null ? r._gi.lynch_b.toFixed(1) + '%' : '－'}</td>

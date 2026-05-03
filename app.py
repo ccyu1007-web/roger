@@ -2725,24 +2725,21 @@ def _calc_growth_indicators(_json, _dt):
             decision = '不適用'
         elif neff_d is not None:
             if quality_grade == 'A':
-                if neff_d >= 1.3: decision = '重倉'
-                elif neff_d >= 0.9: decision = '標準買進'
-                elif neff_d >= 0.7: decision = '試單'
+                if neff_d >= 1.3: decision = '立刻研究'
+                elif neff_d >= 0.9: decision = '優先研究'
+                elif neff_d >= 0.7: decision = '觀察'
                 else: decision = '不買'
             elif quality_grade == 'B':
-                if neff_d >= 1.3: decision = '標準買進'
-                elif neff_d >= 0.9: decision = '試單'
-                else: decision = '不買'
-            elif quality_grade == 'C':
-                if neff_d >= 1.3: decision = '試單'
+                if neff_d >= 1.3: decision = '研究'
+                elif neff_d >= 0.9: decision = '觀察'
                 else: decision = '不買'
             elif quality_grade == 'D':
                 # D級例外：殖利率>=7% 且 Neff>=1.3 的純配息族
                 if yld >= 7 and neff_d >= 1.3 and layer_results[0] == 'dividend':
-                    decision = '試單(配息族)'
+                    decision = '觀察(配息族)'
                 else:
                     decision = '不買'
-            else:  # E
+            else:  # C, E
                 decision = '不買'
 
         entry = {
