@@ -2763,6 +2763,11 @@ def _calc_growth_indicators(_json, _dt):
             'quality_grade': quality_grade,
             'quality_score': quality_score,
             'quality_details': quality_details,
+            'layer_pass': [
+                layer_results[1] in ('pass', 'strong', 'mid') if layer_results[1] is not None else None,  # (1)真實性
+                layer_results[2] in ('pass', 'strong', 'mid', 'ok') if layer_results[2] is not None else None,  # (2)動能
+                layer_results[3] in ('pass', 'strong', 'mid') if layer_results[3] is not None else None,  # (3)兌現
+            ],
             'decision': decision,
             'warnings': warnings,
         }
