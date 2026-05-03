@@ -2521,10 +2521,6 @@ def _calc_growth_indicators(_json, _dt):
         if pe is None or pe <= 0:
             continue
 
-        # ── Neff比率（D）= (保守成長率 + 殖利率) / PE
-        total_return = neff_c + yld
-        neff_d = total_return / pe if pe > 0 else None
-
         # ── 林區：算術平均成長率（B）
         yoy_list = []
         for i in range(1, len(valid)):
@@ -2549,14 +2545,16 @@ def _calc_growth_indicators(_json, _dt):
             warnings.append('景氣循環股不適用PEG')
 
         # ── PEG（D）= PE / (保守成長率 + 殖利率)
-        lynch_d = pe / total_return if total_return > 0 else None
+        # 注意：PEG 用原始保守成長率（neff_c 會在品質系統裡被重算）
+        _peg_return = neff_c + yld
+        lynch_d = pe / _peg_return if _peg_return > 0 else None
 
         # ── 灰色標記判斷（分開判斷）
         neff_gray = neff_c < 0 or a_pct > 20 or gap_years >= 2
         lynch_gray = (lynch_c is not None and lynch_c < 0.5)
         gray = neff_gray or lynch_gray
 
-        # ── 內生成長率 + 成長品質 + 決策矩陣 ──
+        # ── 五層金字塔品質評級 + 決策矩陣 ──
         # 從 rows 取 ROE / 配息率 / 營收CAGR / 股息CAGR
         roe_list = []
         payout_list = []
@@ -2580,73 +2578,187 @@ def _calc_growth_indicators(_json, _dt):
         # 內生成長率 = 平均ROE × (1 - 平均配息率)
         intrinsic_growth = None
         avg_roe = None
+        avg_roe_pct = None
         avg_payout = None
         if len(roe_list) >= 3 and len(payout_list) >= 3:
             avg_roe = sum(roe_list) / len(roe_list)
+            avg_roe_pct = round(avg_roe * 100, 2)
             avg_payout = sum(payout_list) / len(payout_list)
-            if avg_payout < 1:  # 配息率不超過100%才合理
+            if avg_payout < 1:
                 intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
 
-        # 成長品質評級 A~F（5分制）
-        quality_score = 0
-        quality_details = []
-
-        # 1. 營收CAGR vs 淨利CAGR 同步（差距 < 3%）
-        rev_cagr = None
-        if len(rev_list) >= 5:
-            if rev_list[0] > 0 and rev_list[-1] > 0:
-                rev_cagr = ((rev_list[-1] / rev_list[0]) ** (1.0 / (len(rev_list) - 1)) - 1) * 100
-        if rev_cagr is not None and abs(rev_cagr - a_pct) < 3:
-            quality_score += 1
-            quality_details.append('營收淨利同步')
-
-        # 2. 股息CAGR > 淨利CAGR × 0.7
+        # 股息 CAGR
         div_cagr = None
         if len(div_list) >= 4:
             if div_list[0] > 0 and div_list[-1] > 0:
                 div_cagr = ((div_list[-1] / div_list[0]) ** (1.0 / (len(div_list) - 1)) - 1) * 100
-        if div_cagr is not None and a_pct > 0 and div_cagr > a_pct * 0.7:
-            quality_score += 1
-            quality_details.append('股息跟上成長')
 
-        # 3. ROE 標準差 < 3%
-        roe_std = None
-        if len(roe_list) >= 3:
-            avg = sum(roe_list) / len(roe_list)
-            roe_std = (sum((r - avg) ** 2 for r in roe_list) / len(roe_list)) ** 0.5
-            if roe_std < 0.03:
-                quality_score += 1
-                quality_details.append('ROE穩定')
+        # ── 五層金字塔品質評級 ──
+        quality_details = []
+        layer_results = [None, None, None, None, None]  # 5層結果
 
-        # 4. 3年CAGR vs 5年CAGR 接近（差距 < 3%）
-        if abs(a_pct - b_pct) < 3:
-            quality_score += 1
-            quality_details.append('成長穩定')
+        # 第1層：護城河測試（平均ROE）
+        if avg_roe_pct is not None:
+            if avg_roe_pct >= 18:
+                layer_results[0] = 'strong'
+                quality_details.append(f'L1:護城河強(ROE {avg_roe_pct}%)')
+            elif avg_roe_pct >= 12:
+                layer_results[0] = 'mid'
+                quality_details.append(f'L1:護城河中(ROE {avg_roe_pct}%)')
+            elif avg_roe_pct >= 8:
+                layer_results[0] = 'weak'
+                quality_details.append(f'L1:護城河弱(ROE {avg_roe_pct}%)')
+            else:
+                layer_results[0] = 'fail'
+                # 例外：殖利率 >= 7% 視為純配息族
+                if yld >= 7:
+                    quality_details.append(f'L1:無護城河但高殖利率{round(yld,1)}%(ROE {avg_roe_pct}%)')
+                    layer_results[0] = 'dividend'
+                else:
+                    quality_details.append(f'L1:無護城河(ROE {avg_roe_pct}%)')
 
-        # 5. 內生成長率 ≈ 實際成長率（差距 < 3%）
-        if intrinsic_growth is not None and abs(intrinsic_growth - a_pct) < 3:
-            quality_score += 1
-            quality_details.append('內生成長吻合')
+        # 第2層：真實性測試（內生成長率 vs 實際CAGR）
+        if intrinsic_growth is not None:
+            ig_gap = abs(intrinsic_growth - a_pct)
+            if ig_gap < 3:
+                layer_results[1] = 'pass'
+                quality_details.append(f'L2:高度真實(差距{round(ig_gap,1)}%)')
+            elif ig_gap < 5:
+                layer_results[1] = 'ok'
+                quality_details.append(f'L2:可接受(差距{round(ig_gap,1)}%)')
+            elif ig_gap < 10:
+                layer_results[1] = 'warn'
+                quality_details.append(f'L2:警示(差距{round(ig_gap,1)}%)')
+            else:
+                layer_results[1] = 'fail'
+                quality_details.append(f'L2:疑似操弄(差距{round(ig_gap,1)}%)')
 
-        quality_grade = {5:'A', 4:'B', 3:'C', 2:'D', 1:'E', 0:'F'}.get(quality_score, 'F')
+        # 第3層：動能測試（3年CAGR vs 5年CAGR）
+        cagr_gap = b_pct - a_pct
+        if cagr_gap >= 0:
+            layer_results[2] = 'pass'
+            quality_details.append(f'L3:成長加速')
+        elif cagr_gap > -3:
+            layer_results[2] = 'ok'
+            quality_details.append(f'L3:成長穩定(差距{round(cagr_gap,1)}%)')
+        else:
+            layer_results[2] = 'fail'
+            quality_details.append(f'L3:成長減速(差距{round(cagr_gap,1)}%)')
 
-        # 決策矩陣：Neff比率 × 品質等級
+        # 第4層：兌現測試（股息CAGR vs 淨利CAGR）
+        if div_cagr is not None and a_pct > 0:
+            div_ratio = div_cagr / a_pct if a_pct != 0 else 0
+            if div_cagr >= a_pct:
+                layer_results[3] = 'pass'
+                quality_details.append(f'L4:完全兌現(股息CAGR {round(div_cagr,1)}%)')
+            elif div_ratio >= 0.7:
+                layer_results[3] = 'ok'
+                quality_details.append(f'L4:基本兌現(股息CAGR {round(div_cagr,1)}%)')
+            elif div_ratio >= 0.5:
+                layer_results[3] = 'warn'
+                quality_details.append(f'L4:兌現不足(股息CAGR {round(div_cagr,1)}%)')
+            else:
+                layer_results[3] = 'fail'
+                quality_details.append(f'L4:嚴重不兌現(股息CAGR {round(div_cagr,1)}%)')
+
+        # 第5層：智慧測試（管理層資本配置）
+        if avg_roe_pct is not None and avg_payout is not None:
+            pr = avg_payout * 100
+            if avg_roe_pct > 15 and pr < 50:
+                layer_results[4] = 'pass'
+                quality_details.append(f'L5:聰明配置(高ROE低配息{round(pr)}%)')
+            elif avg_roe_pct > 15 and pr > 60:
+                layer_results[4] = 'warn'
+                quality_details.append(f'L5:應留更多(高ROE但配息{round(pr)}%)')
+            elif avg_roe_pct < 12 and pr > 50:
+                layer_results[4] = 'pass'
+                quality_details.append(f'L5:聰明配置(低ROE高配息{round(pr)}%)')
+            elif avg_roe_pct < 12 and pr < 30:
+                layer_results[4] = 'fail'
+                quality_details.append(f'L5:毀滅價值(低ROE低配息{round(pr)}%)')
+            else:
+                layer_results[4] = 'ok'
+                quality_details.append(f'L5:中性(ROE{avg_roe_pct}% 配息{round(pr)}%)')
+
+        # ── 綜合評級（層層過濾）──
+        # 第1層失敗 → D（除非高殖利率純配息族）
+        # 第2層失敗 → C
+        # 第3層失敗 → C
+        # 第4層失敗 → B
+        # 第5層失敗 → B
+        # 多項嚴重失敗 → E
+        fail_count = sum(1 for r in layer_results if r == 'fail')
+        warn_count = sum(1 for r in layer_results if r == 'warn')
+
+        if fail_count >= 3 or (layer_results[0] == 'fail' and fail_count >= 2):
+            quality_grade = 'E'
+        elif layer_results[0] == 'fail':
+            quality_grade = 'D'
+        elif layer_results[1] == 'fail' or layer_results[2] == 'fail':
+            quality_grade = 'C'
+        elif layer_results[3] == 'fail' or layer_results[4] == 'fail' or fail_count > 0:
+            quality_grade = 'B'
+        elif warn_count >= 2:
+            quality_grade = 'B'
+        elif warn_count == 1:
+            quality_grade = 'B' if layer_results[0] in ('strong',) else 'A'
+        elif all(r in ('pass', 'strong', 'mid') for r in layer_results if r is not None):
+            quality_grade = 'A'
+        else:
+            quality_grade = 'B'
+
+        quality_score = sum(1 for r in layer_results if r in ('pass', 'strong', 'mid', 'ok'))
+
+        # ── 保守成長率（新版）：加入內生成長率和12%上限 ──
+        candidates = [a_pct, b_pct]
+        if intrinsic_growth is not None:
+            candidates.append(intrinsic_growth)
+        conservative_growth = min(candidates) * 0.75
+        conservative_growth = min(conservative_growth, 12)  # 上限12%
+        neff_c = round(conservative_growth, 2)
+
+        # 重算 Neff 比率（用新的保守成長率）
+        total_return = neff_c + yld
+        neff_d = total_return / pe if pe > 0 else None
+
+        # ── 四級 Neff 分級 + 5×4 決策矩陣 ──
+        if neff_d is not None:
+            if neff_d >= 1.3:
+                neff_tier = '特價'
+            elif neff_d >= 0.9:
+                neff_tier = '合理'
+            elif neff_d >= 0.7:
+                neff_tier = '邊緣'
+            else:
+                neff_tier = '不買'
+        else:
+            neff_tier = None
+
+        # 決策矩陣
         decision = None
-        if neff_d is not None and not neff_gray:
-            if quality_grade in ('A', 'B'):
-                if neff_d >= 0.7:
-                    decision = '買'
-                else:
-                    decision = '不買'
-            elif quality_grade == 'C':
-                if neff_d >= 0.8:
-                    decision = '觀察'
-                else:
-                    decision = '不買'
-            else:  # D, E, F
-                decision = '不買'
-        elif neff_gray:
+        if neff_gray:
             decision = '不適用'
+        elif neff_d is not None:
+            if quality_grade == 'A':
+                if neff_d >= 1.3: decision = '重倉'
+                elif neff_d >= 0.9: decision = '標準買進'
+                elif neff_d >= 0.7: decision = '試單'
+                else: decision = '不買'
+            elif quality_grade == 'B':
+                if neff_d >= 1.3: decision = '標準買進'
+                elif neff_d >= 0.9: decision = '試單'
+                else: decision = '不買'
+            elif quality_grade == 'C':
+                if neff_d >= 1.3: decision = '試單'
+                else: decision = '不買'
+            elif quality_grade == 'D':
+                # D級例外：殖利率>=7% 且 Neff>=1.3 的純配息族
+                if yld >= 7 and neff_d >= 1.3 and layer_results[0] == 'dividend':
+                    decision = '試單(配息族)'
+                else:
+                    decision = '不買'
+            else:  # E
+                decision = '不買'
 
         entry = {
             'neff_a': round(a_pct, 2),

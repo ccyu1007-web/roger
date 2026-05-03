@@ -299,44 +299,49 @@
         <td><span class="src-calc">計算</span> <span class="formula">(保守成長率 + 殖利率) / PE</span><br>
         判斷標準：<br>
         <span class="note">
-          <span style="color:#dc2626;font-weight:700">≥ 1.0</span>：極佳買點（紅色）<br>
-          <span style="color:#ea580c;font-weight:600">0.7 ~ 1.0</span>：合格買點（橘色）<br>
-          <span style="color:#94a3b8">< 0.7</span>：不具吸引力（灰色）
-        </span></td>
+          <span style="color:#dc2626;font-weight:700">≥ 1.3</span>：特價買進區（紅色）<br>
+          <span style="color:#ea580c;font-weight:600">0.9 ~ 1.3</span>：合理買進區（橘色）<br>
+          <span style="color:#d97706">0.7 ~ 0.9</span>：邊緣買進區<br>
+          <span style="color:#94a3b8">< 0.7</span>：不買區（灰色）
+        </span><br>
+        <span class="note">保守成長率 = min(5年CAGR, 3年CAGR, 內生成長率) × 0.75，上限 12%</span></td>
       </tr>
       <tr>
         <td class="field">內生成長率</td>
         <td>公司不靠外力能達到的真實成長能力</td>
         <td><span class="src-calc">計算</span> <span class="formula">平均ROE × (1 - 平均配息率)</span><br>
-        <span class="note">取近5年以上的 ROE 和配息率平均。若實際成長率遠高於內生成長率，代表靠外部因素（槓桿/併購/會計）支撐，不可持續。</span></td>
+        <span class="note">取近5年的 ROE 和配息率平均。若實際CAGR遠高於內生成長率，代表靠外部因素支撐，不可持續。</span></td>
       </tr>
       <tr>
         <td class="field">品質</td>
-        <td>成長品質評級 A~F（5分制）</td>
-        <td><span class="src-calc">計算</span> 五項指標各得1分：<br>
+        <td>五層金字塔品質評級 A~E</td>
+        <td><span class="src-calc">計算</span> 五層逐層過濾：<br>
         <span class="note">
-          1. 營收CAGR vs 淨利CAGR 差距 < 3%（營收淨利同步）<br>
-          2. 股息CAGR > 淨利CAGR × 70%（股息跟上成長）<br>
-          3. ROE 標準差 < 3%（ROE穩定）<br>
-          4. 5年CAGR vs 3年CAGR 差距 < 3%（成長穩定）<br>
-          5. 內生成長率 vs 實際CAGR 差距 < 3%（內生成長吻合）<br><br>
-          <span style="color:#dc2626;font-weight:700">A(5分)</span> 聶夫最愛
-          <span style="color:#ea580c;font-weight:600">B(4分)</span> 可投資
-          <span style="color:#d97706">C(3分)</span> 觀察
-          <span style="color:#94a3b8">D(2分) E(1分) F(0分)</span> 不投資
+          <strong>L1 護城河</strong>：平均ROE ≥18% 強 / ≥12% 中 / ≥8% 弱 / <8% 無（殖利率≥7%例外）<br>
+          <strong>L2 真實性</strong>：內生成長率 vs 實際CAGR 差距 <3% 真實 / <5% 可接受 / <10% 警示 / ≥10% 疑似操弄<br>
+          <strong>L3 動能</strong>：3年CAGR ≥ 5年CAGR 加速 / 差距<3% 穩定 / 差距≥3% 減速<br>
+          <strong>L4 兌現</strong>：股息CAGR ≥ 淨利CAGR 完全兌現 / ≥70% 基本 / <50% 不足<br>
+          <strong>L5 智慧</strong>：高ROE低配息=聰明 / 低ROE高配息=聰明 / 低ROE低配息=毀滅價值<br><br>
+          <span style="color:#dc2626;font-weight:700">A</span> 全部通過（聶夫最愛）
+          <span style="color:#ea580c;font-weight:600">B</span> L4/L5失敗或有警示
+          <span style="color:#d97706">C</span> L2/L3失敗（減速或會計可疑）
+          <span style="color:#94a3b8">D</span> L1失敗（無護城河）
+          <span style="color:#cbd5e1">E</span> 多項嚴重失敗
         </span></td>
       </tr>
       <tr>
         <td class="field">決策</td>
-        <td>Neff比率 × 品質等級的綜合判斷</td>
+        <td>Neff比率 × 品質等級的雙軸矩陣</td>
         <td><span class="src-calc">計算</span> 矩陣判斷：<br>
         <table style="font-size:.78rem;margin-top:4px;text-align:center">
-          <tr><th></th><th style="color:#dc2626">A/B級</th><th style="color:#d97706">C級</th><th style="color:#94a3b8">D/E/F級</th></tr>
-          <tr><td style="font-weight:600">Neff ≥ 0.8</td><td style="color:#dc2626;font-weight:700">買</td><td style="color:#d97706">觀察</td><td style="color:#94a3b8">不買</td></tr>
-          <tr><td style="font-weight:600">Neff 0.7~0.8</td><td style="color:#dc2626;font-weight:700">買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
-          <tr><td style="font-weight:600">Neff < 0.7</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
+          <tr><th></th><th style="color:#dc2626">A級</th><th style="color:#ea580c">B級</th><th style="color:#d97706">C級</th><th style="color:#94a3b8">D/E級</th></tr>
+          <tr><td style="font-weight:600">Neff ≥ 1.3（特價）</td><td style="color:#dc2626;font-weight:700">重倉</td><td style="color:#dc2626;font-weight:700">標準買進</td><td style="color:#d97706">試單</td><td style="color:#94a3b8">不買*</td></tr>
+          <tr><td style="font-weight:600">Neff 0.9~1.3（合理）</td><td style="color:#dc2626;font-weight:700">標準買進</td><td style="color:#d97706">試單</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
+          <tr><td style="font-weight:600">Neff 0.7~0.9（邊緣）</td><td style="color:#d97706">試單</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
+          <tr><td style="font-weight:600">Neff < 0.7</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td><td style="color:#94a3b8">不買</td></tr>
         </table>
-        <span class="note">即使 Neff 比率高，品質低也不買。灰色標記的股票顯示「不適用」。</span></td>
+        <span class="note">* D級例外：殖利率≥7% 且 Neff≥1.3 的純配息族可試單<br>
+        核心精神：用品質決定要不要看，用價格決定要不要買。</span></td>
       </tr>
     </table>
     <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
