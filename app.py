@@ -4,7 +4,7 @@
 """
 
 import logging
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 import os
 import db as sqlite3
 import threading
@@ -68,12 +68,14 @@ def check_sync_token():
 @app.after_request
 def add_cache_headers(response):
     if response.content_type and 'text/html' in response.content_type:
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
-        # 移除 ETag 避免瀏覽器 304 快取
+        # 移除所有可能觸發 304 的標頭
         response.headers.pop('ETag', None)
         response.headers.pop('Last-Modified', None)
+        # 加 Vary 確保不同請求不共用快取
+        response.headers['Vary'] = '*'
     return response
 
 # ── 回應壓縮 ──────────────────────────────────────────────
@@ -3020,7 +3022,15 @@ def test_db():
 # ── 前端首頁 ────────────────────────────────────────────────
 @app.route("/")
 def index():
-    return app.send_static_file("index.html")
+    import time
+    with open(os.path.join(app.static_folder, "index.html"), "r", encoding="utf-8") as f:
+        html = f.read()
+    # 注入版本戳記，強制瀏覽器不快取
+    ver = int(time.time())
+    html = html.replace('</head>', f'<meta name="v" content="{ver}">\n</head>', 1)
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return resp
 
 # ── 初始化資料庫 ────────────────────────────────────────────
 def _init_all_db():
