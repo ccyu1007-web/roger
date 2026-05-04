@@ -174,6 +174,7 @@
   .col-btn.on { border-color: #2563eb; background: #dbeafe; color: #1d4ed8; font-weight: 600; }
   .col-btn.custom-btn { border-color: #f59e0b; color: #b45309; }
   .col-btn.custom-btn.on { border-color: #f59e0b; background: #fef3c7; color: #92400e; font-weight: 600; }
+  .col-btn.custom-cfg-btn { border-color: #f59e0b; color: #b45309; padding: 4px 6px; font-size: .85rem; }
   .custom-cfg-popup { position:absolute; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.15); padding:12px 14px; z-index:999; min-width:180px; }
   .custom-cfg-popup label { display:block; padding:3px 0; font-size:.82rem; cursor:pointer; }
   .custom-cfg-popup label:hover { background:#f1f5f9; }
@@ -672,13 +673,8 @@ function initColToggle() {
   bar.innerHTML = COL_GROUPS.map(g =>
     `<button class="col-btn ${_colVisible[g.key] ? 'on' : ''}" data-group="${g.key}" onclick="toggleColGroup('${g.key}',this)">${g.label}</button>`
   ).join('') +
-  ' <button class="col-btn custom-btn" id="customColBtn">自訂</button>';
-  // 短按=切換模式，長按=設定
-  const cBtn = document.getElementById('customColBtn');
-  let _pressTimer = null, _longFired = false;
-  cBtn.addEventListener('pointerdown', () => { _longFired = false; _pressTimer = setTimeout(() => { _longFired = true; showCustomConfig(); }, 500); });
-  cBtn.addEventListener('pointerup', () => { clearTimeout(_pressTimer); if (!_longFired) toggleCustomMode(); });
-  cBtn.addEventListener('pointerleave', () => { clearTimeout(_pressTimer); });
+  ' <button class="col-btn custom-btn" id="customColBtn" onclick="toggleCustomMode()">自訂</button>' +
+  '<button class="col-btn custom-cfg-btn" onclick="showCustomConfig()" title="設定自訂欄位">&#9881;</button>';
   applyColVisibility();
 }
 
