@@ -742,18 +742,24 @@ function showCustomConfig() {
   html += '<div style="margin-top:8px;text-align:right"><button onclick="saveCustomConfig()" style="padding:4px 12px;border-radius:4px;border:1px solid #f59e0b;background:#fef3c7;color:#92400e;font-weight:600;cursor:pointer;font-size:.8rem">確定</button></div>';
   popup.innerHTML = html;
 
-  // 定位在按鈕下方
-  const btn = document.getElementById('customColBtn');
-  const rect = btn.getBoundingClientRect();
+  // 定位：先加到 DOM 取得實際高度，再決定方向
+  const cfgBtn = document.querySelector('.custom-cfg-btn');
+  const rect = cfgBtn.getBoundingClientRect();
   popup.style.position = 'fixed';
-  popup.style.top = (rect.bottom + 4) + 'px';
   popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
   document.body.appendChild(popup);
+  const popH = popup.offsetHeight;
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  if (spaceBelow >= popH) {
+    popup.style.top = (rect.bottom + 4) + 'px';
+  } else {
+    popup.style.top = Math.max(4, rect.top - popH - 4) + 'px';
+  }
 
   // 點外面關閉
   setTimeout(() => {
     document.addEventListener('click', function _close(ev) {
-      if (!popup.contains(ev.target) && ev.target !== btn) {
+      if (!popup.contains(ev.target) && ev.target !== cfgBtn) {
         popup.remove();
         document.removeEventListener('click', _close);
       }
