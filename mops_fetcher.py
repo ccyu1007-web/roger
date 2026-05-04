@@ -386,32 +386,43 @@ def fetch_and_save_mops_quarterly(roc_year, season):
     return saved
 
 
-def fetch_latest_mops_quarterly():
+def is_quarterly_filing_period():
     """
-    自動判斷應抓哪一季，依法定申報期限：
-    - Q1: 5/15 前公布 → 5月開始抓
-    - Q2: 8/14 前公布 → 8月開始抓
-    - Q3: 11/14 前公布 → 11月開始抓
-    - Q4(年報): 3/31 前公布 → 3月開始抓（隔年）
-    回傳更新筆數
+    判斷今天是否在季報申報期（截止日前 45 天 ~ 截止日）。
+    申報截��日：Q1=5/15, Q2=8/14, Q3=11/14, Q4=3/31
+    回傳 (在申報期, 目標民國年, 目標季度) 或 (False, None, None)
     """
     today = date.today()
-    m = today.month
+    m, d = today.month, today.day
     roc_year = today.year - 1911
 
-    # 決定要抓哪一季
-    if m >= 5 and m < 8:
-        # 5~7月：抓當年 Q1
-        target_year, target_season = roc_year, 1
-    elif m >= 8 and m < 11:
-        # 8~10月：抓當年 Q2
-        target_year, target_season = roc_year, 2
-    elif m >= 11:
-        # 11~12月：抓當年 Q3
-        target_year, target_season = roc_year, 3
-    else:
-        # 1~4月：抓去年 Q4
-        target_year, target_season = roc_year - 1, 4
+    # (申報期起始月/日, 截止月/日, 目標民國年偏移, 目標季度)
+    periods = [
+        (4, 1, 5, 15, 0, 1),    # Q1: 4/1 ~ 5/15
+        (6, 30, 8, 14, 0, 2),   # Q2: 6/30 ~ 8/14
+        (10, 1, 11, 14, 0, 3),  # Q3: 10/1 ~ 11/14
+        (2, 14, 3, 31, -1, 4),  # Q4: 2/14 ~ 3/31（去年Q4）
+    ]
 
-    print(f"[MOPS季報] 自動判斷：抓取 {target_year}Q{target_season}")
+    for sm, sd, em, ed, yr_offset, season in periods:
+        start = date(today.year, sm, sd)
+        end = date(today.year, em, ed)
+        if start <= today <= end:
+            return True, roc_year + yr_offset, season
+
+    return False, None, None
+
+
+def fetch_latest_mops_quarterly():
+    """
+    自動判斷應抓哪一季，只在申報期內（截止日前 45 天 ~ 截止日）才抓。
+    申報截止日：Q1=5/15, Q2=8/14, Q3=11/14, Q4=3/31
+    回傳更新筆數，非申報期回傳 0
+    """
+    in_period, target_year, target_season = is_quarterly_filing_period()
+
+    if not in_period:
+        return 0
+
+    print(f"[MOPS季報] 申報期內，抓取 {target_year}Q{target_season}")
     return fetch_and_save_mops_quarterly(target_year, target_season)

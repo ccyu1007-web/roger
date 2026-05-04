@@ -1760,29 +1760,29 @@ def _check_annual_dividend_completeness():
 
 def _check_quarterly_completeness():
     """
-    季報公告截止後 30 天，用群益 zce 批次比對 quarterly_financial 的資料。
-    差異 > 5% 的用群益覆蓋（群益為準），並記 log。
+    季報公告截止日後 ~ +15天，每天用群益 zce 逐支補齊 MOPS 缺漏的股票。
 
-    季報公告截止日 + 30天：
-    - Q1：5/15 + 30 = 6/15
-    - Q2：8/14 + 30 = 9/14
-    - Q3：11/14 + 30 = 12/14
-    - Q4：3/31 + 30 = 4/30
+    截止日後補齊期間：
+    - Q1：5/16 ~ 5/30
+    - Q2：8/15 ~ 8/29
+    - Q3：11/15 ~ 11/29
+    - Q4：4/1 ~ 4/15
+
+    每天只補仍缺 EPS 的股票，每次最多 100 支，多天排程會全部補齊。
     """
     now = datetime.now()
     cur_roc = now.year - 1911
     month, day = now.month, now.day
 
-    # 判斷現在應該確認哪一季
+    # 判斷是否在截止日後的補齊期間
     check_quarter = None
-    if month == 6 and day >= 15 or month == 7:
+    if month == 5 and 16 <= day <= 30:
         check_quarter = f"{cur_roc}Q1"
-    elif month == 9 and day >= 14 or month == 10:
+    elif month == 8 and day >= 15 and day <= 29:
         check_quarter = f"{cur_roc}Q2"
-    elif month == 12 and day >= 14 or month == 1:
-        yr = cur_roc if month == 12 else cur_roc - 1
-        check_quarter = f"{yr}Q3"
-    elif month == 4 and day >= 30 or month == 5:
+    elif month == 11 and day >= 15 and day <= 29:
+        check_quarter = f"{cur_roc}Q3"
+    elif month == 4 and day >= 1 and day <= 15:
         check_quarter = f"{cur_roc - 1}Q4"
 
     if not check_quarter:
@@ -1791,65 +1791,46 @@ def _check_quarterly_completeness():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # 檢查是否已經確認過（避免重複跑）
-    c.execute("""SELECT COUNT(*) FROM cross_validation
-                 WHERE details LIKE ? AND checked_at > datetime('now', '-7 days')""",
-              (f'%quarterly_check_{check_quarter}%',))
-    if c.fetchone()[0] > 0:
-        conn.close()
-        return
-
-    # 找出有該季度資料的所有股票
-    c.execute("SELECT code FROM stocks WHERE close IS NOT NULL ORDER BY code")
-    codes = [r[0] for r in c.fetchall()]
+    # 找出該季仍缺 EPS 的股票
+    c.execute("""SELECT s.code FROM stocks s
+                 WHERE s.close IS NOT NULL
+                 AND s.code NOT IN (
+                     SELECT code FROM quarterly_financial
+                     WHERE quarter = ? AND eps IS NOT NULL
+                 )
+                 ORDER BY s.code LIMIT 100""", (check_quarter,))
+    missing_codes = [r[0] for r in c.fetchall()]
     conn.close()
 
-    print(f"[季報確認] 開始用群益確認 {check_quarter} 資料（{len(codes)} 支）...")
+    if not missing_codes:
+        print(f"[季報補齊] {check_quarter} 已全部到齊")
+        return
+
+    print(f"[季報補齊] {check_quarter} 仍缺 {len(missing_codes)} 支，群益逐支補齊...")
 
     from capital_fetcher import fetch_capital_financials
-    import json
 
-    mismatches = []
-    updated = 0
-    for i, code in enumerate(codes):
+    done = 0
+    for i, code in enumerate(missing_codes):
         try:
             fetch_capital_financials(code)
+            done += 1
         except Exception: pass
-        if (i + 1) % 100 == 0:
-            print(f"  進度：{i+1}/{len(codes)}")
-            time.sleep(0.3)
+        if (i + 1) % 50 == 0:
+            print(f"  進度：{i+1}/{len(missing_codes)}")
+        time.sleep(random.uniform(0.3, 0.5))
 
-    # 比對群益寫入的值 vs 原本 MOPS 的值（群益已覆蓋，所以這裡只統計有更新的筆數）
+    # 統計補齊結果
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""SELECT COUNT(*) FROM quarterly_financial
                  WHERE quarter=? AND eps IS NOT NULL""", (check_quarter,))
     have_data = c.fetchone()[0]
-
     c.execute("SELECT COUNT(*) FROM stocks WHERE close IS NOT NULL")
     total = c.fetchone()[0]
-
-    missing = total - have_data
-
-    # 記錄確認結果
-    try:
-        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
-            details TEXT)""")
-        c.execute("""INSERT INTO cross_validation
-            (checked_at, sample_size, ok_count, mismatch_count, details)
-            VALUES (?,?,?,?,?)""",
-            (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-             total, have_data, missing,
-             json.dumps({'type': f'quarterly_check_{check_quarter}',
-                        'have_data': have_data, 'missing': missing},
-                       ensure_ascii=False)))
-        conn.commit()
-    except Exception: pass
     conn.close()
 
-    print(f"[季報確認] {check_quarter} 完成：{have_data}/{total} 支有資料，{missing} 支缺漏")
+    print(f"[季報補齊] {check_quarter} 今日補 {done} 支，目前 {have_data}/{total} 支有資料")
 
 
 def _sync_contract_from_quarterly():
@@ -3890,21 +3871,14 @@ def fetch_mops_quarterly_eps():
     後續由群益 zce 覆蓋更正確的單季數據，FinMind 最後補齊。
     """
     from bs4 import BeautifulSoup
+    from mops_fetcher import is_quarterly_filing_period
 
-    now = datetime.now()
-    roc_year = now.year - 1911
-    month = now.month
+    # 只在申報期內才抓
+    in_period, target_year, target_season = is_quarterly_filing_period()
+    if not in_period:
+        return 0
 
-    # 判斷要抓哪些季度
-    seasons_to_try = []
-    if month >= 4:
-        seasons_to_try.append((roc_year, 1))       # Q1（4~5月公布）
-    if month >= 8:
-        seasons_to_try.append((roc_year, 2))       # Q2（8~9月公布）
-    if month >= 11:
-        seasons_to_try.append((roc_year, 3))       # Q3（11月公布）
-    if month <= 4:
-        seasons_to_try.append((roc_year - 1, 4))   # 去年Q4（3~4月公布）
+    seasons_to_try = [(target_year, target_season)]
 
     total_updated = 0
     for yr, sn in seasons_to_try:
