@@ -2394,39 +2394,40 @@ def _calc_growth_indicators(_json, _dt):
             continue
         close = st['close']
 
-        # 取稅後淨利 > 0 的年份（用稅後淨利算 CAGR，排除股本變動干擾）
+        # 取稅後淨利 > 0 的年份（排除虧損年，避免 YoY 分母為負）
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
                  if r.get('net_income') and r['net_income'] > 0]
 
         if len(valid) < 4:
-            continue  # 至少需要4年（算3年CAGR）
+            continue  # 至少需要4年（算3年平均YoY）
 
         years = [v[0] for v in valid]
         nis = [v[1] for v in valid]
         epss = [v[2] for v in valid]
         revs = [v[3] for v in valid]
 
-        # ── 5年稅後淨利 CAGR（A）
-        neff_a = None
-        if len(valid) >= 6:
-            ni_start = nis[-6]
-            ni_end = nis[-1]
-            if ni_start > 0 and ni_end > 0:
-                neff_a = (ni_end / ni_start) ** (1.0 / 5) - 1
-        elif len(valid) >= 5:
-            ni_start = nis[-5]
-            ni_end = nis[-1]
-            n_years = years[-1] - years[-5]
-            if ni_start > 0 and ni_end > 0 and n_years >= 4:
-                neff_a = (ni_end / ni_start) ** (1.0 / n_years) - 1
+        # 計算逐年 YoY（只取連續正數年份的 YoY）
+        yoy_list = []
+        for i in range(1, len(valid)):
+            prev_ni = nis[i - 1]
+            curr_ni = nis[i]
+            if prev_ni > 0:
+                yoy_list.append((curr_ni - prev_ni) / prev_ni)
 
-        # ── 3年稅後淨利 CAGR（B）
+        if not yoy_list:
+            continue
+
+        # ── 5年淨利成長率（A）：最近5個YoY的算術平均
+        neff_a = None
+        if len(yoy_list) >= 5:
+            neff_a = sum(yoy_list[-5:]) / 5
+        elif len(yoy_list) >= 3:
+            neff_a = sum(yoy_list) / len(yoy_list)
+
+        # ── 3年淨利成長率（B）：最近3個YoY的算術平均
         neff_b = None
-        if len(valid) >= 4:
-            ni_start3 = nis[-4]
-            ni_end3 = nis[-1]
-            if ni_start3 > 0 and ni_end3 > 0:
-                neff_b = (ni_end3 / ni_start3) ** (1.0 / 3) - 1
+        if len(yoy_list) >= 3:
+            neff_b = sum(yoy_list[-3:]) / 3
 
         # 如果只能算3年，A也用3年
         if neff_a is None and neff_b is not None:
@@ -2454,20 +2455,18 @@ def _calc_growth_indicators(_json, _dt):
         if gap_years > 0:
             warnings.append(f'有{gap_years}年虧損被排除')
 
-        # ── 營收 CAGR 驗證（EPS 成長是否有營收支撐）
+        # ── 營收成長率驗證（EPS 成長是否有營收支撐）
         rev_cagr_5y = None
         valid_revs = [(y, rv) for y, _, _, rv in valid if rv and rv > 0]
-        if len(valid_revs) >= 6:
-            rv_start = valid_revs[-6][1]
-            rv_end = valid_revs[-1][1]
-            if rv_start > 0 and rv_end > 0:
-                rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / 5) - 1) * 100
-        elif len(valid_revs) >= 5:
-            rv_start = valid_revs[-5][1]
-            rv_end = valid_revs[-1][1]
-            n_rv = valid_revs[-1][0] - valid_revs[-5][0]
-            if rv_start > 0 and rv_end > 0 and n_rv >= 4:
-                rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / n_rv) - 1) * 100
+        rev_yoys = []
+        for i in range(1, len(valid_revs)):
+            prev_rv = valid_revs[i-1][1]
+            if prev_rv > 0:
+                rev_yoys.append((valid_revs[i][1] - prev_rv) / prev_rv * 100)
+        if len(rev_yoys) >= 5:
+            rev_cagr_5y = sum(rev_yoys[-5:]) / 5
+        elif len(rev_yoys) >= 3:
+            rev_cagr_5y = sum(rev_yoys) / len(rev_yoys)
 
         if rev_cagr_5y is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
             warnings.append('淨利成長遠快於營收，注意利潤率變化')
@@ -2516,16 +2515,9 @@ def _calc_growth_indicators(_json, _dt):
         if pe is None or pe <= 0:
             continue
 
-        # ── 林區：算術平均成長率（B）用稅後淨利
-        yoy_list = []
-        for i in range(1, len(valid)):
-            prev_ni = nis[i - 1]
-            curr_ni = nis[i]
-            if prev_ni > 0:
-                yoy_list.append((curr_ni - prev_ni) / prev_ni * 100)
-
-        # 取最近5個YoY
-        recent_yoy = yoy_list[-5:] if len(yoy_list) >= 5 else yoy_list
+        # ── 林區：算術平均成長率（B）用稅後淨利（複用上面的 yoy_list）
+        yoy_pct_list = [y * 100 for y in yoy_list]  # 轉成百分比
+        recent_yoy = yoy_pct_list[-5:] if len(yoy_pct_list) >= 5 else yoy_pct_list
         lynch_b = sum(recent_yoy) / len(recent_yoy) if recent_yoy else None
 
         # ── 林區：成長一致性（C）
