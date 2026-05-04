@@ -770,10 +770,14 @@ function toggleCustomMode() {
   const btn = document.getElementById('customColBtn');
   _customActive = !_customActive;
   btn.classList.toggle('on', _customActive);
-  if (!_customActive) {
-    // 退出自訂模式：清除 inline display 讓 CSS group toggle 恢復
+  if (_customActive) {
+    // 進入自訂模式：移除所有群組隱藏 class，讓 inline style 全權控制
+    COL_GROUPS.forEach(g => document.body.classList.remove('hide-' + g.key));
+  } else {
+    // 退出自訂模式：清除 inline display，恢復 CSS group toggle
     document.querySelectorAll('#stockTable th:not(#dynFgAnchor):not(#dynColAnchor)').forEach(el => el.style.display = '');
     document.querySelectorAll('#stockTable tbody td').forEach(el => el.style.display = '');
+    applyColVisibility(); // 恢復群組開關狀態
   }
   applyCustomColumns();
 }
