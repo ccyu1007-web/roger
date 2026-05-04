@@ -771,44 +771,46 @@ function toggleCustomMode() {
   _customActive = !_customActive;
   btn.classList.toggle('on', _customActive);
   if (_customActive) {
-    // 進入自訂模式：移除所有群組隱藏 class，讓 inline style 全權控制
+    // 進入自訂模式：移除所有群組隱藏 class，由 customColStyle 全權控制
     COL_GROUPS.forEach(g => document.body.classList.remove('hide-' + g.key));
   } else {
-    // 退出自訂模式：清除 inline display，恢復 CSS group toggle
-    document.querySelectorAll('#stockTable th:not(#dynFgAnchor):not(#dynColAnchor)').forEach(el => el.style.display = '');
-    document.querySelectorAll('#stockTable tbody td').forEach(el => el.style.display = '');
-    applyColVisibility(); // 恢復群組開關狀態
+    // 退出自訂模式：恢復群組開關
+    applyColVisibility();
   }
   applyCustomColumns();
 }
 
 function applyCustomColumns() {
-  if (!_customActive) return;
-  const ths = Array.from(document.querySelectorAll('#stockTable thead tr th'));
-  const hideTdIndices = new Set();
-  let tdIdx = 0;
-  ths.forEach(th => {
-    if (th.id === 'dynFgAnchor' || th.id === 'dynColAnchor') return; // anchor 無對應 td
-    let shouldHide = false;
-    const col = th.dataset.col;
-    if (col) {
-      shouldHide = !_customPreset[col];
-    } else {
-      // 動態群組欄位：用 CSS class 判斷
-      for (const g of _DYN_GROUPS) {
-        if (th.classList.contains(g)) { shouldHide = !_customPreset[g]; break; }
+  // 移除舊的自訂樣式
+  let styleEl = document.getElementById('customColStyle');
+  if (!_customActive) {
+    if (styleEl) styleEl.remove();
+    return;
+  }
+  // 收集要隱藏的 data-col 值和動態群組 class
+  const hideSelectors = [];
+  // 靜態欄位：有 data-col 但不在 preset 中
+  const allColIds = new Set();
+  CUSTOM_COLS.forEach(sec => sec.cols.forEach(c => allColIds.add(c.id)));
+  allColIds.forEach(id => {
+    if (!_customPreset[id]) {
+      if (_DYN_GROUPS.includes(id)) {
+        // 動態群組：用 class 選擇器
+        hideSelectors.push(`#stockTable .${id}`);
+      } else {
+        hideSelectors.push(`#stockTable [data-col="${id}"]`);
       }
     }
-    th.style.display = shouldHide ? 'none' : '';
-    if (shouldHide) hideTdIndices.add(tdIdx);
-    tdIdx++;
   });
-  document.querySelectorAll('#stockTable tbody tr').forEach(tr => {
-    const cells = tr.children;
-    for (let i = 0; i < cells.length; i++) {
-      cells[i].style.display = hideTdIndices.has(i) ? 'none' : '';
-    }
-  });
+  // 生成 CSS
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'customColStyle';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = hideSelectors.length
+    ? hideSelectors.join(',\n') + ' { display: none !important; }'
+    : '';
 }
 
 function showCustomConfig() {
@@ -2820,33 +2822,33 @@ function render() {
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
       <td>${r.name}</td>
-      <td class="g-mkt">${mktBadge}</td>
-      <td class="g-mkt" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
+      <td class="g-mkt" data-col="market">${mktBadge}</td>
+      <td class="g-mkt" data-col="industry" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
       <!-- 股價 -->
-      <td class="col-div"><strong>${fmt(r.close)}</strong></td>
-      <td class="${chgClass}">${chgStr}</td>
+      <td class="col-div" data-col="close"><strong>${fmt(r.close)}</strong></td>
+      <td class="${chgClass}" data-col="change">${chgStr}</td>
       <!-- 評價 -->
-      <td class="g-val col-div"${r.val_aa != null && r.close != null && r.close <= r.val_aa ? ' style="background:#fee2e2;color:#dc2626;font-weight:700"' : ''}>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
-      <td class="g-val"${r.val_a1 != null && r.close != null && r.close <= r.val_a1 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
-      <td class="g-val"${r.val_a2 != null && r.close != null && r.close <= r.val_a2 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a2 != null ? r.val_a2.toFixed(2) : '－'}</td>
-      <td class="g-val"${r.val_a != null && r.close != null && r.close <= r.val_a ? ' style="background:#dbeafe;color:#1d4ed8;font-weight:700"' : ''}>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
-      <td class="g-val"${r.val_lt6 != null && r.close != null && r.close <= r.val_lt6 ? ' style="background:#dcfce7;color:#166534;font-weight:700"' : ''}>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
+      <td class="g-val col-div" data-col="val_aa"${r.val_aa != null && r.close != null && r.close <= r.val_aa ? ' style="background:#fee2e2;color:#dc2626;font-weight:700"' : ''}>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
+      <td class="g-val" data-col="val_a1"${r.val_a1 != null && r.close != null && r.close <= r.val_a1 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
+      <td class="g-val" data-col="val_a2"${r.val_a2 != null && r.close != null && r.close <= r.val_a2 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a2 != null ? r.val_a2.toFixed(2) : '－'}</td>
+      <td class="g-val" data-col="val_a"${r.val_a != null && r.close != null && r.close <= r.val_a ? ' style="background:#dbeafe;color:#1d4ed8;font-weight:700"' : ''}>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
+      <td class="g-val" data-col="val_lt6"${r.val_lt6 != null && r.close != null && r.close <= r.val_lt6 ? ' style="background:#dcfce7;color:#166534;font-weight:700"' : ''}>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
       <!-- 聶夫 -->
-      <td class="g-neff col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_a != null ? r._gi.neff_a.toFixed(1) + '%' : '－'}</td>
-      <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.neff_b != null ? r._gi.neff_b.toFixed(1) + '%' : '－'}</td>
-      <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(1) + '%' : '－'}</td>
-      <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}">${r._gi?.intrinsic_growth != null ? r._gi.intrinsic_growth.toFixed(1) + '%' : '－'}</td>
-      <td class="g-neff" style="${r._gi?.neff_d != null ? (r._gi.neff_d >= 1.3 ? 'color:#dc2626;font-weight:700' : r._gi.neff_d >= 0.9 ? 'color:#ea580c;font-weight:600' : r._gi.neff_d >= 0.7 ? 'color:#d97706' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
+      <td class="g-neff col-div${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_a">${r._gi?.neff_a != null ? r._gi.neff_a.toFixed(1) + '%' : '－'}</td>
+      <td class="g-neff${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_b">${r._gi?.neff_b != null ? r._gi.neff_b.toFixed(1) + '%' : '－'}</td>
+      <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}" data-col="neff_c">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(1) + '%' : '－'}</td>
+      <td class="g-neff${r._gi?.neff_gray ? ' text-muted' : ''}" data-col="neff_ig">${r._gi?.intrinsic_growth != null ? r._gi.intrinsic_growth.toFixed(1) + '%' : '－'}</td>
+      <td class="g-neff" data-col="neff_d" style="${r._gi?.neff_d != null ? (r._gi.neff_d >= 1.3 ? 'color:#dc2626;font-weight:700' : r._gi.neff_d >= 0.9 ? 'color:#ea580c;font-weight:600' : r._gi.neff_d >= 0.7 ? 'color:#d97706' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
       <!-- 林區 -->
-      <td class="g-lynch col-div${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_a != null ? r._gi.lynch_a.toFixed(1) + '%' : '－'}</td>
-      <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}">${r._gi?.lynch_b != null ? r._gi.lynch_b.toFixed(1) + '%' : '－'}</td>
-      <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}" style="${r._gi?.lynch_c != null ? (r._gi.lynch_c >= 0.9 ? 'color:#16a34a;font-weight:600' : r._gi.lynch_c < 0.5 ? 'color:#94a3b8' : '') : ''}">${r._gi?.lynch_c != null ? r._gi.lynch_c.toFixed(2) : '－'}</td>
-      <td class="g-lynch" style="${r._gi?.lynch_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.lynch_d <= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.lynch_d <= 1.5 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.lynch_d != null ? r._gi.lynch_d.toFixed(2) : '－'}</td>
-      <td class="g-revchg col-div">${revDateHtml}</td>
+      <td class="g-lynch col-div${r._gi?.gray ? ' text-muted' : ''}" data-col="lynch_a">${r._gi?.lynch_a != null ? r._gi.lynch_a.toFixed(1) + '%' : '－'}</td>
+      <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}" data-col="lynch_b">${r._gi?.lynch_b != null ? r._gi.lynch_b.toFixed(1) + '%' : '－'}</td>
+      <td class="g-lynch${r._gi?.gray ? ' text-muted' : ''}" data-col="lynch_c" style="${r._gi?.lynch_c != null ? (r._gi.lynch_c >= 0.9 ? 'color:#16a34a;font-weight:600' : r._gi.lynch_c < 0.5 ? 'color:#94a3b8' : '') : ''}">${r._gi?.lynch_c != null ? r._gi.lynch_c.toFixed(2) : '－'}</td>
+      <td class="g-lynch" data-col="lynch_d" style="${r._gi?.lynch_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.lynch_d <= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.lynch_d <= 1.5 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.lynch_d != null ? r._gi.lynch_d.toFixed(2) : '－'}</td>
+      <td class="g-revchg col-div" data-col="rev_date">${revDateHtml}</td>
       <!-- 成長性 -->
-      <td class="g-revchg">${fmtRevPct(r.revenue_cum_yoy)}</td>
-      <td class="g-revchg">${fmtRevPct(r.revenue_yoy)}</td>
-      <td class="g-revchg">${fmtRevPct(r.revenue_mom)}</td>
+      <td class="g-revchg" data-col="rev_cum">${fmtRevPct(r.revenue_cum_yoy)}</td>
+      <td class="g-revchg" data-col="rev_yoy">${fmtRevPct(r.revenue_yoy)}</td>
+      <td class="g-revchg" data-col="rev_mom">${fmtRevPct(r.revenue_mom)}</td>
       ${_revMonths.map((m, idx) => {
         const v = r[`rev_m${m}`];
         const divCls = idx === 0 ? ' col-div' : '';
@@ -2854,44 +2856,44 @@ function render() {
         return `<td class="g-revmon${divCls}" style="font-size:.76rem;text-align:right">${Math.round(v / 1000).toLocaleString('zh-TW')}</td>`;
       }).join('')}
       <!-- 預估 -->
-      <td class="g-est col-div">${gradeHtml(r.est_grade)}</td>
-      <td class="g-est">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>
-      <td class="g-est">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-est">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
-      <td class="g-est col-div-r">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
+      <td class="g-est col-div" data-col="est_grade">${gradeHtml(r.est_grade)}</td>
+      <td class="g-est" data-col="est_pe">${r.est_pe != null ? r.est_pe.toFixed(2) : '－'}</td>
+      <td class="g-est" data-col="est_yld">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-est" data-col="est_eps">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
+      <td class="g-est col-div-r" data-col="est_div">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
       <!-- 系統估算 -->
-      <td class="g-sys col-div">${gradeHtml(r.sys_grade)}</td>
-      <td class="g-sys">${r.sys_ann_pe != null ? r.sys_ann_pe.toFixed(2) : '－'}</td>
-      <td class="g-sys">${r.sys_ann_yld != null ? r.sys_ann_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-sys"${r.sys_ann_eps != null && r.sys_ann_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.sys_ann_eps != null ? r.sys_ann_eps.toFixed(2) : '－'}</td>
-      <td class="g-sys">${r.sys_ann_div != null ? r.sys_ann_div.toFixed(2) : '－'}</td>
-      <td class="g-sys"><span style="padding:1px 6px;border-radius:8px;font-size:.78rem;font-weight:600;color:#fff;background:${r.sys_ann_confidence === 'A' ? '#059669' : r.sys_ann_confidence === 'B' ? '#d97706' : r.sys_ann_confidence === 'C' ? '#dc2626' : r.sys_ann_confidence === 'N/A' ? '#94a3b8' : '#94a3b8'}">${r.sys_ann_confidence || '－'}</span></td>
+      <td class="g-sys col-div" data-col="sys_grade">${gradeHtml(r.sys_grade)}</td>
+      <td class="g-sys" data-col="sys_pe">${r.sys_ann_pe != null ? r.sys_ann_pe.toFixed(2) : '－'}</td>
+      <td class="g-sys" data-col="sys_yld">${r.sys_ann_yld != null ? r.sys_ann_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-sys" data-col="sys_eps"${r.sys_ann_eps != null && r.sys_ann_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.sys_ann_eps != null ? r.sys_ann_eps.toFixed(2) : '－'}</td>
+      <td class="g-sys" data-col="sys_div">${r.sys_ann_div != null ? r.sys_ann_div.toFixed(2) : '－'}</td>
+      <td class="g-sys" data-col="sys_conf"><span style="padding:1px 6px;border-radius:8px;font-size:.78rem;font-weight:600;color:#fff;background:${r.sys_ann_confidence === 'A' ? '#059669' : r.sys_ann_confidence === 'B' ? '#d97706' : r.sys_ann_confidence === 'C' ? '#dc2626' : r.sys_ann_confidence === 'N/A' ? '#94a3b8' : '#94a3b8'}">${r.sys_ann_confidence || '－'}</span></td>
       <!-- 沈董 -->
-      <td class="g-shen col-div">${gradeHtml(r.shen_grade)}</td>
-      <td class="g-shen">${r.shen_pe != null ? r.shen_pe.toFixed(2) : '－'}</td>
-      <td class="g-shen">${r.shen_yld != null ? r.shen_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-shen"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
-      <td class="g-shen">${r.shen_div != null ? r.shen_div.toFixed(2) : '－'}</td>
+      <td class="g-shen col-div" data-col="shen_grade">${gradeHtml(r.shen_grade)}</td>
+      <td class="g-shen" data-col="shen_pe">${r.shen_pe != null ? r.shen_pe.toFixed(2) : '－'}</td>
+      <td class="g-shen" data-col="shen_yld">${r.shen_yld != null ? r.shen_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-shen" data-col="shen_eps"${r.shen_eps != null && r.shen_eps < 0 ? ' style="color:#ef4444;font-weight:600"' : ''}>${r.shen_eps != null ? r.shen_eps.toFixed(2) : '－'}</td>
+      <td class="g-shen" data-col="shen_div">${r.shen_div != null ? r.shen_div.toFixed(2) : '－'}</td>
       <!-- 綜合 -->
-      <td class="g-blend col-div">${gradeHtml(r.blend_grade)}</td>
-      <td class="g-blend">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
-      <td class="g-blend">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-blend">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
-      <td class="g-blend">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
+      <td class="g-blend col-div" data-col="blend_grade">${gradeHtml(r.blend_grade)}</td>
+      <td class="g-blend" data-col="blend_pe">${r.blend_pe != null ? r.blend_pe.toFixed(2) : '－'}</td>
+      <td class="g-blend" data-col="blend_yld">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-blend" data-col="blend_eps">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
+      <td class="g-blend" data-col="blend_div">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
       <!-- 近四季 -->
-      <td class="g-trail col-div">${r.eps_ytd != null ? r.eps_ytd.toFixed(2) : '－'}</td>
-      <td class="g-trail">${gradeHtml(r.trailing_grade)}</td>
-      <td class="g-trail">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
-      <td class="g-trail">${r.trailing_yld != null ? r.trailing_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-trail"${r.eps_4q_sum != null && r.eps_4q_sum < 0 ? ' style="color:#ef4444;font-weight:700"' : ''}>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
-      <td class="g-trail">${r.trailing_div != null ? r.trailing_div.toFixed(2) : '－'}</td>
+      <td class="g-trail col-div" data-col="trail_ytd">${r.eps_ytd != null ? r.eps_ytd.toFixed(2) : '－'}</td>
+      <td class="g-trail" data-col="trail_grade">${gradeHtml(r.trailing_grade)}</td>
+      <td class="g-trail" data-col="trail_pe">${r.trailing_pe != null ? r.trailing_pe.toFixed(2) : '－'}</td>
+      <td class="g-trail" data-col="trail_yld">${r.trailing_yld != null ? r.trailing_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-trail" data-col="trail_eps"${r.eps_4q_sum != null && r.eps_4q_sum < 0 ? ' style="color:#ef4444;font-weight:700"' : ''}>${r.eps_4q_sum != null ? r.eps_4q_sum.toFixed(2) : '－'}</td>
+      <td class="g-trail" data-col="trail_div">${r.trailing_div != null ? r.trailing_div.toFixed(2) : '－'}</td>
       <!-- 加權 -->
-      <td class="g-wt col-div">${gradeHtml(r.weighted_grade)}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_pe != null ? r.weighted_pe.toFixed(2) : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_yld != null ? r.weighted_yld.toFixed(2) + '%' : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_eps != null ? r.weighted_eps.toFixed(2) : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_div != null ? r.weighted_div.toFixed(2) : '－'}</td>
-      <td class="g-wt" style="color:#475569">${r.weighted_payout != null ? r.weighted_payout.toFixed(2) + '%' : '－'}</td>
+      <td class="g-wt col-div" data-col="wt_grade">${gradeHtml(r.weighted_grade)}</td>
+      <td class="g-wt" data-col="wt_pe" style="color:#475569">${r.weighted_pe != null ? r.weighted_pe.toFixed(2) : '－'}</td>
+      <td class="g-wt" data-col="wt_yld" style="color:#475569">${r.weighted_yld != null ? r.weighted_yld.toFixed(2) + '%' : '－'}</td>
+      <td class="g-wt" data-col="wt_eps" style="color:#475569">${r.weighted_eps != null ? r.weighted_eps.toFixed(2) : '－'}</td>
+      <td class="g-wt" data-col="wt_div" style="color:#475569">${r.weighted_div != null ? r.weighted_div.toFixed(2) : '－'}</td>
+      <td class="g-wt" data-col="wt_payout" style="color:#475569">${r.weighted_payout != null ? r.weighted_payout.toFixed(2) + '%' : '－'}</td>
       <!-- 財務等級 -->
       ${_fixedY.map((y, i) => {
         const g = r._fg[y];
@@ -2900,8 +2902,8 @@ function render() {
         return `<td class="g-fg${divCls}">${gradeHtml(g)}</td>`;
       }).join('')}
       <!-- 補充 -->
-      <td class="g-mkt ${c240Class} col-div">${c240Str}</td>
-      <td class="g-qeps col-div">${epsDateHtml}</td>
+      <td class="g-mkt ${c240Class} col-div" data-col="change_240d">${c240Str}</td>
+      <td class="g-qeps col-div" data-col="eps_date">${epsDateHtml}</td>
       <!-- 動態欄位 -->
       ${_fixedQ.map((q, i) => { const v = r._qeps[q]; return `<td class="g-qeps${i===0?' col-div':''}">${v != null ? fmtEps(v) : '－'}</td>`; }).join('')}
       ${_fixedY.map((y, i) => { const v = r._yeps[y]; return `<td class="g-yeps${i===0?' col-div':''}">${v != null ? v.toFixed(2) : '－'}</td>`; }).join('')}
@@ -2909,16 +2911,16 @@ function render() {
       ${_fixedD.map((y, i) => { const d = r._div[y]; return `<td class="g-divs${i===0?' col-div':''}">${d ? d.s.toFixed(2) : '－'}</td>`; }).join('')}
       ${_fixedD.map((y, i) => { const p = r._po[y]; return `<td class="g-po${i===0?' col-div':''}">${p != null ? p.toFixed(2) + '%' : '－'}</td>`; }).join('')}
       <!-- 法人買賣 -->
-      <td class="g-inst col-div">${fmtInst(r.inst_foreign)}</td>
-      <td class="g-inst">${fmtInst(r.inst_trust)}</td>
-      <td class="g-inst">${fmtInst(r.inst_dealer)}</td>
+      <td class="g-inst col-div" data-col="inst_foreign">${fmtInst(r.inst_foreign)}</td>
+      <td class="g-inst" data-col="inst_trust">${fmtInst(r.inst_trust)}</td>
+      <td class="g-inst" data-col="inst_dealer">${fmtInst(r.inst_dealer)}</td>
       <!-- 合約負債 -->
-      <td class="g-cl col-div">${r.contract_1 != null ? (r.contract_1 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
-      <td class="g-cl">${r.contract_2 != null ? (r.contract_2 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
-      <td class="g-cl">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
-      <td class="g-cl">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
-      <td class="g-etf col-div">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
-      <td class="g-revchg" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
+      <td class="g-cl col-div" data-col="cl_1">${r.contract_1 != null ? (r.contract_1 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
+      <td class="g-cl" data-col="cl_2">${r.contract_2 != null ? (r.contract_2 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
+      <td class="g-cl" data-col="cl_3">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
+      <td class="g-cl" data-col="cl_chg">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
+      <td class="g-etf col-div" data-col="etf">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
+      <td class="g-revchg" data-col="rev_note" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
     </tr>`;
   }).join('');
 
