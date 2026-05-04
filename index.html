@@ -2135,8 +2135,8 @@ let allData  = [];
 let _prevailingQuarter = ''; // 多數公司目前的最新季度
 let _newsFlags = {};  // code → count（有重要新聞的股票）
 let filtered = [];
-let sortCol  = localStorage.getItem('sort_col') || 'code';
-let sortAsc  = localStorage.getItem('sort_asc') !== 'false';
+let sortCol  = 'code';
+let sortAsc  = true;
 let market   = '';
 let page     = 1;
 let PAGE_SIZE = 50;
