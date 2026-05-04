@@ -2394,17 +2394,21 @@ def _calc_growth_indicators(_json, _dt):
             continue
         close = st['close']
 
-        # 取 EPS > 0 的年份（排除虧損年）
+        # 建立 {year: eps} 查找表（EPS > 0 的年份）
+        eps_by_year = {r['year']: r['eps'] for r in rows
+                       if r.get('eps') and r['eps'] > 0}
+        # 也保留完整 valid list 供後續用
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
                  if r.get('eps') and r['eps'] > 0]
 
-        if len(valid) < 5:
-            continue  # 至少需要5年資料（4段成長）
+        if len(valid) < 4:
+            continue
 
         years = [v[0] for v in valid]
         nis = [v[1] for v in valid]
         epss = [v[2] for v in valid]
         revs = [v[3] for v in valid]
+        latest_year = years[-1]
 
         # 保留逐年 YoY 供林區使用
         yoy_list = []
@@ -2417,68 +2421,74 @@ def _calc_growth_indicators(_json, _dt):
         if not yoy_list:
             continue
 
-        # ══ 方法一：端點對端點 CAGR ══
-        # n = 實際年份差（成長段數），不是資料點數
-        method1 = None
-        eps_start = epss[0]
-        eps_end = epss[-1]
-        n_periods = years[-1] - years[0]
-        if eps_start > 0 and eps_end > 0 and n_periods >= 4:
-            method1 = (eps_end / eps_start) ** (1.0 / n_periods) - 1
+        # ══ 四種成長率（固定 5 年 / 3 年）══
 
-        # ══ 方法二：3年平均對3年平均 CAGR（平滑版）══
-        # 需要至少 7 年資料：前3年平均 vs 後3年平均
-        method2 = None
-        if len(valid) >= 7:
-            old_avg = sum(epss[:3]) / 3       # 最早3年平均
-            recent_avg = sum(epss[-3:]) / 3   # 最近3年平均
-            # 中點年份差 = 成長段數
-            old_mid = years[0] + 1       # 3年的中點
-            recent_mid = years[-1] - 1   # 3年的中點
-            mid_gap = recent_mid - old_mid
-            if old_avg > 0 and recent_avg > 0 and mid_gap >= 3:
-                method2 = (recent_avg / old_avg) ** (1.0 / mid_gap) - 1
-        elif len(valid) >= 6:
-            # 6年：前3年 vs 後3年
-            old_avg = sum(epss[:3]) / 3
-            recent_avg = sum(epss[-3:]) / 3
-            old_mid = years[0] + 1
-            recent_mid = years[-1] - 1
-            mid_gap = recent_mid - old_mid
-            if old_avg > 0 and recent_avg > 0 and mid_gap >= 2:
-                method2 = (recent_avg / old_avg) ** (1.0 / mid_gap) - 1
+        # ── 5年端點 CAGR：最近EPS vs 5年前EPS，^(1/5)
+        cagr_5y_endpoint = None
+        y5 = latest_year - 5
+        if y5 in eps_by_year:
+            cagr_5y_endpoint = (eps_by_year[latest_year] / eps_by_year[y5]) ** (1.0 / 5) - 1
 
-        # ══ 保守成長率：兩種方法都算，取較低 ══
-        neff_a = None  # 端點法
-        neff_b = None  # 平滑法
-        if method1 is not None:
-            neff_a = method1
-        if method2 is not None:
-            neff_b = method2
+        # ── 5年平滑 CAGR：近3年均 vs 遠3年均，中點差5年，^(1/5)
+        # 遠端 = (Y-7, Y-6, Y-5) 中點 Y-6，近端 = (Y-2, Y-1, Y) 中點 Y-1，差5年
+        cagr_5y_smooth = None
+        far3 = [eps_by_year.get(latest_year - i) for i in [7, 6, 5]]
+        near3 = [eps_by_year.get(latest_year - i) for i in [2, 1, 0]]
+        if all(far3) and all(near3):
+            far_avg = sum(far3) / 3
+            near_avg = sum(near3) / 3
+            if far_avg > 0 and near_avg > 0:
+                cagr_5y_smooth = (near_avg / far_avg) ** (1.0 / 5) - 1
 
-        # 至少要有一種算得出來
-        if neff_a is None and neff_b is None:
+        # ── 3年端點 CAGR：最近EPS vs 3年前EPS，^(1/3)
+        cagr_3y_endpoint = None
+        y3 = latest_year - 3
+        if y3 in eps_by_year:
+            cagr_3y_endpoint = (eps_by_year[latest_year] / eps_by_year[y3]) ** (1.0 / 3) - 1
+
+        # ── 3年平滑 CAGR：近2年均 vs 遠2年均，中點差3年，^(1/3)
+        # 遠端 = (Y-4, Y-3) 中點 Y-3.5，近端 = (Y-1, Y) 中點 Y-0.5，差3年
+        cagr_3y_smooth = None
+        far2 = [eps_by_year.get(latest_year - i) for i in [4, 3]]
+        near2 = [eps_by_year.get(latest_year - i) for i in [1, 0]]
+        if all(far2) and all(near2):
+            far2_avg = sum(far2) / 2
+            near2_avg = sum(near2) / 2
+            if far2_avg > 0 and near2_avg > 0:
+                cagr_3y_smooth = (near2_avg / far2_avg) ** (1.0 / 3) - 1
+
+        # ══ 保守成長率 = min(四種方法中有值的) ══
+        all_cagrs = [c for c in [cagr_5y_endpoint, cagr_5y_smooth, cagr_3y_endpoint, cagr_3y_smooth] if c is not None]
+        if not all_cagrs:
             continue
+
+        neff_a = cagr_5y_endpoint   # 5年端點
+        neff_b = cagr_5y_smooth     # 5年平滑
+        neff_3a = cagr_3y_endpoint  # 3年端點
+        neff_3b = cagr_3y_smooth    # 3年平滑
 
         a_pct = (neff_a * 100) if neff_a is not None else None
         b_pct = (neff_b * 100) if neff_b is not None else None
+        a3_pct = (neff_3a * 100) if neff_3a is not None else None
+        b3_pct = (neff_3b * 100) if neff_3b is not None else None
 
-        # 保守成長率 = min(兩種方法)
-        if a_pct is not None and b_pct is not None:
-            neff_c = min(a_pct, b_pct)
-        elif a_pct is not None:
-            neff_c = a_pct
-        else:
-            neff_c = b_pct
+        all_pcts = [p for p in [a_pct, b_pct, a3_pct, b3_pct] if p is not None]
+        neff_c = min(all_pcts)
 
         # ── 警示判斷
         warnings = []
         if 0 < neff_c < 7:
             warnings.append('成長率<7%，聶夫法參考用')
+        # 5年兩種方法差距大
         if a_pct is not None and b_pct is not None:
-            gap = abs(a_pct - b_pct)
-            if gap > 5:
-                warnings.append(f'兩種方法差距{gap:.0f}%，成長穩定性存疑')
+            gap5 = abs(a_pct - b_pct)
+            if gap5 > 5:
+                warnings.append(f'5年端點vs平滑差距{gap5:.0f}%，成長穩定性存疑')
+        # 3年 < 5年 = 減速
+        best_5y = min([p for p in [a_pct, b_pct] if p is not None]) if any(p is not None for p in [a_pct, b_pct]) else None
+        best_3y = min([p for p in [a3_pct, b3_pct] if p is not None]) if any(p is not None for p in [a3_pct, b3_pct]) else None
+        if best_5y is not None and best_3y is not None and best_3y < best_5y - 3:
+            warnings.append('近期成長減速')
         if neff_c > 20:
             warnings.append('保守成長率>20%，已封頂20%計算')
         # 中間有虧損年被跳過
@@ -2502,7 +2512,7 @@ def _calc_growth_indicators(_json, _dt):
             if rv_start > 0 and rv_end > 0 and n_rv >= 4:
                 rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / n_rv) - 1) * 100
 
-        if rev_cagr_5y is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
+        if rev_cagr_5y is not None and a_pct is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
             warnings.append('淨利成長遠快於營收，注意利潤率變化')
 
         # 股本變動率（輔助資訊）
@@ -2556,7 +2566,7 @@ def _calc_growth_indicators(_json, _dt):
 
         # ── 林區：成長一致性（C）
         lynch_c = None
-        if lynch_b is not None and a_pct > 0:
+        if lynch_b is not None and a_pct is not None and a_pct > 0:
             lynch_c = 1 - abs(lynch_b - a_pct) / a_pct
             if lynch_c < 0:
                 lynch_c = 0
@@ -2605,8 +2615,10 @@ def _calc_growth_indicators(_json, _dt):
         gray = neff_gray or lynch_gray
 
         entry = {
-            'neff_a': round(a_pct, 2) if a_pct is not None else None,
-            'neff_b': round(b_pct, 2) if b_pct is not None else None,
+            'neff_a': round(a_pct, 2) if a_pct is not None else None,     # 5年端點
+            'neff_b': round(b_pct, 2) if b_pct is not None else None,     # 5年平滑
+            'neff_3a': round(a3_pct, 2) if a3_pct is not None else None,  # 3年端點
+            'neff_3b': round(b3_pct, 2) if b3_pct is not None else None,  # 3年平滑
             'neff_c': neff_c,
             'neff_d': round(neff_d, 2) if neff_d is not None else None,
             'intrinsic_growth': intrinsic_growth,
