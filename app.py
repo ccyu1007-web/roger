@@ -2394,9 +2394,9 @@ def _calc_growth_indicators(_json, _dt):
             continue
         close = st['close']
 
-        # 取稅後淨利 > 0 的年份（排除虧損年，避免 YoY 分母為負）
+        # 取 EPS > 0 的年份（排除虧損年，避免 YoY 分母為負）
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
-                 if r.get('net_income') and r['net_income'] > 0]
+                 if r.get('eps') and r['eps'] > 0]
 
         if len(valid) < 4:
             continue  # 至少需要4年（算3年平均YoY）
@@ -2406,25 +2406,25 @@ def _calc_growth_indicators(_json, _dt):
         epss = [v[2] for v in valid]
         revs = [v[3] for v in valid]
 
-        # 計算逐年 YoY（只取連續正數年份的 YoY）
+        # 計算逐年 EPS YoY（算術平均）
         yoy_list = []
         for i in range(1, len(valid)):
-            prev_ni = nis[i - 1]
-            curr_ni = nis[i]
-            if prev_ni > 0:
-                yoy_list.append((curr_ni - prev_ni) / prev_ni)
+            prev_eps = epss[i - 1]
+            curr_eps = epss[i]
+            if prev_eps and prev_eps > 0:
+                yoy_list.append((curr_eps - prev_eps) / prev_eps)
 
         if not yoy_list:
             continue
 
-        # ── 5年淨利成長率（A）：最近5個YoY的算術平均
+        # ── 5年EPS成長率（A）：最近5個YoY的算術平均
         neff_a = None
         if len(yoy_list) >= 5:
             neff_a = sum(yoy_list[-5:]) / 5
         elif len(yoy_list) >= 3:
             neff_a = sum(yoy_list) / len(yoy_list)
 
-        # ── 3年淨利成長率（B）：最近3個YoY的算術平均
+        # ── 3年EPS成長率（B）：最近3個YoY的算術平均
         neff_b = None
         if len(yoy_list) >= 3:
             neff_b = sum(yoy_list[-3:]) / 3
