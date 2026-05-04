@@ -1526,7 +1526,7 @@ def _post_process_after_save():
 def _fill_missing_financials():
     """
     批次補抓缺任何關鍵資料的股票。
-    檢查年報（total_equity/operating_cf/capex/cash_dividend）、
+    檢查年報（total_equity/operating_cf/capex/cash_dividend/net_income）、
     季報（inventory/contract_liability）、PE歷史、
     月營收（過去兩年各需12筆），
     缺任一項就跑群益 fetch_all_three 全套抓取。
@@ -1553,12 +1553,10 @@ def _fill_missing_financials():
 
     q = latest_q[0]
 
-    # 條件：缺年報關鍵欄位 OR 缺季報存貨/合約負債 OR 缺PE歷史 OR 月營收不足
+    # 條件：缺年報關鍵欄位 OR 年報 net_income 為 NULL OR 缺季報存貨 OR 缺PE歷史 OR 月營收不足
     # 排除金融股的存貨檢查、排除 DR 股的月營收檢查
-    # 月營收：過去兩年各需 12 筆，當年度按已過月份檢查
+    # 月營收：過去兩年各需 12 筆
     today = date.today()
-    # 當年度應有的月數（上上個月以前，因為上個月還在申報中）
-    expected_cur_year = max(today.month - 2, 0)
 
     codes = [r[0] for r in conn.execute("""
         SELECT DISTINCT s.code FROM stocks s
@@ -1570,6 +1568,12 @@ def _fill_missing_financials():
                     total_equity IS NULL OR operating_cf IS NULL OR
                     capex IS NULL OR cash_dividend IS NULL
                 )
+            )
+            -- 年報 net_income 為 NULL（影響聶夫比率計算）
+            OR s.code IN (
+                SELECT code FROM financial_annual
+                WHERE year >= ? AND net_income IS NULL
+                GROUP BY code HAVING COUNT(*) >= 2
             )
             -- 季報缺存貨（非金融股）
             OR (s.code IN (
@@ -1591,7 +1595,7 @@ def _fill_missing_financials():
         )
         ORDER BY s.code
         LIMIT 50
-    """, (cur_year - 1, q, cur_year - 2, cur_year - 1)).fetchall()]
+    """, (cur_year - 1, cur_year - 6, q, cur_year - 2, cur_year - 1)).fetchall()]
     conn.close()
 
     if not codes:
