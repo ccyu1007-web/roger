@@ -481,94 +481,94 @@
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
           <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
           <th onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
-          <th class="g-mkt no-sort">市場</th>
-          <th class="g-mkt" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
+          <th class="g-mkt no-sort" data-col="market">市場</th>
+          <th class="g-mkt" data-col="industry" onclick="sortBy('industry')">產業別<span class="sort-icon" id="si_industry">↕</span></th>
           <!-- 股價 -->
-          <th class="col-div" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
-          <th onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
+          <th class="col-div" data-col="close" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
+          <th data-col="change" onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
           <!-- 評價（可收合） -->
-          <th class="g-val col-div" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
-          <th class="g-val" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
-          <th class="g-val" onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
-          <th class="g-val" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
-          <th class="g-val" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
+          <th class="g-val col-div" data-col="val_aa" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
+          <th class="g-val" data-col="val_a1" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
+          <th class="g-val" data-col="val_a2" onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
+          <th class="g-val" data-col="val_a" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
+          <th class="g-val" data-col="val_lt6" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
           <!-- 聶夫總報酬率法（可收合） -->
-          <th class="g-neff col-div" onclick="sortBy('neff_a')">5年CAGR<span class="sort-icon" id="si_neff_a">↕</span></th>
-          <th class="g-neff" onclick="sortBy('neff_b')">3年CAGR<span class="sort-icon" id="si_neff_b">↕</span></th>
-          <th class="g-neff" onclick="sortBy('neff_c')">保守成長率<span class="sort-icon" id="si_neff_c">↕</span></th>
-          <th class="g-neff" onclick="sortBy('neff_ig')">內生成長率<span class="sort-icon" id="si_neff_ig">↕</span></th>
-          <th class="g-neff" onclick="sortBy('neff_d')">Neff比率<span class="sort-icon" id="si_neff_d">↕</span></th>
+          <th class="g-neff col-div" data-col="neff_a" onclick="sortBy('neff_a')">5年CAGR<span class="sort-icon" id="si_neff_a">↕</span></th>
+          <th class="g-neff" data-col="neff_b" onclick="sortBy('neff_b')">3年CAGR<span class="sort-icon" id="si_neff_b">↕</span></th>
+          <th class="g-neff" data-col="neff_c" onclick="sortBy('neff_c')">保守成長率<span class="sort-icon" id="si_neff_c">↕</span></th>
+          <th class="g-neff" data-col="neff_ig" onclick="sortBy('neff_ig')">內生成長率<span class="sort-icon" id="si_neff_ig">↕</span></th>
+          <th class="g-neff" data-col="neff_d" onclick="sortBy('neff_d')">Neff比率<span class="sort-icon" id="si_neff_d">↕</span></th>
           <!-- 林區PEG法（可收合） -->
-          <th class="g-lynch col-div" onclick="sortBy('lynch_a')">5年CAGR<span class="sort-icon" id="si_lynch_a">↕</span></th>
-          <th class="g-lynch" onclick="sortBy('lynch_b')">算術平均<span class="sort-icon" id="si_lynch_b">↕</span></th>
-          <th class="g-lynch" onclick="sortBy('lynch_c')">一致性<span class="sort-icon" id="si_lynch_c">↕</span></th>
-          <th class="g-lynch" onclick="sortBy('lynch_d')">PEG<span class="sort-icon" id="si_lynch_d">↕</span></th>
-          <th class="g-revchg col-div" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
+          <th class="g-lynch col-div" data-col="lynch_a" onclick="sortBy('lynch_a')">5年CAGR<span class="sort-icon" id="si_lynch_a">↕</span></th>
+          <th class="g-lynch" data-col="lynch_b" onclick="sortBy('lynch_b')">算術平均<span class="sort-icon" id="si_lynch_b">↕</span></th>
+          <th class="g-lynch" data-col="lynch_c" onclick="sortBy('lynch_c')">一致性<span class="sort-icon" id="si_lynch_c">↕</span></th>
+          <th class="g-lynch" data-col="lynch_d" onclick="sortBy('lynch_d')">PEG<span class="sort-icon" id="si_lynch_d">↕</span></th>
+          <th class="g-revchg col-div" data-col="rev_date" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
-          <th class="g-revchg" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
-          <th class="g-revchg" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
-          <th class="g-revchg" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
+          <th class="g-revchg" data-col="rev_cum" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
+          <th class="g-revchg" data-col="rev_yoy" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
+          <th class="g-revchg" data-col="rev_mom" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 動態月營收欄位（JS 插入） -->
           <template id="monthlyRevHeaders"></template>
           <!-- 等級排列：預估→沈董→綜合→近四季→加權 -->
-          <th class="g-est col-div" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
-          <th class="g-est" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
-          <th class="g-est" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
-          <th class="g-est" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
-          <th class="g-est col-div-r" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
+          <th class="g-est col-div" data-col="est_grade" onclick="sortBy('est_grade')">預估等級<span class="sort-icon" id="si_est_grade">↕</span></th>
+          <th class="g-est" data-col="est_pe" onclick="sortBy('est_pe')">預估PE<span class="sort-icon" id="si_est_pe">↕</span></th>
+          <th class="g-est" data-col="est_yld" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
+          <th class="g-est" data-col="est_eps" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
+          <th class="g-est col-div-r" data-col="est_div" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
           <!-- 系統估算 -->
-          <th class="g-sys col-div" onclick="sortBy('sys_grade')">系統等級<span class="sort-icon" id="si_sys_grade">↕</span></th>
-          <th class="g-sys" onclick="sortBy('sys_ann_pe')">系統PE<span class="sort-icon" id="si_sys_ann_pe">↕</span></th>
-          <th class="g-sys" onclick="sortBy('sys_ann_yld')">系統殖利率<span class="sort-icon" id="si_sys_ann_yld">↕</span></th>
-          <th class="g-sys" onclick="sortBy('sys_ann_eps')">系統EPS<span class="sort-icon" id="si_sys_ann_eps">↕</span></th>
-          <th class="g-sys" onclick="sortBy('sys_ann_div')">系統股利<span class="sort-icon" id="si_sys_ann_div">↕</span></th>
-          <th class="g-sys" onclick="sortBy('sys_ann_confidence')">信心<span class="sort-icon" id="si_sys_ann_confidence">↕</span></th>
+          <th class="g-sys col-div" data-col="sys_grade" onclick="sortBy('sys_grade')">系統等級<span class="sort-icon" id="si_sys_grade">↕</span></th>
+          <th class="g-sys" data-col="sys_pe" onclick="sortBy('sys_ann_pe')">系統PE<span class="sort-icon" id="si_sys_ann_pe">↕</span></th>
+          <th class="g-sys" data-col="sys_yld" onclick="sortBy('sys_ann_yld')">系統殖利率<span class="sort-icon" id="si_sys_ann_yld">↕</span></th>
+          <th class="g-sys" data-col="sys_eps" onclick="sortBy('sys_ann_eps')">系統EPS<span class="sort-icon" id="si_sys_ann_eps">↕</span></th>
+          <th class="g-sys" data-col="sys_div" onclick="sortBy('sys_ann_div')">系統股利<span class="sort-icon" id="si_sys_ann_div">↕</span></th>
+          <th class="g-sys" data-col="sys_conf" onclick="sortBy('sys_ann_confidence')">信心<span class="sort-icon" id="si_sys_ann_confidence">↕</span></th>
           <!-- 沈董 -->
-          <th class="g-shen col-div" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
-          <th class="g-shen" onclick="sortBy('shen_pe')">沈董PE<span class="sort-icon" id="si_shen_pe">↕</span></th>
-          <th class="g-shen" onclick="sortBy('shen_yld')">沈董殖利率<span class="sort-icon" id="si_shen_yld">↕</span></th>
-          <th class="g-shen" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
-          <th class="g-shen" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
+          <th class="g-shen col-div" data-col="shen_grade" onclick="sortBy('shen_grade')">沈董等級<span class="sort-icon" id="si_shen_grade">↕</span></th>
+          <th class="g-shen" data-col="shen_pe" onclick="sortBy('shen_pe')">沈董PE<span class="sort-icon" id="si_shen_pe">↕</span></th>
+          <th class="g-shen" data-col="shen_yld" onclick="sortBy('shen_yld')">沈董殖利率<span class="sort-icon" id="si_shen_yld">↕</span></th>
+          <th class="g-shen" data-col="shen_eps" onclick="sortBy('shen_eps')">沈董EPS<span class="sort-icon" id="si_shen_eps">↕</span></th>
+          <th class="g-shen" data-col="shen_div" onclick="sortBy('shen_div')">沈董股利<span class="sort-icon" id="si_shen_div">↕</span></th>
           <!-- 綜合 -->
-          <th class="g-blend col-div" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_pe')">綜合PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_yld')">綜合殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_eps')">綜合EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
-          <th class="g-blend" onclick="sortBy('blend_div')">綜合股利<span class="sort-icon" id="si_blend_div">↕</span></th>
+          <th class="g-blend col-div" data-col="blend_grade" onclick="sortBy('blend_grade')">綜合等級<span class="sort-icon" id="si_blend_grade">↕</span></th>
+          <th class="g-blend" data-col="blend_pe" onclick="sortBy('blend_pe')">綜合PE<span class="sort-icon" id="si_blend_pe">↕</span></th>
+          <th class="g-blend" data-col="blend_yld" onclick="sortBy('blend_yld')">綜合殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
+          <th class="g-blend" data-col="blend_eps" onclick="sortBy('blend_eps')">綜合EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
+          <th class="g-blend" data-col="blend_div" onclick="sortBy('blend_div')">綜合股利<span class="sort-icon" id="si_blend_div">↕</span></th>
           <!-- 近四季 -->
-          <th class="g-trail col-div" onclick="sortBy('eps_ytd')">當年累計<span class="sort-icon" id="si_eps_ytd">↕</span></th>
-          <th class="g-trail" onclick="sortBy('trailing_grade')">近四季評等<span class="sort-icon" id="si_trailing_grade">↕</span></th>
-          <th class="g-trail" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
-          <th class="g-trail" onclick="sortBy('trailing_yld')">近四季殖利率<span class="sort-icon" id="si_trailing_yld">↕</span></th>
-          <th class="g-trail" onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
-          <th class="g-trail" onclick="sortBy('trailing_div')">近四季股利<span class="sort-icon" id="si_trailing_div">↕</span></th>
+          <th class="g-trail col-div" data-col="trail_ytd" onclick="sortBy('eps_ytd')">當年累計<span class="sort-icon" id="si_eps_ytd">↕</span></th>
+          <th class="g-trail" data-col="trail_grade" onclick="sortBy('trailing_grade')">近四季評等<span class="sort-icon" id="si_trailing_grade">↕</span></th>
+          <th class="g-trail" data-col="trail_pe" onclick="sortBy('trailing_pe')">近四季PE<span class="sort-icon" id="si_trailing_pe">↕</span></th>
+          <th class="g-trail" data-col="trail_yld" onclick="sortBy('trailing_yld')">近四季殖利率<span class="sort-icon" id="si_trailing_yld">↕</span></th>
+          <th class="g-trail" data-col="trail_eps" onclick="sortBy('eps_4q_sum')">近四季EPS<span class="sort-icon" id="si_eps_4q_sum">↕</span></th>
+          <th class="g-trail" data-col="trail_div" onclick="sortBy('trailing_div')">近四季股利<span class="sort-icon" id="si_trailing_div">↕</span></th>
           <!-- 加權 -->
-          <th class="g-wt col-div" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_pe')">加權PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_yld')">加權殖利率<span class="sort-icon" id="si_weighted_yld">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_eps')">加權EPS<span class="sort-icon" id="si_weighted_eps">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_div')">加權股息<span class="sort-icon" id="si_weighted_div">↕</span></th>
-          <th class="g-wt" onclick="sortBy('weighted_payout')">加權配息率<span class="sort-icon" id="si_weighted_payout">↕</span></th>
+          <th class="g-wt col-div" data-col="wt_grade" onclick="sortBy('weighted_grade')">加權等級<span class="sort-icon" id="si_weighted_grade">↕</span></th>
+          <th class="g-wt" data-col="wt_pe" onclick="sortBy('weighted_pe')">加權PE<span class="sort-icon" id="si_weighted_pe">↕</span></th>
+          <th class="g-wt" data-col="wt_yld" onclick="sortBy('weighted_yld')">加權殖利率<span class="sort-icon" id="si_weighted_yld">↕</span></th>
+          <th class="g-wt" data-col="wt_eps" onclick="sortBy('weighted_eps')">加權EPS<span class="sort-icon" id="si_weighted_eps">↕</span></th>
+          <th class="g-wt" data-col="wt_div" onclick="sortBy('weighted_div')">加權股息<span class="sort-icon" id="si_weighted_div">↕</span></th>
+          <th class="g-wt" data-col="wt_payout" onclick="sortBy('weighted_payout')">加權配息率<span class="sort-icon" id="si_weighted_payout">↕</span></th>
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
-          <th class="g-mkt col-div" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
-          <th class="g-qeps col-div" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
+          <th class="g-mkt col-div" data-col="change_240d" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
+          <th class="g-qeps col-div" data-col="eps_date" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
           <!-- 動態欄位 -->
           <th id="dynColAnchor" style="display:none"></th>
           <!-- 權重估值已移到預估值後面 -->
           <!-- 法人買賣（可收合） -->
-          <th class="g-inst col-div" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
-          <th class="g-inst" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
-          <th class="g-inst" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
+          <th class="g-inst col-div" data-col="inst_foreign" onclick="sortBy('inst_foreign')">外資<span class="sort-icon" id="si_inst_foreign">↕</span></th>
+          <th class="g-inst" data-col="inst_trust" onclick="sortBy('inst_trust')">投信<span class="sort-icon" id="si_inst_trust">↕</span></th>
+          <th class="g-inst" data-col="inst_dealer" onclick="sortBy('inst_dealer')">自營商<span class="sort-icon" id="si_inst_dealer">↕</span></th>
           <!-- 合約負債（可收合） -->
-          <th class="g-cl col-div" onclick="sortBy('contract_1')"><span id="hdr_cl1">合約負債1</span><span class="sort-icon" id="si_contract_1">↕</span></th>
-          <th class="g-cl" onclick="sortBy('contract_2')"><span id="hdr_cl2">合約負債2</span><span class="sort-icon" id="si_contract_2">↕</span></th>
-          <th class="g-cl" onclick="sortBy('contract_3')"><span id="hdr_cl3">合約負債3</span><span class="sort-icon" id="si_contract_3">↕</span></th>
-          <th class="g-cl" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
+          <th class="g-cl col-div" data-col="cl_1" onclick="sortBy('contract_1')"><span id="hdr_cl1">合約負債1</span><span class="sort-icon" id="si_contract_1">↕</span></th>
+          <th class="g-cl" data-col="cl_2" onclick="sortBy('contract_2')"><span id="hdr_cl2">合約負債2</span><span class="sort-icon" id="si_contract_2">↕</span></th>
+          <th class="g-cl" data-col="cl_3" onclick="sortBy('contract_3')"><span id="hdr_cl3">合約負債3</span><span class="sort-icon" id="si_contract_3">↕</span></th>
+          <th class="g-cl" data-col="cl_chg" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
           <!-- ETF 成分股 -->
-          <th class="g-etf col-div">ETF 成分股</th>
-          <th class="g-revchg">營收備註</th>
+          <th class="g-etf col-div" data-col="etf">ETF 成分股</th>
+          <th class="g-revchg" data-col="rev_note">營收備註</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
