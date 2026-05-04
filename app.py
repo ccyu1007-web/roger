@@ -2335,7 +2335,7 @@ def _calc_growth_indicators(_json, _dt):
     current_year = _dt.today().year
 
     # ── 1. 抓最近7年 financial_annual（需要6年算5年CAGR）
-    min_year = current_year - 6
+    min_year = current_year - 8  # 需要 8~9 年資料供平滑法使用
     try:
         fa_rows = query_db(
             "SELECT code, year, net_income, eps, weighted_shares, common_stock, "
@@ -2398,8 +2398,8 @@ def _calc_growth_indicators(_json, _dt):
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
                  if r.get('eps') and r['eps'] > 0]
 
-        if len(valid) < 4:
-            continue  # 至少需要4年（算3年CAGR）
+        if len(valid) < 5:
+            continue  # 至少需要5年資料（4段成長）
 
         years = [v[0] for v in valid]
         nis = [v[1] for v in valid]
@@ -2417,48 +2417,70 @@ def _calc_growth_indicators(_json, _dt):
         if not yoy_list:
             continue
 
-        # ── 5年 EPS CAGR（A）
-        neff_a = None
-        if len(valid) >= 6:
-            eps_start = epss[-6]
-            eps_end = epss[-1]
-            if eps_start > 0 and eps_end > 0:
-                neff_a = (eps_end / eps_start) ** (1.0 / 5) - 1
-        elif len(valid) >= 5:
-            eps_start = epss[-5]
-            eps_end = epss[-1]
-            n_years = years[-1] - years[-5]
-            if eps_start > 0 and eps_end > 0 and n_years >= 4:
-                neff_a = (eps_end / eps_start) ** (1.0 / n_years) - 1
+        # ══ 方法一：端點對端點 CAGR ══
+        # n = 實際年份差（成長段數），不是資料點數
+        method1 = None
+        eps_start = epss[0]
+        eps_end = epss[-1]
+        n_periods = years[-1] - years[0]
+        if eps_start > 0 and eps_end > 0 and n_periods >= 4:
+            method1 = (eps_end / eps_start) ** (1.0 / n_periods) - 1
 
-        # ── 3年 EPS CAGR（B）
-        neff_b = None
-        if len(valid) >= 4:
-            eps_start3 = epss[-4]
-            eps_end3 = epss[-1]
-            if eps_start3 > 0 and eps_end3 > 0:
-                neff_b = (eps_end3 / eps_start3) ** (1.0 / 3) - 1
+        # ══ 方法二：3年平均對3年平均 CAGR（平滑版）══
+        # 需要至少 7 年資料：前3年平均 vs 後3年平均
+        method2 = None
+        if len(valid) >= 7:
+            old_avg = sum(epss[:3]) / 3       # 最早3年平均
+            recent_avg = sum(epss[-3:]) / 3   # 最近3年平均
+            # 中點年份差 = 成長段數
+            old_mid = years[0] + 1       # 3年的中點
+            recent_mid = years[-1] - 1   # 3年的中點
+            mid_gap = recent_mid - old_mid
+            if old_avg > 0 and recent_avg > 0 and mid_gap >= 3:
+                method2 = (recent_avg / old_avg) ** (1.0 / mid_gap) - 1
+        elif len(valid) >= 6:
+            # 6年：前3年 vs 後3年
+            old_avg = sum(epss[:3]) / 3
+            recent_avg = sum(epss[-3:]) / 3
+            old_mid = years[0] + 1
+            recent_mid = years[-1] - 1
+            mid_gap = recent_mid - old_mid
+            if old_avg > 0 and recent_avg > 0 and mid_gap >= 2:
+                method2 = (recent_avg / old_avg) ** (1.0 / mid_gap) - 1
 
-        # 如果只能算3年，A也用3年
-        if neff_a is None and neff_b is not None:
-            neff_a = neff_b
+        # ══ 保守成長率：兩種方法都算，取較低 ══
+        neff_a = None  # 端點法
+        neff_b = None  # 平滑法
+        if method1 is not None:
+            neff_a = method1
+        if method2 is not None:
+            neff_b = method2
 
-        if neff_a is None:
+        # 至少要有一種算得出來
+        if neff_a is None and neff_b is None:
             continue
 
-        # ── 保守成長率（C）：min(5年, 3年)，不打折
-        a_pct = neff_a * 100
-        b_pct = (neff_b * 100) if neff_b is not None else a_pct
-        neff_c = min(a_pct, b_pct)
+        a_pct = (neff_a * 100) if neff_a is not None else None
+        b_pct = (neff_b * 100) if neff_b is not None else None
+
+        # 保守成長率 = min(兩種方法)
+        if a_pct is not None and b_pct is not None:
+            neff_c = min(a_pct, b_pct)
+        elif a_pct is not None:
+            neff_c = a_pct
+        else:
+            neff_c = b_pct
 
         # ── 警示判斷
         warnings = []
         if 0 < neff_c < 7:
             warnings.append('成長率<7%，聶夫法參考用')
-        if min(a_pct, b_pct) > 20:
+        if a_pct is not None and b_pct is not None:
+            gap = abs(a_pct - b_pct)
+            if gap > 5:
+                warnings.append(f'兩種方法差距{gap:.0f}%，成長穩定性存疑')
+        if neff_c > 20:
             warnings.append('保守成長率>20%，已封頂20%計算')
-        if b_pct < a_pct - 3:
-            warnings.append('近期成長減速')
         # 中間有虧損年被跳過
         all_years = [r['year'] for r in rows]
         gap_years = len(all_years) - len(valid)
@@ -2583,12 +2605,12 @@ def _calc_growth_indicators(_json, _dt):
         gray = neff_gray or lynch_gray
 
         entry = {
-            'neff_a': round(a_pct, 2),
-            'neff_b': round(b_pct, 2),
+            'neff_a': round(a_pct, 2) if a_pct is not None else None,
+            'neff_b': round(b_pct, 2) if b_pct is not None else None,
             'neff_c': neff_c,
             'neff_d': round(neff_d, 2) if neff_d is not None else None,
             'intrinsic_growth': intrinsic_growth,
-            'lynch_a': round(a_pct, 2),
+            'lynch_a': round(a_pct, 2) if a_pct is not None else None,
             'lynch_b': round(lynch_b, 2) if lynch_b is not None else None,
             'lynch_c': round(lynch_c, 2) if lynch_c is not None else None,
             'lynch_d': round(lynch_d, 2) if lynch_d is not None else None,
