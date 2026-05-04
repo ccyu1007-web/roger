@@ -693,101 +693,170 @@ function applyColVisibility() {
   fixFrozenColumns();
 }
 
-// ── 自訂欄位快捷 ──────────────────────────────────────────
+// ── 自訂欄位快捷（per-column）──────────────────────────────
+const CUSTOM_COLS = [
+  { group: '股價', cols: [
+    { id: 'close', label: '收盤價' }, { id: 'change', label: '漲跌' }
+  ]},
+  { group: '市場產業', cols: [
+    { id: 'market', label: '市場' }, { id: 'industry', label: '產業別' }, { id: 'change_240d', label: '240日漲跌幅' }
+  ]},
+  { group: '評價', cols: [
+    { id: 'val_aa', label: 'AA' }, { id: 'val_a1', label: 'A1' }, { id: 'val_a2', label: 'A2' },
+    { id: 'val_a', label: 'A' }, { id: 'val_lt6', label: '長期6%' }
+  ]},
+  { group: '聶夫', cols: [
+    { id: 'neff_a', label: '5年CAGR' }, { id: 'neff_b', label: '3年CAGR' }, { id: 'neff_c', label: '保守成長率' },
+    { id: 'neff_ig', label: '內生成長率' }, { id: 'neff_d', label: 'Neff比率' }
+  ]},
+  { group: '林區', cols: [
+    { id: 'lynch_a', label: '5年CAGR' }, { id: 'lynch_b', label: '算術平均' },
+    { id: 'lynch_c', label: '一致性' }, { id: 'lynch_d', label: 'PEG' }
+  ]},
+  { group: '營收變化', cols: [
+    { id: 'rev_date', label: '營收更新' }, { id: 'rev_cum', label: '累積營收' },
+    { id: 'rev_yoy', label: '營收年增' }, { id: 'rev_mom', label: '營收月增' }, { id: 'rev_note', label: '營收備註' }
+  ]},
+  { group: '動態欄位（整組）', cols: [
+    { id: 'g-revmon', label: '當年度營收', isGroup: true },
+    { id: 'g-fg', label: '財務等級', isGroup: true },
+    { id: 'eps_date', label: 'EPS更新' },
+    { id: 'g-qeps', label: '季度EPS', isGroup: true },
+    { id: 'g-yeps', label: '年度EPS', isGroup: true },
+    { id: 'g-divc', label: '現金股利', isGroup: true },
+    { id: 'g-divs', label: '股票股利', isGroup: true },
+    { id: 'g-po', label: '配息率', isGroup: true },
+  ]},
+  { group: '預估明細', cols: [
+    { id: 'est_grade', label: '等級' }, { id: 'est_pe', label: 'PE' }, { id: 'est_yld', label: '殖利率' },
+    { id: 'est_eps', label: 'EPS' }, { id: 'est_div', label: '股利' }
+  ]},
+  { group: '系統估算', cols: [
+    { id: 'sys_grade', label: '等級' }, { id: 'sys_pe', label: 'PE' }, { id: 'sys_yld', label: '殖利率' },
+    { id: 'sys_eps', label: 'EPS' }, { id: 'sys_div', label: '股利' }, { id: 'sys_conf', label: '信心' }
+  ]},
+  { group: '沈董明細', cols: [
+    { id: 'shen_grade', label: '等級' }, { id: 'shen_pe', label: 'PE' }, { id: 'shen_yld', label: '殖利率' },
+    { id: 'shen_eps', label: 'EPS' }, { id: 'shen_div', label: '股利' }
+  ]},
+  { group: '綜合明細', cols: [
+    { id: 'blend_grade', label: '等級' }, { id: 'blend_pe', label: 'PE' }, { id: 'blend_yld', label: '殖利率' },
+    { id: 'blend_eps', label: 'EPS' }, { id: 'blend_div', label: '股利' }
+  ]},
+  { group: '近四季', cols: [
+    { id: 'trail_ytd', label: '當年累計' }, { id: 'trail_grade', label: '評等' }, { id: 'trail_pe', label: 'PE' },
+    { id: 'trail_yld', label: '殖利率' }, { id: 'trail_eps', label: 'EPS' }, { id: 'trail_div', label: '股利' }
+  ]},
+  { group: '加權明細', cols: [
+    { id: 'wt_grade', label: '等級' }, { id: 'wt_pe', label: 'PE' }, { id: 'wt_yld', label: '殖利率' },
+    { id: 'wt_eps', label: 'EPS' }, { id: 'wt_div', label: '股息' }, { id: 'wt_payout', label: '配息率' }
+  ]},
+  { group: '法人買賣', cols: [
+    { id: 'inst_foreign', label: '外資' }, { id: 'inst_trust', label: '投信' }, { id: 'inst_dealer', label: '自營商' }
+  ]},
+  { group: '合約負債', cols: [
+    { id: 'cl_1', label: '合約1' }, { id: 'cl_2', label: '合約2' }, { id: 'cl_3', label: '合約3' }, { id: 'cl_chg', label: '變動' }
+  ]},
+  { group: 'ETF', cols: [
+    { id: 'etf', label: 'ETF成分股' }
+  ]},
+];
+const _DYN_GROUPS = ['g-fg','g-qeps','g-yeps','g-divc','g-divs','g-po','g-revmon','g-etf'];
+
 let _customPreset = JSON.parse(localStorage.getItem('custom_col_preset') || 'null') || {};
 let _customActive = false;
-let _savedColVisible = null;  // 進入自訂模式前的狀態
 
 function toggleCustomMode() {
   const btn = document.getElementById('customColBtn');
-  if (_customActive) {
-    // 退出自訂模式 → 還原之前的欄位狀態
-    _customActive = false;
-    btn.classList.remove('on');
-    if (_savedColVisible) {
-      _colVisible = { ..._savedColVisible };
-      _savedColVisible = null;
-    }
-  } else {
-    // 進入自訂模式 → 儲存當前狀態，套用自訂設定
-    _customActive = true;
-    btn.classList.add('on');
-    _savedColVisible = { ..._colVisible };
-    COL_GROUPS.forEach(g => {
-      _colVisible[g.key] = !!_customPreset[g.key];
-    });
+  _customActive = !_customActive;
+  btn.classList.toggle('on', _customActive);
+  if (!_customActive) {
+    // 退出自訂模式：清除 inline display 讓 CSS group toggle 恢復
+    document.querySelectorAll('#stockTable th:not(#dynFgAnchor):not(#dynColAnchor)').forEach(el => el.style.display = '');
+    document.querySelectorAll('#stockTable tbody td').forEach(el => el.style.display = '');
   }
-  // 更新所有按鈕狀態
-  document.querySelectorAll('#colToggleBar .col-btn:not(.custom-btn)').forEach(b => {
-    const key = b.dataset.group;
-    if (key) b.classList.toggle('on', _colVisible[key]);
+  applyCustomColumns();
+}
+
+function applyCustomColumns() {
+  if (!_customActive) return;
+  const ths = Array.from(document.querySelectorAll('#stockTable thead tr th'));
+  const hideTdIndices = new Set();
+  let tdIdx = 0;
+  ths.forEach(th => {
+    if (th.id === 'dynFgAnchor' || th.id === 'dynColAnchor') return; // anchor 無對應 td
+    let shouldHide = false;
+    const col = th.dataset.col;
+    if (col) {
+      shouldHide = !_customPreset[col];
+    } else {
+      // 動態群組欄位：用 CSS class 判斷
+      for (const g of _DYN_GROUPS) {
+        if (th.classList.contains(g)) { shouldHide = !_customPreset[g]; break; }
+      }
+    }
+    th.style.display = shouldHide ? 'none' : '';
+    if (shouldHide) hideTdIndices.add(tdIdx);
+    tdIdx++;
   });
-  applyColVisibility();
+  document.querySelectorAll('#stockTable tbody tr').forEach(tr => {
+    const cells = tr.children;
+    for (let i = 0; i < cells.length; i++) {
+      cells[i].style.display = hideTdIndices.has(i) ? 'none' : '';
+    }
+  });
 }
 
 function showCustomConfig() {
-  // 移除舊的 popup
   const old = document.getElementById('customCfgPopup');
   if (old) { old.remove(); return; }
-
   const popup = document.createElement('div');
   popup.id = 'customCfgPopup';
   popup.className = 'custom-cfg-popup';
-
-  let html = '<div style="font-weight:600;margin-bottom:6px;font-size:.85rem;color:#92400e">自訂欄位設定</div>';
-  COL_GROUPS.forEach(g => {
-    const checked = _customPreset[g.key] ? 'checked' : '';
-    html += `<label><input type="checkbox" value="${g.key}" ${checked} style="margin-right:6px;vertical-align:middle"> ${g.label}</label>`;
+  let html = '<div style="font-weight:600;margin-bottom:8px;font-size:.85rem;color:#92400e">自訂欄位設定</div>';
+  CUSTOM_COLS.forEach(sec => {
+    html += `<div style="font-weight:600;font-size:.78rem;color:#475569;margin:8px 0 2px;border-bottom:1px solid #e2e8f0;padding-bottom:2px">${sec.group}</div>`;
+    html += '<div style="display:flex;flex-wrap:wrap;gap:2px 12px">';
+    sec.cols.forEach(c => {
+      const checked = _customPreset[c.id] ? 'checked' : '';
+      html += `<label style="min-width:80px"><input type="checkbox" value="${c.id}" ${checked} style="margin-right:4px;vertical-align:middle"> ${c.label}</label>`;
+    });
+    html += '</div>';
   });
-  html += '<div style="margin-top:8px;text-align:right"><button onclick="saveCustomConfig()" style="padding:4px 12px;border-radius:4px;border:1px solid #f59e0b;background:#fef3c7;color:#92400e;font-weight:600;cursor:pointer;font-size:.8rem">確定</button></div>';
+  html += '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">';
+  html += '<button onclick="customSelectAll(true)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">全選</button>';
+  html += '<button onclick="customSelectAll(false)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">全不選</button>';
+  html += '<button onclick="saveCustomConfig()" style="padding:4px 14px;border-radius:4px;border:1px solid #f59e0b;background:#fef3c7;color:#92400e;font-weight:600;cursor:pointer;font-size:.8rem">確定</button>';
+  html += '</div>';
   popup.innerHTML = html;
-
-  // 定位：先加到 DOM 取得實際高度，再決定方向
   const cfgBtn = document.querySelector('.custom-cfg-btn');
   const rect = cfgBtn.getBoundingClientRect();
   popup.style.position = 'fixed';
-  popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  popup.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - 320)) + 'px';
   document.body.appendChild(popup);
   const popH = popup.offsetHeight;
   const spaceBelow = window.innerHeight - rect.bottom - 8;
-  if (spaceBelow >= popH) {
-    popup.style.top = (rect.bottom + 4) + 'px';
-  } else {
-    popup.style.top = Math.max(4, rect.top - popH - 4) + 'px';
-  }
-
-  // 點外面關閉
+  popup.style.top = (spaceBelow >= popH) ? (rect.bottom + 4) + 'px' : Math.max(4, rect.top - popH - 4) + 'px';
   setTimeout(() => {
     document.addEventListener('click', function _close(ev) {
-      if (!popup.contains(ev.target) && ev.target !== cfgBtn) {
-        popup.remove();
-        document.removeEventListener('click', _close);
-      }
+      if (!popup.contains(ev.target) && ev.target !== cfgBtn) { popup.remove(); document.removeEventListener('click', _close); }
     });
   }, 50);
+}
+
+function customSelectAll(checked) {
+  document.querySelectorAll('#customCfgPopup input[type=checkbox]').forEach(cb => cb.checked = checked);
 }
 
 function saveCustomConfig() {
   const popup = document.getElementById('customCfgPopup');
   if (!popup) return;
   _customPreset = {};
-  popup.querySelectorAll('input[type=checkbox]').forEach(cb => {
-    if (cb.checked) _customPreset[cb.value] = true;
-  });
+  popup.querySelectorAll('input[type=checkbox]').forEach(cb => { if (cb.checked) _customPreset[cb.value] = true; });
   localStorage.setItem('custom_col_preset', JSON.stringify(_customPreset));
   syncUserSettings();
   popup.remove();
-  // 如果正在自訂模式，立即套用新設定
-  if (_customActive) {
-    COL_GROUPS.forEach(g => {
-      _colVisible[g.key] = !!_customPreset[g.key];
-    });
-    document.querySelectorAll('#colToggleBar .col-btn:not(.custom-btn)').forEach(b => {
-      const key = b.dataset.group;
-      if (key) b.classList.toggle('on', _colVisible[key]);
-    });
-    applyColVisibility();
-  }
+  if (_customActive) applyCustomColumns();
 }
 
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
@@ -2853,6 +2922,7 @@ function render() {
   fixFrozenColumns();
   renderSummary();
   renderFocusPanel();
+  applyCustomColumns();
 }
 
 function renderSummary() {
