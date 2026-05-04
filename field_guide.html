@@ -271,21 +271,21 @@
     <table>
       <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
       <tr>
-        <td class="field">5年EPS成長</td>
-        <td>過去5年 EPS 逐年成長率的算術平均</td>
-        <td><span class="src-calc">計算</span> <span class="formula">最近5個 EPS YoY% 的平均值</span><br>
-        <span class="note">使用 EPS 而非淨利，與聶夫原意一致（每股盈餘成長），且與 PE 公式內部一致。算術平均不受基期年影響。</span></td>
+        <td class="field">5年CAGR</td>
+        <td>過去5年 EPS 複合年成長率</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新EPS / 5年前EPS)^(1/5) - 1</span><br>
+        <span class="note">使用 EPS 而非淨利，與聶夫原意一致（每股盈餘成長），且與 PE 公式內部一致。虧損年排除後取頭尾計算。</span></td>
       </tr>
       <tr>
-        <td class="field">3年EPS成長</td>
-        <td>過去3年 EPS 逐年成長率的算術平均（檢查近期趨勢）</td>
-        <td><span class="src-calc">計算</span> <span class="formula">最近3個 EPS YoY% 的平均值</span><br>
-        <span class="note">若3年成長率明顯低於5年，代表成長正在減速</span></td>
+        <td class="field">3年CAGR</td>
+        <td>過去3年 EPS 複合年成長率（檢查近期趨勢）</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(最新EPS / 3年前EPS)^(1/3) - 1</span><br>
+        <span class="note">若3年CAGR明顯低於5年，代表成長正在減速</span></td>
       </tr>
       <tr>
         <td class="field">保守成長率</td>
-        <td>取兩個成長率中較低者，不額外打折</td>
-        <td><span class="src-calc">計算</span> <span class="formula">min(5年EPS成長, 3年EPS成長)</span><br>
+        <td>取兩個 CAGR 中較低者，不額外打折</td>
+        <td><span class="src-calc">計算</span> <span class="formula">min(5年EPS CAGR, 3年EPS CAGR)</span><br>
         <span class="note">
           取 min 本身就是保守動作（在兩個合理數字中選較不樂觀的）。<br>
           不需要額外乘折扣係數，保守由低本益比提供安全邊際。
@@ -338,14 +338,14 @@
     <table>
       <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
       <tr>
-        <td class="field">5年EPS成長</td>
-        <td>同聶夫的5年EPS成長率（算術平均YoY）</td>
-        <td><span class="src-calc">計算</span> 同聶夫的5年EPS成長率<br>
+        <td class="field">5年CAGR</td>
+        <td>同聶夫的5年 EPS CAGR</td>
+        <td><span class="src-calc">計算</span> 同聶夫的5年EPS CAGR<br>
         <span class="note">林區與聶夫共用同一個成長率數據</span></td>
       </tr>
       <tr>
         <td class="field">算術平均</td>
-        <td>過去5年EPS逐年成長率的簡單平均</td>
+        <td>過去5年EPS逐年成長率的簡單平均（林區用）</td>
         <td><span class="src-calc">計算</span> <span class="formula">Σ(各年EPS YoY成長率) / 年數</span><br>
         <span class="note">例：5年個別成長率為 10%, 15%, 8%, 12%, 20%，算術平均 = 13%</span></td>
       </tr>
