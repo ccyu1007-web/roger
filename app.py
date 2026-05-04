@@ -832,10 +832,10 @@ def get_stocks():
         params.append(market)
     sql += " ORDER BY code ASC"
 
-    # 無篩選時用記憶體快取（30秒）
+    # 無篩選時用記憶體快取（30秒，存 JSON 字串避免重複佔記憶體）
     use_cache = not q and not market and not exact
     if use_cache and _stocks_cache and (_time.time() - _stocks_cache_time < 30):
-        return jsonify(_stocks_cache)
+        return app.response_class(_stocks_cache, content_type='application/json')
 
     rows = query_db(sql, params)
 
@@ -902,10 +902,11 @@ def get_stocks():
         row["_chk_total"] = chk[1] if chk else None
 
     result_data = {"count": len(rows), "data": rows}
+    resp = jsonify(result_data)
     if use_cache:
-        _stocks_cache = result_data
+        _stocks_cache = resp.get_data(as_text=True)  # 存 JSON 字串，不存 dict
         _stocks_cache_time = _time.time()
-    return jsonify(result_data)
+    return resp
 
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
 @app.route("/api/status")
@@ -2318,11 +2319,12 @@ def growth_indicators():
     global _gi_cache, _gi_cache_time
     now = _time.time()
     if _gi_cache is not None and now - _gi_cache_time < 30:
-        return jsonify(_gi_cache)
+        return app.response_class(_gi_cache, content_type='application/json')
     try:
         result = _calc_growth_indicators(_json, _dt)
-        _gi_cache = result.get_json()
+        _gi_cache = result.get_data(as_text=True)  # 存 JSON 字串，不存 dict
         _gi_cache_time = now
+        import gc; gc.collect()
         return result
     except Exception as e:
         traceback.print_exc()
@@ -3073,13 +3075,29 @@ if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'tr
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(timezone='Asia/Taipei')
         # 每 30 分鐘快速更新（股價 + 最新營收 + EPS）
-        scheduler.add_job(quick_update, 'interval', minutes=30,
+        def _run_and_cleanup(func, name):
+            """排程包裝：執行完畢後清快取 + 回收記憶體"""
+            def wrapper():
+                import gc
+                global _stocks_cache, _stocks_cache_time, _gi_cache, _gi_cache_time
+                try:
+                    func()
+                finally:
+                    _stocks_cache = None
+                    _stocks_cache_time = 0
+                    _gi_cache = None
+                    _gi_cache_time = 0
+                    gc.collect()
+                    print(f"[排程] {name} 完成，已清快取+回收記憶體")
+            return wrapper
+
+        scheduler.add_job(_run_and_cleanup(quick_update, 'quick_update'), 'interval', minutes=30,
                           id='quick_update', replace_existing=True)
         # 每天 07:00 完整爬蟲（本機 06:00 跑 28~41 分鐘，錯開 1 小時避免撞車）
-        scheduler.add_job(scraper_run, 'cron', hour=7, minute=0,
+        scheduler.add_job(_run_and_cleanup(scraper_run, 'daily_scrape'), 'cron', hour=7, minute=0,
                           id='daily_scrape', replace_existing=True)
         # 週一到週五 15:30 盤後更新（本機 14:30 跑完+push 約需 40 分鐘）
-        scheduler.add_job(scraper_run, 'cron', day_of_week='mon-fri',
+        scheduler.add_job(_run_and_cleanup(scraper_run, 'afternoon_scrape'), 'cron', day_of_week='mon-fri',
                           hour=15, minute=30,
                           id='afternoon_scrape', replace_existing=True)
         # 三大法人：Render 上群益會被擋，不排程
