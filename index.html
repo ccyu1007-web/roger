@@ -672,7 +672,13 @@ function initColToggle() {
   bar.innerHTML = COL_GROUPS.map(g =>
     `<button class="col-btn ${_colVisible[g.key] ? 'on' : ''}" data-group="${g.key}" onclick="toggleColGroup('${g.key}',this)">${g.label}</button>`
   ).join('') +
-  ' <button class="col-btn custom-btn" id="customColBtn" onclick="toggleCustomMode()" oncontextmenu="showCustomConfig(event)">自訂</button>';
+  ' <button class="col-btn custom-btn" id="customColBtn">自訂</button>';
+  // 短按=切換模式，長按=設定
+  const cBtn = document.getElementById('customColBtn');
+  let _pressTimer = null, _longFired = false;
+  cBtn.addEventListener('pointerdown', () => { _longFired = false; _pressTimer = setTimeout(() => { _longFired = true; showCustomConfig(); }, 500); });
+  cBtn.addEventListener('pointerup', () => { clearTimeout(_pressTimer); if (!_longFired) toggleCustomMode(); });
+  cBtn.addEventListener('pointerleave', () => { clearTimeout(_pressTimer); });
   applyColVisibility();
 }
 
@@ -723,8 +729,7 @@ function toggleCustomMode() {
   applyColVisibility();
 }
 
-function showCustomConfig(e) {
-  e.preventDefault();
+function showCustomConfig() {
   // 移除舊的 popup
   const old = document.getElementById('customCfgPopup');
   if (old) { old.remove(); return; }
