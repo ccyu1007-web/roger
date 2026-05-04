@@ -2394,10 +2394,13 @@ def _calc_growth_indicators(_json, _dt):
             continue
         close = st['close']
 
-        # 建立 {year: eps} 查找表（EPS > 0 的年份）
-        eps_by_year = {r['year']: r['eps'] for r in rows
-                       if r.get('eps') and r['eps'] > 0}
-        # 也保留完整 valid list 供後續用
+        # 端點法用 EPS > 0（避免負數算 CAGR）
+        eps_pos = {r['year']: r['eps'] for r in rows
+                   if r.get('eps') and r['eps'] > 0}
+        # 平滑法用所有有 EPS 的年份（含虧損，平均化會抑制雜訊）
+        eps_all = {r['year']: r['eps'] for r in rows
+                   if r.get('eps') is not None}
+        # valid list（EPS > 0）供林區等後續用
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
                  if r.get('eps') and r['eps'] > 0]
 
@@ -2408,7 +2411,9 @@ def _calc_growth_indicators(_json, _dt):
         nis = [v[1] for v in valid]
         epss = [v[2] for v in valid]
         revs = [v[3] for v in valid]
-        latest_year = years[-1]
+        # latest_year 用全部資料的最新年（含虧損年）
+        all_eps_years = sorted(eps_all.keys())
+        latest_year = all_eps_years[-1] if all_eps_years else years[-1]
 
         # 保留逐年 YoY 供林區使用
         yoy_list = []
@@ -2423,39 +2428,43 @@ def _calc_growth_indicators(_json, _dt):
 
         # ══ 四種成長率（固定 5 年 / 3 年）══
 
-        # ── 5年端點 CAGR：最近EPS vs 5年前EPS，^(1/5)
+        # ── 5年端點 CAGR：最近EPS vs 5年前EPS，^(1/5)（只用 EPS>0）
         cagr_5y_endpoint = None
         y5 = latest_year - 5
-        if y5 in eps_by_year:
-            cagr_5y_endpoint = (eps_by_year[latest_year] / eps_by_year[y5]) ** (1.0 / 5) - 1
+        if latest_year in eps_pos and y5 in eps_pos:
+            cagr_5y_endpoint = (eps_pos[latest_year] / eps_pos[y5]) ** (1.0 / 5) - 1
 
-        # ── 5年平滑 CAGR：近3年均 vs 遠3年均，中點差5年，^(1/5)
+        # ── 5年平滑 CAGR：近3年均 vs 遠3年均，^(1/5)（含虧損年）
         # 遠端 = (Y-7, Y-6, Y-5) 中點 Y-6，近端 = (Y-2, Y-1, Y) 中點 Y-1，差5年
         cagr_5y_smooth = None
-        far3 = [eps_by_year.get(latest_year - i) for i in [7, 6, 5]]
-        near3 = [eps_by_year.get(latest_year - i) for i in [2, 1, 0]]
-        if all(far3) and all(near3):
+        far3 = [eps_all.get(latest_year - i) for i in [7, 6, 5]]
+        near3 = [eps_all.get(latest_year - i) for i in [2, 1, 0]]
+        if all(v is not None for v in far3) and all(v is not None for v in near3):
             far_avg = sum(far3) / 3
             near_avg = sum(near3) / 3
             if far_avg > 0 and near_avg > 0:
                 cagr_5y_smooth = (near_avg / far_avg) ** (1.0 / 5) - 1
+            elif far_avg > 0 and near_avg <= 0:
+                cagr_5y_smooth = -1.0  # 近端平均虧損，成長率視為 -100%
 
-        # ── 3年端點 CAGR：最近EPS vs 3年前EPS，^(1/3)
+        # ── 3年端點 CAGR：最近EPS vs 3年前EPS，^(1/3)（只用 EPS>0）
         cagr_3y_endpoint = None
         y3 = latest_year - 3
-        if y3 in eps_by_year:
-            cagr_3y_endpoint = (eps_by_year[latest_year] / eps_by_year[y3]) ** (1.0 / 3) - 1
+        if latest_year in eps_pos and y3 in eps_pos:
+            cagr_3y_endpoint = (eps_pos[latest_year] / eps_pos[y3]) ** (1.0 / 3) - 1
 
-        # ── 3年平滑 CAGR：近2年均 vs 遠2年均，中點差3年，^(1/3)
+        # ── 3年平滑 CAGR：近2年均 vs 遠2年均，^(1/3)（含虧損年）
         # 遠端 = (Y-4, Y-3) 中點 Y-3.5，近端 = (Y-1, Y) 中點 Y-0.5，差3年
         cagr_3y_smooth = None
-        far2 = [eps_by_year.get(latest_year - i) for i in [4, 3]]
-        near2 = [eps_by_year.get(latest_year - i) for i in [1, 0]]
-        if all(far2) and all(near2):
+        far2 = [eps_all.get(latest_year - i) for i in [4, 3]]
+        near2 = [eps_all.get(latest_year - i) for i in [1, 0]]
+        if all(v is not None for v in far2) and all(v is not None for v in near2):
             far2_avg = sum(far2) / 2
             near2_avg = sum(near2) / 2
             if far2_avg > 0 and near2_avg > 0:
                 cagr_3y_smooth = (near2_avg / far2_avg) ** (1.0 / 3) - 1
+            elif far2_avg > 0 and near2_avg <= 0:
+                cagr_3y_smooth = -1.0
 
         # ══ 保守成長率 = min(四種方法中有值的) ══
         all_cagrs = [c for c in [cagr_5y_endpoint, cagr_5y_smooth, cagr_3y_endpoint, cagr_3y_smooth] if c is not None]
