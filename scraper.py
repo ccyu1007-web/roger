@@ -1527,7 +1527,8 @@ def _fill_missing_financials():
     """
     批次補抓缺任何關鍵資料的股票。
     檢查年報（total_equity/operating_cf/capex/cash_dividend）、
-    季報（inventory/contract_liability）、PE歷史，
+    季報（inventory/contract_liability）、PE歷史、
+    月營收（過去兩年各需12筆），
     缺任一項就跑群益 fetch_all_three 全套抓取。
     每次最多補 50 支，避免跑太久。多跑幾次排程就會全部補齊。
     """
@@ -1552,8 +1553,13 @@ def _fill_missing_financials():
 
     q = latest_q[0]
 
-    # 條件：缺年報關鍵欄位 OR 缺季報存貨/合約負債 OR 缺PE歷史
-    # 排除金融股的存貨檢查
+    # 條件：缺年報關鍵欄位 OR 缺季報存貨/合約負債 OR 缺PE歷史 OR 月營收不足
+    # 排除金融股的存貨檢查、排除 DR 股的月營收檢查
+    # 月營收：過去兩年各需 12 筆，當年度按已過月份檢查
+    today = date.today()
+    # 當年度應有的月數（上上個月以前，因為上個月還在申報中）
+    expected_cur_year = max(today.month - 2, 0)
+
     codes = [r[0] for r in conn.execute("""
         SELECT DISTINCT s.code FROM stocks s
         WHERE s.close IS NOT NULL AND (
@@ -1573,10 +1579,19 @@ def _fill_missing_financials():
             -- 缺PE歷史（EPS > 0 的才需要）
             OR (s.code NOT IN (SELECT DISTINCT code FROM pe_history)
                 AND s.eps_y1 IS NOT NULL AND s.eps_y1 > 0)
+            -- 月營收：過去兩年不足 12 筆（排除 DR 股）
+            OR (s.code NOT LIKE '91%' AND s.code IN (
+                SELECT code FROM (
+                    SELECT s2.code,
+                        (SELECT COUNT(*) FROM monthly_revenue m WHERE m.code=s2.code AND m.year=?) as y1_cnt,
+                        (SELECT COUNT(*) FROM monthly_revenue m WHERE m.code=s2.code AND m.year=?) as y2_cnt
+                    FROM stocks s2 WHERE s2.close IS NOT NULL AND s2.code NOT LIKE '91%'
+                ) WHERE y1_cnt < 12 OR y2_cnt < 12
+            ))
         )
         ORDER BY s.code
         LIMIT 50
-    """, (cur_year - 1, q)).fetchall()]
+    """, (cur_year - 1, q, cur_year - 2, cur_year - 1)).fetchall()]
     conn.close()
 
     if not codes:
@@ -2866,6 +2881,44 @@ def quick_update():
         fetch_mops_monthly_revenue()
     except Exception as e:
         print(f"[MOPS營收] 失敗: {e}")
+
+    # ── 1b2. 15號後：群益補齊當月 MOPS 缺漏 ──
+    if date.today().day >= 15:
+        try:
+            from capital_fetcher import fetch_capital_monthly_revenue
+            # 上個月是申報目標月（5月申報4月營收）
+            target_year = date.today().year
+            target_month = date.today().month - 1
+            if target_month == 0:
+                target_month = 12
+                target_year -= 1
+
+            conn2 = sqlite3.connect(DB_PATH)
+            # 找出該月仍缺月營收的股票（排除 DR 股）
+            missing_codes = [r[0] for r in conn2.execute("""
+                SELECT s.code FROM stocks s
+                WHERE s.close IS NOT NULL AND s.code NOT LIKE '91%'
+                AND s.code NOT IN (
+                    SELECT code FROM monthly_revenue WHERE year=? AND month=?
+                )
+                ORDER BY s.code LIMIT 100
+            """, (target_year, target_month)).fetchall()]
+            conn2.close()
+
+            if missing_codes:
+                cap_filled = 0
+                for code in missing_codes:
+                    try:
+                        n = fetch_capital_monthly_revenue(code)
+                        if n > 0:
+                            cap_filled += 1
+                    except Exception:
+                        pass
+                    time.sleep(random.uniform(0.3, 0.5))
+                if cap_filled:
+                    print(f"[群益補營收] {target_year}/{target_month}月 補齊 {cap_filled}/{len(missing_codes)} 支")
+        except Exception as e:
+            print(f"[群益補營收] 失敗: {e}")
 
     # ── 1c. MOPS 季報（第一優先，累積值自動反算單季）──
     try:
