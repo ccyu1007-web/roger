@@ -3047,7 +3047,10 @@ def quick_update():
                                 break
                         if found_all:
                             single_eps = round(eps - prev_cum, 4)
-                        # 若找不到前季資料，single_eps 保持累計值（不完美但安全）
+                        else:
+                            # 找不到前季資料，無法反算單季 → 跳過，等 MOPS 或群益提供正確單季值
+                            print(f"[EPS] {code} {quarter_label} 累積EPS={eps}，缺前季資料無法反算，跳過")
+                            continue
 
                 # 推移 + 更新
                 c.execute("""
