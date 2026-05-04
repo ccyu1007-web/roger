@@ -778,6 +778,7 @@ function toggleCustomMode() {
     applyColVisibility();
   }
   applyCustomColumns();
+  fixFrozenColumns();
 }
 
 function applyCustomColumns() {
@@ -862,7 +863,7 @@ function saveCustomConfig() {
   localStorage.setItem('custom_col_preset', JSON.stringify(_customPreset));
   syncUserSettings();
   popup.remove();
-  if (_customActive) applyCustomColumns();
+  if (_customActive) { applyCustomColumns(); fixFrozenColumns(); }
 }
 
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
@@ -2925,10 +2926,10 @@ function render() {
   }).join('');
 
   renderPagination();
+  applyCustomColumns();
   fixFrozenColumns();
   renderSummary();
   renderFocusPanel();
-  applyCustomColumns();
 }
 
 function renderSummary() {
