@@ -2558,19 +2558,18 @@ def _calc_growth_indicators(_json, _dt):
             if avg_payout < 1:
                 intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
 
-        # ── 保守成長率上限封頂 + 負值不計算
+        # ── 保守成長率上限封頂
         neff_c = round(neff_c, 2)
         if neff_c > 20:
             neff_c = 20.0  # 超過20%以20%計
         neff_negative = neff_c <= 0
         neff_gray = neff_negative or gap_years >= 2
 
-        if not neff_negative:
-            # 正值才計算 Neff 比率和 PEG
-            total_return = neff_c + yld
-            neff_d = total_return / pe if pe > 0 else None
-            _peg_return = neff_c + yld
-            lynch_d = pe / _peg_return if _peg_return > 0 else None
+        # total return = 成長率 + 殖利率，> 0 就算（衰退但高殖利率仍有意義）
+        total_return = neff_c + yld
+        if total_return > 0 and pe > 0:
+            neff_d = total_return / pe
+            lynch_d = pe / total_return
         else:
             neff_d = None
             lynch_d = None
