@@ -617,6 +617,7 @@ async function loadDecision() {
     const noteData = await noteRes.json();
     const ueData = await ueRes.json();
     const stock = (sData.data || [])[0] || {};
+    updateTitle({ name: stock.name });
 
     // 預估 EPS/股利（使用者手動輸入）
     let _estEps = null, _estDiv = null;
