@@ -1094,6 +1094,8 @@ def sync_news():
 def refresh_institutional():
     # 如果 POST body 有 data，直接批次寫入（從本機同步用）
     if request.is_json and request.json.get('data'):
+        if not check_sync_token():
+            return jsonify({"error": "unauthorized"}), 403
         rows = request.json['data']
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
