@@ -148,7 +148,8 @@ def fetch_capital_quarterly_full(code):
     try:
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[群益季報-zce] {code} 頁面抓取失敗: {e}")
         return 0
 
     from bs4 import BeautifulSoup
@@ -604,7 +605,7 @@ def fetch_capital_financials(code):
                  opex, ad['operating_income'], ad['non_operating'],
                  ad['pretax_income'], ad['net_income'], ad['eps'], now_str))
             annual_saved += 1
-        except Exception: pass
+        except Exception as e: logger.debug(f"[群益年報] {code} {yr} 寫入失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -686,7 +687,7 @@ def fetch_capital_balance_sheet(code):
                 updated_at=excluded.updated_at""",
                 (code, yr, ta, te, cs, inv, cl, now_str))
             saved += 1
-        except Exception: pass
+        except Exception as e: logger.debug(f"[群益BS] {code} {yr} 寫入失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -778,7 +779,7 @@ def fetch_capital_contract_liability(code):
             c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code = ? AND quarter = ?", vals)
             if c.rowcount:
                 saved += 1
-        except Exception: pass
+        except Exception as e: logger.debug(f"[群益季BS] {code} 寫入失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -794,7 +795,8 @@ def fetch_capital_dividend(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[群益股利] {code} 頁面抓取失敗: {e}")
         return 0
 
     tds = soup.find_all('td', class_=re.compile(r't3n[01]'))
@@ -826,7 +828,7 @@ def fetch_capital_dividend(code):
                         updated_at = excluded.updated_at""",
                         (code, year, cash_div, stock_div_total, now_str))
                     saved += 1
-                except Exception: pass
+                except Exception as e: logger.debug(f"[群益股利] {code} {year} 寫入失敗: {e}")
             i += 9
         else:
             i += 1
@@ -900,7 +902,7 @@ def fetch_capital_cashflow(code):
                 updated_at=excluded.updated_at""",
                 (code, yr, ocf, capex, now_str))
             saved += 1
-        except Exception: pass
+        except Exception as e: logger.debug(f"[群益CF] {code} {yr} 寫入失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -916,7 +918,8 @@ def fetch_capital_annual_eps(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[群益年度EPS] {code} 頁面抓取失敗: {e}")
         return {}
 
     spans = soup.find_all('span', class_=lambda c: c and 'table-cell' in c)
@@ -978,7 +981,7 @@ def fetch_capital_annual_eps(code):
                           (shares, code, west_year))
             conn.commit()
             conn.close()
-        except Exception: pass
+        except Exception as e: logger.debug(f"[群益股數] {code} 寫入失敗: {e}")
 
     return result
 
@@ -1002,7 +1005,7 @@ def fetch_capital_annual_eps_batch(codes):
                 data = f.result()
                 if data:
                     result[code] = data
-            except Exception: pass
+            except Exception as e: logger.debug(f"[群益批次] {code} 失敗: {e}")
 
     print(f"[群益年度EPS] 完成：{len(result)}/{len(codes)} 支有資料，耗時 {time.time()-t0:.1f}s")
     return result
@@ -1017,7 +1020,8 @@ def fetch_capital_monthly_revenue(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[群益月營收] {code} 頁面抓取失敗: {e}")
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -1062,7 +1066,7 @@ def fetch_capital_monthly_revenue(code):
                     revenue=excluded.revenue, updated_at=excluded.updated_at""",
                     (code, west_year, month, revenue, now_str))
                 saved += 1
-            except Exception: pass
+            except Exception as e: logger.debug(f"[群益月營收] {code} {west_year}/{month} 寫入失敗: {e}")
 
     # 更新 stocks 表的營收日期（取 monthly_revenue 中最新月份）
     if saved > 0:
@@ -1080,8 +1084,8 @@ def fetch_capital_monthly_revenue(code):
                         (now_str[:10], latest[0], latest[1], code))
                     conn2.commit()
             conn2.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[群益月營收] {code} stocks更新失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -1099,7 +1103,8 @@ def fetch_capital_pe_history(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[群益PE] {code} 頁面抓取失敗: {e}")
         return 0
 
     years = []
@@ -1153,7 +1158,7 @@ def fetch_capital_pe_history(code):
                 updated_at=excluded.updated_at""",
                 (code, yr, pe_h, pe_l, now_str))
             saved += 1
-        except Exception: pass
+        except Exception as e: logger.debug(f"[群益PE] {code} {yr} 寫入失敗: {e}")
 
     conn.commit()
     conn.close()
@@ -1528,7 +1533,8 @@ def backfill_financial_detail(force=False):
                 fail_streak = 0
             else:
                 fail_streak += 1
-        except Exception:
+        except Exception as e:
+            logger.debug(f"[群益全套] {code} 失敗: {e}")
             fail_streak += 1
 
         if (done + fail_streak) % 50 == 0:
