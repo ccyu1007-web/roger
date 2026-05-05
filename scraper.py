@@ -1874,6 +1874,51 @@ def _sync_contract_from_quarterly():
         print(f"  [合約負債同步] 從 quarterly_financial 同步 {updated} 支到 stocks 表")
 
 
+def _capital_quarterly_validation():
+    """
+    群益季報主動校驗：找出 MOPS 更新 7~14 天的季度，主動用群益比對。
+    歷史季度（>14天）在 capital_fetcher 寫入時已直接覆蓋，這裡只處理「剛過校驗期」的。
+    每次最多處理 30 支，避免過度請求群益。
+    """
+    from datetime import timedelta
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # 找出 7~14 天前由 MOPS 更新的季度（這些已過即時期，可以用群益校驗）
+    now = datetime.now()
+    date_7 = (now - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+    date_14 = (now - timedelta(days=14)).strftime('%Y-%m-%d %H:%M:%S')
+
+    rows = c.execute("""
+        SELECT DISTINCT code FROM quarterly_financial
+        WHERE updated_at BETWEEN ? AND ?
+        ORDER BY code
+        LIMIT 30
+    """, (date_14, date_7)).fetchall()
+    conn.close()
+
+    if not rows:
+        return
+
+    codes = [r[0] for r in rows]
+    print(f"[群益校驗] 找到 {len(codes)} 支需校驗（MOPS 更新 7~14 天）")
+
+    from capital_fetcher import fetch_company_quarterly
+    validated = 0
+    for code in codes:
+        try:
+            fetch_company_quarterly(code)
+            validated += 1
+        except Exception:
+            pass
+        time.sleep(random.uniform(0.3, 0.5))
+
+    if validated:
+        print(f"[群益校驗] 完成 {validated}/{len(codes)} 支")
+        # 校驗後重新同步 EPS 到 stocks 表
+        _sync_eps_from_quarterly()
+
+
 def _sync_eps_from_quarterly():
     """從 quarterly_financial 正確排序後回寫 stocks 表的 eps_1~eps_5 + eps_ytd"""
     conn = sqlite3.connect(DB_PATH)
@@ -2779,11 +2824,17 @@ def quick_update():
     except Exception: pass
 
     init_db()
+
+    # ── 1. MOPS 即時營收（第一優先，公司申報後立即可見）──
+    try:
+        from mops_fetcher import fetch_mops_monthly_revenue
+        fetch_mops_monthly_revenue()
+    except Exception as e:
+        print(f"[MOPS營收] 失敗: {e}")
+
+    # ── 1a. 政府 API 批次營收（補充 MOPS 未覆蓋的，不降級已有月份）──
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-
-    # ── 1. 批次營收（TWSE + TPEX）──
-    # 使用政府 t187ap05 API 的官方數值（比 FinMind 自算更準確）
     rev_updated = 0
     rev_corrected = 0
     for label, url in [
@@ -2837,7 +2888,7 @@ def quick_update():
                 continue
             old_y, old_m = row[0], row[1]
 
-            # 同月份 → 用政府官方值覆蓋 yoy/mom/cum_yoy（確保數據正確）
+            # 同月份 → 用政府官方值補充 yoy/mom/cum_yoy（MOPS 不提供這些欄位）
             # 新月份 → 更新 revenue_date/year/month
             # 舊月份（MOPS 已更新到更新的月份）→ 跳過，不降級
             if old_y is not None and old_m is not None:
@@ -2846,7 +2897,10 @@ def quick_update():
                     continue
             if old_y == west_year and old_m == month:
                 c.execute("""UPDATE stocks SET
-                    revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, revenue_note=?
+                    revenue_yoy=COALESCE(revenue_yoy, ?),
+                    revenue_mom=COALESCE(revenue_mom, ?),
+                    revenue_cum_yoy=COALESCE(revenue_cum_yoy, ?),
+                    revenue_note=COALESCE(revenue_note, ?)
                     WHERE code=?""", (yoy, mom, cum_yoy, note, code))
             else:
                 c.execute("""UPDATE stocks SET
@@ -2859,13 +2913,6 @@ def quick_update():
     conn.commit()
     conn.close()
     print(f"[營收] 更新 {rev_updated} 支")
-
-    # ── 1b. MOPS 即時營收（第一優先，比 t187ap05 更即時）──
-    try:
-        from mops_fetcher import fetch_mops_monthly_revenue
-        fetch_mops_monthly_revenue()
-    except Exception as e:
-        print(f"[MOPS營收] 失敗: {e}")
 
     # ── 1b2. 15號後：群益補齊當月 MOPS 缺漏 ──
     if date.today().day >= 15:
@@ -2914,6 +2961,12 @@ def quick_update():
             _sync_eps_from_quarterly()
     except Exception as e:
         print(f"[MOPS季報] 失敗: {e}")
+
+    # ── 1d. 群益季報主動校驗（MOPS 更新 7~14 天後，自動比對）──
+    try:
+        _capital_quarterly_validation()
+    except Exception as e:
+        print(f"[群益校驗] 失敗: {e}")
 
     # ── 2. 批次 EPS（TWSE + TPEX）──
     # t187ap14 的 EPS 是「累計」值：

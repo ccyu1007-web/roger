@@ -188,60 +188,27 @@ def fetch_capital_financials(code):
         if gross_profit is not None and operating_income is not None:
             opex = round(gross_profit - operating_income, 4)
 
-        # 群益損益表：先校驗 MOPS 已有值，異常才覆蓋，否則只補空欄位
+        # 群益損益表寫入策略：
+        #   歷史季度（>14天）→ 群益直接覆蓋（群益是歷史資料權威來源）
+        #   最新一季（≤14天內 MOPS 寫入）→ 走校驗邏輯（MOPS 即時優先，群益校驗）
         try:
-            # 讀取 MOPS 已有值做比對
             existing = c.execute("""SELECT revenue, eps, operating_income, pretax_income, updated_at
                 FROM quarterly_financial WHERE code=? AND quarter=?""",
                 (code, quarter_label)).fetchone()
 
-            capital_override = False  # 是否用群益覆蓋
-            if existing and existing[0] is not None and revenue is not None:
-                # MOPS 已有值，進行交叉校驗
-                mops_rev = existing[0]
-                mops_eps = existing[1]
-                # 檢查差異率（營收和EPS）
-                rev_diff_pct = abs(revenue - mops_rev) / abs(mops_rev) * 100 if mops_rev != 0 else 0
-                eps_diff = abs(eps - mops_eps) if (eps is not None and mops_eps is not None) else 0
+            # 判斷是否為 MOPS 近期寫入的最新一季
+            is_recent_mops = False
+            if existing and existing[4]:
+                try:
+                    from datetime import timedelta
+                    updated_dt = datetime.strptime(existing[4], '%Y-%m-%d %H:%M:%S')
+                    if (datetime.now() - updated_dt).days <= 14:
+                        is_recent_mops = True
+                except Exception:
+                    pass
 
-                if rev_diff_pct > 5 or eps_diff > 0.5:
-                    # 差異大，記入 cross_validation
-                    import json
-                    mismatch_detail = {
-                        'type': 'quarterly_capital_vs_mops',
-                        'code': code, 'quarter': quarter_label,
-                        'capital': {'revenue': revenue, 'eps': eps},
-                        'mops': {'revenue': mops_rev, 'eps': mops_eps},
-                        'rev_diff_pct': round(rev_diff_pct, 2),
-                        'eps_diff': round(eps_diff, 4)
-                    }
-                    try:
-                        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
-                            mismatch_count INTEGER, details TEXT)""")
-                        c.execute("""INSERT INTO cross_validation
-                            (checked_at, sample_size, ok_count, mismatch_count, details)
-                            VALUES (?,1,0,1,?)""",
-                            (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
-                    except Exception:
-                        pass
-                    logger.warning(f"[校驗] {code} {quarter_label} 群益vs MOPS 差異大: "
-                                   f"營收差{rev_diff_pct:.1f}% EPS差{eps_diff:.4f}")
-
-                    # 判斷 MOPS 是否明顯異常（單季營收為負、EPS 方向相反等）
-                    mops_anomaly = False
-                    if mops_rev < 0 and revenue > 0:
-                        mops_anomaly = True  # MOPS 反算出負營收
-                    if mops_eps is not None and eps is not None:
-                        if mops_eps < 0 and eps > 0 and abs(eps) > 0.5:
-                            mops_anomaly = True  # MOPS EPS 為負但群益為正（可能反算錯）
-                    if mops_anomaly:
-                        capital_override = True
-                        logger.warning(f"[校驗] {code} {quarter_label} MOPS 明顯異常，以群益資料覆蓋")
-
-            if capital_override:
-                # MOPS 異常，群益直接覆蓋
+            if not is_recent_mops:
+                # 歷史季度或無資料：群益直接覆蓋
                 c.execute("""INSERT INTO quarterly_financial
                     (code, quarter, revenue, cost, gross_profit, operating_expense,
                      operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
@@ -260,24 +227,86 @@ def fetch_capital_financials(code):
                     (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
                      non_operating, pretax_income, net_income, eps, now_str))
             else:
-                # 正常情況：COALESCE 只補空欄位
-                c.execute("""INSERT INTO quarterly_financial
-                    (code, quarter, revenue, cost, gross_profit, operating_expense,
-                     operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                    ON CONFLICT(code, quarter) DO UPDATE SET
-                    revenue=COALESCE(quarterly_financial.revenue, excluded.revenue),
-                    cost=COALESCE(quarterly_financial.cost, excluded.cost),
-                    gross_profit=COALESCE(quarterly_financial.gross_profit, excluded.gross_profit),
-                    operating_expense=COALESCE(quarterly_financial.operating_expense, excluded.operating_expense),
-                    operating_income=COALESCE(quarterly_financial.operating_income, excluded.operating_income),
-                    non_operating=COALESCE(quarterly_financial.non_operating, excluded.non_operating),
-                    pretax_income=COALESCE(quarterly_financial.pretax_income, excluded.pretax_income),
-                    net_income_parent=COALESCE(quarterly_financial.net_income_parent, excluded.net_income_parent),
-                    eps=COALESCE(quarterly_financial.eps, excluded.eps),
-                    updated_at=excluded.updated_at""",
-                    (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
-                     non_operating, pretax_income, net_income, eps, now_str))
+                # 最新一季（MOPS 14天內寫入）：校驗邏輯
+                mops_rev = existing[0]
+                mops_eps = existing[1]
+                capital_override = False
+
+                if mops_rev is not None and revenue is not None:
+                    rev_diff_pct = abs(revenue - mops_rev) / abs(mops_rev) * 100 if mops_rev != 0 else 0
+                    eps_diff = abs(eps - mops_eps) if (eps is not None and mops_eps is not None) else 0
+
+                    if rev_diff_pct > 5 or eps_diff > 0.5:
+                        # 差異大，記入 cross_validation
+                        import json
+                        mismatch_detail = {
+                            'type': 'quarterly_capital_vs_mops',
+                            'code': code, 'quarter': quarter_label,
+                            'capital': {'revenue': revenue, 'eps': eps},
+                            'mops': {'revenue': mops_rev, 'eps': mops_eps},
+                            'rev_diff_pct': round(rev_diff_pct, 2),
+                            'eps_diff': round(eps_diff, 4)
+                        }
+                        try:
+                            c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
+                                mismatch_count INTEGER, details TEXT)""")
+                            c.execute("""INSERT INTO cross_validation
+                                (checked_at, sample_size, ok_count, mismatch_count, details)
+                                VALUES (?,1,0,1,?)""",
+                                (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
+                        except Exception:
+                            pass
+                        logger.warning(f"[校驗] {code} {quarter_label} 群益vs MOPS 差異大: "
+                                       f"營收差{rev_diff_pct:.1f}% EPS差{eps_diff:.4f}")
+
+                        # MOPS 明顯異常才覆蓋
+                        if mops_rev < 0 and revenue > 0:
+                            capital_override = True
+                        if mops_eps is not None and eps is not None:
+                            if mops_eps < 0 and eps > 0 and abs(eps) > 0.5:
+                                capital_override = True
+                        if capital_override:
+                            logger.warning(f"[校驗] {code} {quarter_label} MOPS 明顯異常，以群益資料覆蓋")
+
+                if capital_override:
+                    c.execute("""INSERT INTO quarterly_financial
+                        (code, quarter, revenue, cost, gross_profit, operating_expense,
+                         operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                        ON CONFLICT(code, quarter) DO UPDATE SET
+                        revenue=excluded.revenue,
+                        cost=excluded.cost,
+                        gross_profit=excluded.gross_profit,
+                        operating_expense=excluded.operating_expense,
+                        operating_income=excluded.operating_income,
+                        non_operating=excluded.non_operating,
+                        pretax_income=excluded.pretax_income,
+                        net_income_parent=excluded.net_income_parent,
+                        eps=excluded.eps,
+                        updated_at=excluded.updated_at""",
+                        (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
+                         non_operating, pretax_income, net_income, eps, now_str))
+                else:
+                    # MOPS 正常，只補空欄位
+                    c.execute("""INSERT INTO quarterly_financial
+                        (code, quarter, revenue, cost, gross_profit, operating_expense,
+                         operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                        ON CONFLICT(code, quarter) DO UPDATE SET
+                        revenue=COALESCE(quarterly_financial.revenue, excluded.revenue),
+                        cost=COALESCE(quarterly_financial.cost, excluded.cost),
+                        gross_profit=COALESCE(quarterly_financial.gross_profit, excluded.gross_profit),
+                        operating_expense=COALESCE(quarterly_financial.operating_expense, excluded.operating_expense),
+                        operating_income=COALESCE(quarterly_financial.operating_income, excluded.operating_income),
+                        non_operating=COALESCE(quarterly_financial.non_operating, excluded.non_operating),
+                        pretax_income=COALESCE(quarterly_financial.pretax_income, excluded.pretax_income),
+                        net_income_parent=COALESCE(quarterly_financial.net_income_parent, excluded.net_income_parent),
+                        eps=COALESCE(quarterly_financial.eps, excluded.eps),
+                        updated_at=excluded.updated_at""",
+                        (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
+                         non_operating, pretax_income, net_income, eps, now_str))
             quarterly_saved += 1
         except Exception as e:
             logger.warning(f"[群益季報] {code} {quarter_label} 寫入失敗: {e}")
