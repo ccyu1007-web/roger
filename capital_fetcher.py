@@ -29,6 +29,10 @@ from fetcher_utils import (
 
 _session = create_session()
 
+# 季度排序 SQL（數值排序，避免字串排序 "99Q4" > "114Q4" 的錯誤）
+_Q_ORDER_DESC = """ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                           CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC"""
+
 
 def _fetch_page(url):
     """抓取群益頁面並解析 table-cell"""
@@ -1185,11 +1189,9 @@ def sync_to_stocks(code):
                   (code,))
 
     # 3. 季度EPS（eps_1~5）— 從 quarterly_financial 取最近5季
-    rows = c.execute("""SELECT quarter, eps FROM quarterly_financial
+    rows = c.execute(f"""SELECT quarter, eps FROM quarterly_financial
                        WHERE code=? AND eps IS NOT NULL
-                       ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) * 10
-                              + CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-                       LIMIT 5""", (code,)).fetchall()
+                       {_Q_ORDER_DESC} LIMIT 5""", (code,)).fetchall()
     for i, r in enumerate(rows, 1):
         c.execute(f"UPDATE stocks SET eps_{i}=?, eps_{i}q=? WHERE code=?",
                   (r[1], r[0], code))
@@ -1199,29 +1201,23 @@ def sync_to_stocks(code):
     # 群益是補充資料來源，不應該覆蓋 eps_date
 
     # 4. 合約負債（contract_1~3）— 從 quarterly_financial 取最近3季
-    rows = c.execute("""SELECT quarter, contract_liability FROM quarterly_financial
+    rows = c.execute(f"""SELECT quarter, contract_liability FROM quarterly_financial
                        WHERE code=? AND contract_liability IS NOT NULL
-                       ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) * 10
-                              + CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-                       LIMIT 3""", (code,)).fetchall()
+                       {_Q_ORDER_DESC} LIMIT 3""", (code,)).fetchall()
     for i, r in enumerate(rows, 1):
         c.execute(f"UPDATE stocks SET contract_{i}=?, contract_{i}q=? WHERE code=?",
                   (r[1], r[0], code))
 
     # 5. 近四季EPS合計
-    eps_rows = c.execute("""SELECT eps FROM quarterly_financial
+    eps_rows = c.execute(f"""SELECT eps FROM quarterly_financial
                            WHERE code=? AND eps IS NOT NULL
-                           ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) * 10
-                                  + CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-                           LIMIT 4""", (code,)).fetchall()
+                           {_Q_ORDER_DESC} LIMIT 4""", (code,)).fetchall()
     if len(eps_rows) == 4:
         ytd = round(sum(r[0] for r in eps_rows), 2)
         # eps_ytd_label = 最新一季的年度
-        latest_q = c.execute("""SELECT quarter FROM quarterly_financial
+        latest_q = c.execute(f"""SELECT quarter FROM quarterly_financial
                                WHERE code=? AND eps IS NOT NULL
-                               ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) * 10
-                                      + CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-                               LIMIT 1""", (code,)).fetchone()
+                               {_Q_ORDER_DESC} LIMIT 1""", (code,)).fetchone()
         ytd_label = latest_q[0].split('Q')[0] if latest_q else None
         c.execute("UPDATE stocks SET eps_ytd=?, eps_ytd_label=? WHERE code=?",
                   (ytd, ytd_label, code))
