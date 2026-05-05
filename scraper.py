@@ -1317,7 +1317,7 @@ def run(scheduled=True):
         # eps_date 只在季度 EPS (eps_1q) 真正變更時才更新，年度 EPS 合併不觸發
 
         # 寫回最近 6 年
-        sorted_yrs = sorted(merged.keys(), reverse=True)[:6]
+        sorted_yrs = sorted(merged.keys(), key=int, reverse=True)[:6]
         for i, yr in enumerate(sorted_yrs, 1):
             r[f'eps_y{i}'] = merged[yr]
             r[f'eps_y{i}_label'] = yr
