@@ -1903,11 +1903,11 @@ def _capital_quarterly_validation():
     codes = [r[0] for r in rows]
     print(f"[群益校驗] 找到 {len(codes)} 支需校驗（MOPS 更新 7~14 天）")
 
-    from capital_fetcher import fetch_company_quarterly
+    from capital_fetcher import fetch_capital_quarterly_full
     validated = 0
     for code in codes:
         try:
-            fetch_company_quarterly(code)
+            fetch_capital_quarterly_full(code)
             validated += 1
         except Exception:
             pass
@@ -2504,7 +2504,7 @@ def _fetch_financials_finmind(code):
                    :common_stock, :operating_cf, :capex, :eps,
                    :cash_dividend, :stock_dividend, :updated_at)
                 ON CONFLICT(code, year) DO UPDATE SET
-                  -- 損益表共用欄位：不覆蓋已有值（群益優先）
+                  -- FinMind 僅作補充：所有欄位都不覆蓋已有值（群益/MOPS 優先）
                   revenue = COALESCE(revenue, excluded.revenue),
                   cost = COALESCE(cost, excluded.cost),
                   gross_profit = COALESCE(gross_profit, excluded.gross_profit),
@@ -2512,19 +2512,17 @@ def _fetch_financials_finmind(code):
                   pretax_income = COALESCE(pretax_income, excluded.pretax_income),
                   net_income = COALESCE(net_income, excluded.net_income),
                   eps = COALESCE(eps, excluded.eps),
-                  -- 群益有提供的欄位：不覆蓋已有值
                   operating_expense = COALESCE(operating_expense, excluded.operating_expense),
                   non_operating = COALESCE(non_operating, excluded.non_operating),
-                  -- FinMind 獨有/補充欄位：群益年報無直接提供，優先用 FinMind
-                  tax = COALESCE(excluded.tax, tax),
-                  net_income_parent = COALESCE(excluded.net_income_parent, net_income_parent),
-                  total_assets = COALESCE(excluded.total_assets, total_assets),
-                  total_equity = COALESCE(excluded.total_equity, total_equity),
-                  common_stock = COALESCE(excluded.common_stock, common_stock),
-                  operating_cf = COALESCE(excluded.operating_cf, operating_cf),
-                  capex = COALESCE(excluded.capex, capex),
-                  cash_dividend = COALESCE(excluded.cash_dividend, cash_dividend),
-                  stock_dividend = COALESCE(excluded.stock_dividend, stock_dividend),
+                  tax = COALESCE(tax, excluded.tax),
+                  net_income_parent = COALESCE(net_income_parent, excluded.net_income_parent),
+                  total_assets = COALESCE(total_assets, excluded.total_assets),
+                  total_equity = COALESCE(total_equity, excluded.total_equity),
+                  common_stock = COALESCE(common_stock, excluded.common_stock),
+                  operating_cf = COALESCE(operating_cf, excluded.operating_cf),
+                  capex = COALESCE(capex, excluded.capex),
+                  cash_dividend = COALESCE(cash_dividend, excluded.cash_dividend),
+                  stock_dividend = COALESCE(stock_dividend, excluded.stock_dividend),
                   updated_at = excluded.updated_at
             """, {
                 'code': row['code'], 'year': row['year'],
@@ -2578,6 +2576,11 @@ def init_quarterly_db():
             PRIMARY KEY (code, quarter)
         )
     """)
+    # 新增欄位（既有 DB 可能缺 weighted_shares）
+    try:
+        c.execute("ALTER TABLE quarterly_financial ADD COLUMN weighted_shares REAL")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 

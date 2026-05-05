@@ -115,10 +115,252 @@ def _extract_quarterly_data(texts, row_labels):
     return result
 
 
-# ── 損益表（季表，用原本的 zce 格式）────────────────────────
+# ── 完整損益表（季表，zcq 格式，含所得稅/繼續營業/歸屬母公司）────────
+
+# zcq 行標籤 → DB 欄位對照（用 startswith 匹配，避免全名不一致）
+_ZCQ_ROW_MAP = {
+    '營業收入淨額': 'revenue',
+    '營業成本': 'cost',
+    '營業毛利': 'gross_profit',
+    '營業費用': 'operating_expense',
+    '營業利益': 'operating_income',
+    '營業外收入及支出': 'non_operating',
+    '稅前淨利': 'pretax_income',
+    '所得稅費用': 'tax',
+    '繼續營業單位損益': 'continuing_income',
+    '歸屬母公司淨利（損）': 'net_income_parent',
+    '每股盈餘': 'eps',
+    '加權平均股數': 'weighted_shares',
+}
+
+
+def fetch_capital_quarterly_full(code):
+    """
+    從群益 zcq/zcq.djhtm 抓取完整季損益表。
+    包含所得稅費用、繼續營業單位損益、歸屬母公司淨利、加權平均股數。
+    回傳更新筆數。
+    """
+    url = f"https://stock.capital.com.tw/z/zc/zcq/zcq.djhtm?a={code}"
+    try:
+        r = _session.get(url, timeout=15)
+        r.encoding = 'big5'
+    except Exception:
+        return 0
+
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(r.text, 'html.parser')
+    cells = soup.find_all(class_=lambda x: x and 'table-cell' in x)
+    texts = [c.get_text(strip=True) for c in cells if c.get_text(strip=True)]
+
+    if len(texts) < 18:
+        return 0
+
+    # 解析期別（第一行 index 0~8）
+    # texts[0] = '期別', texts[1]~[8] = '2025.4Q', '2025.3Q', ...
+    quarters = []
+    for i in range(1, 9):
+        if i >= len(texts):
+            break
+        q_text = texts[i]  # e.g. "2025.4Q"
+        m = re.match(r'(\d+)\.(\d+)Q', q_text)
+        if m:
+            west_year = int(m.group(1))
+            quarter = int(m.group(2))
+            roc_year = west_year - 1911
+            quarters.append({'label': f"{roc_year}Q{quarter}", 'west_year': west_year})
+        else:
+            quarters.append(None)
+
+    n_cols = len(quarters)
+    if n_cols == 0:
+        return 0
+
+    # 解析各行資料
+    row_size = n_cols + 1  # 1 label + n_cols data
+    data_rows = {}  # {db_field: [val_q1, val_q2, ...]}
+
+    for i in range(0, len(texts), row_size):
+        if i >= len(texts):
+            break
+        label = texts[i]
+        # 匹配行標籤
+        matched_field = None
+        for row_label, db_field in _ZCQ_ROW_MAP.items():
+            if label == row_label or label.startswith(row_label):
+                matched_field = db_field
+                break
+        if not matched_field:
+            continue
+        # 已經有更精確的匹配就跳過（避免「營業收入毛額」先匹配到「營業收入」）
+        if matched_field in data_rows:
+            continue
+
+        vals = []
+        for j in range(1, n_cols + 1):
+            idx = i + j
+            if idx < len(texts):
+                vals.append(_parse_num(texts[idx]))
+            else:
+                vals.append(None)
+        data_rows[matched_field] = vals
+
+    # 寫入 quarterly_financial
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    saved = 0
+    mul = 1000000  # 群益單位百萬
+
+    for qi, q_info in enumerate(quarters):
+        if q_info is None:
+            continue
+        quarter_label = q_info['label']
+
+        # 組合該季度的資料
+        row_data = {}
+        for field, vals in data_rows.items():
+            if qi < len(vals) and vals[qi] is not None:
+                if field == 'eps':
+                    row_data[field] = vals[qi]  # EPS 不乘百萬
+                elif field == 'weighted_shares':
+                    row_data[field] = vals[qi] * 1000  # 加權股數單位是仟股，乘1000
+                else:
+                    row_data[field] = vals[qi] * mul
+            else:
+                row_data[field] = None
+
+        # 至少要有 revenue 或 eps 才寫入
+        if row_data.get('revenue') is None and row_data.get('eps') is None:
+            continue
+
+        # 判斷是否為最新一季（14天內 MOPS 寫入）→ 走校驗邏輯
+        from datetime import timedelta
+        existing = c.execute("""SELECT revenue, eps, updated_at
+            FROM quarterly_financial WHERE code=? AND quarter=?""",
+            (code, quarter_label)).fetchone()
+
+        is_recent_mops = False
+        if existing and existing[2]:
+            try:
+                updated_dt = datetime.strptime(existing[2], '%Y-%m-%d %H:%M:%S')
+                if (datetime.now() - updated_dt).days <= 14:
+                    is_recent_mops = True
+            except Exception:
+                pass
+
+        if not is_recent_mops:
+            # 歷史季度：群益直接覆蓋（權威來源）
+            c.execute("""INSERT INTO quarterly_financial
+                (code, quarter, revenue, cost, gross_profit, operating_expense,
+                 operating_income, non_operating, pretax_income, tax,
+                 continuing_income, net_income_parent, eps, weighted_shares, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(code, quarter) DO UPDATE SET
+                revenue=excluded.revenue,
+                cost=excluded.cost,
+                gross_profit=excluded.gross_profit,
+                operating_expense=excluded.operating_expense,
+                operating_income=excluded.operating_income,
+                non_operating=excluded.non_operating,
+                pretax_income=excluded.pretax_income,
+                tax=excluded.tax,
+                continuing_income=excluded.continuing_income,
+                net_income_parent=excluded.net_income_parent,
+                eps=excluded.eps,
+                weighted_shares=excluded.weighted_shares,
+                updated_at=excluded.updated_at""",
+                (code, quarter_label,
+                 row_data.get('revenue'), row_data.get('cost'), row_data.get('gross_profit'),
+                 row_data.get('operating_expense'), row_data.get('operating_income'),
+                 row_data.get('non_operating'), row_data.get('pretax_income'),
+                 row_data.get('tax'), row_data.get('continuing_income'),
+                 row_data.get('net_income_parent'), row_data.get('eps'),
+                 row_data.get('weighted_shares'), now_str))
+        else:
+            # 最新一季：校驗 MOPS，差異大才記錄，異常才覆蓋
+            mops_rev = existing[0]
+            mops_eps = existing[1]
+            capital_rev = row_data.get('revenue')
+            capital_eps = row_data.get('eps')
+            capital_override = False
+
+            if mops_rev is not None and capital_rev is not None and mops_rev != 0:
+                rev_diff_pct = abs(capital_rev - mops_rev) / abs(mops_rev) * 100
+                eps_diff = abs(capital_eps - mops_eps) if (capital_eps is not None and mops_eps is not None) else 0
+
+                if rev_diff_pct > 5 or eps_diff > 0.5:
+                    import json
+                    mismatch_detail = {
+                        'type': 'quarterly_zcq_vs_mops',
+                        'code': code, 'quarter': quarter_label,
+                        'capital': {'revenue': capital_rev, 'eps': capital_eps},
+                        'mops': {'revenue': mops_rev, 'eps': mops_eps},
+                        'rev_diff_pct': round(rev_diff_pct, 2),
+                        'eps_diff': round(eps_diff, 4) if eps_diff else 0
+                    }
+                    try:
+                        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
+                            mismatch_count INTEGER, details TEXT)""")
+                        c.execute("""INSERT INTO cross_validation
+                            (checked_at, sample_size, ok_count, mismatch_count, details)
+                            VALUES (?,1,0,1,?)""",
+                            (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
+                    except Exception:
+                        pass
+                    logger.warning(f"[zcq校驗] {code} {quarter_label} 差異大: 營收差{rev_diff_pct:.1f}%")
+
+                    # MOPS 明顯異常才覆蓋
+                    if mops_rev < 0 and capital_rev > 0:
+                        capital_override = True
+                    if mops_eps is not None and capital_eps is not None:
+                        if mops_eps < 0 and capital_eps > 0 and abs(capital_eps) > 0.5:
+                            capital_override = True
+
+            if capital_override:
+                c.execute("""INSERT INTO quarterly_financial
+                    (code, quarter, revenue, cost, gross_profit, operating_expense,
+                     operating_income, non_operating, pretax_income, tax,
+                     continuing_income, net_income_parent, eps, weighted_shares, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(code, quarter) DO UPDATE SET
+                    revenue=excluded.revenue, cost=excluded.cost,
+                    gross_profit=excluded.gross_profit, operating_expense=excluded.operating_expense,
+                    operating_income=excluded.operating_income, non_operating=excluded.non_operating,
+                    pretax_income=excluded.pretax_income, tax=excluded.tax,
+                    continuing_income=excluded.continuing_income, net_income_parent=excluded.net_income_parent,
+                    eps=excluded.eps, weighted_shares=excluded.weighted_shares,
+                    updated_at=excluded.updated_at""",
+                    (code, quarter_label,
+                     row_data.get('revenue'), row_data.get('cost'), row_data.get('gross_profit'),
+                     row_data.get('operating_expense'), row_data.get('operating_income'),
+                     row_data.get('non_operating'), row_data.get('pretax_income'),
+                     row_data.get('tax'), row_data.get('continuing_income'),
+                     row_data.get('net_income_parent'), row_data.get('eps'),
+                     row_data.get('weighted_shares'), now_str))
+            else:
+                # MOPS 正常：只補空欄位（tax/continuing_income/net_income_parent/weighted_shares）
+                c.execute("""UPDATE quarterly_financial SET
+                    tax=COALESCE(tax, ?),
+                    continuing_income=COALESCE(continuing_income, ?),
+                    net_income_parent=COALESCE(net_income_parent, ?),
+                    weighted_shares=COALESCE(weighted_shares, ?)
+                    WHERE code=? AND quarter=?""",
+                    (row_data.get('tax'), row_data.get('continuing_income'),
+                     row_data.get('net_income_parent'), row_data.get('weighted_shares'),
+                     code, quarter_label))
+        saved += 1
+
+    conn.commit()
+    conn.close()
+    return saved
+
+
+# ── 損益表（季表，用原本的 zce 格式 - 簡化版）────────────────────────
 
 def fetch_capital_financials(code):
-    """從群益抓取個股季度損益表，存入 financial_annual + quarterly_financial"""
+    """從群益抓取個股季度損益表（zce 簡化版），存入 financial_annual + quarterly_financial"""
     try:
         url = f"https://stock.capital.com.tw/z/zc/zce/zce_{code}.djhtm"
         r = _session.get(url, timeout=15)
