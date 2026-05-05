@@ -313,12 +313,14 @@
         <button class="mkt-btn" id="btnTrackFilter" onclick="toggleTrackFilter()" style="border-color:#2563eb;color:#2563eb">顯示</button>
         <button class="mkt-btn" onclick="clearTrack()" style="border-color:#ef4444;color:#ef4444">全清</button>
         <span class="count-badge" id="trackCount" style="color:#2563eb"></span>
+        <span id="trackSaveStatus" style="font-size:.7rem;margin-left:4px"></span>
       </div>
       <div class="tb-group">
         <span class="tb-label" style="color:#94a3b8">不追蹤</span>
         <button class="mkt-btn" id="btnSkipFilter" onclick="toggleSkipFilter()" style="border-color:#94a3b8;color:#94a3b8">顯示</button>
         <button class="mkt-btn" onclick="clearSkip()" style="border-color:#ef4444;color:#ef4444">全清</button>
         <span class="count-badge" id="skipCount" style="color:#94a3b8"></span>
+        <span id="skipSaveStatus" style="font-size:.7rem;margin-left:4px"></span>
       </div>
       <div class="tb-group">
         <span class="tb-label">觀察</span>
@@ -995,30 +997,60 @@ async function loadUserLists() {
   try {
     const res = await fetch('/api/user-lists');
     const data = await res.json();
-    if (data.watch && data.watch.length) { watchSet = new Set(data.watch.map(r => r.code)); localStorage.setItem('watchList', JSON.stringify([...watchSet])); }
-    if (data.hold && data.hold.length) { holdSet = new Set(data.hold.map(r => r.code)); localStorage.setItem('holdList', JSON.stringify([...holdSet])); }
-    if (data.focus && data.focus.length) { focusSet = new Set(data.focus.map(r => r.code)); localStorage.setItem('focusList', JSON.stringify([...focusSet])); }
-    if (data.quality && data.quality.length) { qualitySet = new Set(data.quality.map(r => r.code)); localStorage.setItem('qualityList', JSON.stringify([...qualitySet])); }
-    if (data.skip && data.skip.length) { skipSet = new Set(data.skip.map(r => r.code)); localStorage.setItem('skipList', JSON.stringify([...skipSet])); }
-    if (data.track && data.track.length) { trackSet = new Set(data.track.map(r => r.code)); localStorage.setItem('trackList', JSON.stringify([...trackSet])); }
-    // 自動遷移：localStorage 有但 DB 沒有 → 推上去
-    for (const [type, localKey, setRef] of [['quality','qualityList',qualitySet],['watch','watchList',watchSet],['hold','holdList',holdSet],['focus','focusList',focusSet],['skip','skipList',skipSet],['track','trackList',trackSet]]) {
-      if ((!data[type] || !data[type].length) && setRef.size > 0) {
-        fetch(`/api/user-lists/${type}`, {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({action: 'sync', codes: [...setRef]})
-        }).catch(() => {});
+    // DB 為主，合併 localStorage 中 DB 沒有的項目（避免 API 失敗導致資料遺失）
+    const mergeList = [
+      ['watch','watchList', watchSet],
+      ['hold','holdList', holdSet],
+      ['focus','focusList', focusSet],
+      ['quality','qualityList', qualitySet],
+      ['skip','skipList', skipSet],
+      ['track','trackList', trackSet]
+    ];
+    for (const [type, localKey, currentSet] of mergeList) {
+      const dbCodes = (data[type] || []).map(r => r.code);
+      const localCodes = [...currentSet]; // 從 localStorage 初始化的
+      // 合併：DB + localStorage 聯集
+      const merged = new Set([...dbCodes, ...localCodes]);
+      // 找出 localStorage 有但 DB 沒有的，補推到 DB
+      const dbSet = new Set(dbCodes);
+      const missingInDb = localCodes.filter(c => !dbSet.has(c));
+      if (missingInDb.length > 0) {
+        for (const code of missingInDb) {
+          fetch(`/api/user-lists/${type}`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({action: 'add', code})
+          }).catch(() => {});
+        }
       }
+      // 更新 Set 和 localStorage
+      switch(type) {
+        case 'watch': watchSet = merged; break;
+        case 'hold': holdSet = merged; break;
+        case 'focus': focusSet = merged; break;
+        case 'quality': qualitySet = merged; break;
+        case 'skip': skipSet = merged; break;
+        case 'track': trackSet = merged; break;
+      }
+      localStorage.setItem(localKey, JSON.stringify([...merged]));
     }
     updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount(); updateSkipCount(); updateTrackCount();
   } catch(e) {}
 }
 
 function _syncList(type, action, code, price) {
+  const statusEl = document.getElementById(type + 'SaveStatus');
+  if (statusEl) statusEl.innerHTML = '<span style="color:#f59e0b">儲存中...</span>';
   fetch(`/api/user-lists/${type}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action, code, price})
-  }).catch(() => {});
+  }).then(res => {
+    if (!res.ok) throw new Error(res.status);
+    const now = new Date();
+    const ts = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">已存檔 ${ts}</span>`;
+  }).catch(() => {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">存檔失敗!</span>';
+  });
 }
 
 // ── 已研究清單 ─────────────────────────────────────────────
@@ -1054,10 +1086,19 @@ function clearSkip() {
   if (!confirm('確定全部清除已研究標記？')) return;
   skipSet.clear();
   saveSkip();
+  const statusEl = document.getElementById('skipSaveStatus');
+  if (statusEl) statusEl.innerHTML = '<span style="color:#f59e0b">儲存中...</span>';
   fetch('/api/user-lists/skip', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action: 'sync', codes: []})
-  }).catch(() => {});
+  }).then(res => {
+    if (!res.ok) throw new Error(res.status);
+    const now = new Date();
+    const ts = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">已存檔 ${ts}</span>`;
+  }).catch(() => {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">存檔失敗!</span>';
+  });
   render();
 }
 
@@ -1094,10 +1135,19 @@ function clearTrack() {
   if (!confirm('確定全部清除追蹤標記？')) return;
   trackSet.clear();
   saveTrack();
+  const statusEl = document.getElementById('trackSaveStatus');
+  if (statusEl) statusEl.innerHTML = '<span style="color:#f59e0b">儲存中...</span>';
   fetch('/api/user-lists/track', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({action: 'sync', codes: []})
-  }).catch(() => {});
+  }).then(res => {
+    if (!res.ok) throw new Error(res.status);
+    const now = new Date();
+    const ts = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">已存檔 ${ts}</span>`;
+  }).catch(() => {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">存檔失敗!</span>';
+  });
   render();
 }
 
