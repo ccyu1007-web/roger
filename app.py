@@ -1322,6 +1322,57 @@ def sync_table():
     return jsonify(result)
 
 
+@app.route("/api/sync/table-merge-cleanup", methods=["POST"])
+def sync_table_merge_cleanup():
+    """
+    合併式同步的清理：刪除本機已移除但 Render 仍存在的項目。
+    只刪除「本機曾經有但已取消」的，保留「Render 獨有」的（前台操作的）。
+    POST body: { "table": "user_lists", "pk": ["list_type","code"], "local_keys": [[...], ...] }
+    """
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+
+    table = request.json.get('table', '').strip()
+    pk = request.json.get('pk', [])
+    local_keys = request.json.get('local_keys', [])
+
+    ALLOWED_TABLES = {'user_lists', 'focus_tracking'}
+    if table not in ALLOWED_TABLES:
+        return jsonify({"status": "error", "msg": f"table '{table}' not allowed for merge cleanup"}), 400
+
+    if not pk:
+        return jsonify({"status": "ok", "deleted": 0})
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        # 讀 Render 端現有的 pk 組合
+        pk_str = ','.join(pk)
+        render_rows = c.execute(f"SELECT {pk_str} FROM {table}").fetchall()
+        local_key_set = set(tuple(k) for k in local_keys)
+
+        deleted = 0
+        for row in render_rows:
+            key = tuple(str(v) for v in row)
+            # 本機沒有這筆 → 本機已刪除，Render 也要刪
+            # 但要區分：是本機刪的，還是 Render 獨有的（前台加的）
+            # 策略：只刪除 list_type 在本機有出現過的（代表本機有管這個 type）
+            if key not in local_key_set:
+                # 檢查同 list_type 在本機是否有任何資料（代表本機有管）
+                list_type = key[0] if len(key) > 0 else None
+                local_has_type = any(k[0] == list_type for k in local_key_set)
+                if local_has_type:
+                    where_clause = ' AND '.join(f"{pk[i]}=?" for i in range(len(pk)))
+                    c.execute(f"DELETE FROM {table} WHERE {where_clause}", list(row))
+                    deleted += 1
+
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok", "deleted": deleted})
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
+
 @app.route("/api/sync/clear-table", methods=["POST"])
 def sync_clear_table():
     """清空指定資料表（同步前用，避免殘留已刪除的資料）"""

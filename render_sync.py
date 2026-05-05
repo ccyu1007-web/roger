@@ -89,6 +89,59 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     return len(data) - failed
 
 
+def _merge_push_to_render(table, columns, pk, create_sql=None):
+    """
+    合併式同步：本機資料 UPSERT 到 Render，同時刪除本機已移除的項目，
+    但保留 Render 獨有的（在前台操作的）。
+    適用於 user_lists 等雙邊都會操作的表。
+    """
+    conn = sqlite3.connect(DB_PATH)
+    col_str = ','.join(columns)
+    rows = conn.execute(f"SELECT {col_str} FROM {table}").fetchall()
+    conn.close()
+
+    local_data = [{columns[j]: r[j] for j in range(len(columns))} for r in rows]
+    # 本機所有 pk 組合
+    local_keys = set()
+    for r in local_data:
+        key = tuple(r[k] for k in pk)
+        local_keys.add(key)
+
+    # 1. UPSERT 本機資料到 Render（不用 clear_first）
+    if local_data:
+        failed = 0
+        for i in range(0, len(local_data), 500):
+            batch = local_data[i:i+500]
+            payload = {'table': table, 'columns': columns, 'pk': pk,
+                       'create_sql': create_sql or '', 'data': batch}
+            resp = _post_with_retry(
+                f'{RENDER_URL}/api/sync/table', payload,
+                label=f'{table} merge batch {i//500+1}')
+            if not resp:
+                failed += len(batch)
+        print(f"  [{table}] UPSERT {len(local_data)} 筆" + (f"（{failed} 筆失敗）" if failed else ""))
+
+    # 2. 請 Render 刪除「本機已移除但 Render 還有」的項目
+    payload = {
+        'table': table,
+        'pk': pk,
+        'local_keys': [list(k) for k in local_keys],
+    }
+    resp = _post_with_retry(
+        f'{RENDER_URL}/api/sync/table-merge-cleanup', payload,
+        label=f'{table} merge cleanup')
+    if resp:
+        try:
+            result = resp.json()
+            deleted = result.get('deleted', 0)
+            if deleted:
+                print(f"  [{table}] 清理 Render 端已移除 {deleted} 筆")
+        except Exception:
+            pass
+
+    return len(local_data)
+
+
 def get_last_sync_result():
     """供 health API 讀取最近一次同步結果"""
     return _last_sync_result
@@ -190,7 +243,7 @@ def _push_all_to_render():
             'table': 'user_lists',
             'columns': ['list_type','code','added_at','price_at'],
             'pk': ['list_type','code'],
-            'clear_first': True,
+            'merge_mode': True,  # 合併式同步：本機 UPSERT + 刪除本機已移除的，保留 Render 獨有的
             'create_sql': """CREATE TABLE IF NOT EXISTS user_lists (
                 list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT, price_at REAL,
                 PRIMARY KEY (list_type, code))""",
@@ -280,14 +333,22 @@ def _push_all_to_render():
 
     for cfg in SYNC_TABLES:
         try:
-            _push_table_to_render(
-                table=cfg['table'],
-                columns=cfg['columns'],
-                pk=cfg['pk'],
-                create_sql=cfg.get('create_sql'),
-                where=cfg.get('where'),
-                clear_first=cfg.get('clear_first', False),
-            )
+            if cfg.get('merge_mode'):
+                _merge_push_to_render(
+                    table=cfg['table'],
+                    columns=cfg['columns'],
+                    pk=cfg['pk'],
+                    create_sql=cfg.get('create_sql'),
+                )
+            else:
+                _push_table_to_render(
+                    table=cfg['table'],
+                    columns=cfg['columns'],
+                    pk=cfg['pk'],
+                    create_sql=cfg.get('create_sql'),
+                    where=cfg.get('where'),
+                    clear_first=cfg.get('clear_first', False),
+                )
         except Exception as e:
             print(f"  [{cfg['table']}] 失敗: {e}")
             failures.append(f"{cfg['table']}: {e}")
