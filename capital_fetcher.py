@@ -1185,8 +1185,6 @@ def sync_to_stocks(code):
                   (code,))
 
     # 3. 季度EPS（eps_1~5）— 從 quarterly_financial 取最近5季
-    old_eps1q = c.execute("SELECT eps_1q FROM stocks WHERE code=?", (code,)).fetchone()
-    old_eps1q = old_eps1q[0] if old_eps1q else None
     rows = c.execute("""SELECT quarter, eps FROM quarterly_financial
                        WHERE code=? AND eps IS NOT NULL
                        ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) * 10
