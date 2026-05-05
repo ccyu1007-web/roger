@@ -24,6 +24,8 @@ import re
 import os
 from bs4 import BeautifulSoup
 
+IS_CLOUD = os.environ.get('DATABASE_URL') is not None
+
 logger = logging.getLogger(__name__)
 from fetcher_utils import (
     create_session, parse_num as safe_float,
@@ -1403,7 +1405,7 @@ def run(scheduled=True):
         print(f"[Checklist] 計算失敗: {e}")
 
     # 自動 push 所有資料到 Render（僅本機）
-    if not os.environ.get('DATABASE_URL'):
+    if not IS_CLOUD:
         _push_all_to_render()
 
     print(f"\n完成！共更新 {len(all_rows)} 筆")
@@ -2302,7 +2304,7 @@ def fetch_company_financials(code):
     2. 群益資料不足時才用 Yahoo 補充（不用 FinMind，節省額度）
     雲端環境（Render）跳過群益爬蟲（海外IP可能被擋），靠排程更新。
     """
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
 
     # 來源 1：群益全部（僅本機，Render 跳過）
     capital_ok = False
@@ -2599,7 +2601,7 @@ def fetch_company_quarterly(code):
                  WHERE code=? AND updated_at > datetime('now', '-12 hours')""", (code,))
     has_recent = c.fetchone()['cnt'] > 0
 
-    if not has_recent and not os.environ.get('DATABASE_URL'):
+    if not has_recent and not IS_CLOUD:
         # 本機才用群益補抓（Render 跳過）
         try:
             from capital_fetcher import fetch_capital_financials, fetch_capital_contract_liability
@@ -3182,7 +3184,7 @@ def quick_update():
     try: auto_archive_old_news()
     except Exception: pass
     # 本機自動 push 新聞到 Render
-    if not os.environ.get('DATABASE_URL'):
+    if not IS_CLOUD:
         try: _push_news_to_render()
         except Exception: pass
     # ── 5. MOPS 最新季 EPS（比政府 API 快）──
@@ -3212,7 +3214,7 @@ def quick_update():
         print(f"[即時重算] 完成")
 
     # ── 8. 自動 push 到 Render（僅本機）──
-    if not os.environ.get('DATABASE_URL'):
+    if not IS_CLOUD:
         try:
             # push stocks 表（含營收/EPS/等級等核心欄位）
             _push_prices_to_render()

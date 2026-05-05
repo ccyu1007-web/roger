@@ -9,6 +9,8 @@ import os
 import db as sqlite3
 import threading
 
+IS_CLOUD = os.environ.get('DATABASE_URL') is not None
+
 logger = logging.getLogger(__name__)
 from guardian import (generate_health_report, get_provider_status, PROVIDER_TIERS,
                       get_all_breakers, get_breaker,
@@ -1551,7 +1553,7 @@ def get_financials(code):
                 cache_valid = True
         except Exception: pass
 
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
     if not cache_valid:
         if rows:
             # 有舊資料：背景更新，先回傳舊的（秒開）
@@ -1699,7 +1701,7 @@ def get_financials(code):
 @app.route("/api/stocks/<code>/quarterly")
 def get_quarterly(code):
     from datetime import datetime, timedelta
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
 
     q_order = """ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
                     CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC"""
@@ -1881,7 +1883,7 @@ def get_pe_history(code):
                 cache_valid = True
         except Exception: pass
 
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
     if not cache_valid and not is_cloud:
         if rows:
             def _bg_pe(c=code):
@@ -1928,7 +1930,7 @@ def get_pe_history(code):
 @app.route("/api/stocks/<code>/financial-detail")
 def get_financial_detail(code):
     from datetime import datetime, timedelta
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
 
     # 確保表存在
     try:
@@ -2004,7 +2006,7 @@ def get_monthly_revenue(code):
                 cache_valid = True
         except Exception: pass
 
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
     if not cache_valid and not is_cloud:
         if rows:
             def _bg_rev(c=code):
@@ -2087,7 +2089,7 @@ def get_monthly_revenue(code):
 def sync_status():
     """同步狀態：比對本機 vs Render 的資料筆數和股價"""
     import requests as req
-    is_cloud = os.environ.get('DATABASE_URL') is not None
+    is_cloud = IS_CLOUD
     RENDER_URL = "https://tock-system.onrender.com"
 
     conn = sqlite3.connect(DB_PATH)
