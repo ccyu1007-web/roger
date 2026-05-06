@@ -1405,6 +1405,7 @@ def run(scheduled=True):
         print(f"[Checklist] 計算失敗: {e}")
 
     # 自動 push 所有資料到 Render（僅本機）
+    # 注意：必須在 ETF、法人、交叉校驗、checklist 全部完成後才 push
     if not IS_CLOUD:
         _push_all_to_render()
 
@@ -3269,6 +3270,20 @@ def quick_update():
                     val_a REAL, val_a1 REAL, val_a2 REAL, val_aa REAL,
                     lt5 REAL, lt6 REAL, lt7 REAL,
                     updated_at TEXT)""",
+            )
+            # push quarterly_financial（MOPS 季報更新後需同步）
+            _push_table_to_render(
+                table='quarterly_financial',
+                columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
+                         'operating_income','non_operating','pretax_income','tax','continuing_income',
+                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
+                pk=['code','quarter'],
+            )
+            # push pe_history
+            _push_table_to_render(
+                table='pe_history',
+                columns=['code','year','pe_high','pe_low','updated_at'],
+                pk=['code','year'],
             )
             print(f"[quick_update] 已 push 到 Render")
         except Exception as e:

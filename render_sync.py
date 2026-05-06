@@ -240,6 +240,15 @@ def _push_all_to_render():
                 stock_name TEXT, action TEXT, change_date TEXT, created_at TEXT)""",
         },
         {
+            'table': 'etf_info',
+            'columns': ['code','name','issuer','category','last_fetch'],
+            'pk': ['code'],
+            'clear_first': True,
+            'create_sql': """CREATE TABLE IF NOT EXISTS etf_info (
+                code TEXT PRIMARY KEY, name TEXT, issuer TEXT,
+                category TEXT, last_fetch TEXT)""",
+        },
+        {
             'table': 'user_lists',
             'columns': ['list_type','code','added_at','price_at'],
             'pk': ['list_type','code'],
@@ -324,6 +333,7 @@ def _push_all_to_render():
             'table': 'focus_signals',
             'columns': ['code','date','signal_type','detail'],
             'pk': ['code','date','signal_type'],
+            'clear_first': True,
             'create_sql': """CREATE TABLE IF NOT EXISTS focus_signals (
                 code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
                 detail TEXT, PRIMARY KEY (code, date, signal_type))""",

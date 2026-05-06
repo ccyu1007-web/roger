@@ -93,9 +93,8 @@ async function load() {
   }
 }
 
-const todayMMDD = (new Date().getMonth()+1).toString().padStart(2,'0') + '/' + new Date().getDate().toString().padStart(2,'0');
 const todayISO = new Date().toISOString().slice(0,10);
-const isToday = n => (n.date || '').includes(todayMMDD) || (n.created_at || '').startsWith(todayISO);
+const isToday = n => (n.date || '').slice(0,10) === todayISO || (n.created_at || '').slice(0,10) === todayISO;
 
 function updateCounts() {
   const t2today = _news.filter(n => n.tier >= 1 && isToday(n) && !n.cooled);
@@ -308,26 +307,34 @@ function statusLabel(n) {
 }
 
 async function upgradeNews(id, el) {
-  await fetch(`/api/news/${id}/upgrade`, {method:'POST'});
-  el.closest('.stock-row').style.opacity = '1';
-  el.closest('.stock-row').innerHTML = '<span style="color:#059669;font-size:.82rem">已升級到一般訊息</span>';
+  try {
+    const resp = await fetch(`/api/news/${id}/upgrade`, {method:'POST'});
+    if (!resp.ok) throw new Error(resp.statusText);
+    el.closest('.stock-row').style.opacity = '1';
+    el.closest('.stock-row').innerHTML = '<span style="color:#059669;font-size:.82rem">已升級到一般訊息</span>';
+  } catch(e) { console.error('升級失敗:', e); }
 }
 
 async function markNews(id, status, el) {
-  await fetch(`/api/news/${id}/status`, {method:'POST', headers: {'Content-Type':'application/json'}, body:JSON.stringify({status})});
-  // 更新本地資料
-  const item = _news.find(n => n.id === id);
-  if (item) item.status = status;
-  updateCounts();
-  renderTab();
+  try {
+    const resp = await fetch(`/api/news/${id}/status`, {method:'POST', headers: {'Content-Type':'application/json'}, body:JSON.stringify({status})});
+    if (!resp.ok) throw new Error(resp.statusText);
+    const item = _news.find(n => n.id === id);
+    if (item) item.status = status;
+    updateCounts();
+    renderTab();
+  } catch(e) { console.error('標記失敗:', e); }
 }
 
 async function undoNews(id, el) {
-  await fetch(`/api/news/${id}/status`, {method:'POST', headers: {'Content-Type':'application/json'}, body:JSON.stringify({status: null})});
-  const item = _news.find(n => n.id === id);
-  if (item) item.status = null;
-  updateCounts();
-  renderTab();
+  try {
+    const resp = await fetch(`/api/news/${id}/status`, {method:'POST', headers: {'Content-Type':'application/json'}, body:JSON.stringify({status: null})});
+    if (!resp.ok) throw new Error(resp.statusText);
+    const item = _news.find(n => n.id === id);
+    if (item) item.status = null;
+    updateCounts();
+    renderTab();
+  } catch(e) { console.error('撤銷失敗:', e); }
 }
 
 function filterNews() {

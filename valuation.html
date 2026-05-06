@@ -290,7 +290,14 @@ function renderList(mode) {
     let gItems = groups[grade];
     if (!gItems.length) return;
 
-    // 按折價%排序（正值在前=股價低於門檻）
+    // 計算折價%並排序（正值在前=股價低於門檻）
+    gItems.forEach(c => {
+      if (c.val_aa != null && c.val_aa > 0 && c.price != null) {
+        c.discount_pct = Math.round((c.val_aa - c.price) / c.val_aa * 10000) / 100;
+      } else {
+        c.discount_pct = -999;
+      }
+    });
     gItems.sort((a, b) => (b.discount_pct || -999) - (a.discount_pct || -999));
 
     if (mode !== 'AA') {
@@ -318,8 +325,8 @@ function renderList(mode) {
 
     [...gItems, ...removed].forEach(c => {
       const isRemoved = c.chg === 'removed';
-      const dp = (!isRemoved && c.val_aa != null && c.price != null && c.price > 0)
-        ? Math.round((c.val_aa - c.price) / c.price * 10000) / 100 : null;
+      const dp = (!isRemoved && c.val_aa != null && c.val_aa > 0 && c.price != null)
+        ? Math.round((c.val_aa - c.price) / c.val_aa * 10000) / 100 : null;
       const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
       const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
       const addHtml = (c.chg === 'new' && c.prev_grade) ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c.prev_grade}→${c.shen_grade}</span>` : '';
