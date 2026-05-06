@@ -246,7 +246,10 @@ def get_conn(path=None, row_factory=False, timeout=30):
     """Context manager：自動關閉 DB 連線，避免 leak。
     用法：with sqlite3.get_conn(row_factory=True) as conn:
     """
-    conn = connect(path=path, timeout=timeout)
+    if DB_TYPE == 'sqlite':
+        conn = connect(path=path, timeout=timeout)
+    else:
+        conn = connect(path=path)
     if row_factory:
         conn.row_factory = Row
     try:
