@@ -2874,7 +2874,17 @@ def quick_update():
     輕量更新：只用政府批次 API 更新營收 & EPS。
     每次僅 4 個 HTTP 請求，< 5 秒完成，適合高頻排程。
     """
-    # 防呆：Lock file 防止與 run() 同時執行 + 15 分鐘超時
+    # MOPS 營收不受 lock 限制（只寫 monthly_revenue + stocks 營收欄位）
+    # 確保即使 run() 在跑，營收也能即時更新
+    try:
+        from mops_fetcher import fetch_mops_monthly_revenue
+        mops_count = fetch_mops_monthly_revenue()
+        if mops_count:
+            print(f"[MOPS營收] 已更新 {mops_count} 筆（不受 lock 限制）")
+    except Exception as e:
+        print(f"[MOPS營收] 失敗: {e}")
+
+    # 其餘步驟需要 lock 防止與 run() 同時操作
     with ScraperLock('quick_update', timeout_sec=900) as lock:
         if lock is None:
             return
@@ -2900,12 +2910,7 @@ def _quick_update_inner():
 
     init_db()
 
-    # ── 1. MOPS 即時營收（第一優先，公司申報後立即可見）──
-    try:
-        from mops_fetcher import fetch_mops_monthly_revenue
-        fetch_mops_monthly_revenue()
-    except Exception as e:
-        print(f"[MOPS營收] 失敗: {e}")
+    # ── 1. MOPS 即時營收 → 已移到 lock 外層執行（確保不被 run() 擋住）──
 
     # ── 1a. 政府 API 批次營收（補充 MOPS 未覆蓋的，不降級已有月份）──
     conn = sqlite3.connect(DB_PATH)
