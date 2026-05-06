@@ -529,12 +529,19 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # 7. 保守成長率 >= 7%（聶夫法門檻）
     gi = r.get('_gi') or {}
-    neff_a = gi.get('neff_a')
-    neff_b = gi.get('neff_b')
+    neff_a = gi.get('neff_a')    # 5年端點
+    neff_b = gi.get('neff_b')    # 5年平滑
+    neff_3a = gi.get('neff_3a')  # 3年端點
+    neff_3b = gi.get('neff_3b')  # 3年平滑
     neff_c = gi.get('neff_c')
     checks[7] = 1 if neff_c is not None and neff_c >= 7 else 0
     if neff_c is not None:
-        detail['chk_7'] = f'保守成長率={neff_c}%　min(5年淨利CAGR {neff_a}%, 3年淨利CAGR {neff_b}%)，>20%以20%計'
+        _parts = []
+        if neff_a is not None: _parts.append(f'5年端點{neff_a}%')
+        if neff_b is not None: _parts.append(f'5年平滑{neff_b}%')
+        if neff_3a is not None: _parts.append(f'3年端點{neff_3a}%')
+        if neff_3b is not None: _parts.append(f'3年平滑{neff_3b}%')
+        detail['chk_7'] = f'保守成長率={neff_c}%　min({", ".join(_parts)})，>20%以20%計'
     else:
         detail['chk_7'] = None
 
@@ -721,6 +728,15 @@ def _recalc_checklist_single(code):
     r = dict(rows[0])
     _calc_shen_fields(r, cur_roc)
 
+    # 成長率指標（聶夫/林區）
+    try:
+        with app.test_request_context():
+            gi_resp = growth_indicators()
+            gi_map = json.loads(gi_resp.get_data(as_text=True) if hasattr(gi_resp, 'get_data') else gi_resp.data)
+            r['_gi'] = gi_map.get(code)
+    except Exception:
+        pass
+
     user_params = None
     try:
         ue = query_db("SELECT params FROM user_estimates WHERE code=?", (code,))
@@ -760,7 +776,7 @@ def _recalc_checklist_single(code):
               (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
                result['chk_4'], result['chk_5'], result['chk_6'],
                result['chk_7'], result['chk_8'], result['chk_9'],
-               result['chk_10'], result['chk_11'], result['chk_12'], result['chk_13'],
+               result.get('chk_10', 0), result.get('chk_11', 0), result.get('chk_12', 0), result.get('chk_13', 0),
                result['pass_count'], result['total_count'], result['detail'],
                result['eps_setting'], result['div_setting'],
                result['yld_high'], result['yld_max'], result['pe_high'], result['pe_low'],
