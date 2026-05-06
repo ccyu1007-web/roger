@@ -209,6 +209,15 @@ def fetch_capital_quarterly_full(code):
                 vals.append(None)
         data_rows[matched_field] = vals
 
+    # 防呆：如果解析出來全是 None，可能 HTML 結構變了
+    all_none = all(
+        all(v is None for v in vals)
+        for vals in data_rows.values()
+    )
+    if data_rows and all_none:
+        logger.warning(f"[群益季報] {code} 解析全空，HTML 結構可能已變更")
+        return 0
+
     # 寫入 quarterly_financial
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.get_conn() as conn:
@@ -390,6 +399,21 @@ def fetch_capital_financials(code):
         return 0, 0
 
     rows = target_table.find_all('tr')
+
+    # 防呆：找到表格但沒有任何資料列（可能 HTML 結構變更）
+    has_data_row = False
+    for row in rows:
+        cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+        if len(cells) >= 10 and re.match(r'\d+\.\d+Q', cells[0]):
+            # 檢查數值欄是否全空
+            vals = [_parse_num(cells[j]) for j in range(1, min(11, len(cells)))]
+            if any(v is not None for v in vals):
+                has_data_row = True
+                break
+    if not has_data_row:
+        logger.warning(f"[群益季報-zce] {code} 找到表格但無有效資料列，HTML 結構可能已變更")
+        return 0, 0
+
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
@@ -624,6 +648,9 @@ def fetch_capital_balance_sheet(code):
     texts = _fetch_page(url)
     if not texts:
         return 0
+    if len(texts) < 5:
+        logger.warning(f"[群益BS] {code} 頁面內容不足（{len(texts)} 個 cell），可能被擋或結構變更")
+        return 0
 
     row_labels = {
         '資產總額': 'total_assets',
@@ -798,6 +825,9 @@ def fetch_capital_dividend(code):
 
     tds = soup.find_all('td', class_=re.compile(r't3n[01]'))
     texts = [td.get_text(strip=True) for td in tds]
+    if len(texts) < 5:
+        logger.warning(f"[群益股利] {code} 頁面內容不足（{len(texts)} 個 cell），可能被擋或結構變更")
+        return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.get_conn() as conn:
@@ -855,6 +885,9 @@ def fetch_capital_cashflow(code):
     url = f"https://stock.capital.com.tw/z/zc/zc3/zc3a.djhtm?a={code}"
     texts = _fetch_page(url)
     if not texts:
+        return 0
+    if len(texts) < 5:
+        logger.warning(f"[群益CF] {code} 頁面內容不足（{len(texts)} 個 cell），可能被擋或結構變更")
         return 0
 
     row_labels = {

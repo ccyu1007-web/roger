@@ -8,7 +8,6 @@ import time
 import random
 from datetime import datetime
 
-DB_PATH = "stocks.db"
 
 def _get_yahoo_session():
     """建立帶 crumb 的 Yahoo Finance session"""
@@ -16,6 +15,8 @@ def _get_yahoo_session():
     s.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
     s.get('https://fc.yahoo.com', timeout=10, allow_redirects=True)
     crumb = s.get('https://query2.finance.yahoo.com/v1/test/getcrumb', timeout=10).text
+    if not crumb or len(crumb) > 50:
+        raise ValueError(f"Invalid crumb: {crumb[:20]}...")
     return s, crumb
 
 
@@ -29,6 +30,8 @@ def fetch_yahoo_financials(session, crumb, code, market):
 
     try:
         r = session.get(url, timeout=15)
+        if r.status_code in (401, 403):
+            return 'crumb_expired'
         if r.status_code != 200:
             return None
         return r.json().get('quoteSummary', {}).get('result', [{}])[0]
@@ -49,172 +52,169 @@ def save_yahoo_to_db(code, data):
     if not data:
         return 0, 0
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    annual_saved = 0
-    quarterly_saved = 0
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        annual_saved = 0
+        quarterly_saved = 0
 
-    # ── 年度損益表 ──
-    is_data = data.get('incomeStatementHistory', {}).get('incomeStatementHistory', [])
-    bs_data = data.get('balanceSheetHistory', {}).get('balanceSheetHistory', [])
-    cf_data = data.get('cashflowStatementHistory', {}).get('cashflowStatementHistory', [])
+        # ── 年度損益表 ──
+        is_data = data.get('incomeStatementHistory', {}).get('incomeStatementHistory', [])
+        bs_data = data.get('balanceSheetHistory', {}).get('balanceSheetHistory', [])
+        cf_data = data.get('cashflowStatementHistory', {}).get('cashflowStatementHistory', [])
 
-    # 建立 BS 和 CF 的 lookup（按年份）
-    bs_by_year = {}
-    for bs in bs_data:
-        date = bs.get('endDate', {}).get('fmt', '')
-        if date:
+        # 建立 BS 和 CF 的 lookup（按年份）
+        bs_by_year = {}
+        for bs in bs_data:
+            date = bs.get('endDate', {}).get('fmt', '')
+            if date:
+                yr = int(date[:4])
+                bs_by_year[yr] = bs
+
+        cf_by_year = {}
+        for cf in cf_data:
+            date = cf.get('endDate', {}).get('fmt', '')
+            if date:
+                yr = int(date[:4])
+                cf_by_year[yr] = cf
+
+        for stmt in is_data:
+            date = stmt.get('endDate', {}).get('fmt', '')
+            if not date:
+                continue
             yr = int(date[:4])
-            bs_by_year[yr] = bs
 
-    cf_by_year = {}
-    for cf in cf_data:
-        date = cf.get('endDate', {}).get('fmt', '')
-        if date:
-            yr = int(date[:4])
-            cf_by_year[yr] = cf
+            # 檢查已有資料
+            c.execute("SELECT net_income, total_equity, operating_cf FROM financial_annual WHERE code=? AND year=?", (code, yr))
+            existing = c.fetchone()
+            has_income = existing and existing[0] is not None
+            needs_bs_cf = existing and (existing[1] is None or existing[2] is None)
 
-    for stmt in is_data:
-        date = stmt.get('endDate', {}).get('fmt', '')
-        if not date:
-            continue
-        yr = int(date[:4])
+            # 從 BS 取
+            bs = bs_by_year.get(yr, {})
+            total_assets = _safe_raw(bs, 'totalAssets')
+            total_equity = _safe_raw(bs, 'totalStockholderEquity')
+            common_stock = _safe_raw(bs, 'commonStock')
 
-        # 檢查已有資料
-        c.execute("SELECT net_income, total_equity, operating_cf FROM financial_annual WHERE code=? AND year=?", (code, yr))
-        existing = c.fetchone()
-        has_income = existing and existing[0] is not None
-        needs_bs_cf = existing and (existing[1] is None or existing[2] is None)
+            # 從 CF 取
+            cf = cf_by_year.get(yr, {})
+            operating_cf = _safe_raw(cf, 'totalCashFromOperatingActivities')
+            capex = _safe_raw(cf, 'capitalExpenditures')
 
-        # 從 BS 取
-        bs = bs_by_year.get(yr, {})
-        total_assets = _safe_raw(bs, 'totalAssets')
-        total_equity = _safe_raw(bs, 'totalStockholderEquity')
-        common_stock = _safe_raw(bs, 'commonStock')
+            if has_income and not needs_bs_cf:
+                continue  # 損益表+資產負債表+現金流都齊了，跳過
 
-        # 從 CF 取
-        cf = cf_by_year.get(yr, {})
-        operating_cf = _safe_raw(cf, 'totalCashFromOperatingActivities')
-        capex = _safe_raw(cf, 'capitalExpenditures')
+            if has_income and needs_bs_cf:
+                # 損益表已有（群益優先），只補寫資產負債表和現金流
+                try:
+                    c.execute("""UPDATE financial_annual SET
+                        total_assets=COALESCE(?, total_assets),
+                        total_equity=COALESCE(?, total_equity),
+                        common_stock=COALESCE(?, common_stock),
+                        operating_cf=COALESCE(?, operating_cf),
+                        capex=COALESCE(?, capex),
+                        updated_at=?
+                        WHERE code=? AND year=?""",
+                        (total_assets, total_equity, common_stock,
+                         operating_cf, capex, now_str, code, yr))
+                    annual_saved += 1
+                except Exception:
+                    pass
+                continue
 
-        if has_income and not needs_bs_cf:
-            continue  # 損益表+資產負債表+現金流都齊了，跳過
+            # 完全沒資料，寫入全部欄位
+            revenue = _safe_raw(stmt, 'totalRevenue')
+            cost = _safe_raw(stmt, 'costOfRevenue')
+            gross_profit = _safe_raw(stmt, 'grossProfit')
+            operating_income = _safe_raw(stmt, 'operatingIncome')
+            pretax_income = _safe_raw(stmt, 'incomeBeforeTax')
+            tax = _safe_raw(stmt, 'incomeTaxExpense')
+            net_income = _safe_raw(stmt, 'netIncome')
 
-        if has_income and needs_bs_cf:
-            # 損益表已有（群益優先），只補寫資產負債表和現金流
             try:
-                c.execute("""UPDATE financial_annual SET
-                    total_assets=COALESCE(?, total_assets),
-                    total_equity=COALESCE(?, total_equity),
-                    common_stock=COALESCE(?, common_stock),
-                    operating_cf=COALESCE(?, operating_cf),
-                    capex=COALESCE(?, capex),
-                    updated_at=?
-                    WHERE code=? AND year=?""",
-                    (total_assets, total_equity, common_stock,
-                     operating_cf, capex, now_str, code, yr))
+                c.execute("""INSERT INTO financial_annual
+                    (code, year, revenue, cost, gross_profit, operating_income,
+                     pretax_income, tax, net_income, total_assets, total_equity,
+                     common_stock, operating_cf, capex, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(code, year) DO UPDATE SET
+                    revenue=COALESCE(excluded.revenue, revenue),
+                    cost=COALESCE(excluded.cost, cost),
+                    gross_profit=COALESCE(excluded.gross_profit, gross_profit),
+                    operating_income=COALESCE(excluded.operating_income, operating_income),
+                    pretax_income=COALESCE(excluded.pretax_income, pretax_income),
+                    tax=COALESCE(excluded.tax, tax),
+                    net_income=COALESCE(excluded.net_income, net_income),
+                    total_assets=COALESCE(excluded.total_assets, total_assets),
+                    total_equity=COALESCE(excluded.total_equity, total_equity),
+                    common_stock=COALESCE(excluded.common_stock, common_stock),
+                    operating_cf=COALESCE(excluded.operating_cf, operating_cf),
+                    capex=COALESCE(excluded.capex, capex),
+                    updated_at=excluded.updated_at""",
+                    (code, yr, revenue, cost, gross_profit, operating_income,
+                     pretax_income, tax, net_income, total_assets, total_equity,
+                     common_stock, operating_cf, capex, now_str))
                 annual_saved += 1
             except Exception:
                 pass
-            continue
 
-        # 完全沒資料，寫入全部欄位
-        revenue = _safe_raw(stmt, 'totalRevenue')
-        cost = _safe_raw(stmt, 'costOfRevenue')
-        gross_profit = _safe_raw(stmt, 'grossProfit')
-        operating_income = _safe_raw(stmt, 'operatingIncome')
-        pretax_income = _safe_raw(stmt, 'incomeBeforeTax')
-        tax = _safe_raw(stmt, 'incomeTaxExpense')
-        net_income = _safe_raw(stmt, 'netIncome')
+        # ── 季度損益表 ──
+        q_data = data.get('incomeStatementHistoryQuarterly', {}).get('incomeStatementHistory', [])
+        for stmt in q_data:
+            date = stmt.get('endDate', {}).get('fmt', '')
+            if not date:
+                continue
+            yr = int(date[:4])
+            mon = int(date[5:7])
+            roc_yr = yr - 1911
+            q = (mon - 1) // 3 + 1
+            quarter = f'{roc_yr}Q{q}'
 
-        try:
-            c.execute("""INSERT INTO financial_annual
-                (code, year, revenue, cost, gross_profit, operating_income,
-                 pretax_income, tax, net_income, total_assets, total_equity,
-                 common_stock, operating_cf, capex, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(code, year) DO UPDATE SET
-                revenue=COALESCE(excluded.revenue, revenue),
-                cost=COALESCE(excluded.cost, cost),
-                gross_profit=COALESCE(excluded.gross_profit, gross_profit),
-                operating_income=COALESCE(excluded.operating_income, operating_income),
-                pretax_income=COALESCE(excluded.pretax_income, pretax_income),
-                tax=COALESCE(excluded.tax, tax),
-                net_income=COALESCE(excluded.net_income, net_income),
-                total_assets=COALESCE(excluded.total_assets, total_assets),
-                total_equity=COALESCE(excluded.total_equity, total_equity),
-                common_stock=COALESCE(excluded.common_stock, common_stock),
-                operating_cf=COALESCE(excluded.operating_cf, operating_cf),
-                capex=COALESCE(excluded.capex, capex),
-                updated_at=excluded.updated_at""",
-                (code, yr, revenue, cost, gross_profit, operating_income,
-                 pretax_income, tax, net_income, total_assets, total_equity,
-                 common_stock, operating_cf, capex, now_str))
-            annual_saved += 1
-        except Exception:
-            pass
+            c.execute("SELECT code FROM quarterly_financial WHERE code=? AND quarter=?", (code, quarter))
+            if c.fetchone():
+                continue
 
-    # ── 季度損益表 ──
-    q_data = data.get('incomeStatementHistoryQuarterly', {}).get('incomeStatementHistory', [])
-    for stmt in q_data:
-        date = stmt.get('endDate', {}).get('fmt', '')
-        if not date:
-            continue
-        yr = int(date[:4])
-        mon = int(date[5:7])
-        roc_yr = yr - 1911
-        q = (mon - 1) // 3 + 1
-        quarter = f'{roc_yr}Q{q}'
+            revenue = _safe_raw(stmt, 'totalRevenue')
+            cost = _safe_raw(stmt, 'costOfRevenue')
+            gross_profit = _safe_raw(stmt, 'grossProfit')
+            operating_income = _safe_raw(stmt, 'operatingIncome')
+            pretax_income = _safe_raw(stmt, 'incomeBeforeTax')
+            tax = _safe_raw(stmt, 'incomeTaxExpense')
+            net_income = _safe_raw(stmt, 'netIncome')
+            eps = _safe_raw(stmt, 'dilutedEPS')
 
-        c.execute("SELECT code FROM quarterly_financial WHERE code=? AND quarter=?", (code, quarter))
-        if c.fetchone():
-            continue
+            try:
+                c.execute("""INSERT OR IGNORE INTO quarterly_financial
+                    (code, quarter, revenue, cost, gross_profit, operating_income,
+                     pretax_income, tax, net_income_parent, eps, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    (code, quarter, revenue, cost, gross_profit, operating_income,
+                     pretax_income, tax, net_income, eps, now_str))
+                quarterly_saved += 1
+            except Exception:
+                pass
 
-        revenue = _safe_raw(stmt, 'totalRevenue')
-        cost = _safe_raw(stmt, 'costOfRevenue')
-        gross_profit = _safe_raw(stmt, 'grossProfit')
-        operating_income = _safe_raw(stmt, 'operatingIncome')
-        pretax_income = _safe_raw(stmt, 'incomeBeforeTax')
-        tax = _safe_raw(stmt, 'incomeTaxExpense')
-        net_income = _safe_raw(stmt, 'netIncome')
-        eps = _safe_raw(stmt, 'dilutedEPS')
-
-        try:
-            c.execute("""INSERT OR IGNORE INTO quarterly_financial
-                (code, quarter, revenue, cost, gross_profit, operating_income,
-                 pretax_income, tax, net_income_parent, eps, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (code, quarter, revenue, cost, gross_profit, operating_income,
-                 pretax_income, tax, net_income, eps, now_str))
-            quarterly_saved += 1
-        except Exception:
-            pass
-
-    conn.commit()
-    conn.close()
-    return annual_saved, quarterly_saved
+        conn.commit()
+        return annual_saved, quarterly_saved
 
 
 def backfill_all():
     """用 Yahoo Finance 批次補齊所有股票的財報"""
     t0 = time.time()
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    # 找需要補的
-    need = []
-    c.execute("SELECT code, name, market FROM stocks WHERE close IS NOT NULL ORDER BY code")
-    for r in c.fetchall():
-        code, name, market = r
-        c.execute("SELECT COUNT(*) FROM financial_annual WHERE code=? AND net_income IS NOT NULL", (code,))
-        fin = c.fetchone()[0]
-        if fin >= 3:
-            continue
-        need.append((code, name, market))
-
-    conn.close()
+        # 找需要補的
+        need = []
+        c.execute("SELECT code, name, market FROM stocks WHERE close IS NOT NULL ORDER BY code")
+        for r in c.fetchall():
+            code, name, market = r
+            c.execute("SELECT COUNT(*) FROM financial_annual WHERE code=? AND net_income IS NOT NULL", (code,))
+            fin = c.fetchone()[0]
+            if fin >= 3:
+                continue
+            need.append((code, name, market))
 
     if not need:
         print("[Yahoo] 所有股票財報已補齊")
@@ -231,6 +231,21 @@ def backfill_all():
 
     for code, name, market in need:
         data = fetch_yahoo_financials(session, crumb, code, market)
+
+        # 處理 crumb 過期信號
+        if data == 'crumb_expired':
+            print(f"  [Yahoo] crumb 過期，重建 session...")
+            try:
+                session, crumb = _get_yahoo_session()
+                fail_streak = 0
+            except Exception:
+                print(f"  session 建立失敗，停止")
+                break
+            # 用新 session 重試
+            data = fetch_yahoo_financials(session, crumb, code, market)
+            if data == 'crumb_expired':
+                data = None
+
         if data:
             a, q = save_yahoo_to_db(code, data)
             if a > 0 or q > 0:
@@ -244,9 +259,9 @@ def backfill_all():
         if done % 100 == 0 and done > 0:
             print(f"  進度: {done}/{len(need)}")
 
-        # crumb 過期時重新取
-        if fail_streak >= 30:
-            print(f"  重新建立 session...")
+        # 連續失敗過多，重建 session
+        if fail_streak >= 5:
+            print(f"  [Yahoo] 連續 {fail_streak} 次失敗，重建 session...")
             try:
                 session, crumb = _get_yahoo_session()
                 fail_streak = 0

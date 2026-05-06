@@ -9,7 +9,6 @@ import os
 import time
 import requests
 import db as sqlite3
-from fetcher_utils import DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +52,12 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     where: 可選的 WHERE 條件
     clear_first: 由 Render 端在同一 transaction 裡清空+寫入（避免空窗期）
     """
-    conn = sqlite3.connect(DB_PATH)
     col_str = ','.join(columns)
     sql = f"SELECT {col_str} FROM {table}"
     if where:
         sql += f" {where}"
-    rows = conn.execute(sql).fetchall()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        rows = conn.execute(sql).fetchall()
 
     if not rows:
         print(f"  [{table}] 無資料")
@@ -82,10 +80,9 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
         if not resp:
             failed += len(batch)
 
-    msg = f"  [{table}] {len(data)} 筆"
     if failed:
-        msg += f"（{failed} 筆失敗）"
-    print(msg)
+        logger.warning(f"[{table}] 部分同步：{len(data)-failed}/{len(data)} 筆成功，{failed} 筆失敗")
+    print(f"  [{table}] {len(data)} 筆" + (f"（{failed} 筆失敗）" if failed else ""))
     return len(data) - failed
 
 
@@ -95,10 +92,9 @@ def _merge_push_to_render(table, columns, pk, create_sql=None):
     但保留 Render 獨有的（在前台操作的）。
     適用於 user_lists 等雙邊都會操作的表。
     """
-    conn = sqlite3.connect(DB_PATH)
     col_str = ','.join(columns)
-    rows = conn.execute(f"SELECT {col_str} FROM {table}").fetchall()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        rows = conn.execute(f"SELECT {col_str} FROM {table}").fetchall()
 
     local_data = [{columns[j]: r[j] for j in range(len(columns))} for r in rows]
     # 本機所有 pk 組合
@@ -383,11 +379,9 @@ def _push_news_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("""SELECT code, name, date, subject, link, tier, matched_rule, direction, created_at
-                               FROM material_news WHERE created_at > datetime('now', '-1 day')""").fetchall()
-        conn.close()
+        with sqlite3.get_conn(row_factory=True) as conn:
+            rows = conn.execute("""SELECT code, name, date, subject, link, tier, matched_rule, direction, created_at
+                                   FROM material_news WHERE created_at > datetime('now', '-1 day')""").fetchall()
         if not rows:
             return
         data = [dict(r) for r in rows]
@@ -404,11 +398,10 @@ def _push_pe_history_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute(
-            "SELECT code, year, pe_high, pe_low, updated_at FROM pe_history"
-        ).fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute(
+                "SELECT code, year, pe_high, pe_low, updated_at FROM pe_history"
+            ).fetchall()
 
         if not rows:
             print("[PE歷史同步] 無資料")
@@ -437,10 +430,9 @@ def _push_financial_detail_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code, period, period_type, report_type, item, value, updated_at
-                              FROM financial_detail""").fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute("""SELECT code, period, period_type, report_type, item, value, updated_at
+                                  FROM financial_detail""").fetchall()
 
         if not rows:
             print("[財報明細同步] 今天沒有更新")
@@ -469,15 +461,14 @@ def _push_financial_annual_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code, year, revenue, cost, gross_profit, operating_expense,
-                              operating_income, non_operating, pretax_income, tax, net_income,
-                              net_income_parent, total_assets, total_equity, common_stock,
-                              contract_liability, operating_cf, capex, eps,
-                              weighted_shares, cash_dividend, stock_dividend, updated_at
-                              FROM financial_annual
-                              ORDER BY code, year""").fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute("""SELECT code, year, revenue, cost, gross_profit, operating_expense,
+                                  operating_income, non_operating, pretax_income, tax, net_income,
+                                  net_income_parent, total_assets, total_equity, common_stock,
+                                  contract_liability, operating_cf, capex, eps,
+                                  weighted_shares, cash_dividend, stock_dividend, updated_at
+                                  FROM financial_annual
+                                  ORDER BY code, year""").fetchall()
 
         cols = ['code','year','revenue','cost','gross_profit','operating_expense',
                 'operating_income','non_operating','pretax_income','tax','net_income',
@@ -510,13 +501,12 @@ def _push_quarterly_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code, quarter, revenue, cost, gross_profit, operating_expense,
-                              operating_income, non_operating, pretax_income, tax, continuing_income,
-                              net_income_parent, eps, contract_liability, updated_at
-                              FROM quarterly_financial
-                              ORDER BY code, quarter""").fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute("""SELECT code, quarter, revenue, cost, gross_profit, operating_expense,
+                                  operating_income, non_operating, pretax_income, tax, continuing_income,
+                                  net_income_parent, eps, contract_liability, updated_at
+                                  FROM quarterly_financial
+                                  ORDER BY code, quarter""").fetchall()
 
         cols = ['code','quarter','revenue','cost','gross_profit','operating_expense',
                 'operating_income','non_operating','pretax_income','tax','continuing_income',
@@ -547,21 +537,20 @@ def _push_annual_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code, eps_date,
-            eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
-            eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
-            eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
-            eps_ytd, eps_ytd_label,
-            div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
-            div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
-            div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
-            fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
-            fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
-            fin_grade_5, fin_grade_5y, fin_grade_6, fin_grade_6y,
-            deepest_val_level, val_cheap_days
-            FROM stocks WHERE close IS NOT NULL""").fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute("""SELECT code, eps_date,
+                eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
+                eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
+                eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+                eps_ytd, eps_ytd_label,
+                div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
+                div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
+                div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
+                fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
+                fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
+                fin_grade_5, fin_grade_5y, fin_grade_6, fin_grade_6y,
+                deepest_val_level, val_cheap_days
+                FROM stocks WHERE close IS NOT NULL""").fetchall()
 
         cols = ['code', 'eps_date',
             'eps_1','eps_1q','eps_2','eps_2q','eps_3','eps_3q','eps_4','eps_4q','eps_5','eps_5q',
@@ -597,12 +586,11 @@ def _push_prices_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""SELECT code, close, change, open, high, low, volume,
-                              revenue_date, revenue_year, revenue_month,
-                              revenue_yoy, revenue_mom, revenue_cum_yoy
-                              FROM stocks WHERE close IS NOT NULL""").fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute("""SELECT code, close, change, open, high, low, volume,
+                                  revenue_date, revenue_year, revenue_month,
+                                  revenue_yoy, revenue_mom, revenue_cum_yoy
+                                  FROM stocks WHERE close IS NOT NULL""").fetchall()
         cols = ['code', 'close', 'change', 'open', 'high', 'low', 'volume',
                 'revenue_date', 'revenue_year', 'revenue_month',
                 'revenue_yoy', 'revenue_mom', 'revenue_cum_yoy']
@@ -628,9 +616,8 @@ def _push_institutional_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("SELECT code, inst_foreign, inst_trust, inst_dealer FROM stocks WHERE inst_foreign IS NOT NULL").fetchall()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            rows = conn.execute("SELECT code, inst_foreign, inst_trust, inst_dealer FROM stocks WHERE inst_foreign IS NOT NULL").fetchall()
         data = [{'code': r[0], 'f': r[1], 't': r[2], 'd': r[3]} for r in rows]
         failed = 0
         for i in range(0, len(data), 500):
@@ -652,13 +639,11 @@ def _push_estimates_to_render():
     if _is_cloud():
         return
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("""SELECT code, sys_ann_eps, sys_ann_div, sys_ann_pe,
-                               sys_ann_yld, sys_ann_confidence,
-                               sys_est_eps, sys_est_quarter, sys_est_confidence
-                               FROM stocks WHERE sys_ann_eps IS NOT NULL""").fetchall()
-        conn.close()
+        with sqlite3.get_conn(row_factory=True) as conn:
+            rows = conn.execute("""SELECT code, sys_ann_eps, sys_ann_div, sys_ann_pe,
+                                   sys_ann_yld, sys_ann_confidence,
+                                   sys_est_eps, sys_est_quarter, sys_est_confidence
+                                   FROM stocks WHERE sys_ann_eps IS NOT NULL""").fetchall()
         data = [dict(r) for r in rows]
         if not data:
             return
