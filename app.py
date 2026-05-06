@@ -527,12 +527,12 @@ def _calc_checklist_for_stock(r, user_params=None):
 
     # ── 成長加分 ──
 
-    # 7. 保守成長率 > 0%（有正成長）
+    # 7. 保守成長率 >= 7%（聶夫法門檻）
     gi = r.get('_gi') or {}
     neff_a = gi.get('neff_a')
     neff_b = gi.get('neff_b')
     neff_c = gi.get('neff_c')
-    checks[7] = 1 if neff_c is not None and neff_c > 0 else 0
+    checks[7] = 1 if neff_c is not None and neff_c >= 7 else 0
     if neff_c is not None:
         detail['chk_7'] = f'保守成長率={neff_c}%　min(5年淨利CAGR {neff_a}%, 3年淨利CAGR {neff_b}%)，>20%以20%計'
     else:
