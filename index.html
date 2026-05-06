@@ -2515,14 +2515,24 @@ async function reloadStocks() {
   const btn = document.getElementById('btnReload');
   if (btn) { btn.style.borderColor = '#f59e0b'; btn.style.color = '#f59e0b'; btn.textContent = '載入中...'; }
   try {
-    const [sRes, stRes] = await Promise.all([
+    const [sRes, stRes, giRes, ueRes] = await Promise.all([
       fetch('/api/status'),
-      fetch('/api/stocks')
+      fetch('/api/stocks'),
+      fetch('/api/growth-indicators'),
+      fetch('/api/user-estimates-all'),
     ]);
     const status = await sRes.json();
     const stocks = await stRes.json();
+    let _growthData = {};
+    try { _growthData = await giRes.json(); } catch(e) { _growthData = {}; }
+    let _userEstimates = {};
+    try { _userEstimates = await ueRes.json(); } catch(e) { _userEstimates = {}; }
     updateStatusBar(status);
     allData  = stocks.data;
+    allData.forEach(r => {
+      r._gi = _growthData[r.code] || null;
+      r._ue = _userEstimates[r.code] || null;
+    });
     allData.forEach(calcDerived);
     filtered = [...allData];
     applyFilter();
