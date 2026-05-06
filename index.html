@@ -2488,10 +2488,44 @@ function pollRefresh() {
         clearInterval(_pollTimer);
         _pollTimer = null;
         setRefreshingUI(false);
-        await reloadStocks();
+        await refreshPricesOnly();
       }
     } catch {}
   }, 2000);
+}
+
+async function refreshPricesOnly() {
+  // 只抓最新股價，更新到現有 allData 上，不重建整個表格
+  try {
+    const res = await fetch('/api/stocks');
+    const stocks = await res.json();
+    const priceMap = {};
+    for (const s of stocks.data) {
+      priceMap[s.code] = s;
+    }
+    for (const r of allData) {
+      const fresh = priceMap[r.code];
+      if (!fresh) continue;
+      r.close = fresh.close;
+      r.change = fresh.change;
+      r.open = fresh.open;
+      r.high = fresh.high;
+      r.low = fresh.low;
+      r.volume = fresh.volume;
+      // 同步可能變動的欄位（EPS同步、評價快照等）
+      if (fresh.sys_est_eps != null) r.sys_est_eps = fresh.sys_est_eps;
+      if (fresh.sys_est_quarter != null) r.sys_est_quarter = fresh.sys_est_quarter;
+      if (fresh.sys_ann_eps != null) r.sys_ann_eps = fresh.sys_ann_eps;
+      if (fresh.sys_ann_div != null) r.sys_ann_div = fresh.sys_ann_div;
+      calcDerived(r);
+    }
+    filtered = [...allData];
+    applyFilter();
+    fetchRealtimePrices();
+  } catch(e) {
+    console.error('[refreshPricesOnly] 失敗，改用完整重載', e);
+    await reloadStocks();
+  }
 }
 
 function setRefreshingUI(isRunning) {
