@@ -1382,8 +1382,8 @@ def sync_clear_table():
         return jsonify({"status": "error", "msg": "unauthorized"}), 403
     table = request.json.get('table', '').strip()
     ALLOWED_TABLES = {
-        'material_news', 'etf_holdings', 'etf_changes', 'user_lists',
-        'user_notes', 'user_estimates', 'focus_tracking', 'focus_signals',
+        'material_news', 'etf_holdings', 'etf_changes', 'etf_info',
+        'user_lists', 'user_notes', 'user_estimates', 'focus_tracking', 'focus_signals',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
