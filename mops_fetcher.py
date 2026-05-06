@@ -64,15 +64,8 @@ def fetch_mops_monthly_revenue(roc_year=None, month=None):
     today_str = date.today().strftime('%Y-%m-%d')
     total = 0
 
-    conn = sqlite3.connect(DB_PATH, timeout=60)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=30000")  # 等 30 秒（可能與 run() 並行）
-    c = conn.cursor()
-    # 確保表存在
-    c.execute("""CREATE TABLE IF NOT EXISTS monthly_revenue (
-        code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
-        revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""")
-
+    # 第一步：先從網頁抓資料存到記憶體（不碰 DB）
+    all_records = []
     for mtype, mpath in [('上市', 'sii'), ('上櫃', 'otc')]:
         try:
             url = f"https://mopsov.twse.com.tw/nas/t21/{mpath}/t21sc03_{roc_year}_{month}_0.html"
@@ -95,37 +88,60 @@ def fetch_mops_monthly_revenue(roc_year=None, month=None):
 
                 mom = _safe_float(texts[5])   # 上月比較增減(%)
                 yoy = _safe_float(texts[6])   # 去年同月增減(%)
-                cum_yoy = _safe_float(texts[9]) if len(texts) > 9 else None  # 累計前期比較增減(%)
+                cum_yoy = _safe_float(texts[9]) if len(texts) > 9 else None
 
-                try:
-                    # 寫 monthly_revenue（MOPS 最高優先，直接覆蓋）
-                    c.execute("""INSERT INTO monthly_revenue (code, year, month, revenue, updated_at)
-                        VALUES (?,?,?,?,?) ON CONFLICT(code, year, month) DO UPDATE SET
-                        revenue=excluded.revenue, updated_at=excluded.updated_at""",
-                        (code, west_year, month, rev_val, now_str))
-
-                    # 更新 stocks 表的營收日期
-                    old = c.execute("SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
-                    if old and (west_year > (old[0] or 0) or (west_year == (old[0] or 0) and month > (old[1] or 0))):
-                        c.execute("""UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=?,
-                            revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=? WHERE code=?""",
-                            (today_str, west_year, month, yoy, mom, cum_yoy, code))
-                except Exception:
-                    pass  # DB locked 時跳過單筆
-
+                all_records.append({
+                    'code': code, 'revenue': rev_val,
+                    'yoy': yoy, 'mom': mom, 'cum_yoy': cum_yoy
+                })
                 cnt += 1
 
-            total += cnt
             if cnt:
                 print(f"  [MOPS營收-{mtype}] {cnt} 筆（{roc_year}年{month}月）")
         except Exception as e:
             print(f"  [MOPS營收-{mtype}] 失敗: {e}")
 
-    try:
-        conn.commit()
-    except Exception as e:
-        print(f"  [MOPS營收] commit 失敗: {e}")
-    conn.close()
+    if not all_records:
+        return 0
+
+    # 第二步：寫入 DB（重試最多 3 次，每次間隔 10 秒）
+    import time as _time
+    for attempt in range(3):
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=60)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=10000")
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS monthly_revenue (
+                code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
+                revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""")
+
+            for rec in all_records:
+                code = rec['code']
+                c.execute("""INSERT INTO monthly_revenue (code, year, month, revenue, updated_at)
+                    VALUES (?,?,?,?,?) ON CONFLICT(code, year, month) DO UPDATE SET
+                    revenue=excluded.revenue, updated_at=excluded.updated_at""",
+                    (code, west_year, month, rec['revenue'], now_str))
+
+                old = c.execute("SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
+                if old and (west_year > (old[0] or 0) or (west_year == (old[0] or 0) and month > (old[1] or 0))):
+                    c.execute("""UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=?,
+                        revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=? WHERE code=?""",
+                        (today_str, west_year, month, rec['yoy'], rec['mom'], rec['cum_yoy'], code))
+
+            conn.commit()
+            conn.close()
+            total = len(all_records)
+            break  # 成功，跳出重試
+        except Exception as e:
+            try: conn.close()
+            except Exception: pass
+            if attempt < 2:
+                print(f"  [MOPS營收] DB locked，{10}秒後重試（{attempt+1}/3）...")
+                _time.sleep(10)
+            else:
+                print(f"  [MOPS營收] 3次重試仍失敗: {e}")
+
     return total
 
 
@@ -332,13 +348,8 @@ def fetch_and_save_mops_quarterly(roc_year, season):
         prev = fetch_mops_quarterly(roc_year, season - 1)
         prev_records_map = {r['code']: r for r in prev}
 
-    # 反算單季
-    conn = sqlite3.connect(DB_PATH, timeout=60)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=30000")  # 等 30 秒（可能與 run() 並行）
-    c = conn.cursor()
-    saved = 0
-
+    # 反算單季（先算好存記憶體，再寫 DB）
+    write_rows = []
     for rec in current_records:
         code = rec['code']
 
@@ -349,7 +360,6 @@ def fetch_and_save_mops_quarterly(roc_year, season):
             if prev_rec:
                 single = _subtract_records(rec, prev_rec)
             else:
-                # 沒有前季資料，無法反算，跳過（避免存入累積值當單季）
                 continue
 
         # 單位：MOPS 是千元，乘 1000 轉為元
@@ -359,42 +369,53 @@ def fetch_and_save_mops_quarterly(roc_year, season):
             if single.get(f) is not None:
                 single[f] = single[f] * 1000
 
-        try:
-            # MOPS 最高優先，直接覆蓋
-            c.execute("""
-                INSERT INTO quarterly_financial
-                  (code, quarter, revenue, cost, gross_profit, operating_expense,
-                   operating_income, non_operating, pretax_income, tax,
-                   continuing_income, net_income_parent, eps, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(code, quarter) DO UPDATE SET
-                  revenue=excluded.revenue,
-                  cost=excluded.cost,
-                  gross_profit=excluded.gross_profit,
-                  operating_expense=excluded.operating_expense,
-                  operating_income=excluded.operating_income,
-                  non_operating=excluded.non_operating,
-                  pretax_income=excluded.pretax_income,
-                  tax=excluded.tax,
-                  continuing_income=excluded.continuing_income,
-                  net_income_parent=excluded.net_income_parent,
-                  eps=excluded.eps,
-                  updated_at=excluded.updated_at
-            """, (code, quarter_label,
-                  single.get('revenue'), single.get('cost'), single.get('gross_profit'),
-                  single.get('operating_expense'), single.get('operating_income'),
-                  single.get('non_operating'), single.get('pretax_income'),
-                  single.get('tax'), single.get('continuing_income'),
-                  single.get('net_income_parent'), single.get('eps'), now_str))
-            saved += 1
-        except Exception:
-            pass  # DB locked 時跳過單筆
+        write_rows.append(single)
 
-    try:
-        conn.commit()
-    except Exception as e:
-        print(f"[MOPS季報] commit 失敗: {e}")
-    conn.close()
+    # 寫入 DB（重試最多 3 次）
+    import time as _time
+    saved = 0
+    for attempt in range(3):
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=60)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=10000")
+            c = conn.cursor()
+
+            for single in write_rows:
+                c.execute("""
+                    INSERT INTO quarterly_financial
+                      (code, quarter, revenue, cost, gross_profit, operating_expense,
+                       operating_income, non_operating, pretax_income, tax,
+                       continuing_income, net_income_parent, eps, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(code, quarter) DO UPDATE SET
+                      revenue=excluded.revenue, cost=excluded.cost,
+                      gross_profit=excluded.gross_profit, operating_expense=excluded.operating_expense,
+                      operating_income=excluded.operating_income, non_operating=excluded.non_operating,
+                      pretax_income=excluded.pretax_income, tax=excluded.tax,
+                      continuing_income=excluded.continuing_income,
+                      net_income_parent=excluded.net_income_parent,
+                      eps=excluded.eps, updated_at=excluded.updated_at
+                """, (single.get('code'), quarter_label,
+                      single.get('revenue'), single.get('cost'), single.get('gross_profit'),
+                      single.get('operating_expense'), single.get('operating_income'),
+                      single.get('non_operating'), single.get('pretax_income'),
+                      single.get('tax'), single.get('continuing_income'),
+                      single.get('net_income_parent'), single.get('eps'), now_str))
+                saved += 1
+
+            conn.commit()
+            conn.close()
+            break
+        except Exception as e:
+            try: conn.close()
+            except Exception: pass
+            saved = 0
+            if attempt < 2:
+                print(f"  [MOPS季報] DB locked，10秒後重試（{attempt+1}/3）...")
+                _time.sleep(10)
+            else:
+                print(f"  [MOPS季報] 3次重試仍失敗: {e}")
 
     print(f"[MOPS季報] {quarter_label} 已存 {saved} 筆（單季值）")
     return saved
