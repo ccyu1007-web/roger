@@ -93,7 +93,8 @@ def backup_raw_response(source_name, data, metadata=None):
                   (source_name, content_hash, now_str))
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] fingerprint 寫入失敗: {e}")
 
     # 存完整原始資料（gzip 壓縮）
     today = date.today().strftime('%Y%m%d')
@@ -117,7 +118,8 @@ def backup_raw_response(source_name, data, metadata=None):
         with gzip.open(filepath, 'wt', encoding='utf-8') as f:
             json.dump(payload, f, ensure_ascii=False)
         return 'saved'
-    except Exception:
+    except Exception as e:
+        print(f"[Guardian] 備份寫入失敗 {filepath}: {e}")
         return 'error'
 
 
@@ -140,7 +142,8 @@ def load_from_backup(date_str, source_name=None):
             with gzip.open(f, 'rt', encoding='utf-8') as fp:
                 payload = json.load(fp)
             results.append(payload)
-        except Exception: pass
+        except Exception as e:
+            print(f"[Guardian] 備份讀取失敗 {f}: {e}")
     return results
 
 
@@ -154,7 +157,8 @@ def get_fingerprint_stats():
         stats = [dict(r) for r in c.fetchall()]
         conn.close()
         return stats
-    except Exception:
+    except Exception as e:
+        print(f"[Guardian] fingerprint 查詢失敗: {e}")
         return []
 
 
@@ -266,7 +270,8 @@ def _init_quarantine_table():
         )""")
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] quarantine table 初始化失敗: {e}")
 
 _init_quarantine_table()
 
@@ -325,7 +330,8 @@ def sanity_check(new_row, old_row, source='unknown'):
                      datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                 conn.commit()
                 conn.close()
-            except Exception: pass
+            except Exception as e:
+                print(f"[跳變攔截] {code} quarantine 寫入失敗: {e}")
 
     is_safe = len(blocked) == 0
     if not is_safe:
@@ -346,7 +352,8 @@ def get_quarantine_list(limit=50):
         rows = [dict(r) for r in c.fetchall()]
         conn.close()
         return rows
-    except Exception:
+    except Exception as e:
+        print(f"[Guardian] quarantine 查詢失敗: {e}")
         return []
 
 
@@ -372,7 +379,8 @@ def resolve_quarantine(quarantine_id, action='accept'):
         conn.commit()
         conn.close()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"[Guardian] quarantine 處理失敗: {e}")
         return False
 
 
@@ -409,7 +417,8 @@ def _init_audit_table():
                      WHERE changed_at < datetime('now', '-90 days')""")
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] audit table 初始化失敗: {e}")
 
 _init_audit_table()
 
@@ -438,7 +447,8 @@ def audit_changes(code, new_row, old_row):
                 VALUES (?,?,?,?,?,?)""", changes)
             conn.commit()
             conn.close()
-        except Exception: pass
+        except Exception as e:
+            print(f"[Guardian] audit 寫入失敗: {e}")
 
     return len(changes)
 
@@ -458,7 +468,8 @@ def get_audit_log(limit=100, code=None):
         rows = [dict(r) for r in c.fetchall()]
         conn.close()
         return rows
-    except Exception:
+    except Exception as e:
+        print(f"[Guardian] audit 查詢失敗: {e}")
         return []
 
 
@@ -512,7 +523,8 @@ class CircuitBreaker:
                     if elapsed >= self.cooldown_minutes:
                         self.state = 'HALF_OPEN'
             conn.close()
-        except Exception: pass
+        except Exception as e:
+            print(f"[熔斷器] {self.source_name} DB 讀取失敗: {e}")
 
     def _save_to_db(self):
         """持久化熔斷狀態"""
@@ -528,7 +540,8 @@ class CircuitBreaker:
                       (self.source_name, self.state, tripped_str, self.trip_count))
             conn.commit()
             conn.close()
-        except Exception: pass
+        except Exception as e:
+            print(f"[熔斷器] {self.source_name} DB 寫入失敗: {e}")
 
     def check(self, validation_result):
         """根據驗證結果決定是否允許寫入"""
@@ -629,7 +642,8 @@ def get_all_breakers():
             if row[0] not in _breakers:
                 _breakers[row[0]] = CircuitBreaker(row[0])
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[熔斷器] 狀態查詢失敗: {e}")
     return {name: b.get_status() for name, b in _breakers.items()}
 
 
@@ -794,7 +808,8 @@ def log_provider_switch(data_type, from_provider, to_provider, reason):
                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] provider switch 記錄失敗: {e}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -838,7 +853,8 @@ def calc_reliability_scores():
                     score += 5
                 elif hours_ago > 72:
                     score -= 10
-            except Exception: pass
+            except Exception:
+                pass  # 時間格式解析失敗，不影響評分
 
         scores[source] = max(0, min(100, score))
     conn.close()
@@ -871,7 +887,8 @@ def detect_staleness():
                     'data': '股價', 'message': f'已 {hours_ago:.0f} 小時未更新',
                     'last_update': r[0],
                 })
-        except Exception: pass
+        except Exception:
+            pass  # 時間格式解析失敗，跳過此項鮮度檢查
 
     # 營收：每月 1-10 日應該有上月營收陸續公布
     if today.day >= 12 and today.day <= 15:
@@ -1043,7 +1060,8 @@ def cross_validate(sample_size=20):
         twse = requests.get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
                            headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
         price_map = {str(r.get('Code','')).strip(): float(r.get('ClosingPrice','0').replace(',','') or 0) for r in twse}
-    except Exception:
+    except Exception as e:
+        print(f"[交叉校驗] TWSE 股價取得失敗: {e}")
         price_map = {}
 
     try:
@@ -1056,7 +1074,8 @@ def cross_validate(sample_size=20):
             if code and yoy:
                 try: rev_map[code] = float(yoy)
                 except Exception: pass
-    except Exception:
+    except Exception as e:
+        print(f"[交叉校驗] TWSE 營收取得失敗: {e}")
         rev_map = {}
 
     mismatches = []
@@ -1106,7 +1125,8 @@ def cross_validate(sample_size=20):
                   (now_str, len(samples), ok_count, len(mismatches), json.dumps(mismatches, ensure_ascii=False)))
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[交叉校驗] 結果寫入失敗: {e}")
 
     return {
         'checked': len(samples),
@@ -1204,7 +1224,8 @@ def cross_validate_revenue():
                           f"（政府API: {db_revenue:,.0f} vs 群益: {capital_revenue:,.0f}）")
                 else:
                     ok_count += 1
-        except Exception: pass
+        except Exception as e:
+            print(f"[營收校驗] {code} 失敗: {e}")
 
         # 避免太快被擋
         import time
@@ -1225,7 +1246,8 @@ def cross_validate_revenue():
                    json.dumps({'type': 'revenue', 'mismatches': mismatches}, ensure_ascii=False)))
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[營收校驗] 結果寫入失敗: {e}")
 
     print(f"[營收校驗] 完成：共 {checked} 支，{ok_count} 支一致，{len(mismatches)} 支有差異")
     return {'checked': checked, 'ok': ok_count, 'mismatches': mismatches}
@@ -1244,7 +1266,8 @@ def get_latest_validation():
             result = dict(row)
             result['details'] = json.loads(result['details']) if result['details'] else []
             return result
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] 最近校驗結果查詢失敗: {e}")
     return None
 
 
@@ -1349,7 +1372,8 @@ def _init_news_table():
         c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-90 days')")
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] news table 初始化失敗: {e}")
 
 _init_news_table()
 
@@ -1657,7 +1681,8 @@ def get_recent_news(code=None, tier_min=1, limit=50):
                 r['cooled'] = False
 
         return rows
-    except Exception:
+    except Exception as e:
+        print(f"[Guardian] 新聞查詢失敗: {e}")
         return []
 
 
@@ -1694,7 +1719,8 @@ def auto_archive_old_news():
         if archived:
             print(f"[自動歸檔] {archived} 則超過 20 天的重要新聞已存入紀錄")
         return archived
-    except Exception:
+    except Exception as e:
+        print(f"[自動歸檔] 失敗: {e}")
         return 0
 
 
@@ -1876,7 +1902,8 @@ def _init_stock_state_table():
                      ON stock_state(stock_id, date DESC)""")
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[Guardian] stock_state table 初始化失敗: {e}")
 
 _init_stock_state_table()
 
@@ -1979,8 +2006,10 @@ def snapshot_stock_states():
                 if d.get('yldMax'): p['yld_max'] = float(d['yldMax'])
                 if p:
                     user_val_params[ue['code']] = p
-            except Exception: pass
-    except Exception: pass
+            except Exception:
+                pass  # 單筆 JSON 解析失敗，跳過
+    except Exception as e:
+        print(f"[評價快照] user_estimates 讀取失敗: {e}")
 
     # 取所有有收盤價的股票
     try:
@@ -1991,7 +2020,8 @@ def snapshot_stock_states():
                             div_c1, div_s1, deepest_val_level, val_cheap_days,
                             sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld
                      FROM stocks WHERE close IS NOT NULL""")
-    except Exception:
+    except Exception as e:
+        print(f"[評價快照] 查詢含系統估算欄位失敗，用舊查詢: {e}")
         c.execute("""SELECT code, close, volume,
                             eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
                             eps_4, eps_4q, eps_5, eps_5q,
@@ -2315,7 +2345,8 @@ def get_daily_briefing():
                       ORDER BY ec.created_at DESC LIMIT 50""")
         etf_changes = [dict(r) for r in c2.fetchall()]
         conn2.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[每日報告] ETF 異動查詢失敗: {e}")
 
     # ── 評價監控（矩陣等級）──
     CHEAP_GRADES = CHEAP_GRADES_SET
@@ -2338,7 +2369,8 @@ def get_daily_briefing():
             for r in c3.fetchall():
                 stock_extra[r['code']] = dict(r)
         conn3.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[每日報告] stocks 補充資料查詢失敗: {e}")
 
     val_level_changes = []  # 閃電機會
     val_cheap_list = []     # 便宜清單
@@ -2494,7 +2526,8 @@ def generate_health_report():
     # 資料鮮度
     try:
         report['staleness_alerts'] = detect_staleness()
-    except Exception:
+    except Exception as e:
+        print(f"[每日報告] 資料鮮度偵測失敗: {e}")
         report['staleness_alerts'] = []
 
     # FinMind 額度

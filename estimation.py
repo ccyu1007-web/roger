@@ -43,7 +43,8 @@ def _batch_system_estimate():
                 c2.commit()
                 c2.close()
                 success += 1
-        except Exception: pass
+        except Exception as e:
+            print(f"  [季度估算] {code} 失敗: {e}")
     print(f"  系統 EPS 估算：{success}/{len(rows)} 支完成")
 
 
@@ -74,7 +75,8 @@ def _batch_annual_estimate():
                 c2 = sqlite3.connect(DB_PATH)
                 c2.execute("UPDATE stocks SET sys_ann_confidence='N/A' WHERE code=?", (code,))
                 c2.commit(); c2.close()
-            except Exception: pass
+            except Exception as e:
+                print(f"  [年度估算] {code} N/A標記失敗: {e}")
             skip += 1
             continue
         try:
@@ -89,7 +91,8 @@ def _batch_annual_estimate():
                             d.get('est_yld'), ar['confidence'], code))
                 c2.commit(); c2.close()
                 success += 1
-        except Exception: pass
+        except Exception as e:
+            print(f"  [年度估算] {code} 失敗: {e}")
     print(f"  年度 EPS 估算：{success} 支完成，{skip} 支產業排除")
 
     # 估算結果 push 到 Render
@@ -126,7 +129,8 @@ def _backfill_actual_eps():
                     VALUES (?, ?, ?, ?, ?)""",
                     (q['code'], q['quarter'], q['revenue'], q['eps'], q['updated_at']))
                 filled += conn.total_changes
-            except Exception: pass
+            except Exception:
+                pass  # INSERT OR IGNORE 衝突，正常
 
         # 回填已公布的年度 EPS
         annuals = conn.execute("""
@@ -142,11 +146,13 @@ def _backfill_actual_eps():
                     (code, target_period, actual_revenue, actual_eps, report_date)
                     VALUES (?, ?, ?, ?, ?)""",
                     (a['code'], period, a['revenue'], a['eps'], a['updated_at']))
-            except Exception: pass
+            except Exception:
+                pass  # INSERT OR IGNORE 衝突，正常
 
         conn.commit()
         conn.close()
-    except Exception: pass
+    except Exception as e:
+        print(f"[估算] 實際EPS回填失敗: {e}")
 
 
 # ── 系統 EPS 估算核心 ─────────────────────────────────────────
@@ -839,7 +845,8 @@ def estimate_annual_eps(code):
             if _ue.get('peLow'): _user_pe_low = float(_ue['peLow'])
             if _ue.get('yldHigh'): _user_yld_high = float(_ue['yldHigh'])
             if _ue.get('yldMax'): _user_yld_max = float(_ue['yldMax'])
-    except Exception: pass
+    except Exception as e:
+        pass  # user_estimates 讀取失敗，用預設值
 
     val = {}
     if est_eps and est_eps > 0 and est_div is not None:

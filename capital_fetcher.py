@@ -312,8 +312,8 @@ def fetch_capital_quarterly_full(code):
                             (checked_at, sample_size, ok_count, mismatch_count, details)
                             VALUES (?,1,0,1,?)""",
                             (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"[zcq校驗] cross_validation 寫入失敗: {e}")
                     logger.warning(f"[zcq校驗] {code} {quarter_label} 差異大: 營收差{rev_diff_pct:.1f}%")
 
                     # MOPS 明顯異常才覆蓋
@@ -371,7 +371,8 @@ def fetch_capital_financials(code):
         r = _session.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[群益季報-zce] {code} 頁面抓取失敗: {e}")
         return 0, 0
 
     # 找有「季別」表頭的表格
@@ -503,8 +504,8 @@ def fetch_capital_financials(code):
                                 (checked_at, sample_size, ok_count, mismatch_count, details)
                                 VALUES (?,1,0,1,?)""",
                                 (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"[校驗] cross_validation 寫入失敗: {e}")
                         logger.warning(f"[校驗] {code} {quarter_label} 群益vs MOPS 差異大: "
                                        f"營收差{rev_diff_pct:.1f}% EPS差{eps_diff:.4f}")
 
