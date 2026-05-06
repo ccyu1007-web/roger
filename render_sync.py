@@ -143,11 +143,57 @@ def get_last_sync_result():
     return _last_sync_result
 
 
+def _pull_user_estimates_from_render():
+    """從 Render 拉回 user_estimates（前台設定的預估參數），本機有的 key 優先不覆蓋"""
+    if _is_cloud():
+        return
+    import json
+    from datetime import datetime
+    resp = requests.get(f'{RENDER_URL}/api/user-estimates-all', timeout=30)
+    if resp.status_code != 200:
+        print(f"[拉回] user_estimates API 失敗: HTTP {resp.status_code}")
+        return
+    render_ue = resp.json()
+    if not render_ue:
+        return
+
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    updated = 0
+    with sqlite3.get_conn() as conn:
+        for code, params in render_ue.items():
+            if not params:
+                continue
+            params_str = json.dumps(params, ensure_ascii=False)
+            existing = conn.execute('SELECT params FROM user_estimates WHERE code=?', (code,)).fetchone()
+            if existing and existing[0]:
+                local_params = json.loads(existing[0])
+                merged = {**params, **local_params}  # 本機 key 優先
+                merged_str = json.dumps(merged, ensure_ascii=False)
+                if merged_str != existing[0]:
+                    conn.execute('UPDATE user_estimates SET params=?, updated_at=? WHERE code=?',
+                               (merged_str, now_str, code))
+                    updated += 1
+            else:
+                conn.execute('INSERT OR REPLACE INTO user_estimates (code, params, updated_at) VALUES (?, ?, ?)',
+                           (code, params_str, now_str))
+                updated += 1
+        conn.commit()
+    if updated:
+        print(f"[拉回] user_estimates 同步 {updated} 支到本機")
+
+
 def _push_all_to_render():
     """一次 push 所有資料到 Render — 通用全表同步"""
     global _last_sync_result
     if _is_cloud():
         return
+
+    # 先從 Render 拉回 user_estimates（前台設定的預估參數）
+    try:
+        _pull_user_estimates_from_render()
+    except Exception as e:
+        print(f"[拉回] user_estimates 失敗: {e}")
+
     print("[全量同步] 開始 push 到 Render...")
     failures = []
 
