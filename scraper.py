@@ -315,7 +315,8 @@ def _flush_health_log():
         conn.commit()
         conn.close()
         _health_log = []
-    except Exception: pass
+    except Exception as e:
+        logger.warning(f"[Health] flush 失敗: {e}")
 
 
 
@@ -350,7 +351,7 @@ def date_to_quarter_label(date_str):
         quarter = (d.month - 1) // 3 + 1
         return f"{roc_year}Q{quarter}"
     except Exception as e:
-        logger.debug(f"d = datetime.strptime(date_str, \'%Y-%m-: {e}")
+        logger.debug(f"date_to_quarter_label('{date_str}') 失敗: {e}")
         return None
 
 
@@ -536,7 +537,8 @@ def _fetch_revenue(code, start_date):
         data = r.json()
         if data.get('status') == 200:
             return code, data.get('data', [])
-    except Exception: pass
+    except Exception as e:
+        logger.warning(f"[FinMind營收] {code} 抓取失敗: {e}")
     return code, None
 
 def _calc_revenue_metrics(records):
@@ -916,7 +918,8 @@ def _fetch_contract_liability(code, start_date):
         data = r.json()
         if data.get('status') == 200:
             return code, data.get('data', [])
-    except Exception: pass
+    except Exception as e:
+        logger.warning(f"[FinMind資產負債] {code} 抓取失敗: {e}")
     return code, None
 
 def _calc_contract_metrics(records):
@@ -1023,7 +1026,8 @@ def _fetch_eps(code, start_date):
         data = r.json()
         if data.get('status') == 200:
             return code, data.get('data', [])
-    except Exception: pass
+    except Exception as e:
+        logger.warning(f"[FinMind損益] {code} 抓取失敗: {e}")
     return code, None
 
 def _calc_eps_metrics(records):
@@ -1182,7 +1186,8 @@ def save_to_db(rows):
         for r in c_old.fetchall():
             old_data[r['code']] = dict(r)
         conn_old.close()
-    except Exception: pass
+    except Exception as e:
+        logger.warning(f"[跳變偵測] 讀取舊資料失敗: {e}")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -1457,7 +1462,8 @@ def _run_inner(scheduled=True):
             print(f"[交叉校驗] {cv['checked']} 支抽查，{len(cv['mismatches'])} 支有差異！")
         else:
             print(f"[交叉校驗] {cv['checked']} 支抽查，全部一致")
-    except Exception: pass
+    except Exception as e:
+        print(f"[交叉校驗] 失敗: {e}")
 
     # 計算檢核表
     try:
@@ -1558,24 +1564,24 @@ def _post_process_after_save():
 
     # ── MOPS 最新季 EPS ──
     try: fetch_mops_quarterly_eps()
-    except Exception: pass
+    except Exception as e: print(f"[MOPS季報EPS] 失敗: {e}")
 
     # ── 稅務資料修正 ──
     _fix_tax_data()
 
     # ── 交叉驗證 ──
     try: cross_validate_financial()
-    except Exception: pass
+    except Exception as e: print(f"[交叉驗證] 失敗: {e}")
 
     # ── 年報公告截止後：確認年度 EPS + 股利到齊 ──
     try: _check_annual_eps_completeness()
-    except Exception: pass
+    except Exception as e: print(f"[年度EPS檢查] 失敗: {e}")
     try: _check_annual_dividend_completeness()
-    except Exception: pass
+    except Exception as e: print(f"[年度股利檢查] 失敗: {e}")
 
     # ── 季報公告截止後：用群益批次確認季度資料 ──
     try: _check_quarterly_completeness()
-    except Exception: pass
+    except Exception as e: print(f"[季報完整性檢查] 失敗: {e}")
 
     # ── 系統 EPS 估算（季+年，批次更新所有股票）──
     _batch_system_estimate()
@@ -1672,7 +1678,8 @@ def _fill_missing_financials():
     for code in codes:
         try:
             fetch_all_three(code)
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[補資料] {code} 群益全套失敗: {e}")
         done += 1
         if done % 10 == 0:
             print(f"    進度: {done}/{len(codes)}")
@@ -1788,7 +1795,8 @@ def _check_annual_dividend_completeness():
     for i, code in enumerate(missing_codes):
         try:
             fetch_capital_dividend(code)
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[股利補抓] {code} 失敗: {e}")
         if (i + 1) % 50 == 0:
             print(f"  股利補抓進度：{i+1}/{len(missing_codes)}")
             time.sleep(0.5)
@@ -1884,7 +1892,8 @@ def _check_quarterly_completeness():
         try:
             fetch_capital_financials(code)
             done += 1
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[季報補齊] {code} 失敗: {e}")
         if (i + 1) % 50 == 0:
             print(f"  進度：{i+1}/{len(missing_codes)}")
         time.sleep(random.uniform(0.3, 0.5))
@@ -1974,8 +1983,8 @@ def _capital_quarterly_validation():
         try:
             fetch_capital_quarterly_full(code)
             validated += 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[群益校驗] {code} 失敗: {e}")
         time.sleep(random.uniform(0.3, 0.5))
 
     if validated:
@@ -2304,7 +2313,8 @@ def fetch_company_monthly_revenue(code):
                 'revenue': float(rec['revenue']),
                 'updated_at': now_str,
             })
-        except Exception: pass
+        except Exception as e:
+            logger.debug(f"[營收解析] {code} 單筆轉換失敗: {e}")
 
     if rows:
         conn = sqlite3.connect(DB_PATH)
@@ -2376,7 +2386,8 @@ def fetch_company_financials(code):
             from capital_fetcher import fetch_all_three
             a1, q1, a2, a3, a4, a5 = fetch_all_three(code)
             capital_ok = (a1 > 0 or a2 > 0 or a3 > 0)
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[個股財報] {code} 群益全套失敗: {e}")
 
     # 檢查群益是否已補齊關鍵欄位
     conn = sqlite3.connect(DB_PATH)
@@ -2397,7 +2408,8 @@ def fetch_company_financials(code):
             data = fetch_yahoo_financials(session, crumb, code, market)
             if data:
                 save_yahoo_to_db(code, data)
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[個股財報] {code} Yahoo補充失敗: {e}")
 
     c.execute("SELECT * FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 6", (code,))
     rows = [dict(r) for r in c.fetchall()]
@@ -2514,8 +2526,10 @@ def _fetch_financials_finmind(code):
                             'cash_dividend': row[i * 3] or 0,
                             'stock_dividend': row[i * 3 + 1] or 0,
                         }
-                    except Exception: pass
-    except Exception: pass
+                    except Exception as e:
+                        logger.debug(f"[股利解析] {code} 年份轉換失敗: {e}")
+    except Exception as e:
+        logger.warning(f"[股利查詢] {code} 失敗: {e}")
 
     # ── 組合年度資料 ──
     all_years = sorted(set(
@@ -2670,7 +2684,8 @@ def fetch_company_quarterly(code):
             from capital_fetcher import fetch_capital_financials, fetch_capital_contract_liability
             fetch_capital_financials(code)
             fetch_capital_contract_liability(code)
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[季報補抓] {code} 群益失敗: {e}")
 
     c.execute("""SELECT * FROM quarterly_financial WHERE code=?
                  ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
@@ -2817,7 +2832,8 @@ def fetch_pe_history(code):
         n = fetch_capital_pe_history(code)
         if n > 0:
             return []  # 群益成功，不用 FinMind
-    except Exception: pass
+    except Exception as e:
+        logger.warning(f"[PE歷史] {code} 群益失敗，fallback FinMind: {e}")
 
     # 來源 2：FinMind（有額度限制）
     start_date = f"{date.today().year - 8}-01-01"
@@ -3004,8 +3020,8 @@ def _quick_gov_revenue(today_str):
                         WHERE code=?""",
                         (today_str, west_year, month, yoy, mom, cum_yoy, note, code))
                     rev_updated += 1
-            except Exception:
-                pass  # DB locked 時跳過單筆，不中斷整個流程
+            except Exception as e:
+                logger.debug(f"[營收寫入] {code} 跳過（DB locked？）: {e}")
 
     try:
         conn.commit()
@@ -3021,7 +3037,7 @@ def _quick_update_inner(t0, today_str):
 
     # 清理舊備份
     try: cleanup_old_backups(30)
-    except Exception: pass
+    except Exception as e: logger.warning(f"[備份清理] 失敗: {e}")
 
     # ── 4. 15號後：群益補齊當月 MOPS 缺漏 ──
     if date.today().day >= 15:
@@ -3053,8 +3069,8 @@ def _quick_update_inner(t0, today_str):
                         n = fetch_capital_monthly_revenue(code)
                         if n > 0:
                             cap_filled += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"[群益補營收] {code} 失敗: {e}")
                     time.sleep(random.uniform(0.3, 0.5))
                 if cap_filled:
                     print(f"[群益補營收] {target_year}/{target_month}月 補齊 {cap_filled}/{len(missing_codes)} 支")
@@ -3126,7 +3142,8 @@ def _quick_update_inner(t0, today_str):
                     mm = pub_date_str[-4:-2]
                     dd = pub_date_str[-2:]
                     pub_date = f"{roc_y + 1911}-{mm}-{dd}"
-                except Exception: pass
+                except Exception:
+                    pass  # 日期解析失敗用 fallback (today_str)
 
             quarter_label = f"{year}Q{season}"
 
@@ -3274,15 +3291,15 @@ def _quick_update_inner(t0, today_str):
     try: focus_signal_check()
     except Exception as e: print(f"[重點追蹤] 訊號檢查失敗: {e}")
     try: fetch_material_news()
-    except Exception: pass
+    except Exception as e: print(f"[重大訊息] 失敗: {e}")
     try: fetch_moneydj_news()
-    except Exception: pass
+    except Exception as e: print(f"[MoneyDJ新聞] 失敗: {e}")
     try: auto_archive_old_news()
-    except Exception: pass
+    except Exception as e: logger.warning(f"[新聞歸檔] 失敗: {e}")
     # 本機自動 push 新聞到 Render
     if not IS_CLOUD:
         try: _push_news_to_render()
-        except Exception: pass
+        except Exception as e: print(f"[新聞push] 失敗: {e}")
     # ── 5. MOPS 最新季 EPS（比政府 API 快）──
     try: fetch_mops_quarterly_eps()
     except Exception as e: print(f"[MOPS] 失敗: {e}")
@@ -3306,7 +3323,8 @@ def _quick_update_inner(t0, today_str):
                                    d.get('est_yld'), ar['confidence'], code))
                     conn_r.commit()
                     conn_r.close()
-            except Exception: pass
+            except Exception as e:
+                logger.warning(f"[即時重算] {code} 失敗: {e}")
         print(f"[即時重算] 完成")
 
     # ── 8. 自動 push 到 Render（僅本機）──
@@ -3514,7 +3532,8 @@ def _refresh_stale_financials():
             result = fetch_company_financials(code)
             if result:
                 print(f"  {code} 財報已更新（{year_label}年）")
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[財報刷新] {code} 失敗: {e}")
 
 
 def _prefetch_watchlist_details():
@@ -3594,7 +3613,8 @@ def _prefetch_watchlist_details():
                     (code, west_year, month, revenue, now_str))
                 if c.rowcount:
                     rev_saved += 1
-            except Exception: pass
+            except Exception as e:
+                logger.debug(f"[群益月營收] {code} DB寫入失敗: {e}")
 
     conn.commit()
     if rev_saved:
@@ -3639,7 +3659,8 @@ def _prefetch_watchlist_details():
                     VALUES (?,?,?,?,?,?,?)""",
                     (code, west_year, rev_full, gross_profit, operating_income, net_income, now_str))
                 fin_saved += 1
-            except Exception: pass
+            except Exception as e:
+                logger.debug(f"[年報寫入] {code}/{west_year} 失敗: {e}")
 
     # 上櫃也從 t187ap14 補充
     for label, url, code_key, eps_key, year_key, season_key, rev_key, oi_key, ni_key in [
@@ -3683,7 +3704,8 @@ def _prefetch_watchlist_details():
                     VALUES (?,?,?,?,?,?,?)""",
                     (code, west_year, revenue, oi, ni, eps, now_str))
                 fin_saved += 1
-            except Exception: pass
+            except Exception as e:
+                logger.debug(f"[年報寫入] {code}/{west_year} 失敗: {e}")
 
     conn.commit()
     if fin_saved:
@@ -3755,7 +3777,8 @@ def _prefetch_watchlist_details():
                 print(f"  {code}: 季度{len(r3) if r3 else 0}季, PE{len(r4) if r4 else 0}年")
             done += 1
             time.sleep(random.uniform(0.3, 1.0))
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"[預抓取] {code} FinMind失敗: {e}")
 
     print(f"[預抓取] FinMind 補充完成 {done}/{len(batch)} 支")
 
@@ -3796,7 +3819,8 @@ def _fetch_inst_one(code):
                     dealer  = _parse_inst_val(cells[3])
                     return code, foreign, trust, dealer, date_str
         return code, None, None, None, None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"[法人] {code} 群益抓取失敗: {e}")
         return code, None, None, None, None
 
 
@@ -4023,8 +4047,10 @@ def _refresh_realtime():
                               (close, change, op, hi, lo, vol, updated_at, code))
                     if c.rowcount:
                         count += 1
-                except Exception: pass
-        except Exception: pass
+                except Exception as e:
+                    logger.debug(f"[即時股價] {code} 寫入失敗: {e}")
+        except Exception as e:
+            logger.warning(f"[即時股價] 批次解析失敗: {e}")
 
     conn.commit()
     conn.close()
