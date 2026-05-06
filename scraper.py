@@ -22,6 +22,8 @@ import time
 import random
 import re
 import os
+import signal
+import fcntl
 from bs4 import BeautifulSoup
 
 IS_CLOUD = os.environ.get('DATABASE_URL') is not None
@@ -58,6 +60,59 @@ _session = create_session(ua="Mozilla/5.0 (compatible; StockBot/1.0)")
 
 # 批次 API 回傳的資料日期（ROC 格式，如 "1150421"）
 _twse_batch_date = None
+
+# ── 防呆機制：Lock file + 整體超時 ──────────────────────────
+LOCK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+LOCK_FILE = os.path.join(LOCK_DIR, 'scraper.lock')
+
+class _TimeoutError(Exception):
+    pass
+
+def _timeout_handler(signum, frame):
+    raise _TimeoutError("執行超時")
+
+class ScraperLock:
+    """
+    檔案鎖：防止 run() 和 quick_update() 同時操作 DB。
+    使用 fcntl.flock 非阻塞鎖，進程結束自動釋放。
+    """
+    def __init__(self, name, timeout_sec=None):
+        self.name = name
+        self.timeout_sec = timeout_sec
+        self._fd = None
+        self._old_handler = None
+
+    def __enter__(self):
+        os.makedirs(LOCK_DIR, exist_ok=True)
+        self._fd = open(LOCK_FILE, 'w')
+        try:
+            fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (IOError, OSError):
+            self._fd.close()
+            self._fd = None
+            print(f"[{self.name}] 另一個 scraper 正在執行，跳過本次")
+            return None
+        self._fd.write(f"{os.getpid()} {self.name} {datetime.now().isoformat()}\n")
+        self._fd.flush()
+        # 設定整體超時（僅主進程，非 thread）
+        if self.timeout_sec and hasattr(signal, 'SIGALRM'):
+            self._old_handler = signal.getsignal(signal.SIGALRM)
+            signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(self.timeout_sec)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.timeout_sec and hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
+            if self._old_handler:
+                signal.signal(signal.SIGALRM, self._old_handler)
+        if self._fd:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+            self._fd.close()
+        if exc_type is _TimeoutError:
+            print(f"[{self.name}] 超時（{self.timeout_sec}秒），強制結束")
+            return True  # suppress exception
+        return False
 
 
 def _today_roc():
@@ -1202,6 +1257,13 @@ def save_to_db(rows):
 
 # ── 主程式 ──────────────────────────────────────────────────
 def run(scheduled=True):
+    # 防呆：Lock file 防止與 quick_update() 同時執行 + 90 分鐘超時
+    with ScraperLock('run', timeout_sec=5400) as lock:
+        if lock is None:
+            return
+        _run_inner(scheduled)
+
+def _run_inner(scheduled=True):
     # 排程抖動：僅排程觸發時延遲，手動觸發（網頁按鈕）不等
     if scheduled:
         jitter = random.randint(0, 300)
@@ -2812,6 +2874,13 @@ def quick_update():
     輕量更新：只用政府批次 API 更新營收 & EPS。
     每次僅 4 個 HTTP 請求，< 5 秒完成，適合高頻排程。
     """
+    # 防呆：Lock file 防止與 run() 同時執行 + 15 分鐘超時
+    with ScraperLock('quick_update', timeout_sec=900) as lock:
+        if lock is None:
+            return
+        _quick_update_inner()
+
+def _quick_update_inner():
     # 排程抖動：隨機延遲 0~30 秒（快速更新不用等太久）
     jitter = random.randint(0, 30)
     if jitter > 5:
