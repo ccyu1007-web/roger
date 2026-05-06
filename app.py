@@ -90,18 +90,17 @@ except ImportError:
 # ── 股票資料快取（避免每次都查 DB）──────────────────────────
 _stocks_cache = None
 _stocks_cache_time = 0
+_cache_lock = threading.Lock()
 
 # ── 爬蟲狀態鎖（避免同時跑兩次）──────────────────────────
 _refresh_lock   = threading.Lock()
 _is_refreshing  = False
 
 def query_db(sql, args=()):
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute(sql, args)
-    rows = [dict(r) for r in c.fetchall()]
-    conn.close()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
+        c.execute(sql, args)
+        rows = [dict(r) for r in c.fetchall()]
     return rows
 
 # ── 沈董EPS/股利/綜合股利 後端計算 ────────────────────────────
@@ -600,6 +599,7 @@ def _calc_checklist_for_stock(r, user_params=None):
 
 def calc_all_checklists():
     """批次計算所有股票的檢核表並存入 DB"""
+    global _stocks_cache_time
     import json
     from datetime import datetime
     _init_checklist_db()
@@ -689,14 +689,15 @@ def calc_all_checklists():
 
     conn.commit()
     conn.close()
-    global _stocks_cache_time
-    _stocks_cache_time = 0  # 清快取，讓下次 API 重新查詢
+    with _cache_lock:
+        _stocks_cache_time = 0  # 清快取，讓下次 API 重新查詢
     print(f"[Checklist] 已計算 {count} 支股票檢核表")
     return count
 
 
 def _recalc_checklist_single(code):
     """重算單支股票的檢核表（儲存預估參數或股價更新後呼叫）"""
+    global _stocks_cache_time
     import json
     from datetime import datetime
     _init_checklist_db()
@@ -768,8 +769,8 @@ def _recalc_checklist_single(code):
                result['lt5'], result['lt6'], result['lt7'], now))
     conn.commit()
     conn.close()
-    global _stocks_cache_time
-    _stocks_cache_time = 0  # 清快取
+    with _cache_lock:
+        _stocks_cache_time = 0  # 清快取
 
 
 # ── 取得全部股票 ────────────────────────────────────────────
@@ -836,8 +837,10 @@ def get_stocks():
 
     # 無篩選時用記憶體快取（30秒，存 JSON 字串避免重複佔記憶體）
     use_cache = not q and not market and not exact
-    if use_cache and _stocks_cache and (_time.time() - _stocks_cache_time < 30):
-        return app.response_class(_stocks_cache, content_type='application/json')
+    if use_cache:
+        with _cache_lock:
+            if _stocks_cache and (_time.time() - _stocks_cache_time < 30):
+                return app.response_class(_stocks_cache, content_type='application/json')
 
     rows = query_db(sql, params)
 
@@ -906,8 +909,9 @@ def get_stocks():
     result_data = {"count": len(rows), "data": rows}
     resp = jsonify(result_data)
     if use_cache:
-        _stocks_cache = resp.get_data(as_text=True)  # 存 JSON 字串，不存 dict
-        _stocks_cache_time = _time.time()
+        with _cache_lock:
+            _stocks_cache = resp.get_data(as_text=True)  # 存 JSON 字串，不存 dict
+            _stocks_cache_time = _time.time()
     return resp
 
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
@@ -2373,12 +2377,14 @@ def growth_indicators():
     import time as _time
     global _gi_cache, _gi_cache_time
     now = _time.time()
-    if _gi_cache is not None and now - _gi_cache_time < 30:
-        return app.response_class(_gi_cache, content_type='application/json')
+    with _cache_lock:
+        if _gi_cache is not None and now - _gi_cache_time < 30:
+            return app.response_class(_gi_cache, content_type='application/json')
     try:
         result = _calc_growth_indicators(_json, _dt)
-        _gi_cache = result.get_data(as_text=True)  # 存 JSON 字串，不存 dict
-        _gi_cache_time = now
+        with _cache_lock:
+            _gi_cache = result.get_data(as_text=True)  # 存 JSON 字串，不存 dict
+            _gi_cache_time = now
         import gc; gc.collect()
         return result
     except Exception as e:
@@ -3184,10 +3190,11 @@ if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'tr
                 try:
                     func()
                 finally:
-                    _stocks_cache = None
-                    _stocks_cache_time = 0
-                    _gi_cache = None
-                    _gi_cache_time = 0
+                    with _cache_lock:
+                        _stocks_cache = None
+                        _stocks_cache_time = 0
+                        _gi_cache = None
+                        _gi_cache_time = 0
                     gc.collect()
                     print(f"[排程] {name} 完成，已清快取+回收記憶體")
             return wrapper
