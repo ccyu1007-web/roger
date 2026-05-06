@@ -2871,52 +2871,70 @@ def fetch_pe_history(code):
 
 def quick_update():
     """
-    輕量更新：只用政府批次 API 更新營收 & EPS。
-    每次僅 4 個 HTTP 請求，< 5 秒完成，適合高頻排程。
+    輕量更新：MOPS 營收/季報 + 政府 API 營收 + EPS + 評價。
+    必跑步驟（不受 lock 限制）：MOPS 營收 → MOPS 季報 → 政府 API 營收
+    可跳過步驟（需 lock）：EPS → 群益校驗 → 評價/新聞/Render 同步
     """
-    # MOPS 營收不受 lock 限制（只寫 monthly_revenue + stocks 營收欄位）
-    # 確保即使 run() 在跑，營收也能即時更新
-    try:
-        from mops_fetcher import fetch_mops_monthly_revenue
-        mops_count = fetch_mops_monthly_revenue()
-        if mops_count:
-            print(f"[MOPS營收] 已更新 {mops_count} 筆（不受 lock 限制）")
-    except Exception as e:
-        print(f"[MOPS營收] 失敗: {e}")
-
-    # 其餘步驟需要 lock 防止與 run() 同時操作
-    with ScraperLock('quick_update', timeout_sec=900) as lock:
-        if lock is None:
-            return
-        _quick_update_inner()
-
-def _quick_update_inner():
-    # 排程抖動：隨機延遲 0~30 秒（快速更新不用等太久）
-    jitter = random.randint(0, 30)
-    if jitter > 5:
-        print(f"[排程抖動] 延遲 {jitter} 秒...")
-        time.sleep(jitter)
-
     t0 = time.time()
     today_str = date.today().strftime('%Y-%m-%d')
-    _new_eps_codes = []  # 追蹤有新季度 EPS 的股票
     print(f"\n{'='*50}")
     print(f"快速更新  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}")
 
-    # 清理舊備份
-    try: cleanup_old_backups(30)
-    except Exception: pass
-
     init_db()
 
-    # ── 1. MOPS 即時營收 → 已移到 lock 外層執行（確保不被 run() 擋住）──
+    # ══ 必跑步驟（不受 lock 限制，即使 run() 在跑也執行）══
 
-    # ── 1a. 政府 API 批次營收（補充 MOPS 未覆蓋的，不降級已有月份）──
-    conn = sqlite3.connect(DB_PATH)
+    # ── 1. MOPS 即時營收（最高優先，直接覆蓋）──
+    try:
+        from mops_fetcher import fetch_mops_monthly_revenue
+        mops_count = fetch_mops_monthly_revenue()
+        if mops_count:
+            print(f"[MOPS營收] 已更新 {mops_count} 筆")
+    except Exception as e:
+        print(f"[MOPS營收] 失敗: {e}")
+
+    # ── 2. MOPS 季報（最高優先，直接覆蓋）──
+    try:
+        from mops_fetcher import fetch_latest_mops_quarterly
+        mops_q_count = fetch_latest_mops_quarterly()
+        if mops_q_count and mops_q_count > 0:
+            _sync_eps_from_quarterly()
+    except Exception as e:
+        print(f"[MOPS季報] 失敗: {e}")
+
+    # ── 3. 政府 API 批次營收（補充 MOPS 缺的，COALESCE 不覆蓋已有值）──
+    _quick_gov_revenue(today_str)
+
+    # ── 必跑步驟的 Render 同步（營收+季報）──
+    if not IS_CLOUD:
+        try:
+            _push_table_to_render(
+                table='monthly_revenue',
+                columns=['code','year','month','revenue','updated_at'],
+                pk=['code','year','month'],
+            )
+        except Exception as e:
+            print(f"[營收同步Render] 失敗: {e}")
+
+    # ══ 可跳過步驟（需 lock，被 run() 擋住就跳過）══
+    with ScraperLock('quick_update', timeout_sec=900) as lock:
+        if lock is None:
+            elapsed = time.time() - t0
+            print(f"\n快速更新（僅必跑步驟）完成，耗時 {elapsed:.1f} 秒")
+            return
+        _quick_update_inner(t0, today_str)
+
+def _quick_gov_revenue(today_str):
+    """政府 API 批次營收（補充 MOPS 缺的，COALESCE 不覆蓋已有值）
+    在 lock 外執行，遇 DB locked 跳過不中斷"""
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=60)
+    except Exception as e:
+        print(f"[營收] DB 連線失敗: {e}")
+        return
     c = conn.cursor()
     rev_updated = 0
-    rev_corrected = 0
     for label, url in [
         ("上市", "https://openapi.twse.com.tw/v1/openData/t187ap05_L"),
         ("上櫃", "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O"),
@@ -2944,7 +2962,6 @@ def _quick_update_inner():
             code = str(d.get('公司代號', '')).strip()
             if not code:
                 continue
-            # 解析資料年月 "11503" → year=115+1911=2026, month=3
             ym_str = str(d.get('資料年月', '')).strip()
             if len(ym_str) < 4:
                 continue
@@ -2961,40 +2978,52 @@ def _quick_update_inner():
 
             west_year = roc_year + 1911
 
-            # 檢查是否為新月份
             c.execute("SELECT revenue_year, revenue_month FROM stocks WHERE code = ?", (code,))
             row = c.fetchone()
             if not row:
                 continue
             old_y, old_m = row[0], row[1]
 
-            # 同月份 → 用政府官方值補充 yoy/mom/cum_yoy（MOPS 不提供這些欄位）
-            # 新月份 → 更新 revenue_date/year/month
             # 舊月份（MOPS 已更新到更新的月份）→ 跳過，不降級
             if old_y is not None and old_m is not None:
                 if west_year < old_y or (west_year == old_y and month < old_m):
-                    # t187ap05 的月份比 MOPS 已更新的舊，跳過不降級
                     continue
-            if old_y == west_year and old_m == month:
-                c.execute("""UPDATE stocks SET
-                    revenue_yoy=COALESCE(revenue_yoy, ?),
-                    revenue_mom=COALESCE(revenue_mom, ?),
-                    revenue_cum_yoy=COALESCE(revenue_cum_yoy, ?),
-                    revenue_note=COALESCE(revenue_note, ?)
-                    WHERE code=?""", (yoy, mom, cum_yoy, note, code))
-            else:
-                c.execute("""UPDATE stocks SET
-                    revenue_date=?, revenue_year=?, revenue_month=?,
-                    revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, revenue_note=?
-                    WHERE code=?""",
-                    (today_str, west_year, month, yoy, mom, cum_yoy, note, code))
-                rev_updated += 1
+            # 同月份 → 補充 yoy/mom/cum_yoy
+            try:
+                if old_y == west_year and old_m == month:
+                    c.execute("""UPDATE stocks SET
+                        revenue_yoy=COALESCE(revenue_yoy, ?),
+                        revenue_mom=COALESCE(revenue_mom, ?),
+                        revenue_cum_yoy=COALESCE(revenue_cum_yoy, ?),
+                        revenue_note=COALESCE(revenue_note, ?)
+                        WHERE code=?""", (yoy, mom, cum_yoy, note, code))
+                else:
+                    c.execute("""UPDATE stocks SET
+                        revenue_date=?, revenue_year=?, revenue_month=?,
+                        revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, revenue_note=?
+                        WHERE code=?""",
+                        (today_str, west_year, month, yoy, mom, cum_yoy, note, code))
+                    rev_updated += 1
+            except Exception:
+                pass  # DB locked 時跳過單筆，不中斷整個流程
 
-    conn.commit()
+    try:
+        conn.commit()
+    except Exception as e:
+        print(f"[營收] commit 失敗（DB locked？跳過）: {e}")
     conn.close()
     print(f"[營收] 更新 {rev_updated} 支")
 
-    # ── 1b2. 15號後：群益補齊當月 MOPS 缺漏 ──
+
+def _quick_update_inner(t0, today_str):
+    """quick_update 的可跳過步驟（需 lock）"""
+    _new_eps_codes = []
+
+    # 清理舊備份
+    try: cleanup_old_backups(30)
+    except Exception: pass
+
+    # ── 4. 15號後：群益補齊當月 MOPS 缺漏 ──
     if date.today().day >= 15:
         try:
             from capital_fetcher import fetch_capital_monthly_revenue
@@ -3032,17 +3061,9 @@ def _quick_update_inner():
         except Exception as e:
             print(f"[群益補營收] 失敗: {e}")
 
-    # ── 1c. MOPS 季報（第一優先，累積值自動反算單季）──
-    try:
-        from mops_fetcher import fetch_latest_mops_quarterly
-        mops_q_count = fetch_latest_mops_quarterly()
-        # MOPS 有更新季報 → 同步 quarterly_financial 的 EPS 到 stocks 表
-        if mops_q_count and mops_q_count > 0:
-            _sync_eps_from_quarterly()
-    except Exception as e:
-        print(f"[MOPS季報] 失敗: {e}")
+    # MOPS 季報 → 已移到 lock 外層執行
 
-    # ── 1d. 群益季報主動校驗（MOPS 更新 7~14 天後，自動比對）──
+    # ── 5. 群益季報主動校驗（MOPS 更新 7~14 天後，自動比對）──
     try:
         _capital_quarterly_validation()
     except Exception as e:
@@ -3364,7 +3385,7 @@ def _quick_update_inner():
             print(f"[quick_update] push Render 失敗: {e}")
 
     elapsed = time.time() - t0
-    print(f"\n快速更新完成！營收 {rev_updated} + 季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
+    print(f"\n快速更新完成！季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")
 
 
 
