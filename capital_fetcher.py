@@ -211,131 +211,68 @@ def fetch_capital_quarterly_full(code):
 
     # 寫入 quarterly_financial
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    saved = 0
-    mul = 1000000  # 群益單位百萬
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        saved = 0
+        mul = 1000000  # 群益單位百萬
 
-    for qi, q_info in enumerate(quarters):
-        if q_info is None:
-            continue
-        quarter_label = q_info['label']
+        for qi, q_info in enumerate(quarters):
+            if q_info is None:
+                continue
+            quarter_label = q_info['label']
 
-        # 組合該季度的資料
-        row_data = {}
-        for field, vals in data_rows.items():
-            if qi < len(vals) and vals[qi] is not None:
-                if field == 'eps':
-                    row_data[field] = vals[qi]  # EPS 不乘百萬
-                elif field == 'weighted_shares':
-                    row_data[field] = vals[qi] * 1000  # 加權股數單位是仟股，乘1000
+            # 組合該季度的資料
+            row_data = {}
+            for field, vals in data_rows.items():
+                if qi < len(vals) and vals[qi] is not None:
+                    if field == 'eps':
+                        row_data[field] = vals[qi]  # EPS 不乘百萬
+                    elif field == 'weighted_shares':
+                        row_data[field] = vals[qi] * 1000  # 加權股數單位是仟股，乘1000
+                    else:
+                        row_data[field] = vals[qi] * mul
                 else:
-                    row_data[field] = vals[qi] * mul
-            else:
-                row_data[field] = None
+                    row_data[field] = None
 
-        # 至少要有 revenue 或 eps 才寫入
-        if row_data.get('revenue') is None and row_data.get('eps') is None:
-            continue
+            # 至少要有 revenue 或 eps 才寫入
+            if row_data.get('revenue') is None and row_data.get('eps') is None:
+                continue
 
-        # 判斷是否為最新一季（14天內 MOPS 寫入）→ 走校驗邏輯
-        from datetime import timedelta
-        existing = c.execute("""SELECT revenue, eps, updated_at
-            FROM quarterly_financial WHERE code=? AND quarter=?""",
-            (code, quarter_label)).fetchone()
+            # 判斷是否為最新一季（14天內 MOPS 寫入）→ 走校驗邏輯
+            from datetime import timedelta
+            existing = c.execute("""SELECT revenue, eps, updated_at
+                FROM quarterly_financial WHERE code=? AND quarter=?""",
+                (code, quarter_label)).fetchone()
 
-        is_recent_mops = False
-        if existing and existing[2]:
-            try:
-                updated_dt = datetime.strptime(existing[2], '%Y-%m-%d %H:%M:%S')
-                if (datetime.now() - updated_dt).days <= 14:
-                    is_recent_mops = True
-            except Exception:
-                pass
+            is_recent_mops = False
+            if existing and existing[2]:
+                try:
+                    updated_dt = datetime.strptime(existing[2], '%Y-%m-%d %H:%M:%S')
+                    if (datetime.now() - updated_dt).days <= 14:
+                        is_recent_mops = True
+                except Exception:
+                    pass
 
-        if not is_recent_mops:
-            # 歷史季度：群益直接覆蓋（權威來源）
-            c.execute("""INSERT INTO quarterly_financial
-                (code, quarter, revenue, cost, gross_profit, operating_expense,
-                 operating_income, non_operating, pretax_income, tax,
-                 continuing_income, net_income_parent, eps, weighted_shares, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(code, quarter) DO UPDATE SET
-                revenue=excluded.revenue,
-                cost=excluded.cost,
-                gross_profit=excluded.gross_profit,
-                operating_expense=excluded.operating_expense,
-                operating_income=excluded.operating_income,
-                non_operating=excluded.non_operating,
-                pretax_income=excluded.pretax_income,
-                tax=excluded.tax,
-                continuing_income=excluded.continuing_income,
-                net_income_parent=excluded.net_income_parent,
-                eps=excluded.eps,
-                weighted_shares=excluded.weighted_shares,
-                updated_at=excluded.updated_at""",
-                (code, quarter_label,
-                 row_data.get('revenue'), row_data.get('cost'), row_data.get('gross_profit'),
-                 row_data.get('operating_expense'), row_data.get('operating_income'),
-                 row_data.get('non_operating'), row_data.get('pretax_income'),
-                 row_data.get('tax'), row_data.get('continuing_income'),
-                 row_data.get('net_income_parent'), row_data.get('eps'),
-                 row_data.get('weighted_shares'), now_str))
-        else:
-            # 最新一季：校驗 MOPS，差異大才記錄，異常才覆蓋
-            mops_rev = existing[0]
-            mops_eps = existing[1]
-            capital_rev = row_data.get('revenue')
-            capital_eps = row_data.get('eps')
-            capital_override = False
-
-            if mops_rev is not None and capital_rev is not None and mops_rev != 0:
-                rev_diff_pct = abs(capital_rev - mops_rev) / abs(mops_rev) * 100
-                eps_diff = abs(capital_eps - mops_eps) if (capital_eps is not None and mops_eps is not None) else 0
-
-                if rev_diff_pct > 5 or eps_diff > 0.5:
-                    import json
-                    mismatch_detail = {
-                        'type': 'quarterly_zcq_vs_mops',
-                        'code': code, 'quarter': quarter_label,
-                        'capital': {'revenue': capital_rev, 'eps': capital_eps},
-                        'mops': {'revenue': mops_rev, 'eps': mops_eps},
-                        'rev_diff_pct': round(rev_diff_pct, 2),
-                        'eps_diff': round(eps_diff, 4) if eps_diff else 0
-                    }
-                    try:
-                        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
-                            mismatch_count INTEGER, details TEXT)""")
-                        c.execute("""INSERT INTO cross_validation
-                            (checked_at, sample_size, ok_count, mismatch_count, details)
-                            VALUES (?,1,0,1,?)""",
-                            (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
-                    except Exception as e:
-                        logger.debug(f"[zcq校驗] cross_validation 寫入失敗: {e}")
-                    logger.warning(f"[zcq校驗] {code} {quarter_label} 差異大: 營收差{rev_diff_pct:.1f}%")
-
-                    # MOPS 明顯異常才覆蓋
-                    if mops_rev < 0 and capital_rev > 0:
-                        capital_override = True
-                    if mops_eps is not None and capital_eps is not None:
-                        if mops_eps < 0 and capital_eps > 0 and abs(capital_eps) > 0.5:
-                            capital_override = True
-
-            if capital_override:
+            if not is_recent_mops:
+                # 歷史季度：群益直接覆蓋（權威來源）
                 c.execute("""INSERT INTO quarterly_financial
                     (code, quarter, revenue, cost, gross_profit, operating_expense,
                      operating_income, non_operating, pretax_income, tax,
                      continuing_income, net_income_parent, eps, weighted_shares, updated_at)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ON CONFLICT(code, quarter) DO UPDATE SET
-                    revenue=excluded.revenue, cost=excluded.cost,
-                    gross_profit=excluded.gross_profit, operating_expense=excluded.operating_expense,
-                    operating_income=excluded.operating_income, non_operating=excluded.non_operating,
-                    pretax_income=excluded.pretax_income, tax=excluded.tax,
-                    continuing_income=excluded.continuing_income, net_income_parent=excluded.net_income_parent,
-                    eps=excluded.eps, weighted_shares=excluded.weighted_shares,
+                    revenue=excluded.revenue,
+                    cost=excluded.cost,
+                    gross_profit=excluded.gross_profit,
+                    operating_expense=excluded.operating_expense,
+                    operating_income=excluded.operating_income,
+                    non_operating=excluded.non_operating,
+                    pretax_income=excluded.pretax_income,
+                    tax=excluded.tax,
+                    continuing_income=excluded.continuing_income,
+                    net_income_parent=excluded.net_income_parent,
+                    eps=excluded.eps,
+                    weighted_shares=excluded.weighted_shares,
                     updated_at=excluded.updated_at""",
                     (code, quarter_label,
                      row_data.get('revenue'), row_data.get('cost'), row_data.get('gross_profit'),
@@ -345,20 +282,82 @@ def fetch_capital_quarterly_full(code):
                      row_data.get('net_income_parent'), row_data.get('eps'),
                      row_data.get('weighted_shares'), now_str))
             else:
-                # MOPS 正常：只補空欄位（tax/continuing_income/net_income_parent/weighted_shares）
-                c.execute("""UPDATE quarterly_financial SET
-                    tax=COALESCE(tax, ?),
-                    continuing_income=COALESCE(continuing_income, ?),
-                    net_income_parent=COALESCE(net_income_parent, ?),
-                    weighted_shares=COALESCE(weighted_shares, ?)
-                    WHERE code=? AND quarter=?""",
-                    (row_data.get('tax'), row_data.get('continuing_income'),
-                     row_data.get('net_income_parent'), row_data.get('weighted_shares'),
-                     code, quarter_label))
-        saved += 1
+                # 最新一季：校驗 MOPS，差異大才記錄，異常才覆蓋
+                mops_rev = existing[0]
+                mops_eps = existing[1]
+                capital_rev = row_data.get('revenue')
+                capital_eps = row_data.get('eps')
+                capital_override = False
 
-    conn.commit()
-    conn.close()
+                if mops_rev is not None and capital_rev is not None and mops_rev != 0:
+                    rev_diff_pct = abs(capital_rev - mops_rev) / abs(mops_rev) * 100
+                    eps_diff = abs(capital_eps - mops_eps) if (capital_eps is not None and mops_eps is not None) else 0
+
+                    if rev_diff_pct > 5 or eps_diff > 0.5:
+                        import json
+                        mismatch_detail = {
+                            'type': 'quarterly_zcq_vs_mops',
+                            'code': code, 'quarter': quarter_label,
+                            'capital': {'revenue': capital_rev, 'eps': capital_eps},
+                            'mops': {'revenue': mops_rev, 'eps': mops_eps},
+                            'rev_diff_pct': round(rev_diff_pct, 2),
+                            'eps_diff': round(eps_diff, 4) if eps_diff else 0
+                        }
+                        try:
+                            c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
+                                mismatch_count INTEGER, details TEXT)""")
+                            c.execute("""INSERT INTO cross_validation
+                                (checked_at, sample_size, ok_count, mismatch_count, details)
+                                VALUES (?,1,0,1,?)""",
+                                (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
+                        except Exception as e:
+                            logger.debug(f"[zcq校驗] cross_validation 寫入失敗: {e}")
+                        logger.warning(f"[zcq校驗] {code} {quarter_label} 差異大: 營收差{rev_diff_pct:.1f}%")
+
+                        # MOPS 明顯異常才覆蓋
+                        if mops_rev < 0 and capital_rev > 0:
+                            capital_override = True
+                        if mops_eps is not None and capital_eps is not None:
+                            if mops_eps < 0 and capital_eps > 0 and abs(capital_eps) > 0.5:
+                                capital_override = True
+
+                if capital_override:
+                    c.execute("""INSERT INTO quarterly_financial
+                        (code, quarter, revenue, cost, gross_profit, operating_expense,
+                         operating_income, non_operating, pretax_income, tax,
+                         continuing_income, net_income_parent, eps, weighted_shares, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        ON CONFLICT(code, quarter) DO UPDATE SET
+                        revenue=excluded.revenue, cost=excluded.cost,
+                        gross_profit=excluded.gross_profit, operating_expense=excluded.operating_expense,
+                        operating_income=excluded.operating_income, non_operating=excluded.non_operating,
+                        pretax_income=excluded.pretax_income, tax=excluded.tax,
+                        continuing_income=excluded.continuing_income, net_income_parent=excluded.net_income_parent,
+                        eps=excluded.eps, weighted_shares=excluded.weighted_shares,
+                        updated_at=excluded.updated_at""",
+                        (code, quarter_label,
+                         row_data.get('revenue'), row_data.get('cost'), row_data.get('gross_profit'),
+                         row_data.get('operating_expense'), row_data.get('operating_income'),
+                         row_data.get('non_operating'), row_data.get('pretax_income'),
+                         row_data.get('tax'), row_data.get('continuing_income'),
+                         row_data.get('net_income_parent'), row_data.get('eps'),
+                         row_data.get('weighted_shares'), now_str))
+                else:
+                    # MOPS 正常：只補空欄位（tax/continuing_income/net_income_parent/weighted_shares）
+                    c.execute("""UPDATE quarterly_financial SET
+                        tax=COALESCE(tax, ?),
+                        continuing_income=COALESCE(continuing_income, ?),
+                        net_income_parent=COALESCE(net_income_parent, ?),
+                        weighted_shares=COALESCE(weighted_shares, ?)
+                        WHERE code=? AND quarter=?""",
+                        (row_data.get('tax'), row_data.get('continuing_income'),
+                         row_data.get('net_income_parent'), row_data.get('weighted_shares'),
+                         code, quarter_label))
+            saved += 1
+
+        conn.commit()
     return saved
 
 
@@ -392,133 +391,71 @@ def fetch_capital_financials(code):
 
     rows = target_table.find_all('tr')
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    quarterly_saved = 0
-    annual_data = {}
+        quarterly_saved = 0
+        annual_data = {}
 
-    for row in rows:
-        cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
-        if len(cells) < 10 or not re.match(r'\d+\.\d+Q', cells[0]):
-            continue
+        for row in rows:
+            cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+            if len(cells) < 10 or not re.match(r'\d+\.\d+Q', cells[0]):
+                continue
 
-        q_label = cells[0]
-        m = re.match(r'(\d+)\.(\d+)Q', q_label)
-        if not m:
-            continue
+            q_label = cells[0]
+            m = re.match(r'(\d+)\.(\d+)Q', q_label)
+            if not m:
+                continue
 
-        roc_year = int(m.group(1))
-        quarter = int(m.group(2))
-        west_year = roc_year + 1911
-        quarter_label = f"{roc_year}Q{quarter}"
+            roc_year = int(m.group(1))
+            quarter = int(m.group(2))
+            west_year = roc_year + 1911
+            quarter_label = f"{roc_year}Q{quarter}"
 
-        revenue = _parse_num(cells[1])
-        cost = _parse_num(cells[2])
-        gross_profit = _parse_num(cells[3])
-        operating_income = _parse_num(cells[5])
-        non_operating = _parse_num(cells[7])
-        pretax_income = _parse_num(cells[8])
-        net_income = _parse_num(cells[9])
-        eps = _parse_num(cells[10]) if len(cells) > 10 else None
+            revenue = _parse_num(cells[1])
+            cost = _parse_num(cells[2])
+            gross_profit = _parse_num(cells[3])
+            operating_income = _parse_num(cells[5])
+            non_operating = _parse_num(cells[7])
+            pretax_income = _parse_num(cells[8])
+            net_income = _parse_num(cells[9])
+            eps = _parse_num(cells[10]) if len(cells) > 10 else None
 
-        mul = 1000000
-        if revenue is not None: revenue *= mul
-        if cost is not None: cost *= mul
-        if gross_profit is not None: gross_profit *= mul
-        if operating_income is not None: operating_income *= mul
-        if non_operating is not None: non_operating *= mul
-        if pretax_income is not None: pretax_income *= mul
-        if net_income is not None: net_income *= mul
+            mul = 1000000
+            if revenue is not None: revenue *= mul
+            if cost is not None: cost *= mul
+            if gross_profit is not None: gross_profit *= mul
+            if operating_income is not None: operating_income *= mul
+            if non_operating is not None: non_operating *= mul
+            if pretax_income is not None: pretax_income *= mul
+            if net_income is not None: net_income *= mul
 
-        # 反算營業費用 = 毛利 - 營業利益
-        opex = None
-        if gross_profit is not None and operating_income is not None:
-            opex = round(gross_profit - operating_income, 4)
+            # 反算營業費用 = 毛利 - 營業利益
+            opex = None
+            if gross_profit is not None and operating_income is not None:
+                opex = round(gross_profit - operating_income, 4)
 
-        # 群益損益表寫入策略：
-        #   歷史季度（>14天）→ 群益直接覆蓋（群益是歷史資料權威來源）
-        #   最新一季（≤14天內 MOPS 寫入）→ 走校驗邏輯（MOPS 即時優先，群益校驗）
-        try:
-            existing = c.execute("""SELECT revenue, eps, operating_income, pretax_income, updated_at
-                FROM quarterly_financial WHERE code=? AND quarter=?""",
-                (code, quarter_label)).fetchone()
+            # 群益損益表寫入策略：
+            #   歷史季度（>14天）→ 群益直接覆蓋（群益是歷史資料權威來源）
+            #   最新一季（≤14天內 MOPS 寫入）→ 走校驗邏輯（MOPS 即時優先，群益校驗）
+            try:
+                existing = c.execute("""SELECT revenue, eps, operating_income, pretax_income, updated_at
+                    FROM quarterly_financial WHERE code=? AND quarter=?""",
+                    (code, quarter_label)).fetchone()
 
-            # 判斷是否為 MOPS 近期寫入的最新一季
-            is_recent_mops = False
-            if existing and existing[4]:
-                try:
-                    from datetime import timedelta
-                    updated_dt = datetime.strptime(existing[4], '%Y-%m-%d %H:%M:%S')
-                    if (datetime.now() - updated_dt).days <= 14:
-                        is_recent_mops = True
-                except Exception:
-                    pass
+                # 判斷是否為 MOPS 近期寫入的最新一季
+                is_recent_mops = False
+                if existing and existing[4]:
+                    try:
+                        from datetime import timedelta
+                        updated_dt = datetime.strptime(existing[4], '%Y-%m-%d %H:%M:%S')
+                        if (datetime.now() - updated_dt).days <= 14:
+                            is_recent_mops = True
+                    except Exception:
+                        pass
 
-            if not is_recent_mops:
-                # 歷史季度或無資料：群益直接覆蓋
-                c.execute("""INSERT INTO quarterly_financial
-                    (code, quarter, revenue, cost, gross_profit, operating_expense,
-                     operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                    ON CONFLICT(code, quarter) DO UPDATE SET
-                    revenue=excluded.revenue,
-                    cost=excluded.cost,
-                    gross_profit=excluded.gross_profit,
-                    operating_expense=excluded.operating_expense,
-                    operating_income=excluded.operating_income,
-                    non_operating=excluded.non_operating,
-                    pretax_income=excluded.pretax_income,
-                    net_income_parent=excluded.net_income_parent,
-                    eps=excluded.eps,
-                    updated_at=excluded.updated_at""",
-                    (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
-                     non_operating, pretax_income, net_income, eps, now_str))
-            else:
-                # 最新一季（MOPS 14天內寫入）：校驗邏輯
-                mops_rev = existing[0]
-                mops_eps = existing[1]
-                capital_override = False
-
-                if mops_rev is not None and revenue is not None:
-                    rev_diff_pct = abs(revenue - mops_rev) / abs(mops_rev) * 100 if mops_rev != 0 else 0
-                    eps_diff = abs(eps - mops_eps) if (eps is not None and mops_eps is not None) else 0
-
-                    if rev_diff_pct > 5 or eps_diff > 0.5:
-                        # 差異大，記入 cross_validation
-                        import json
-                        mismatch_detail = {
-                            'type': 'quarterly_capital_vs_mops',
-                            'code': code, 'quarter': quarter_label,
-                            'capital': {'revenue': revenue, 'eps': eps},
-                            'mops': {'revenue': mops_rev, 'eps': mops_eps},
-                            'rev_diff_pct': round(rev_diff_pct, 2),
-                            'eps_diff': round(eps_diff, 4)
-                        }
-                        try:
-                            c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
-                                mismatch_count INTEGER, details TEXT)""")
-                            c.execute("""INSERT INTO cross_validation
-                                (checked_at, sample_size, ok_count, mismatch_count, details)
-                                VALUES (?,1,0,1,?)""",
-                                (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
-                        except Exception as e:
-                            logger.debug(f"[校驗] cross_validation 寫入失敗: {e}")
-                        logger.warning(f"[校驗] {code} {quarter_label} 群益vs MOPS 差異大: "
-                                       f"營收差{rev_diff_pct:.1f}% EPS差{eps_diff:.4f}")
-
-                        # MOPS 明顯異常才覆蓋
-                        if mops_rev < 0 and revenue > 0:
-                            capital_override = True
-                        if mops_eps is not None and eps is not None:
-                            if mops_eps < 0 and eps > 0 and abs(eps) > 0.5:
-                                capital_override = True
-                        if capital_override:
-                            logger.warning(f"[校驗] {code} {quarter_label} MOPS 明顯異常，以群益資料覆蓋")
-
-                if capital_override:
+                if not is_recent_mops:
+                    # 歷史季度或無資料：群益直接覆蓋
                     c.execute("""INSERT INTO quarterly_financial
                         (code, quarter, revenue, cost, gross_profit, operating_expense,
                          operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
@@ -537,79 +474,140 @@ def fetch_capital_financials(code):
                         (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
                          non_operating, pretax_income, net_income, eps, now_str))
                 else:
-                    # MOPS 正常，只補空欄位
-                    c.execute("""INSERT INTO quarterly_financial
-                        (code, quarter, revenue, cost, gross_profit, operating_expense,
-                         operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                        ON CONFLICT(code, quarter) DO UPDATE SET
-                        revenue=COALESCE(quarterly_financial.revenue, excluded.revenue),
-                        cost=COALESCE(quarterly_financial.cost, excluded.cost),
-                        gross_profit=COALESCE(quarterly_financial.gross_profit, excluded.gross_profit),
-                        operating_expense=COALESCE(quarterly_financial.operating_expense, excluded.operating_expense),
-                        operating_income=COALESCE(quarterly_financial.operating_income, excluded.operating_income),
-                        non_operating=COALESCE(quarterly_financial.non_operating, excluded.non_operating),
-                        pretax_income=COALESCE(quarterly_financial.pretax_income, excluded.pretax_income),
-                        net_income_parent=COALESCE(quarterly_financial.net_income_parent, excluded.net_income_parent),
-                        eps=COALESCE(quarterly_financial.eps, excluded.eps),
-                        updated_at=excluded.updated_at""",
-                        (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
-                         non_operating, pretax_income, net_income, eps, now_str))
-            quarterly_saved += 1
-        except Exception as e:
-            logger.warning(f"[群益季報] {code} {quarter_label} 寫入失敗: {e}")
+                    # 最新一季（MOPS 14天內寫入）：校驗邏輯
+                    mops_rev = existing[0]
+                    mops_eps = existing[1]
+                    capital_override = False
 
-        # 累計到年度
-        if west_year not in annual_data:
-            annual_data[west_year] = {'revenue': 0, 'cost': 0, 'gross_profit': 0,
-                                      'operating_income': 0, 'non_operating': 0,
-                                      'pretax_income': 0, 'net_income': 0,
-                                      'eps': 0, 'quarters': 0}
-        ad = annual_data[west_year]
-        if revenue: ad['revenue'] += revenue
-        if cost: ad['cost'] += cost
-        if gross_profit: ad['gross_profit'] += gross_profit
-        if operating_income: ad['operating_income'] += operating_income
-        if non_operating is not None: ad['non_operating'] += non_operating
-        if pretax_income: ad['pretax_income'] += pretax_income
-        if net_income: ad['net_income'] += net_income
-        if eps: ad['eps'] += eps
-        ad['quarters'] += 1
+                    if mops_rev is not None and revenue is not None:
+                        rev_diff_pct = abs(revenue - mops_rev) / abs(mops_rev) * 100 if mops_rev != 0 else 0
+                        eps_diff = abs(eps - mops_eps) if (eps is not None and mops_eps is not None) else 0
 
-    # 寫入 financial_annual（只寫四季齊全的年度）
-    annual_saved = 0
-    for yr, ad in annual_data.items():
-        if ad['quarters'] != 4:
-            continue
+                        if rev_diff_pct > 5 or eps_diff > 0.5:
+                            # 差異大，記入 cross_validation
+                            import json
+                            mismatch_detail = {
+                                'type': 'quarterly_capital_vs_mops',
+                                'code': code, 'quarter': quarter_label,
+                                'capital': {'revenue': revenue, 'eps': eps},
+                                'mops': {'revenue': mops_rev, 'eps': mops_eps},
+                                'rev_diff_pct': round(rev_diff_pct, 2),
+                                'eps_diff': round(eps_diff, 4)
+                            }
+                            try:
+                                c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    checked_at TEXT, sample_size INTEGER, ok_count INTEGER,
+                                    mismatch_count INTEGER, details TEXT)""")
+                                c.execute("""INSERT INTO cross_validation
+                                    (checked_at, sample_size, ok_count, mismatch_count, details)
+                                    VALUES (?,1,0,1,?)""",
+                                    (now_str, json.dumps(mismatch_detail, ensure_ascii=False)))
+                            except Exception as e:
+                                logger.debug(f"[校驗] cross_validation 寫入失敗: {e}")
+                            logger.warning(f"[校驗] {code} {quarter_label} 群益vs MOPS 差異大: "
+                                           f"營收差{rev_diff_pct:.1f}% EPS差{eps_diff:.4f}")
 
-        opex = None
-        if ad['gross_profit'] and ad['operating_income'] is not None:
-            opex = round(ad['gross_profit'] - ad['operating_income'], 4)
+                            # MOPS 明顯異常才覆蓋
+                            if mops_rev < 0 and revenue > 0:
+                                capital_override = True
+                            if mops_eps is not None and eps is not None:
+                                if mops_eps < 0 and eps > 0 and abs(eps) > 0.5:
+                                    capital_override = True
+                            if capital_override:
+                                logger.warning(f"[校驗] {code} {quarter_label} MOPS 明顯異常，以群益資料覆蓋")
 
-        try:
-            c.execute("""INSERT INTO financial_annual
-                (code, year, revenue, cost, gross_profit, operating_expense,
-                 operating_income, non_operating, pretax_income, net_income, eps, updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(code, year) DO UPDATE SET
-                revenue=excluded.revenue,
-                cost=excluded.cost,
-                gross_profit=excluded.gross_profit,
-                operating_expense=excluded.operating_expense,
-                operating_income=excluded.operating_income,
-                non_operating=excluded.non_operating,
-                pretax_income=excluded.pretax_income,
-                net_income=excluded.net_income,
-                eps=excluded.eps,
-                updated_at=excluded.updated_at""",
-                (code, yr, ad['revenue'], ad['cost'], ad['gross_profit'],
-                 opex, ad['operating_income'], ad['non_operating'],
-                 ad['pretax_income'], ad['net_income'], ad['eps'], now_str))
-            annual_saved += 1
-        except Exception as e: logger.debug(f"[群益年報] {code} {yr} 寫入失敗: {e}")
+                    if capital_override:
+                        c.execute("""INSERT INTO quarterly_financial
+                            (code, quarter, revenue, cost, gross_profit, operating_expense,
+                             operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                            ON CONFLICT(code, quarter) DO UPDATE SET
+                            revenue=excluded.revenue,
+                            cost=excluded.cost,
+                            gross_profit=excluded.gross_profit,
+                            operating_expense=excluded.operating_expense,
+                            operating_income=excluded.operating_income,
+                            non_operating=excluded.non_operating,
+                            pretax_income=excluded.pretax_income,
+                            net_income_parent=excluded.net_income_parent,
+                            eps=excluded.eps,
+                            updated_at=excluded.updated_at""",
+                            (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
+                             non_operating, pretax_income, net_income, eps, now_str))
+                    else:
+                        # MOPS 正常，只補空欄位
+                        c.execute("""INSERT INTO quarterly_financial
+                            (code, quarter, revenue, cost, gross_profit, operating_expense,
+                             operating_income, non_operating, pretax_income, net_income_parent, eps, updated_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                            ON CONFLICT(code, quarter) DO UPDATE SET
+                            revenue=COALESCE(quarterly_financial.revenue, excluded.revenue),
+                            cost=COALESCE(quarterly_financial.cost, excluded.cost),
+                            gross_profit=COALESCE(quarterly_financial.gross_profit, excluded.gross_profit),
+                            operating_expense=COALESCE(quarterly_financial.operating_expense, excluded.operating_expense),
+                            operating_income=COALESCE(quarterly_financial.operating_income, excluded.operating_income),
+                            non_operating=COALESCE(quarterly_financial.non_operating, excluded.non_operating),
+                            pretax_income=COALESCE(quarterly_financial.pretax_income, excluded.pretax_income),
+                            net_income_parent=COALESCE(quarterly_financial.net_income_parent, excluded.net_income_parent),
+                            eps=COALESCE(quarterly_financial.eps, excluded.eps),
+                            updated_at=excluded.updated_at""",
+                            (code, quarter_label, revenue, cost, gross_profit, opex, operating_income,
+                             non_operating, pretax_income, net_income, eps, now_str))
+                quarterly_saved += 1
+            except Exception as e:
+                logger.warning(f"[群益季報] {code} {quarter_label} 寫入失敗: {e}")
 
-    conn.commit()
-    conn.close()
+            # 累計到年度
+            if west_year not in annual_data:
+                annual_data[west_year] = {'revenue': 0, 'cost': 0, 'gross_profit': 0,
+                                          'operating_income': 0, 'non_operating': 0,
+                                          'pretax_income': 0, 'net_income': 0,
+                                          'eps': 0, 'quarters': 0}
+            ad = annual_data[west_year]
+            if revenue: ad['revenue'] += revenue
+            if cost: ad['cost'] += cost
+            if gross_profit: ad['gross_profit'] += gross_profit
+            if operating_income: ad['operating_income'] += operating_income
+            if non_operating is not None: ad['non_operating'] += non_operating
+            if pretax_income: ad['pretax_income'] += pretax_income
+            if net_income: ad['net_income'] += net_income
+            if eps: ad['eps'] += eps
+            ad['quarters'] += 1
+
+        # 寫入 financial_annual（只寫四季齊全的年度）
+        annual_saved = 0
+        for yr, ad in annual_data.items():
+            if ad['quarters'] != 4:
+                continue
+
+            opex = None
+            if ad['gross_profit'] and ad['operating_income'] is not None:
+                opex = round(ad['gross_profit'] - ad['operating_income'], 4)
+
+            try:
+                c.execute("""INSERT INTO financial_annual
+                    (code, year, revenue, cost, gross_profit, operating_expense,
+                     operating_income, non_operating, pretax_income, net_income, eps, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(code, year) DO UPDATE SET
+                    revenue=excluded.revenue,
+                    cost=excluded.cost,
+                    gross_profit=excluded.gross_profit,
+                    operating_expense=excluded.operating_expense,
+                    operating_income=excluded.operating_income,
+                    non_operating=excluded.non_operating,
+                    pretax_income=excluded.pretax_income,
+                    net_income=excluded.net_income,
+                    eps=excluded.eps,
+                    updated_at=excluded.updated_at""",
+                    (code, yr, ad['revenue'], ad['cost'], ad['gross_profit'],
+                     opex, ad['operating_income'], ad['non_operating'],
+                     ad['pretax_income'], ad['net_income'], ad['eps'], now_str))
+                annual_saved += 1
+            except Exception as e: logger.debug(f"[群益年報] {code} {yr} 寫入失敗: {e}")
+
+        conn.commit()
 
     # 同步到 stocks 表
     if quarterly_saved > 0 or annual_saved > 0:
@@ -639,59 +637,58 @@ def fetch_capital_balance_sheet(code):
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # 確保欄位存在
-    for col in ['inventory', 'contract_liability']:
-        try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} REAL")
-        except Exception: pass
-    mul = 1000000  # 百萬 → 元
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        # 確保欄位存在
+        for col in ['inventory', 'contract_liability']:
+            try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} REAL")
+            except Exception: pass
+        mul = 1000000  # 百萬 → 元
 
-    saved = 0
-    for year_str, fields in data.items():
-        yr = int(float(year_str))
-        ta = fields.get('total_assets')
-        te = fields.get('total_equity')
-        cs = fields.get('common_stock')
-        inv = fields.get('inventory')
-        cl = fields.get('contract_liability')
+        saved = 0
+        for year_str, fields in data.items():
+            yr = int(float(year_str))
+            ta = fields.get('total_assets')
+            te = fields.get('total_equity')
+            cs = fields.get('common_stock')
+            inv = fields.get('inventory')
+            cl = fields.get('contract_liability')
 
-        for v_name in ['ta', 'te', 'cs', 'inv', 'cl']:
-            v = locals()[v_name]
-            if v is not None:
-                locals()[v_name] = v * mul
+            for v_name in ['ta', 'te', 'cs', 'inv', 'cl']:
+                v = locals()[v_name]
+                if v is not None:
+                    locals()[v_name] = v * mul
 
-        ta = fields.get('total_assets')
-        te = fields.get('total_equity')
-        cs = fields.get('common_stock')
-        inv = fields.get('inventory')
-        cl = fields.get('contract_liability')
-        if ta is not None: ta *= mul
-        if te is not None: te *= mul
-        if cs is not None: cs *= mul
-        if inv is not None: inv *= mul
-        if cl is not None: cl *= mul
+            ta = fields.get('total_assets')
+            te = fields.get('total_equity')
+            cs = fields.get('common_stock')
+            inv = fields.get('inventory')
+            cl = fields.get('contract_liability')
+            if ta is not None: ta *= mul
+            if te is not None: te *= mul
+            if cs is not None: cs *= mul
+            if inv is not None: inv *= mul
+            if cl is not None: cl *= mul
 
-        if ta is None and te is None:
-            continue
+            if ta is None and te is None:
+                continue
 
-        try:
-            c.execute("""INSERT INTO financial_annual (code, year, total_assets, total_equity, common_stock,
-                         inventory, contract_liability, updated_at)
-                VALUES (?,?,?,?,?,?,?,?)
-                ON CONFLICT(code, year) DO UPDATE SET
-                total_assets=COALESCE(excluded.total_assets, total_assets),
-                total_equity=COALESCE(excluded.total_equity, total_equity),
-                common_stock=COALESCE(excluded.common_stock, common_stock),
-                inventory=COALESCE(excluded.inventory, inventory),
-                contract_liability=COALESCE(excluded.contract_liability, contract_liability),
-                updated_at=excluded.updated_at""",
-                (code, yr, ta, te, cs, inv, cl, now_str))
-            saved += 1
-        except Exception as e: logger.debug(f"[群益BS] {code} {yr} 寫入失敗: {e}")
+            try:
+                c.execute("""INSERT INTO financial_annual (code, year, total_assets, total_equity, common_stock,
+                             inventory, contract_liability, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?)
+                    ON CONFLICT(code, year) DO UPDATE SET
+                    total_assets=COALESCE(excluded.total_assets, total_assets),
+                    total_equity=COALESCE(excluded.total_equity, total_equity),
+                    common_stock=COALESCE(excluded.common_stock, common_stock),
+                    inventory=COALESCE(excluded.inventory, inventory),
+                    contract_liability=COALESCE(excluded.contract_liability, contract_liability),
+                    updated_at=excluded.updated_at""",
+                    (code, yr, ta, te, cs, inv, cl, now_str))
+                saved += 1
+            except Exception as e: logger.debug(f"[群益BS] {code} {yr} 寫入失敗: {e}")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
     return saved
 
 
@@ -741,49 +738,48 @@ def fetch_capital_contract_liability(code):
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # 確保欄位存在
-    try: c.execute("ALTER TABLE quarterly_financial ADD COLUMN inventory REAL")
-    except Exception: pass
-    mul = 1000000  # 百萬 → 元
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        # 確保欄位存在
+        try: c.execute("ALTER TABLE quarterly_financial ADD COLUMN inventory REAL")
+        except Exception: pass
+        mul = 1000000  # 百萬 → 元
 
-    saved = 0
-    all_quarters = set(list(cl_values.keys()) + list(inv_values.keys()))
-    for q_label in all_quarters:
-        cl = cl_values.get(q_label)
-        inv = inv_values.get(q_label)
-        if cl is not None: cl *= mul
-        if inv is not None: inv *= mul
+        saved = 0
+        all_quarters = set(list(cl_values.keys()) + list(inv_values.keys()))
+        for q_label in all_quarters:
+            cl = cl_values.get(q_label)
+            inv = inv_values.get(q_label)
+            if cl is not None: cl *= mul
+            if inv is not None: inv *= mul
 
-        # 轉換季度格式：2025.4Q → 114Q4
-        m = re.match(r'(\d{4})\.(\d+)Q', q_label)
-        if not m:
-            continue
-        west_year = int(m.group(1))
-        quarter = int(m.group(2))
-        roc_year = west_year - 1911
-        quarter_key = f"{roc_year}Q{quarter}"
+            # 轉換季度格式：2025.4Q → 114Q4
+            m = re.match(r'(\d{4})\.(\d+)Q', q_label)
+            if not m:
+                continue
+            west_year = int(m.group(1))
+            quarter = int(m.group(2))
+            roc_year = west_year - 1911
+            quarter_key = f"{roc_year}Q{quarter}"
 
-        try:
-            sets = []
-            vals = []
-            if cl is not None:
-                sets.append("contract_liability = ?")
-                vals.append(cl)
-            if inv is not None:
-                sets.append("inventory = ?")
-                vals.append(inv)
-            sets.append("updated_at = ?")
-            vals.append(now_str)
-            vals.extend([code, quarter_key])
-            c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code = ? AND quarter = ?", vals)
-            if c.rowcount:
-                saved += 1
-        except Exception as e: logger.debug(f"[群益季BS] {code} 寫入失敗: {e}")
+            try:
+                sets = []
+                vals = []
+                if cl is not None:
+                    sets.append("contract_liability = ?")
+                    vals.append(cl)
+                if inv is not None:
+                    sets.append("inventory = ?")
+                    vals.append(inv)
+                sets.append("updated_at = ?")
+                vals.append(now_str)
+                vals.extend([code, quarter_key])
+                c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code = ? AND quarter = ?", vals)
+                if c.rowcount:
+                    saved += 1
+            except Exception as e: logger.debug(f"[群益季BS] {code} 寫入失敗: {e}")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
     return saved
 
 
@@ -804,52 +800,51 @@ def fetch_capital_dividend(code):
     texts = [td.get_text(strip=True) for td in tds]
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    saved = 0
-    i = 0
-    while i < len(texts):
-        if re.match(r'20\d{2}$', texts[i]) and i + 8 < len(texts):
-            row = texts[i:i + 9]
-            year = int(row[0])
-            # row[1]=盈餘發放, row[2]=公積發放, row[3]=小計(現金)
-            # row[4]=盈餘配股, row[5]=公積配股, row[6]=小計(股票)
-            # 必須用小計（含公積發放），不能只讀盈餘發放（如台泥114年公積發放0.8會漏掉）
-            cash_div = _parse_num(row[3])  # 小計(現金) = 盈餘發放 + 公積發放
-            stock_div_total = _parse_num(row[6])  # 小計(股票) = 盈餘配股 + 公積配股
+        saved = 0
+        i = 0
+        while i < len(texts):
+            if re.match(r'20\d{2}$', texts[i]) and i + 8 < len(texts):
+                row = texts[i:i + 9]
+                year = int(row[0])
+                # row[1]=盈餘發放, row[2]=公積發放, row[3]=小計(現金)
+                # row[4]=盈餘配股, row[5]=公積配股, row[6]=小計(股票)
+                # 必須用小計（含公積發放），不能只讀盈餘發放（如台泥114年公積發放0.8會漏掉）
+                cash_div = _parse_num(row[3])  # 小計(現金) = 盈餘發放 + 公積發放
+                stock_div_total = _parse_num(row[6])  # 小計(股票) = 盈餘配股 + 公積配股
 
-            if cash_div is not None or stock_div_total is not None:
-                try:
-                    c.execute("""INSERT INTO financial_annual (code, year, cash_dividend, stock_dividend, updated_at)
-                        VALUES (?,?,?,?,?)
-                        ON CONFLICT(code, year) DO UPDATE SET
-                        cash_dividend = excluded.cash_dividend,
-                        stock_dividend = excluded.stock_dividend,
-                        updated_at = excluded.updated_at""",
-                        (code, year, cash_div, stock_div_total, now_str))
-                    saved += 1
-                except Exception as e: logger.debug(f"[群益股利] {code} {year} 寫入失敗: {e}")
-            i += 9
-        else:
-            i += 1
+                if cash_div is not None or stock_div_total is not None:
+                    try:
+                        c.execute("""INSERT INTO financial_annual (code, year, cash_dividend, stock_dividend, updated_at)
+                            VALUES (?,?,?,?,?)
+                            ON CONFLICT(code, year) DO UPDATE SET
+                            cash_dividend = excluded.cash_dividend,
+                            stock_dividend = excluded.stock_dividend,
+                            updated_at = excluded.updated_at""",
+                            (code, year, cash_div, stock_div_total, now_str))
+                        saved += 1
+                    except Exception as e: logger.debug(f"[群益股利] {code} {year} 寫入失敗: {e}")
+                i += 9
+            else:
+                i += 1
 
-    # 自動同步到 stocks 表的 div_c1~c6（不再依賴 scraper 的月份限制）
-    if saved > 0:
-        rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
-                           WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
-                           ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
-        for i, r in enumerate(rows, 1):
-            roc_yr = str(r[0] - 1911)
-            c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
-                      (r[1], r[2], roc_yr, code))
-        for i in range(len(rows) + 1, 7):
-            c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
-                      (code,))
+        # 自動同步到 stocks 表的 div_c1~c6（不再依賴 scraper 的月份限制）
+        if saved > 0:
+            rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
+                               WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
+                               ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+            for i, r in enumerate(rows, 1):
+                roc_yr = str(r[0] - 1911)
+                c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
+                          (r[1], r[2], roc_yr, code))
+            for i in range(len(rows) + 1, 7):
+                c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
+                          (code,))
 
-    # financial_annual + stocks 一次 commit（原子操作）
-    conn.commit()
-    conn.close()
+        # financial_annual + stocks 一次 commit（原子操作）
+        conn.commit()
     return saved
 
 
@@ -873,39 +868,38 @@ def fetch_capital_cashflow(code):
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    mul = 1000000
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        mul = 1000000
 
-    saved = 0
-    for year_str, fields in data.items():
-        yr = int(float(year_str))
-        ocf = fields.get('operating_cf')
-        capex = fields.get('capex')
+        saved = 0
+        for year_str, fields in data.items():
+            yr = int(float(year_str))
+            ocf = fields.get('operating_cf')
+            capex = fields.get('capex')
 
-        if ocf is not None: ocf *= mul
-        if capex is not None:
-            capex *= mul
-            # 群益的資本支出是負數（購置），確保是負數
-            if capex > 0:
-                capex = -capex
+            if ocf is not None: ocf *= mul
+            if capex is not None:
+                capex *= mul
+                # 群益的資本支出是負數（購置），確保是負數
+                if capex > 0:
+                    capex = -capex
 
-        if ocf is None and capex is None:
-            continue
+            if ocf is None and capex is None:
+                continue
 
-        try:
-            c.execute("""INSERT INTO financial_annual (code, year, operating_cf, capex, updated_at)
-                VALUES (?,?,?,?,?)
-                ON CONFLICT(code, year) DO UPDATE SET
-                operating_cf=COALESCE(excluded.operating_cf, operating_cf),
-                capex=COALESCE(excluded.capex, capex),
-                updated_at=excluded.updated_at""",
-                (code, yr, ocf, capex, now_str))
-            saved += 1
-        except Exception as e: logger.debug(f"[群益CF] {code} {yr} 寫入失敗: {e}")
+            try:
+                c.execute("""INSERT INTO financial_annual (code, year, operating_cf, capex, updated_at)
+                    VALUES (?,?,?,?,?)
+                    ON CONFLICT(code, year) DO UPDATE SET
+                    operating_cf=COALESCE(excluded.operating_cf, operating_cf),
+                    capex=COALESCE(excluded.capex, capex),
+                    updated_at=excluded.updated_at""",
+                    (code, yr, ocf, capex, now_str))
+                saved += 1
+            except Exception as e: logger.debug(f"[群益CF] {code} {yr} 寫入失敗: {e}")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
     return saved
 
 
@@ -968,19 +962,18 @@ def fetch_capital_annual_eps(code):
     # 存加權股數到 financial_annual
     if shares_map:
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            # 確保欄位存在
-            try:
-                c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
+            with sqlite3.get_conn() as conn:
+                c = conn.cursor()
+                # 確保欄位存在
+                try:
+                    c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
+                    conn.commit()
+                except Exception: pass
+                for yr, shares in shares_map.items():
+                    west_year = int(yr) + 1911
+                    c.execute("UPDATE financial_annual SET weighted_shares=? WHERE code=? AND year=?",
+                              (shares, code, west_year))
                 conn.commit()
-            except Exception: pass
-            for yr, shares in shares_map.items():
-                west_year = int(yr) + 1911
-                c.execute("UPDATE financial_annual SET weighted_shares=? WHERE code=? AND year=?",
-                          (shares, code, west_year))
-            conn.commit()
-            conn.close()
         except Exception as e: logger.debug(f"[群益股數] {code} 寫入失敗: {e}")
 
     return result
@@ -1025,70 +1018,68 @@ def fetch_capital_monthly_revenue(code):
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    # 確保表存在
-    c.execute("""CREATE TABLE IF NOT EXISTS monthly_revenue (
-        code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
-        revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""")
+        # 確保表存在
+        c.execute("""CREATE TABLE IF NOT EXISTS monthly_revenue (
+            code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
+            revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""")
 
-    saved = 0
-    for t in soup.find_all('table'):
-        for row in t.find_all('tr'):
-            cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
-            if not cells or not re.match(r'\d+/\d+', cells[0]):
-                continue
-            if len(cells) < 2:
-                continue
+        saved = 0
+        for t in soup.find_all('table'):
+            for row in t.find_all('tr'):
+                cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+                if not cells or not re.match(r'\d+/\d+', cells[0]):
+                    continue
+                if len(cells) < 2:
+                    continue
 
-            # 格式: "115/03", "12,412,837", "44.44%", ...
-            ym = cells[0]
-            m = re.match(r'(\d+)/(\d+)', ym)
-            if not m:
-                continue
+                # 格式: "115/03", "12,412,837", "44.44%", ...
+                ym = cells[0]
+                m = re.match(r'(\d+)/(\d+)', ym)
+                if not m:
+                    continue
 
-            roc_year = int(m.group(1))
-            month = int(m.group(2))
-            west_year = roc_year + 1911
-            revenue = _parse_num(cells[1])
+                roc_year = int(m.group(1))
+                month = int(m.group(2))
+                west_year = roc_year + 1911
+                revenue = _parse_num(cells[1])
 
-            if revenue is None or revenue <= 0:
-                continue
+                if revenue is None or revenue <= 0:
+                    continue
 
-            # 群益單位是仟元，轉為元
-            revenue *= 1000
+                # 群益單位是仟元，轉為元
+                revenue *= 1000
 
+                try:
+                    c.execute("""INSERT INTO monthly_revenue (code, year, month, revenue, updated_at)
+                        VALUES (?,?,?,?,?)
+                        ON CONFLICT(code, year, month) DO UPDATE SET
+                        revenue=excluded.revenue, updated_at=excluded.updated_at""",
+                        (code, west_year, month, revenue, now_str))
+                    saved += 1
+                except Exception as e: logger.debug(f"[群益月營收] {code} {west_year}/{month} 寫入失敗: {e}")
+
+        # 更新 stocks 表的營收日期（取 monthly_revenue 中最新月份）
+        if saved > 0:
             try:
-                c.execute("""INSERT INTO monthly_revenue (code, year, month, revenue, updated_at)
-                    VALUES (?,?,?,?,?)
-                    ON CONFLICT(code, year, month) DO UPDATE SET
-                    revenue=excluded.revenue, updated_at=excluded.updated_at""",
-                    (code, west_year, month, revenue, now_str))
-                saved += 1
-            except Exception as e: logger.debug(f"[群益月營收] {code} {west_year}/{month} 寫入失敗: {e}")
+                with sqlite3.get_conn() as conn2:
+                    latest = conn2.execute(
+                        "SELECT year, month FROM monthly_revenue WHERE code=? ORDER BY year DESC, month DESC LIMIT 1",
+                        (code,)).fetchone()
+                    if latest:
+                        old = conn2.execute(
+                            "SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
+                        if old and (latest[0] > (old[0] or 0) or (latest[0] == (old[0] or 0) and latest[1] > (old[1] or 0))):
+                            conn2.execute(
+                                "UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=? WHERE code=?",
+                                (now_str[:10], latest[0], latest[1], code))
+                            conn2.commit()
+            except Exception as e:
+                logger.debug(f"[群益月營收] {code} stocks更新失敗: {e}")
 
-    # 更新 stocks 表的營收日期（取 monthly_revenue 中最新月份）
-    if saved > 0:
-        try:
-            conn2 = sqlite3.connect(DB_PATH)
-            latest = conn2.execute(
-                "SELECT year, month FROM monthly_revenue WHERE code=? ORDER BY year DESC, month DESC LIMIT 1",
-                (code,)).fetchone()
-            if latest:
-                old = conn2.execute(
-                    "SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
-                if old and (latest[0] > (old[0] or 0) or (latest[0] == (old[0] or 0) and latest[1] > (old[1] or 0))):
-                    conn2.execute(
-                        "UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=? WHERE code=?",
-                        (now_str[:10], latest[0], latest[1], code))
-                    conn2.commit()
-            conn2.close()
-        except Exception as e:
-            logger.debug(f"[群益月營收] {code} stocks更新失敗: {e}")
-
-    conn.commit()
-    conn.close()
+        conn.commit()
     return saved
 
 
@@ -1127,110 +1118,107 @@ def fetch_capital_pe_history(code):
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    # 確保表存在
-    c.execute("""CREATE TABLE IF NOT EXISTS pe_history (
-        code TEXT NOT NULL, year INTEGER NOT NULL,
-        pe_high REAL, pe_low REAL, updated_at TEXT,
-        PRIMARY KEY (code, year))""")
+        # 確保表存在
+        c.execute("""CREATE TABLE IF NOT EXISTS pe_history (
+            code TEXT NOT NULL, year INTEGER NOT NULL,
+            pe_high REAL, pe_low REAL, updated_at TEXT,
+            PRIMARY KEY (code, year))""")
 
-    saved = 0
-    for i, yr_str in enumerate(years):
-        yr = int(yr_str) + 1911  # 民國轉西曆
-        pe_h = pe_highs[i] if i < len(pe_highs) else None
-        pe_l = pe_lows[i] if i < len(pe_lows) else None
-        # 0 代表該年有虧損期間，視為無效
-        if pe_h is not None and pe_h <= 0:
-            pe_h = None
-        if pe_l is not None and pe_l <= 0:
-            pe_l = None
-        # 高低至少要有一個有效值
-        if pe_h is None and pe_l is None:
-            continue
-        try:
-            c.execute("""INSERT INTO pe_history (code, year, pe_high, pe_low, updated_at)
-                VALUES (?,?,?,?,?)
-                ON CONFLICT(code, year) DO UPDATE SET
-                pe_high=COALESCE(excluded.pe_high, pe_high),
-                pe_low=COALESCE(excluded.pe_low, pe_low),
-                updated_at=excluded.updated_at""",
-                (code, yr, pe_h, pe_l, now_str))
-            saved += 1
-        except Exception as e: logger.debug(f"[群益PE] {code} {yr} 寫入失敗: {e}")
+        saved = 0
+        for i, yr_str in enumerate(years):
+            yr = int(yr_str) + 1911  # 民國轉西曆
+            pe_h = pe_highs[i] if i < len(pe_highs) else None
+            pe_l = pe_lows[i] if i < len(pe_lows) else None
+            # 0 代表該年有虧損期間，視為無效
+            if pe_h is not None and pe_h <= 0:
+                pe_h = None
+            if pe_l is not None and pe_l <= 0:
+                pe_l = None
+            # 高低至少要有一個有效值
+            if pe_h is None and pe_l is None:
+                continue
+            try:
+                c.execute("""INSERT INTO pe_history (code, year, pe_high, pe_low, updated_at)
+                    VALUES (?,?,?,?,?)
+                    ON CONFLICT(code, year) DO UPDATE SET
+                    pe_high=COALESCE(excluded.pe_high, pe_high),
+                    pe_low=COALESCE(excluded.pe_low, pe_low),
+                    updated_at=excluded.updated_at""",
+                    (code, yr, pe_h, pe_l, now_str))
+                saved += 1
+            except Exception as e: logger.debug(f"[群益PE] {code} {yr} 寫入失敗: {e}")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
     return saved
 
 
 def sync_to_stocks(code):
     """將 financial_annual + quarterly_financial 的資料同步到 stocks 表（原子操作）"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    try:
-        # 1. 年度EPS（eps_y1~y6）— 從 financial_annual 取最近6年有EPS的
-        rows = c.execute("""SELECT year, eps FROM financial_annual
-                           WHERE code=? AND eps IS NOT NULL
-                           ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
-        for i, r in enumerate(rows, 1):
-            roc_yr = str(r[0] - 1911)
-            c.execute(f"UPDATE stocks SET eps_y{i}=?, eps_y{i}_label=? WHERE code=?",
-                      (r[1], roc_yr, code))
-        for i in range(len(rows) + 1, 7):
-            c.execute(f"UPDATE stocks SET eps_y{i}=NULL, eps_y{i}_label=NULL WHERE code=?", (code,))
-
-        # 2. 股利（div_c1~c6）— 從 financial_annual 取最近6年有股利的
-        rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
-                           WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
-                           ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
-        for i, r in enumerate(rows, 1):
-            roc_yr = str(r[0] - 1911)
-            c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
-                      (r[1], r[2], roc_yr, code))
-        for i in range(len(rows) + 1, 7):
-            c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
-                      (code,))
-
-        # 3. 季度EPS（eps_1~5）— 從 quarterly_financial 取最近5季
-        rows = c.execute(f"""SELECT quarter, eps FROM quarterly_financial
-                           WHERE code=? AND eps IS NOT NULL
-                           {_Q_ORDER_DESC} LIMIT 5""", (code,)).fetchall()
-        for i, r in enumerate(rows, 1):
-            c.execute(f"UPDATE stocks SET eps_{i}=?, eps_{i}q=? WHERE code=?",
-                      (r[1], r[0], code))
-        for i in range(len(rows) + 1, 6):
-            c.execute(f"UPDATE stocks SET eps_{i}=NULL, eps_{i}q=NULL WHERE code=?", (code,))
-        # eps_date 不在這裡更新 — 由政府 API（quick_update）第一次偵測到新季度時設定
-
-        # 4. 合約負債（contract_1~3）— 從 quarterly_financial 取最近3季
-        rows = c.execute(f"""SELECT quarter, contract_liability FROM quarterly_financial
-                           WHERE code=? AND contract_liability IS NOT NULL
-                           {_Q_ORDER_DESC} LIMIT 3""", (code,)).fetchall()
-        for i, r in enumerate(rows, 1):
-            c.execute(f"UPDATE stocks SET contract_{i}=?, contract_{i}q=? WHERE code=?",
-                      (r[1], r[0], code))
-
-        # 5. 近四季EPS合計
-        eps_rows = c.execute(f"""SELECT eps FROM quarterly_financial
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        try:
+            # 1. 年度EPS（eps_y1~y6）— 從 financial_annual 取最近6年有EPS的
+            rows = c.execute("""SELECT year, eps FROM financial_annual
                                WHERE code=? AND eps IS NOT NULL
-                               {_Q_ORDER_DESC} LIMIT 4""", (code,)).fetchall()
-        if len(eps_rows) == 4:
-            ytd = round(sum(r[0] for r in eps_rows), 2)
-            latest_q = c.execute(f"""SELECT quarter FROM quarterly_financial
-                                   WHERE code=? AND eps IS NOT NULL
-                                   {_Q_ORDER_DESC} LIMIT 1""", (code,)).fetchone()
-            ytd_label = latest_q[0].split('Q')[0] if latest_q else None
-            c.execute("UPDATE stocks SET eps_ytd=?, eps_ytd_label=? WHERE code=?",
-                      (ytd, ytd_label, code))
+                               ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+            for i, r in enumerate(rows, 1):
+                roc_yr = str(r[0] - 1911)
+                c.execute(f"UPDATE stocks SET eps_y{i}=?, eps_y{i}_label=? WHERE code=?",
+                          (r[1], roc_yr, code))
+            for i in range(len(rows) + 1, 7):
+                c.execute(f"UPDATE stocks SET eps_y{i}=NULL, eps_y{i}_label=NULL WHERE code=?", (code,))
 
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        logger.warning(f"[sync_to_stocks] {code} 同步失敗，已回滾: {e}")
-    finally:
-        conn.close()
+            # 2. 股利（div_c1~c6）— 從 financial_annual 取最近6年有股利的
+            rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
+                               WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
+                               ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+            for i, r in enumerate(rows, 1):
+                roc_yr = str(r[0] - 1911)
+                c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
+                          (r[1], r[2], roc_yr, code))
+            for i in range(len(rows) + 1, 7):
+                c.execute(f"UPDATE stocks SET div_c{i}=NULL, div_s{i}=NULL, div_{i}_label=NULL WHERE code=?",
+                          (code,))
+
+            # 3. 季度EPS（eps_1~5）— 從 quarterly_financial 取最近5季
+            rows = c.execute(f"""SELECT quarter, eps FROM quarterly_financial
+                               WHERE code=? AND eps IS NOT NULL
+                               {_Q_ORDER_DESC} LIMIT 5""", (code,)).fetchall()
+            for i, r in enumerate(rows, 1):
+                c.execute(f"UPDATE stocks SET eps_{i}=?, eps_{i}q=? WHERE code=?",
+                          (r[1], r[0], code))
+            for i in range(len(rows) + 1, 6):
+                c.execute(f"UPDATE stocks SET eps_{i}=NULL, eps_{i}q=NULL WHERE code=?", (code,))
+            # eps_date 不在這裡更新 — 由政府 API（quick_update）第一次偵測到新季度時設定
+
+            # 4. 合約負債（contract_1~3）— 從 quarterly_financial 取最近3季
+            rows = c.execute(f"""SELECT quarter, contract_liability FROM quarterly_financial
+                               WHERE code=? AND contract_liability IS NOT NULL
+                               {_Q_ORDER_DESC} LIMIT 3""", (code,)).fetchall()
+            for i, r in enumerate(rows, 1):
+                c.execute(f"UPDATE stocks SET contract_{i}=?, contract_{i}q=? WHERE code=?",
+                          (r[1], r[0], code))
+
+            # 5. 近四季EPS合計
+            eps_rows = c.execute(f"""SELECT eps FROM quarterly_financial
+                                   WHERE code=? AND eps IS NOT NULL
+                                   {_Q_ORDER_DESC} LIMIT 4""", (code,)).fetchall()
+            if len(eps_rows) == 4:
+                ytd = round(sum(r[0] for r in eps_rows), 2)
+                latest_q = c.execute(f"""SELECT quarter FROM quarterly_financial
+                                       WHERE code=? AND eps IS NOT NULL
+                                       {_Q_ORDER_DESC} LIMIT 1""", (code,)).fetchone()
+                ytd_label = latest_q[0].split('Q')[0] if latest_q else None
+                c.execute("UPDATE stocks SET eps_ytd=?, eps_ytd_label=? WHERE code=?",
+                          (ytd, ytd_label, code))
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"[sync_to_stocks] {code} 同步失敗，已回滾: {e}")
 
 
 def fetch_all_three(code):
@@ -1263,25 +1251,24 @@ def backfill_all(force=False):
     force=True: 全部重新抓取
     force=False: 只補缺 total_equity 或 operating_cf 的
     """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    if force:
-        c.execute("SELECT code, name FROM stocks WHERE close IS NOT NULL ORDER BY code")
-        need = c.fetchall()
-    else:
-        # 找缺 total_equity 或 operating_cf 的股票
-        c.execute("""
-            SELECT DISTINCT s.code, s.name FROM stocks s
-            LEFT JOIN financial_annual fa ON s.code = fa.code AND fa.year >= 2020
-            WHERE s.close IS NOT NULL
-            GROUP BY s.code
-            HAVING SUM(CASE WHEN fa.total_equity IS NOT NULL THEN 1 ELSE 0 END) < 3
-                OR SUM(CASE WHEN fa.operating_cf IS NOT NULL THEN 1 ELSE 0 END) < 3
-            ORDER BY s.code
-        """)
-        need = c.fetchall()
-    conn.close()
+        if force:
+            c.execute("SELECT code, name FROM stocks WHERE close IS NOT NULL ORDER BY code")
+            need = c.fetchall()
+        else:
+            # 找缺 total_equity 或 operating_cf 的股票
+            c.execute("""
+                SELECT DISTINCT s.code, s.name FROM stocks s
+                LEFT JOIN financial_annual fa ON s.code = fa.code AND fa.year >= 2020
+                WHERE s.close IS NOT NULL
+                GROUP BY s.code
+                HAVING SUM(CASE WHEN fa.total_equity IS NOT NULL THEN 1 ELSE 0 END) < 3
+                    OR SUM(CASE WHEN fa.operating_cf IS NOT NULL THEN 1 ELSE 0 END) < 3
+                ORDER BY s.code
+            """)
+            need = c.fetchall()
 
     if not need:
         print("[群益三表] 所有股票已補齊")
@@ -1323,19 +1310,18 @@ def backfill_all(force=False):
 
 def _init_financial_detail_db():
     """建立 financial_detail 表（存完整損益表 + 資產負債表）"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""CREATE TABLE IF NOT EXISTS financial_detail (
-        code        TEXT NOT NULL,
-        period      TEXT NOT NULL,
-        period_type TEXT NOT NULL,
-        report_type TEXT NOT NULL,
-        item        TEXT NOT NULL,
-        value       REAL,
-        updated_at  TEXT,
-        PRIMARY KEY (code, period, report_type, item)
-    )""")
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS financial_detail (
+            code        TEXT NOT NULL,
+            period      TEXT NOT NULL,
+            period_type TEXT NOT NULL,
+            report_type TEXT NOT NULL,
+            item        TEXT NOT NULL,
+            value       REAL,
+            updated_at  TEXT,
+            PRIMARY KEY (code, period, report_type, item)
+        )""")
+        conn.commit()
 
 
 # 損益表要抓的欄位（群益標籤 → 顯示名稱）
@@ -1390,133 +1376,130 @@ def fetch_financial_detail(code):
     """抓取個股完整損益表(年/季) + 資產負債表(年/季)，存入 financial_detail 表"""
     _init_financial_detail_db()
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    total = 0
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        total = 0
 
-    def _save(code, period, period_type, report_type, data):
-        nonlocal total
-        for item, val in data.items():
-            if val is None:
-                continue
-            c.execute("""INSERT INTO financial_detail (code, period, period_type, report_type, item, value, updated_at)
-                VALUES (?,?,?,?,?,?,?)
-                ON CONFLICT(code, period, report_type, item) DO UPDATE SET
-                value=excluded.value, updated_at=excluded.updated_at""",
-                (code, period, period_type, report_type, item, val, now_str))
-            total += 1
-
-    def _west_to_roc_period(west_str, is_quarter=False):
-        """'2025' → '114' 或 '2025.4Q' → '114Q4'"""
-        if is_quarter:
-            m = re.match(r'(\d{4})\.(\d+)Q', west_str)
-            if m:
-                return f"{int(m.group(1)) - 1911}Q{m.group(2)}"
-            return west_str
-        try:
-            return str(int(float(west_str)) - 1911)
-        except Exception:
-            return west_str
-
-    # 1. 年度損益表 (zcqa)
-    try:
-        texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}")
-        data = _extract_yearly_data(texts, _IS_LABELS)
-        for west_year, items in data.items():
-            period = _west_to_roc_period(west_year)
-            converted = {k: v * 1_000_000 if k not in ('EPS',) else v for k, v in items.items() if v is not None}
-            _save(code, period, 'annual', 'income_statement', converted)
-    except Exception as e:
-        print(f"[財報明細] {code} 年度損益表失敗: {e}")
-
-    time.sleep(random.uniform(0.2, 0.4))
-
-    # 2. 季度損益表 (zce) — t3n td 結構，每 11 個為一列
-    # 欄位順序: 季別, 營業收入, 營業成本, 毛利, 毛利率%, 營業利益, 營益率%, 業外收支, 稅前淨利, 稅後淨利, EPS
-    try:
-        r = _session.get(f"https://stock.capital.com.tw/z/zc/zce/zce_{code}.djhtm", timeout=15)
-        r.encoding = 'big5'
-        soup = BeautifulSoup(r.text, 'html.parser')
-        tds = soup.find_all('td', class_=re.compile(r't3n'))
-        texts = [td.get_text(strip=True) for td in tds]
-
-        # 找到第一個季度標籤的位置
-        start = 0
-        for i, t in enumerate(texts):
-            if re.match(r'\d+\.\d+Q', t):
-                start = i
-                break
-
-        cols_per_row = 11  # 季別 + 10 個數值
-        zce_items = ['營業收入', '營業成本', '營業毛利', None, '營業利益', None, '營業外收支', '稅前淨利', '歸屬母公司淨利', 'EPS']
-
-        for i in range(start, len(texts) - cols_per_row + 1, cols_per_row):
-            q_label = texts[i].strip()
-            m = re.match(r'(\d+)\.(\d+)Q', q_label)
-            if not m:
-                continue
-            period = f"{int(m.group(1))}Q{m.group(2)}"
-            items = {}
-            for j, item_name in enumerate(zce_items):
-                if item_name is None:
+        def _save(code, period, period_type, report_type, data):
+            nonlocal total
+            for item, val in data.items():
+                if val is None:
                     continue
-                val = _parse_num(texts[i + 1 + j])
-                if val is not None:
-                    items[item_name] = val * 1_000_000 if item_name != 'EPS' else val
-            if items:
-                _save(code, period, 'quarterly', 'income_statement', items)
-    except Exception as e:
-        print(f"[財報明細] {code} 季度損益表失敗: {e}")
+                c.execute("""INSERT INTO financial_detail (code, period, period_type, report_type, item, value, updated_at)
+                    VALUES (?,?,?,?,?,?,?)
+                    ON CONFLICT(code, period, report_type, item) DO UPDATE SET
+                    value=excluded.value, updated_at=excluded.updated_at""",
+                    (code, period, period_type, report_type, item, val, now_str))
+                total += 1
 
-    time.sleep(random.uniform(0.2, 0.4))
+        def _west_to_roc_period(west_str, is_quarter=False):
+            """'2025' → '114' 或 '2025.4Q' → '114Q4'"""
+            if is_quarter:
+                m = re.match(r'(\d{4})\.(\d+)Q', west_str)
+                if m:
+                    return f"{int(m.group(1)) - 1911}Q{m.group(2)}"
+                return west_str
+            try:
+                return str(int(float(west_str)) - 1911)
+            except Exception:
+                return west_str
 
-    # 3. 年度資產負債表 (zcpb)
-    try:
-        texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcp/zcpb/zcpb.djhtm?a={code}")
-        data = _extract_yearly_data(texts, _BS_LABELS)
-        for west_year, items in data.items():
-            period = _west_to_roc_period(west_year)
-            converted = {k: v * 1_000_000 for k, v in items.items() if v is not None}
-            _save(code, period, 'annual', 'balance_sheet', converted)
-    except Exception as e:
-        print(f"[財報明細] {code} 年度資產負債表失敗: {e}")
+        # 1. 年度損益表 (zcqa)
+        try:
+            texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}")
+            data = _extract_yearly_data(texts, _IS_LABELS)
+            for west_year, items in data.items():
+                period = _west_to_roc_period(west_year)
+                converted = {k: v * 1_000_000 if k not in ('EPS',) else v for k, v in items.items() if v is not None}
+                _save(code, period, 'annual', 'income_statement', converted)
+        except Exception as e:
+            print(f"[財報明細] {code} 年度損益表失敗: {e}")
 
-    time.sleep(random.uniform(0.2, 0.4))
+        time.sleep(random.uniform(0.2, 0.4))
 
-    # 4. 季度資產負債表 (zcpa)
-    try:
-        texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcp/zcpa/zcpa.djhtm?a={code}")
-        data = _extract_quarterly_data(texts, _BS_LABELS)
-        for west_q, items in data.items():
-            period = _west_to_roc_period(west_q, is_quarter=True)
-            converted = {k: v * 1_000_000 for k, v in items.items() if v is not None}
-            _save(code, period, 'quarterly', 'balance_sheet', converted)
-    except Exception as e:
-        print(f"[財報明細] {code} 季度資產負債表失敗: {e}")
+        # 2. 季度損益表 (zce) — t3n td 結構，每 11 個為一列
+        # 欄位順序: 季別, 營業收入, 營業成本, 毛利, 毛利率%, 營業利益, 營益率%, 業外收支, 稅前淨利, 稅後淨利, EPS
+        try:
+            r = _session.get(f"https://stock.capital.com.tw/z/zc/zce/zce_{code}.djhtm", timeout=15)
+            r.encoding = 'big5'
+            soup = BeautifulSoup(r.text, 'html.parser')
+            tds = soup.find_all('td', class_=re.compile(r't3n'))
+            texts = [td.get_text(strip=True) for td in tds]
 
-    conn.commit()
-    conn.close()
+            # 找到第一個季度標籤的位置
+            start = 0
+            for i, t in enumerate(texts):
+                if re.match(r'\d+\.\d+Q', t):
+                    start = i
+                    break
+
+            cols_per_row = 11  # 季別 + 10 個數值
+            zce_items = ['營業收入', '營業成本', '營業毛利', None, '營業利益', None, '營業外收支', '稅前淨利', '歸屬母公司淨利', 'EPS']
+
+            for i in range(start, len(texts) - cols_per_row + 1, cols_per_row):
+                q_label = texts[i].strip()
+                m = re.match(r'(\d+)\.(\d+)Q', q_label)
+                if not m:
+                    continue
+                period = f"{int(m.group(1))}Q{m.group(2)}"
+                items = {}
+                for j, item_name in enumerate(zce_items):
+                    if item_name is None:
+                        continue
+                    val = _parse_num(texts[i + 1 + j])
+                    if val is not None:
+                        items[item_name] = val * 1_000_000 if item_name != 'EPS' else val
+                if items:
+                    _save(code, period, 'quarterly', 'income_statement', items)
+        except Exception as e:
+            print(f"[財報明細] {code} 季度損益表失敗: {e}")
+
+        time.sleep(random.uniform(0.2, 0.4))
+
+        # 3. 年度資產負債表 (zcpb)
+        try:
+            texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcp/zcpb/zcpb.djhtm?a={code}")
+            data = _extract_yearly_data(texts, _BS_LABELS)
+            for west_year, items in data.items():
+                period = _west_to_roc_period(west_year)
+                converted = {k: v * 1_000_000 for k, v in items.items() if v is not None}
+                _save(code, period, 'annual', 'balance_sheet', converted)
+        except Exception as e:
+            print(f"[財報明細] {code} 年度資產負債表失敗: {e}")
+
+        time.sleep(random.uniform(0.2, 0.4))
+
+        # 4. 季度資產負債表 (zcpa)
+        try:
+            texts = _fetch_page(f"https://stock.capital.com.tw/z/zc/zcp/zcpa/zcpa.djhtm?a={code}")
+            data = _extract_quarterly_data(texts, _BS_LABELS)
+            for west_q, items in data.items():
+                period = _west_to_roc_period(west_q, is_quarter=True)
+                converted = {k: v * 1_000_000 for k, v in items.items() if v is not None}
+                _save(code, period, 'quarterly', 'balance_sheet', converted)
+        except Exception as e:
+            print(f"[財報明細] {code} 季度資產負債表失敗: {e}")
+
+        conn.commit()
     return total
 
 
 def backfill_financial_detail(force=False):
     """批次抓取所有股票的完整損益表+資產負債表"""
     _init_financial_detail_db()
-    conn = sqlite3.connect(DB_PATH)
-
-    if force:
-        codes = [r[0] for r in conn.execute(
-            "SELECT code FROM stocks WHERE close IS NOT NULL ORDER BY code").fetchall()]
-    else:
-        # 只抓還沒有 financial_detail 資料的股票
-        codes = [r[0] for r in conn.execute("""
-            SELECT s.code FROM stocks s
-            LEFT JOIN financial_detail fd ON s.code = fd.code
-            WHERE s.close IS NOT NULL
-            GROUP BY s.code
-            HAVING COUNT(fd.code) = 0
-            ORDER BY s.code""").fetchall()]
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        if force:
+            codes = [r[0] for r in conn.execute(
+                "SELECT code FROM stocks WHERE close IS NOT NULL ORDER BY code").fetchall()]
+        else:
+            # 只抓還沒有 financial_detail 資料的股票
+            codes = [r[0] for r in conn.execute("""
+                SELECT s.code FROM stocks s
+                LEFT JOIN financial_detail fd ON s.code = fd.code
+                WHERE s.close IS NOT NULL
+                GROUP BY s.code
+                HAVING COUNT(fd.code) = 0
+                ORDER BY s.code""").fetchall()]
 
     if not codes:
         print("[財報明細] 所有股票已有資料")

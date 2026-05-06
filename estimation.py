@@ -17,15 +17,13 @@ logger = logging.getLogger(__name__)
 
 def _batch_system_estimate():
     """批次更新所有股票的系統 EPS 估算（取第一季結果存入 stocks 表）"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    for col, typ in [('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT')]:
-        try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+    with sqlite3.get_conn(row_factory=True) as conn:
+        for col, typ in [('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT')]:
+            try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+            except Exception: pass
+        try: conn.commit()
         except Exception: pass
-    try: conn.commit()
-    except Exception: pass
-    rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
-    conn.close()
+        rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
 
     success = 0
     for r in rows:
@@ -35,13 +33,12 @@ def _batch_system_estimate():
         try:
             result = estimate_system_eps(code)
             if result.get('est_eps') is not None and 'error' not in result:
-                c2 = sqlite3.connect(DB_PATH)
-                c2.execute(
-                    "UPDATE stocks SET sys_est_eps=?, sys_est_quarter=?, sys_est_confidence=? WHERE code=?",
-                    (result['est_eps'], result['quarter'], result['confidence'], code)
-                )
-                c2.commit()
-                c2.close()
+                with sqlite3.get_conn() as c2:
+                    c2.execute(
+                        "UPDATE stocks SET sys_est_eps=?, sys_est_quarter=?, sys_est_confidence=? WHERE code=?",
+                        (result['est_eps'], result['quarter'], result['confidence'], code)
+                    )
+                    c2.commit()
                 success += 1
         except Exception as e:
             print(f"  [季度估算] {code} 失敗: {e}")
@@ -54,16 +51,14 @@ _EXCLUDED_INDUSTRIES = {'金融保險業', '金融業', '保險業', '銀行業'
 
 def _batch_annual_estimate():
     """批次更新所有股票的年度 EPS 估算"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    for col, typ in [('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
-                     ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
-        try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+    with sqlite3.get_conn(row_factory=True) as conn:
+        for col, typ in [('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
+                         ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT')]:
+            try: conn.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+            except Exception: pass
+        try: conn.commit()
         except Exception: pass
-    try: conn.commit()
-    except Exception: pass
-    rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
-    conn.close()
+        rows = conn.execute("SELECT code, industry FROM stocks ORDER BY code").fetchall()
 
     success = skip = 0
     for r in rows:
@@ -72,9 +67,9 @@ def _batch_annual_estimate():
         # 不適用產業標記 N/A
         if ind in _EXCLUDED_INDUSTRIES:
             try:
-                c2 = sqlite3.connect(DB_PATH)
-                c2.execute("UPDATE stocks SET sys_ann_confidence='N/A' WHERE code=?", (code,))
-                c2.commit(); c2.close()
+                with sqlite3.get_conn() as c2:
+                    c2.execute("UPDATE stocks SET sys_ann_confidence='N/A' WHERE code=?", (code,))
+                    c2.commit()
             except Exception as e:
                 print(f"  [年度估算] {code} N/A標記失敗: {e}")
             skip += 1
@@ -84,12 +79,12 @@ def _batch_annual_estimate():
             if ar.get('est_eps') is not None and 'error' not in ar:
                 d = ar['details']
                 _log_estimate(code, ar, 'annual')
-                c2 = sqlite3.connect(DB_PATH)
-                c2.execute("""UPDATE stocks SET sys_ann_eps=?, sys_ann_div=?, sys_ann_pe=?,
-                              sys_ann_yld=?, sys_ann_confidence=? WHERE code=?""",
-                           (ar['est_eps'], d.get('est_div'), d.get('est_pe'),
-                            d.get('est_yld'), ar['confidence'], code))
-                c2.commit(); c2.close()
+                with sqlite3.get_conn() as c2:
+                    c2.execute("""UPDATE stocks SET sys_ann_eps=?, sys_ann_div=?, sys_ann_pe=?,
+                                  sys_ann_yld=?, sys_ann_confidence=? WHERE code=?""",
+                               (ar['est_eps'], d.get('est_div'), d.get('est_pe'),
+                                d.get('est_yld'), ar['confidence'], code))
+                    c2.commit()
                 success += 1
         except Exception as e:
             print(f"  [年度估算] {code} 失敗: {e}")
@@ -109,48 +104,46 @@ def _backfill_actual_eps():
     """自動回填實際 EPS 到 system_eps_actual（回測用）"""
     try:
         _init_eps_log_db()
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        roc_year = datetime.now().year - 1911
+        with sqlite3.get_conn(row_factory=True) as conn:
+            roc_year = datetime.now().year - 1911
 
-        # 回填已公布的季度 EPS
-        quarters = conn.execute("""
-            SELECT DISTINCT code, quarter, eps, revenue, updated_at
-            FROM quarterly_financial
-            WHERE eps IS NOT NULL
-            AND CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) >= ?
-        """, (roc_year - 1,)).fetchall()
+            # 回填已公布的季度 EPS
+            quarters = conn.execute("""
+                SELECT DISTINCT code, quarter, eps, revenue, updated_at
+                FROM quarterly_financial
+                WHERE eps IS NOT NULL
+                AND CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) >= ?
+            """, (roc_year - 1,)).fetchall()
 
-        filled = 0
-        for q in quarters:
-            try:
-                conn.execute("""INSERT OR IGNORE INTO system_eps_actual
-                    (code, target_period, actual_revenue, actual_eps, report_date)
-                    VALUES (?, ?, ?, ?, ?)""",
-                    (q['code'], q['quarter'], q['revenue'], q['eps'], q['updated_at']))
-                filled += conn.total_changes
-            except Exception:
-                pass  # INSERT OR IGNORE 衝突，正常
+            filled = 0
+            for q in quarters:
+                try:
+                    conn.execute("""INSERT OR IGNORE INTO system_eps_actual
+                        (code, target_period, actual_revenue, actual_eps, report_date)
+                        VALUES (?, ?, ?, ?, ?)""",
+                        (q['code'], q['quarter'], q['revenue'], q['eps'], q['updated_at']))
+                    filled += conn.total_changes
+                except Exception:
+                    pass  # INSERT OR IGNORE 衝突，正常
 
-        # 回填已公布的年度 EPS
-        annuals = conn.execute("""
-            SELECT code, year, revenue, eps, updated_at
-            FROM financial_annual
-            WHERE eps IS NOT NULL AND year >= ?
-        """, (datetime.now().year - 2,)).fetchall()
+            # 回填已公布的年度 EPS
+            annuals = conn.execute("""
+                SELECT code, year, revenue, eps, updated_at
+                FROM financial_annual
+                WHERE eps IS NOT NULL AND year >= ?
+            """, (datetime.now().year - 2,)).fetchall()
 
-        for a in annuals:
-            try:
-                period = f"{a['year'] - 1911}年度"
-                conn.execute("""INSERT OR IGNORE INTO system_eps_actual
-                    (code, target_period, actual_revenue, actual_eps, report_date)
-                    VALUES (?, ?, ?, ?, ?)""",
-                    (a['code'], period, a['revenue'], a['eps'], a['updated_at']))
-            except Exception:
-                pass  # INSERT OR IGNORE 衝突，正常
+            for a in annuals:
+                try:
+                    period = f"{a['year'] - 1911}年度"
+                    conn.execute("""INSERT OR IGNORE INTO system_eps_actual
+                        (code, target_period, actual_revenue, actual_eps, report_date)
+                        VALUES (?, ?, ?, ?, ?)""",
+                        (a['code'], period, a['revenue'], a['eps'], a['updated_at']))
+                except Exception:
+                    pass  # INSERT OR IGNORE 衝突，正常
 
-        conn.commit()
-        conn.close()
+            conn.commit()
     except Exception as e:
         print(f"[估算] 實際EPS回填失敗: {e}")
 
@@ -158,24 +151,22 @@ def _backfill_actual_eps():
 # ── 系統 EPS 估算核心 ─────────────────────────────────────────
 def _get_est_common_data(code):
     """取得估算所需的共用資料（季度財報 + 月營收 + 年度財報）"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    hist = [dict(r) for r in conn.execute("""
-        SELECT * FROM quarterly_financial WHERE code = ?
-        ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
-                 CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-        LIMIT 16
-    """, (code,)).fetchall()]
-    rev_rows = conn.execute("""
-        SELECT year, month, revenue FROM monthly_revenue
-        WHERE code = ? ORDER BY year DESC, month DESC LIMIT 48
-    """, (code,)).fetchall()
-    rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
-    ann_rows = [dict(r) for r in conn.execute("""
-        SELECT * FROM financial_annual WHERE code = ?
-        ORDER BY year DESC LIMIT 5
-    """, (code,)).fetchall()]
-    conn.close()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        hist = [dict(r) for r in conn.execute("""
+            SELECT * FROM quarterly_financial WHERE code = ?
+            ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                     CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+            LIMIT 16
+        """, (code,)).fetchall()]
+        rev_rows = conn.execute("""
+            SELECT year, month, revenue FROM monthly_revenue
+            WHERE code = ? ORDER BY year DESC, month DESC LIMIT 48
+        """, (code,)).fetchall()
+        rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
+        ann_rows = [dict(r) for r in conn.execute("""
+            SELECT * FROM financial_annual WHERE code = ?
+            ORDER BY year DESC LIMIT 5
+        """, (code,)).fetchall()]
     return hist, rev_map, rev_rows, ann_rows
 
 
@@ -502,30 +493,27 @@ def estimate_annual_eps(code):
     """
     import statistics
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    with sqlite3.get_conn(row_factory=True) as conn:
+        # 月營收
+        rev_rows = conn.execute("""
+            SELECT year, month, revenue FROM monthly_revenue
+            WHERE code = ? ORDER BY year DESC, month DESC LIMIT 60
+        """, (code,)).fetchall()
+        rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
 
-    # 月營收
-    rev_rows = conn.execute("""
-        SELECT year, month, revenue FROM monthly_revenue
-        WHERE code = ? ORDER BY year DESC, month DESC LIMIT 60
-    """, (code,)).fetchall()
-    rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
+        # 年度財報
+        ann_rows = [dict(r) for r in conn.execute("""
+            SELECT * FROM financial_annual WHERE code = ?
+            ORDER BY year DESC LIMIT 5
+        """, (code,)).fetchall()]
 
-    # 年度財報
-    ann_rows = [dict(r) for r in conn.execute("""
-        SELECT * FROM financial_annual WHERE code = ?
-        ORDER BY year DESC LIMIT 5
-    """, (code,)).fetchall()]
-
-    # 季度財報（稅率/歸屬/股數用）
-    q_rows = [dict(r) for r in conn.execute("""
-        SELECT * FROM quarterly_financial WHERE code = ?
-        ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
-                 CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
-        LIMIT 8
-    """, (code,)).fetchall()]
-    conn.close()
+        # 季度財報（稅率/歸屬/股數用）
+        q_rows = [dict(r) for r in conn.execute("""
+            SELECT * FROM quarterly_financial WHERE code = ?
+            ORDER BY CAST(SUBSTR(quarter, 1, INSTR(quarter, 'Q') - 1) AS INTEGER) DESC,
+                     CAST(SUBSTR(quarter, INSTR(quarter, 'Q') + 1) AS INTEGER) DESC
+            LIMIT 8
+        """, (code,)).fetchall()]
 
     if len(ann_rows) < 2:
         return {"error": "年度財報不足（需至少 2 年）"}
@@ -819,11 +807,9 @@ def estimate_annual_eps(code):
 
     # 取目前股價
     try:
-        conn2 = sqlite3.connect(DB_PATH)
-        conn2.row_factory = sqlite3.Row
-        price_row = conn2.execute("SELECT close FROM stocks WHERE code = ?", (code,)).fetchone()
-        conn2.close()
-        cur_price = price_row['close'] if price_row and price_row['close'] else None
+        with sqlite3.get_conn(row_factory=True) as conn2:
+            price_row = conn2.execute("SELECT close FROM stocks WHERE code = ?", (code,)).fetchone()
+            cur_price = price_row['close'] if price_row and price_row['close'] else None
     except Exception as e:
         cur_price = None
 
@@ -834,10 +820,8 @@ def estimate_annual_eps(code):
     # 優先使用個股自訂參數，沒有才用預設值
     _user_pe_low, _user_pe_high, _user_yld_high, _user_yld_max = 10, 18, 5.5, 6.0
     try:
-        ue_conn = sqlite3.connect(DB_PATH)
-        ue_conn.row_factory = sqlite3.Row
-        ue_row = ue_conn.execute("SELECT params FROM user_estimates WHERE code=?", (code,)).fetchone()
-        ue_conn.close()
+        with sqlite3.get_conn(row_factory=True) as ue_conn:
+            ue_row = ue_conn.execute("SELECT params FROM user_estimates WHERE code=?", (code,)).fetchone()
         if ue_row and ue_row['params']:
             import json as _json
             _ue = _json.loads(ue_row['params'])
@@ -917,38 +901,37 @@ def estimate_annual_eps(code):
 
 def _init_eps_log_db():
     """建立估算日誌表"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS system_eps_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            code            TEXT NOT NULL,
-            est_date        TEXT NOT NULL,
-            target_period   TEXT NOT NULL,
-            months_used     INTEGER,
-            rev_growth      REAL,
-            est_revenue     REAL,
-            est_gm          REAL,
-            est_opex        REAL,
-            est_nonop       REAL,
-            est_tax_rate    REAL,
-            est_eps         REAL,
-            confidence      TEXT,
-            method_version  TEXT DEFAULT 'v1'
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS system_eps_actual (
-            code            TEXT NOT NULL,
-            target_period   TEXT NOT NULL,
-            actual_revenue  REAL,
-            actual_eps      REAL,
-            report_date     TEXT,
-            PRIMARY KEY (code, target_period)
-        )
-    """)
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS system_eps_log (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                code            TEXT NOT NULL,
+                est_date        TEXT NOT NULL,
+                target_period   TEXT NOT NULL,
+                months_used     INTEGER,
+                rev_growth      REAL,
+                est_revenue     REAL,
+                est_gm          REAL,
+                est_opex        REAL,
+                est_nonop       REAL,
+                est_tax_rate    REAL,
+                est_eps         REAL,
+                confidence      TEXT,
+                method_version  TEXT DEFAULT 'v1'
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS system_eps_actual (
+                code            TEXT NOT NULL,
+                target_period   TEXT NOT NULL,
+                actual_revenue  REAL,
+                actual_eps      REAL,
+                report_date     TEXT,
+                PRIMARY KEY (code, target_period)
+            )
+        """)
+        conn.commit()
 
 
 def _log_estimate(code, result, est_type='annual'):
@@ -957,28 +940,27 @@ def _log_estimate(code, result, est_type='annual'):
     if 'error' in result:
         return
     d = result['details']
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        INSERT INTO system_eps_log
-        (code, est_date, target_period, months_used, rev_growth,
-         est_revenue, est_gm, est_opex, est_nonop, est_tax_rate,
-         est_eps, confidence, method_version)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        code,
-        datetime.now().strftime('%Y-%m-%d'),
-        result.get('target') or result.get('quarter', ''),
-        d.get('n_months') or d.get('rev_actual', 0),
-        d.get('adj_growth_pct') or d.get('rev_growth_pct'),
-        d.get('est_revenue'),
-        d.get('est_gm'),
-        d.get('est_opex'),
-        d.get('est_nonop'),
-        d.get('est_tax_rate'),
-        result.get('est_eps'),
-        result.get('confidence'),
-        'v1'
-    ))
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        conn.execute("""
+            INSERT INTO system_eps_log
+            (code, est_date, target_period, months_used, rev_growth,
+             est_revenue, est_gm, est_opex, est_nonop, est_tax_rate,
+             est_eps, confidence, method_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            code,
+            datetime.now().strftime('%Y-%m-%d'),
+            result.get('target') or result.get('quarter', ''),
+            d.get('n_months') or d.get('rev_actual', 0),
+            d.get('adj_growth_pct') or d.get('rev_growth_pct'),
+            d.get('est_revenue'),
+            d.get('est_gm'),
+            d.get('est_opex'),
+            d.get('est_nonop'),
+            d.get('est_tax_rate'),
+            result.get('est_eps'),
+            result.get('confidence'),
+            'v1'
+        ))
+        conn.commit()
 

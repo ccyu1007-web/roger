@@ -27,17 +27,16 @@ BACKUP_DIR = "raw_backup"
 def _init_fingerprint_table():
     """建立指紋表（只跑一次）"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS content_fingerprint (
-            source TEXT PRIMARY KEY,
-            last_hash TEXT,
-            last_changed TEXT,
-            check_count INTEGER DEFAULT 0,
-            skip_count INTEGER DEFAULT 0
-        )""")
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS content_fingerprint (
+                source TEXT PRIMARY KEY,
+                last_hash TEXT,
+                last_changed TEXT,
+                check_count INTEGER DEFAULT 0,
+                skip_count INTEGER DEFAULT 0
+            )""")
+            conn.commit()
     except Exception as e:
         print(f"[Guardian] fingerprint table init: {e}")
 
@@ -67,32 +66,30 @@ def backup_raw_response(source_name, data, metadata=None):
 
     # 查上次指紋
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT last_hash FROM content_fingerprint WHERE source=?", (source_name,))
-        row = c.fetchone()
-        old_hash = row[0] if row else None
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("SELECT last_hash FROM content_fingerprint WHERE source=?", (source_name,))
+            row = c.fetchone()
+            old_hash = row[0] if row else None
 
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        if old_hash == content_hash:
-            # 資料沒變 → 跳過備份，更新計數
-            c.execute("""UPDATE content_fingerprint
-                         SET check_count = check_count + 1, skip_count = skip_count + 1
-                         WHERE source=?""", (source_name,))
+            if old_hash == content_hash:
+                # 資料沒變 → 跳過備份，更新計數
+                c.execute("""UPDATE content_fingerprint
+                             SET check_count = check_count + 1, skip_count = skip_count + 1
+                             WHERE source=?""", (source_name,))
+                conn.commit()
+                return 'unchanged'
+
+            # 資料有變 → 更新指紋
+            c.execute("""INSERT INTO content_fingerprint (source, last_hash, last_changed, check_count, skip_count)
+                         VALUES (?, ?, ?, 1, 0)
+                         ON CONFLICT(source) DO UPDATE SET
+                         last_hash=excluded.last_hash, last_changed=excluded.last_changed,
+                         check_count=check_count+1, skip_count=0""",
+                      (source_name, content_hash, now_str))
             conn.commit()
-            conn.close()
-            return 'unchanged'
-
-        # 資料有變 → 更新指紋
-        c.execute("""INSERT INTO content_fingerprint (source, last_hash, last_changed, check_count, skip_count)
-                     VALUES (?, ?, ?, 1, 0)
-                     ON CONFLICT(source) DO UPDATE SET
-                     last_hash=excluded.last_hash, last_changed=excluded.last_changed,
-                     check_count=check_count+1, skip_count=0""",
-                  (source_name, content_hash, now_str))
-        conn.commit()
-        conn.close()
     except Exception as e:
         print(f"[Guardian] fingerprint 寫入失敗: {e}")
 
@@ -150,13 +147,11 @@ def load_from_backup(date_str, source_name=None):
 def get_fingerprint_stats():
     """取得所有來源的指紋統計（監控用）"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT * FROM content_fingerprint ORDER BY last_changed DESC")
-        stats = [dict(r) for r in c.fetchall()]
-        conn.close()
-        return stats
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM content_fingerprint ORDER BY last_changed DESC")
+            stats = [dict(r) for r in c.fetchall()]
+            return stats
     except Exception as e:
         print(f"[Guardian] fingerprint 查詢失敗: {e}")
         return []
@@ -255,21 +250,20 @@ JUMP_THRESHOLDS = {
 
 def _init_quarantine_table():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS data_quarantine (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT,
-            field TEXT,
-            old_value REAL,
-            new_value REAL,
-            reason TEXT,
-            source TEXT,
-            quarantined_at TEXT,
-            resolved INTEGER DEFAULT 0
-        )""")
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS data_quarantine (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT,
+                field TEXT,
+                old_value REAL,
+                new_value REAL,
+                reason TEXT,
+                source TEXT,
+                quarantined_at TEXT,
+                resolved INTEGER DEFAULT 0
+            )""")
+            conn.commit()
     except Exception as e:
         print(f"[Guardian] quarantine table 初始化失敗: {e}")
 
@@ -321,15 +315,14 @@ def sanity_check(new_row, old_row, source='unknown'):
             })
             # 記錄到隔離表
             try:
-                conn = sqlite3.connect(DB_PATH)
-                c = conn.cursor()
-                c.execute("""INSERT INTO data_quarantine
-                    (code, field, old_value, new_value, reason, source, quarantined_at)
-                    VALUES (?,?,?,?,?,?,?)""",
-                    (code, field, old_v, new_v, reason, source,
-                     datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-                conn.commit()
-                conn.close()
+                with sqlite3.get_conn() as conn:
+                    c = conn.cursor()
+                    c.execute("""INSERT INTO data_quarantine
+                        (code, field, old_value, new_value, reason, source, quarantined_at)
+                        VALUES (?,?,?,?,?,?,?)""",
+                        (code, field, old_v, new_v, reason, source,
+                         datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+                    conn.commit()
             except Exception as e:
                 print(f"[跳變攔截] {code} quarantine 寫入失敗: {e}")
 
@@ -343,15 +336,13 @@ def sanity_check(new_row, old_row, source='unknown'):
 def get_quarantine_list(limit=50):
     """取得未解決的隔離資料"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("""SELECT * FROM data_quarantine
-                     WHERE resolved = 0
-                     ORDER BY quarantined_at DESC LIMIT ?""", (limit,))
-        rows = [dict(r) for r in c.fetchall()]
-        conn.close()
-        return rows
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            c.execute("""SELECT * FROM data_quarantine
+                         WHERE resolved = 0
+                         ORDER BY quarantined_at DESC LIMIT ?""", (limit,))
+            rows = [dict(r) for r in c.fetchall()]
+            return rows
     except Exception as e:
         print(f"[Guardian] quarantine 查詢失敗: {e}")
         return []
@@ -364,21 +355,20 @@ def resolve_quarantine(quarantine_id, action='accept'):
     action='reject'：丟棄
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("UPDATE data_quarantine SET resolved=1 WHERE id=?", (quarantine_id,))
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("UPDATE data_quarantine SET resolved=1 WHERE id=?", (quarantine_id,))
 
-        if action == 'accept':
-            # 讀取隔離資料，強制更新到 stocks 表
-            c.execute("SELECT code, field, new_value FROM data_quarantine WHERE id=?",
-                      (quarantine_id,))
-            row = c.fetchone()
-            if row:
-                c.execute(f"UPDATE stocks SET {row[1]}=? WHERE code=?", (row[2], row[0]))
+            if action == 'accept':
+                # 讀取隔離資料，強制更新到 stocks 表
+                c.execute("SELECT code, field, new_value FROM data_quarantine WHERE id=?",
+                          (quarantine_id,))
+                row = c.fetchone()
+                if row:
+                    c.execute(f"UPDATE stocks SET {row[1]}=? WHERE code=?", (row[2], row[0]))
 
-        conn.commit()
-        conn.close()
-        return True
+            conn.commit()
+            return True
     except Exception as e:
         print(f"[Guardian] quarantine 處理失敗: {e}")
         return False
@@ -401,22 +391,21 @@ AUDIT_FIELDS = {
 
 def _init_audit_table():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS audit_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT,
-            field TEXT,
-            field_label TEXT,
-            old_value TEXT,
-            new_value TEXT,
-            changed_at TEXT
-        )""")
-        # 自動清理 90 天前的記錄
-        c.execute("""DELETE FROM audit_log
-                     WHERE changed_at < datetime('now', '-90 days')""")
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT,
+                field TEXT,
+                field_label TEXT,
+                old_value TEXT,
+                new_value TEXT,
+                changed_at TEXT
+            )""")
+            # 自動清理 90 天前的記錄
+            c.execute("""DELETE FROM audit_log
+                         WHERE changed_at < datetime('now', '-90 days')""")
+            conn.commit()
     except Exception as e:
         print(f"[Guardian] audit table 初始化失敗: {e}")
 
@@ -440,13 +429,12 @@ def audit_changes(code, new_row, old_row):
 
     if changes:
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.executemany("""INSERT INTO audit_log
-                (code, field, field_label, old_value, new_value, changed_at)
-                VALUES (?,?,?,?,?,?)""", changes)
-            conn.commit()
-            conn.close()
+            with sqlite3.get_conn() as conn:
+                c = conn.cursor()
+                c.executemany("""INSERT INTO audit_log
+                    (code, field, field_label, old_value, new_value, changed_at)
+                    VALUES (?,?,?,?,?,?)""", changes)
+                conn.commit()
         except Exception as e:
             print(f"[Guardian] audit 寫入失敗: {e}")
 
@@ -456,18 +444,16 @@ def audit_changes(code, new_row, old_row):
 def get_audit_log(limit=100, code=None):
     """取得異動日誌"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        if code:
-            c.execute("""SELECT * FROM audit_log WHERE code=?
-                         ORDER BY changed_at DESC LIMIT ?""", (code, limit))
-        else:
-            c.execute("""SELECT * FROM audit_log
-                         ORDER BY changed_at DESC LIMIT ?""", (limit,))
-        rows = [dict(r) for r in c.fetchall()]
-        conn.close()
-        return rows
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            if code:
+                c.execute("""SELECT * FROM audit_log WHERE code=?
+                             ORDER BY changed_at DESC LIMIT ?""", (code, limit))
+            else:
+                c.execute("""SELECT * FROM audit_log
+                             ORDER BY changed_at DESC LIMIT ?""", (limit,))
+            rows = [dict(r) for r in c.fetchall()]
+            return rows
     except Exception as e:
         print(f"[Guardian] audit 查詢失敗: {e}")
         return []
@@ -501,45 +487,43 @@ class CircuitBreaker:
     def _load_from_db(self):
         """從 DB 恢復熔斷狀態（重啟不遺失）"""
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("""CREATE TABLE IF NOT EXISTS circuit_breaker (
-                source TEXT PRIMARY KEY,
-                state TEXT DEFAULT 'CLOSED',
-                tripped_at TEXT,
-                trip_count INTEGER DEFAULT 0
-            )""")
-            conn.commit()
-            c.execute("SELECT state, tripped_at, trip_count FROM circuit_breaker WHERE source=?",
-                      (self.source_name,))
-            row = c.fetchone()
-            if row:
-                self.state = row[0]
-                self.tripped_at = datetime.strptime(row[1], '%Y-%m-%d %H:%M:%S') if row[1] else None
-                self.trip_count = row[2] or 0
-                # 冷卻期已過 → 自動切到 HALF_OPEN
-                if self.state == 'OPEN' and self.tripped_at:
-                    elapsed = (datetime.now() - self.tripped_at).total_seconds() / 60
-                    if elapsed >= self.cooldown_minutes:
-                        self.state = 'HALF_OPEN'
-            conn.close()
+            with sqlite3.get_conn() as conn:
+                c = conn.cursor()
+                c.execute("""CREATE TABLE IF NOT EXISTS circuit_breaker (
+                    source TEXT PRIMARY KEY,
+                    state TEXT DEFAULT 'CLOSED',
+                    tripped_at TEXT,
+                    trip_count INTEGER DEFAULT 0
+                )""")
+                conn.commit()
+                c.execute("SELECT state, tripped_at, trip_count FROM circuit_breaker WHERE source=?",
+                          (self.source_name,))
+                row = c.fetchone()
+                if row:
+                    self.state = row[0]
+                    self.tripped_at = datetime.strptime(row[1], '%Y-%m-%d %H:%M:%S') if row[1] else None
+                    self.trip_count = row[2] or 0
+                    # 冷卻期已過 → 自動切到 HALF_OPEN
+                    if self.state == 'OPEN' and self.tripped_at:
+                        elapsed = (datetime.now() - self.tripped_at).total_seconds() / 60
+                        if elapsed >= self.cooldown_minutes:
+                            self.state = 'HALF_OPEN'
         except Exception as e:
             print(f"[熔斷器] {self.source_name} DB 讀取失敗: {e}")
 
     def _save_to_db(self):
         """持久化熔斷狀態"""
         try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            tripped_str = self.tripped_at.strftime('%Y-%m-%d %H:%M:%S') if self.tripped_at else None
-            c.execute("""INSERT INTO circuit_breaker (source, state, tripped_at, trip_count)
-                         VALUES (?, ?, ?, ?)
-                         ON CONFLICT(source) DO UPDATE SET
-                         state=excluded.state, tripped_at=excluded.tripped_at,
-                         trip_count=excluded.trip_count""",
-                      (self.source_name, self.state, tripped_str, self.trip_count))
-            conn.commit()
-            conn.close()
+            with sqlite3.get_conn() as conn:
+                c = conn.cursor()
+                tripped_str = self.tripped_at.strftime('%Y-%m-%d %H:%M:%S') if self.tripped_at else None
+                c.execute("""INSERT INTO circuit_breaker (source, state, tripped_at, trip_count)
+                             VALUES (?, ?, ?, ?)
+                             ON CONFLICT(source) DO UPDATE SET
+                             state=excluded.state, tripped_at=excluded.tripped_at,
+                             trip_count=excluded.trip_count""",
+                          (self.source_name, self.state, tripped_str, self.trip_count))
+                conn.commit()
         except Exception as e:
             print(f"[熔斷器] {self.source_name} DB 寫入失敗: {e}")
 
@@ -635,13 +619,12 @@ def get_all_breakers():
     """取得所有熔斷器狀態（含 DB 中持久化的）"""
     # 載入 DB 中所有記錄
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT source FROM circuit_breaker")
-        for row in c.fetchall():
-            if row[0] not in _breakers:
-                _breakers[row[0]] = CircuitBreaker(row[0])
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("SELECT source FROM circuit_breaker")
+            for row in c.fetchall():
+                if row[0] not in _breakers:
+                    _breakers[row[0]] = CircuitBreaker(row[0])
     except Exception as e:
         print(f"[熔斷器] 狀態查詢失敗: {e}")
     return {name: b.get_status() for name, b in _breakers.items()}
@@ -660,28 +643,26 @@ def get_priority_queue(need_codes, priority_type='eps'):
     3. 市值大的（用收盤價×成交量估算）
     4. 其他
     """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    # 取各股票的優先權分數
-    scores = {}
-    for code in need_codes:
-        score = 0
-        c.execute("SELECT close, volume, fin_grade_1 FROM stocks WHERE code=?", (code,))
-        r = c.fetchone()
-        if r:
-            # 有財務等級的加分
-            if r[2] and r[2].startswith('A'):
-                score += 100
-            elif r[2] and r[2].startswith('B'):
-                score += 50
-            # 市值估算加分（取 log 避免極端值）
-            if r[0] and r[1] and r[0] > 0 and r[1] > 0:
-                import math
-                score += int(math.log10(r[0] * r[1] + 1))
-        scores[code] = score
-
-    conn.close()
+        # 取各股票的優先權分數
+        scores = {}
+        for code in need_codes:
+            score = 0
+            c.execute("SELECT close, volume, fin_grade_1 FROM stocks WHERE code=?", (code,))
+            r = c.fetchone()
+            if r:
+                # 有財務等級的加分
+                if r[2] and r[2].startswith('A'):
+                    score += 100
+                elif r[2] and r[2].startswith('B'):
+                    score += 50
+                # 市值估算加分（取 log 避免極端值）
+                if r[0] and r[1] and r[0] > 0 and r[1] > 0:
+                    import math
+                    score += int(math.log10(r[0] * r[1] + 1))
+            scores[code] = score
 
     # 按分數降序排列
     return sorted(need_codes, key=lambda c: scores.get(c, 0), reverse=True)
@@ -732,12 +713,10 @@ PROVIDER_TIERS = {
 
 def get_provider_status():
     """取得所有 Provider 的健康狀態（含 Tier 資訊）"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM api_health ORDER BY source")
-    health = {r['source']: dict(r) for r in c.fetchall()}
-    conn.close()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM api_health ORDER BY source")
+        health = {r['source']: dict(r) for r in c.fetchall()}
 
     result = {}
     for data_type, providers in PROVIDER_TIERS.items():
@@ -766,28 +745,23 @@ def get_active_provider(data_type):
     if not providers:
         return None
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
 
-    # 依 Tier 排序後逐一檢查
-    sorted_providers = sorted(providers, key=lambda p: p['tier'])
-    for p in sorted_providers:
-        c.execute("SELECT status, fail_count FROM api_health WHERE source=?", (p['name'],))
-        row = c.fetchone()
-        if not row:
-            # 從未用過，視為可用
-            conn.close()
-            return p
-        if row['status'] != 'error':
-            conn.close()
-            return p
-        # error 狀態但連續失敗 < 5 次，仍嘗試
-        if row['fail_count'] < 5:
-            conn.close()
-            return p
+        # 依 Tier 排序後逐一檢查
+        sorted_providers = sorted(providers, key=lambda p: p['tier'])
+        for p in sorted_providers:
+            c.execute("SELECT status, fail_count FROM api_health WHERE source=?", (p['name'],))
+            row = c.fetchone()
+            if not row:
+                # 從未用過，視為可用
+                return p
+            if row['status'] != 'error':
+                return p
+            # error 狀態但連續失敗 < 5 次，仍嘗試
+            if row['fail_count'] < 5:
+                return p
 
-    conn.close()
     # 所有來源都失敗，回傳 Tier 最低的（最後手段）
     return sorted_providers[-1] if sorted_providers else None
 
@@ -796,18 +770,17 @@ def log_provider_switch(data_type, from_provider, to_provider, reason):
     """記錄 Provider 降級切換事件"""
     print(f"[Provider 降級] {data_type}: {from_provider} → {to_provider}（{reason}）")
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS provider_switch_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data_type TEXT, from_provider TEXT, to_provider TEXT,
-            reason TEXT, switched_at TEXT
-        )""")
-        c.execute("INSERT INTO provider_switch_log VALUES (NULL,?,?,?,?,?)",
-                  (data_type, from_provider, to_provider, reason,
-                   datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS provider_switch_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                data_type TEXT, from_provider TEXT, to_provider TEXT,
+                reason TEXT, switched_at TEXT
+            )""")
+            c.execute("INSERT INTO provider_switch_log VALUES (NULL,?,?,?,?,?)",
+                      (data_type, from_provider, to_provider, reason,
+                       datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            conn.commit()
     except Exception as e:
         print(f"[Guardian] provider switch 記錄失敗: {e}")
 
@@ -819,45 +792,43 @@ def log_provider_switch(data_type, from_provider, to_provider, reason):
 
 def calc_reliability_scores():
     """計算各 API 來源的信賴度分數（0-100）"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM api_health")
-    scores = {}
-    for r in c.fetchall():
-        source = r['source']
-        fail_count = r['fail_count'] or 0
-        last_success = r['last_success']
-        record_count = r['last_record_count'] or 0
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM api_health")
+        scores = {}
+        for r in c.fetchall():
+            source = r['source']
+            fail_count = r['fail_count'] or 0
+            last_success = r['last_success']
+            record_count = r['last_record_count'] or 0
 
-        # 基礎分：有成功過就 80 分起跳
-        score = 80 if last_success else 20
+            # 基礎分：有成功過就 80 分起跳
+            score = 80 if last_success else 20
 
-        # 連續失敗扣分（每次 -15，最多扣到 0）
-        score -= min(fail_count * 15, 80)
+            # 連續失敗扣分（每次 -15，最多扣到 0）
+            score -= min(fail_count * 15, 80)
 
-        # 資料量加分（有回傳大量資料表示來源穩定）
-        if record_count > 500:
-            score += 10
-        elif record_count > 100:
-            score += 5
+            # 資料量加分（有回傳大量資料表示來源穩定）
+            if record_count > 500:
+                score += 10
+            elif record_count > 100:
+                score += 5
 
-        # 最近成功時間加分
-        if last_success:
-            try:
-                last_dt = datetime.strptime(last_success, '%Y-%m-%d %H:%M:%S')
-                hours_ago = (datetime.now() - last_dt).total_seconds() / 3600
-                if hours_ago < 1:
-                    score += 10
-                elif hours_ago < 24:
-                    score += 5
-                elif hours_ago > 72:
-                    score -= 10
-            except Exception:
-                pass  # 時間格式解析失敗，不影響評分
+            # 最近成功時間加分
+            if last_success:
+                try:
+                    last_dt = datetime.strptime(last_success, '%Y-%m-%d %H:%M:%S')
+                    hours_ago = (datetime.now() - last_dt).total_seconds() / 3600
+                    if hours_ago < 1:
+                        score += 10
+                    elif hours_ago < 24:
+                        score += 5
+                    elif hours_ago > 72:
+                        score -= 10
+                except Exception:
+                    pass  # 時間格式解析失敗，不影響評分
 
-        scores[source] = max(0, min(100, score))
-    conn.close()
+            scores[source] = max(0, min(100, score))
     return scores
 
 
@@ -868,55 +839,54 @@ def calc_reliability_scores():
 
 def detect_staleness():
     """檢查各項資料的鮮度，回傳過期警告"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    today = date.today()
-    weekday = today.weekday()  # 0=Mon, 6=Sun
-    alerts = []
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        today = date.today()
+        weekday = today.weekday()  # 0=Mon, 6=Sun
+        alerts = []
 
-    # 股價：交易日 15:00 後應該有今天的
-    c.execute("SELECT updated_at FROM stocks ORDER BY updated_at DESC LIMIT 1")
-    r = c.fetchone()
-    if r and r[0]:
-        try:
-            last_update = datetime.strptime(r[0], '%Y-%m-%d %H:%M:%S')
-            hours_ago = (datetime.now() - last_update).total_seconds() / 3600
-            if weekday < 5 and hours_ago > 20:  # 交易日超過20小時沒更新
+        # 股價：交易日 15:00 後應該有今天的
+        c.execute("SELECT updated_at FROM stocks ORDER BY updated_at DESC LIMIT 1")
+        r = c.fetchone()
+        if r and r[0]:
+            try:
+                last_update = datetime.strptime(r[0], '%Y-%m-%d %H:%M:%S')
+                hours_ago = (datetime.now() - last_update).total_seconds() / 3600
+                if weekday < 5 and hours_ago > 20:  # 交易日超過20小時沒更新
+                    alerts.append({
+                        'type': 'staleness', 'severity': 'warning',
+                        'data': '股價', 'message': f'已 {hours_ago:.0f} 小時未更新',
+                        'last_update': r[0],
+                    })
+            except Exception:
+                pass  # 時間格式解析失敗，跳過此項鮮度檢查
+
+        # 營收：每月 1-10 日應該有上月營收陸續公布
+        if today.day >= 12 and today.day <= 15:
+            expected_month = today.month - 1 if today.month > 1 else 12
+            c.execute("SELECT COUNT(*) FROM stocks WHERE revenue_month = ?", (expected_month,))
+            rev_count = c.fetchone()[0]
+            c.execute("SELECT COUNT(*) FROM stocks WHERE revenue_yoy IS NOT NULL")
+            total_rev = c.fetchone()[0]
+            if total_rev > 0 and rev_count / total_rev < 0.5:
                 alerts.append({
-                    'type': 'staleness', 'severity': 'warning',
-                    'data': '股價', 'message': f'已 {hours_ago:.0f} 小時未更新',
-                    'last_update': r[0],
+                    'type': 'staleness', 'severity': 'info',
+                    'data': '營收', 'message': f'上月營收僅 {rev_count}/{total_rev} 支已更新',
                 })
-        except Exception:
-            pass  # 時間格式解析失敗，跳過此項鮮度檢查
 
-    # 營收：每月 1-10 日應該有上月營收陸續公布
-    if today.day >= 12 and today.day <= 15:
-        expected_month = today.month - 1 if today.month > 1 else 12
-        c.execute("SELECT COUNT(*) FROM stocks WHERE revenue_month = ?", (expected_month,))
-        rev_count = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM stocks WHERE revenue_yoy IS NOT NULL")
-        total_rev = c.fetchone()[0]
-        if total_rev > 0 and rev_count / total_rev < 0.5:
+        # EPS：季報期限後應該有新季度
+        from scraper import _expected_latest_quarter
+        expected_q = _expected_latest_quarter()
+        c.execute("SELECT COUNT(*) FROM stocks WHERE eps_1q = ?", (expected_q,))
+        eps_new = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM stocks WHERE eps_1 IS NOT NULL")
+        eps_total = c.fetchone()[0]
+        if eps_total > 0 and eps_new / eps_total < 0.3:
             alerts.append({
                 'type': 'staleness', 'severity': 'info',
-                'data': '營收', 'message': f'上月營收僅 {rev_count}/{total_rev} 支已更新',
+                'data': 'EPS', 'message': f'最新季度 {expected_q} 僅 {eps_new}/{eps_total} 支',
             })
 
-    # EPS：季報期限後應該有新季度
-    from scraper import _expected_latest_quarter
-    expected_q = _expected_latest_quarter()
-    c.execute("SELECT COUNT(*) FROM stocks WHERE eps_1q = ?", (expected_q,))
-    eps_new = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM stocks WHERE eps_1 IS NOT NULL")
-    eps_total = c.fetchone()[0]
-    if eps_total > 0 and eps_new / eps_total < 0.3:
-        alerts.append({
-            'type': 'staleness', 'severity': 'info',
-            'data': 'EPS', 'message': f'最新季度 {expected_q} 僅 {eps_new}/{eps_total} 支',
-        })
-
-    conn.close()
     return alerts
 
 
@@ -962,13 +932,12 @@ def get_finmind_quota():
     remaining = max(0, daily_limit - used)
 
     # 估算還需要多少
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM stocks WHERE eps_2 IS NULL")
-    need_eps = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM stocks WHERE contract_1 IS NULL")
-    need_cl = c.fetchone()[0]
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM stocks WHERE eps_2 IS NULL")
+        need_eps = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM stocks WHERE contract_1 IS NULL")
+        need_cl = c.fetchone()[0]
 
     total_need = need_eps + need_cl
     days_to_complete = math.ceil(total_need / daily_limit) if daily_limit > 0 else 999
@@ -1046,14 +1015,12 @@ def cross_validate(sample_size=20):
     回傳: {'checked': N, 'mismatches': [...], 'ok': N}
     """
     import requests
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
 
-    # 隨機抽樣有資料的股票
-    c.execute("SELECT code, name, close, eps_y1, revenue_yoy FROM stocks WHERE close IS NOT NULL ORDER BY RANDOM() LIMIT ?", (sample_size,))
-    samples = [dict(r) for r in c.fetchall()]
-    conn.close()
+        # 隨機抽樣有資料的股票
+        c.execute("SELECT code, name, close, eps_y1, revenue_yoy FROM stocks WHERE close IS NOT NULL ORDER BY RANDOM() LIMIT ?", (sample_size,))
+        samples = [dict(r) for r in c.fetchall()]
 
     # 取政府 API 的股價和營收作為比對基準
     try:
@@ -1115,16 +1082,15 @@ def cross_validate(sample_size=20):
 
     # 寫入校驗記錄
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
-            details TEXT)""")
-        c.execute("INSERT INTO cross_validation (checked_at, sample_size, ok_count, mismatch_count, details) VALUES (?,?,?,?,?)",
-                  (now_str, len(samples), ok_count, len(mismatches), json.dumps(mismatches, ensure_ascii=False)))
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
+                details TEXT)""")
+            c.execute("INSERT INTO cross_validation (checked_at, sample_size, ok_count, mismatch_count, details) VALUES (?,?,?,?,?)",
+                      (now_str, len(samples), ok_count, len(mismatches), json.dumps(mismatches, ensure_ascii=False)))
+            conn.commit()
     except Exception as e:
         print(f"[交叉校驗] 結果寫入失敗: {e}")
 
@@ -1145,27 +1111,24 @@ def cross_validate_revenue():
     import requests
     from bs4 import BeautifulSoup
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    with sqlite3.get_conn(row_factory=True) as conn:
+        # 全量：從 monthly_revenue 取所有有資料的股票
+        rows = conn.execute("""
+            SELECT DISTINCT code FROM monthly_revenue
+            WHERE revenue IS NOT NULL AND revenue > 0
+        """).fetchall()
+        codes = [r['code'] for r in rows]
 
-    # 全量：從 monthly_revenue 取所有有資料的股票
-    rows = conn.execute("""
-        SELECT DISTINCT code FROM monthly_revenue
-        WHERE revenue IS NOT NULL AND revenue > 0
-    """).fetchall()
-    codes = [r['code'] for r in rows]
-
-    # 取得最近一筆營收的年月（用來跟群益比對）
-    rev_map = {}
-    for code in codes:
-        r = conn.execute("""
-            SELECT year, month, revenue FROM monthly_revenue
-            WHERE code=? AND revenue IS NOT NULL
-            ORDER BY year DESC, month DESC LIMIT 1
-        """, (code,)).fetchone()
-        if r:
-            rev_map[code] = {'year': r['year'], 'month': r['month'], 'revenue': r['revenue']}
-    conn.close()
+        # 取得最近一筆營收的年月（用來跟群益比對）
+        rev_map = {}
+        for code in codes:
+            r = conn.execute("""
+                SELECT year, month, revenue FROM monthly_revenue
+                WHERE code=? AND revenue IS NOT NULL
+                ORDER BY year DESC, month DESC LIMIT 1
+            """, (code,)).fetchone()
+            if r:
+                rev_map[code] = {'year': r['year'], 'month': r['month'], 'revenue': r['revenue']}
 
     if not rev_map:
         print("[營收校驗] 無資料可比對")
@@ -1235,17 +1198,16 @@ def cross_validate_revenue():
 
     # 寫入校驗記錄
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
-            details TEXT)""")
-        c.execute("INSERT INTO cross_validation (checked_at, sample_size, ok_count, mismatch_count, details) VALUES (?,?,?,?,?)",
-                  (now_str, checked, ok_count, len(mismatches),
-                   json.dumps({'type': 'revenue', 'mismatches': mismatches}, ensure_ascii=False)))
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS cross_validation (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                checked_at TEXT, sample_size INTEGER, ok_count INTEGER, mismatch_count INTEGER,
+                details TEXT)""")
+            c.execute("INSERT INTO cross_validation (checked_at, sample_size, ok_count, mismatch_count, details) VALUES (?,?,?,?,?)",
+                      (now_str, checked, ok_count, len(mismatches),
+                       json.dumps({'type': 'revenue', 'mismatches': mismatches}, ensure_ascii=False)))
+            conn.commit()
     except Exception as e:
         print(f"[營收校驗] 結果寫入失敗: {e}")
 
@@ -1256,16 +1218,14 @@ def cross_validate_revenue():
 def get_latest_validation():
     """取得最近一次交叉校驗結果"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("SELECT * FROM cross_validation ORDER BY id DESC LIMIT 1")
-        row = c.fetchone()
-        conn.close()
-        if row:
-            result = dict(row)
-            result['details'] = json.loads(result['details']) if result['details'] else []
-            return result
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM cross_validation ORDER BY id DESC LIMIT 1")
+            row = c.fetchone()
+            if row:
+                result = dict(row)
+                result['details'] = json.loads(result['details']) if result['details'] else []
+                return result
     except Exception as e:
         print(f"[Guardian] 最近校驗結果查詢失敗: {e}")
     return None
@@ -1276,67 +1236,65 @@ def get_coverage_map():
     資料斷層地圖：檢查各項關鍵資料的覆蓋率。
     回傳按季度/月份的完成度，讓你知道哪些資料有缺口。
     """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    c.execute("SELECT COUNT(*) FROM stocks")
-    total = c.fetchone()[0]
-    if total == 0:
-        conn.close()
-        return {'total': 0, 'coverage': []}
+        c.execute("SELECT COUNT(*) FROM stocks")
+        total = c.fetchone()[0]
+        if total == 0:
+            return {'total': 0, 'coverage': []}
 
-    coverage = []
+        coverage = []
 
-    # 股價覆蓋率
-    c.execute("SELECT COUNT(*) FROM stocks WHERE close IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '收盤價', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 股價覆蓋率
+        c.execute("SELECT COUNT(*) FROM stocks WHERE close IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '收盤價', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    # 營收覆蓋率（依月份）
-    c.execute("SELECT revenue_month, COUNT(*) FROM stocks WHERE revenue_yoy IS NOT NULL GROUP BY revenue_month ORDER BY revenue_month DESC LIMIT 1")
-    r = c.fetchone()
-    if r:
-        coverage.append({'item': f'營收（{r[0]}月）', 'have': r[1], 'total': total,
-                         'pct': round(r[1]/total*100, 1)})
+        # 營收覆蓋率（依月份）
+        c.execute("SELECT revenue_month, COUNT(*) FROM stocks WHERE revenue_yoy IS NOT NULL GROUP BY revenue_month ORDER BY revenue_month DESC LIMIT 1")
+        r = c.fetchone()
+        if r:
+            coverage.append({'item': f'營收（{r[0]}月）', 'have': r[1], 'total': total,
+                             'pct': round(r[1]/total*100, 1)})
 
-    # 季度 EPS 覆蓋率
-    c.execute("SELECT COUNT(*) FROM stocks WHERE eps_1 IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '季度EPS', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 季度 EPS 覆蓋率
+        c.execute("SELECT COUNT(*) FROM stocks WHERE eps_1 IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '季度EPS', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    # 年度 EPS
-    c.execute("SELECT COUNT(*) FROM stocks WHERE eps_y1 IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '年度EPS', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 年度 EPS
+        c.execute("SELECT COUNT(*) FROM stocks WHERE eps_y1 IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '年度EPS', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    # 股利
-    c.execute("SELECT COUNT(*) FROM stocks WHERE div_c1 IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '股利', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 股利
+        c.execute("SELECT COUNT(*) FROM stocks WHERE div_c1 IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '股利', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    # 合約負債
-    c.execute("SELECT COUNT(*) FROM stocks WHERE contract_1 IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '合約負債', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 合約負債
+        c.execute("SELECT COUNT(*) FROM stocks WHERE contract_1 IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '合約負債', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    # 財務等級
-    c.execute("SELECT COUNT(*) FROM stocks WHERE fin_grade_1 IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '財務等級', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 財務等級
+        c.execute("SELECT COUNT(*) FROM stocks WHERE fin_grade_1 IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '財務等級', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    # 產業別
-    c.execute("SELECT COUNT(*) FROM stocks WHERE industry IS NOT NULL")
-    n = c.fetchone()[0]
-    coverage.append({'item': '產業別', 'have': n, 'total': total,
-                     'pct': round(n/total*100, 1)})
+        # 產業別
+        c.execute("SELECT COUNT(*) FROM stocks WHERE industry IS NOT NULL")
+        n = c.fetchone()[0]
+        coverage.append({'item': '產業別', 'have': n, 'total': total,
+                         'pct': round(n/total*100, 1)})
 
-    conn.close()
     return {'total': total, 'coverage': coverage}
 
 
@@ -1349,29 +1307,28 @@ import re as _re
 
 def _init_news_table():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS material_news (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT,
-            name TEXT,
-            date TEXT,
-            time TEXT,
-            subject TEXT,
-            description TEXT,
-            tier INTEGER,
-            matched_rule TEXT,
-            direction TEXT DEFAULT 'neutral',
-            link TEXT,
-            created_at TEXT,
-            UNIQUE(code, date, time, subject)
-        )""")
-        c.execute("""CREATE INDEX IF NOT EXISTS idx_news_code_date
-                     ON material_news(code, created_at DESC)""")
-        # 90 天前自動清理
-        c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-90 days')")
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS material_news (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT,
+                name TEXT,
+                date TEXT,
+                time TEXT,
+                subject TEXT,
+                description TEXT,
+                tier INTEGER,
+                matched_rule TEXT,
+                direction TEXT DEFAULT 'neutral',
+                link TEXT,
+                created_at TEXT,
+                UNIQUE(code, date, time, subject)
+            )""")
+            c.execute("""CREATE INDEX IF NOT EXISTS idx_news_code_date
+                         ON material_news(code, created_at DESC)""")
+            # 90 天前自動清理
+            c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-90 days')")
+            conn.commit()
     except Exception as e:
         print(f"[Guardian] news table 初始化失敗: {e}")
 
@@ -1473,61 +1430,60 @@ def fetch_material_news():
     import requests
 
     # 取得追蹤中的股票代碼
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT DISTINCT stock_id FROM stock_state")
-    tracked = {r[0] for r in c.fetchall()}
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT stock_id FROM stock_state")
+        tracked = {r[0] for r in c.fetchall()}
 
-    stats = {'new': 0, 'tier0': 0, 'tier1': 0, 'tier2': 0}
+        stats = {'new': 0, 'tier0': 0, 'tier1': 0, 'tier2': 0}
 
-    # 上市 + 上櫃
-    apis = [
-        ('https://openapi.twse.com.tw/v1/openData/t187ap04_L',
-         '公司代號', '公司名稱', '發言日期', '發言時間', '主旨 ', '說明'),
-        ('https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O',
-         'SecuritiesCompanyCode', 'CompanyName', '發言日期', '發言時間', '主旨', '說明'),
-    ]
+        # 上市 + 上櫃
+        apis = [
+            ('https://openapi.twse.com.tw/v1/openData/t187ap04_L',
+             '公司代號', '公司名稱', '發言日期', '發言時間', '主旨 ', '說明'),
+            ('https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap04_O',
+             'SecuritiesCompanyCode', 'CompanyName', '發言日期', '發言時間', '主旨', '說明'),
+        ]
 
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    for url, ck, nk, dk, tk, sk, desc_k in apis:
-        try:
-            r = requests.get(url, timeout=15)
-            data = r.json()
-        except Exception: continue
-
-        for item in data:
-            code = str(item.get(ck, '')).strip()
-            if not code or code not in tracked:
-                continue
-
-            name = str(item.get(nk, '')).strip()
-            news_date = str(item.get(dk, '')).strip()
-            news_time = str(item.get(tk, '')).strip()
-            subject = str(item.get(sk, '')).strip()
-            description = str(item.get(desc_k, '')).strip()
-
-            if not subject:
-                continue
-
-            # 分類
-            tier, rule, direction = classify_news(subject, description)
-
-            # 公開資訊觀測站連結
-            mops_link = f"https://mops.twse.com.tw/mops/web/t05sr01_1"
-
-            # 存入（UNIQUE 去重，已存的不重複）
+        for url, ck, nk, dk, tk, sk, desc_k in apis:
             try:
-                c.execute("""INSERT INTO material_news
-                    (code, name, date, time, subject, description, tier, matched_rule, direction, link, created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    (code, name, news_date, news_time, subject, description, tier, rule, direction, mops_link, now_str))
-                stats['new'] += 1
-                stats[f'tier{tier}'] += 1
-            except Exception: pass  # UNIQUE 衝突，已存在
+                r = requests.get(url, timeout=15)
+                data = r.json()
+            except Exception: continue
 
-    conn.commit()
-    conn.close()
+            for item in data:
+                code = str(item.get(ck, '')).strip()
+                if not code or code not in tracked:
+                    continue
+
+                name = str(item.get(nk, '')).strip()
+                news_date = str(item.get(dk, '')).strip()
+                news_time = str(item.get(tk, '')).strip()
+                subject = str(item.get(sk, '')).strip()
+                description = str(item.get(desc_k, '')).strip()
+
+                if not subject:
+                    continue
+
+                # 分類
+                tier, rule, direction = classify_news(subject, description)
+
+                # 公開資訊觀測站連結
+                mops_link = f"https://mops.twse.com.tw/mops/web/t05sr01_1"
+
+                # 存入（UNIQUE 去重，已存的不重複）
+                try:
+                    c.execute("""INSERT INTO material_news
+                        (code, name, date, time, subject, description, tier, matched_rule, direction, link, created_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                        (code, name, news_date, news_time, subject, description, tier, rule, direction, mops_link, now_str))
+                    stats['new'] += 1
+                    stats[f'tier{tier}'] += 1
+                except Exception: pass  # UNIQUE 衝突，已存在
+
+        conn.commit()
 
     if stats['new'] > 0:
         print(f"[重大訊息] 新增 {stats['new']} 則（Tier0:{stats['tier0']} Tier1:{stats['tier1']} Tier2:{stats['tier2']}）")
@@ -1547,47 +1503,46 @@ def fetch_moneydj_news():
         print("[MoneyDJ] 需要 beautifulsoup4：pip3 install beautifulsoup4")
         return {'new': 0}
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
 
-    # 取所有股票名稱（用於標題比對）
-    c.execute("SELECT code, name FROM stocks WHERE close IS NOT NULL")
-    stock_map = {}  # name → code
-    for r in c.fetchall():
-        name = r['name']
-        if name and len(name) >= 2:
-            stock_map[name] = r['code']
-    # 按名稱長度降序排列，優先匹配最長的（避免「精華」誤配「精華生醫」）
-    stock_names_sorted = sorted(stock_map.keys(), key=len, reverse=True)
+        # 取所有股票名稱（用於標題比對）
+        c.execute("SELECT code, name FROM stocks WHERE close IS NOT NULL")
+        stock_map = {}  # name → code
+        for r in c.fetchall():
+            name = r['name']
+            if name and len(name) >= 2:
+                stock_map[name] = r['code']
+        # 按名稱長度降序排列，優先匹配最長的（避免「精華」誤配「精華生醫」）
+        stock_names_sorted = sorted(stock_map.keys(), key=len, reverse=True)
 
-    # 追蹤中的股票
-    c.execute("SELECT DISTINCT stock_id FROM stock_state")
-    tracked = {r[0] for r in c.fetchall()}
+        # 追蹤中的股票
+        c.execute("SELECT DISTINCT stock_id FROM stock_state")
+        tracked = {r[0] for r in c.fetchall()}
 
-    categories = [
-        ('https://www.moneydj.com/kmdj/common/listnewarticles.aspx?svc=NW&a=X0200000', '個股情報'),
-        ('https://www.moneydj.com/kmdj/common/listnewarticles.aspx?svc=NW&a=X0300000', '產業分析'),
-    ]
+        categories = [
+            ('https://www.moneydj.com/kmdj/common/listnewarticles.aspx?svc=NW&a=X0200000', '個股情報'),
+            ('https://www.moneydj.com/kmdj/common/listnewarticles.aspx?svc=NW&a=X0300000', '產業分析'),
+        ]
 
-    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    today_str = date.today().strftime('%m/%d')
-    stats = {'new': 0}
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        today_str = date.today().strftime('%m/%d')
+        stats = {'new': 0}
 
-    for url, cat_name in categories:
-        try:
-            r = requests.get(url, headers=headers, timeout=15)
-            r.encoding = 'utf-8'
-            soup = BeautifulSoup(r.text, 'html.parser')
-        except Exception: continue
+        for url, cat_name in categories:
+            try:
+                r = requests.get(url, headers=headers, timeout=15)
+                r.encoding = 'utf-8'
+                soup = BeautifulSoup(r.text, 'html.parser')
+            except Exception: continue
 
-        links = soup.find_all('a', href=lambda h: h and 'newsviewer' in h)
+            links = soup.find_all('a', href=lambda h: h and 'newsviewer' in h)
 
-        for a in links:
-            title = a.get_text(strip=True)
-            if not title:
-                continue
+            for a in links:
+                title = a.get_text(strip=True)
+                if not title:
+                    continue
 
             # 取連結
             href = a.get('href', '')
@@ -1637,8 +1592,7 @@ def fetch_moneydj_news():
                 stats['new'] += 1
             except Exception: pass  # UNIQUE 衝突
 
-    conn.commit()
-    conn.close()
+        conn.commit()
 
     if stats['new'] > 0:
         print(f"[MoneyDJ] 新增 {stats['new']} 則")
@@ -1652,19 +1606,17 @@ def get_recent_news(code=None, tier_min=1, limit=50):
     含冷卻機制：同公司 Tier 2 訊息 7 天內第二則起標記 cooled=True。
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        if code:
-            c.execute("""SELECT * FROM material_news
-                         WHERE code=? AND tier >= ?
-                         ORDER BY created_at DESC LIMIT ?""", (code, tier_min, limit))
-        else:
-            c.execute("""SELECT * FROM material_news
-                         WHERE tier >= ?
-                         ORDER BY created_at DESC LIMIT ?""", (tier_min, limit))
-        rows = [dict(r) for r in c.fetchall()]
-        conn.close()
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            if code:
+                c.execute("""SELECT * FROM material_news
+                             WHERE code=? AND tier >= ?
+                             ORDER BY created_at DESC LIMIT ?""", (code, tier_min, limit))
+            else:
+                c.execute("""SELECT * FROM material_news
+                             WHERE tier >= ?
+                             ORDER BY created_at DESC LIMIT ?""", (tier_min, limit))
+            rows = [dict(r) for r in c.fetchall()]
 
         # 冷卻機制：同公司 Tier 2，7 天內只有第一則維持 Tier 2，後續標記 cooled
         seen_t2 = {}  # code → first_date
@@ -1692,30 +1644,28 @@ def auto_archive_old_news():
     然後標記為 dismissed。重要資訊不堆積也不遺失。
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""SELECT id, code, name, date, subject, matched_rule
-                     FROM material_news
-                     WHERE tier = 2 AND status IS NULL
-                     AND created_at < datetime('now', '-20 days')""")
-        old_news = c.fetchall()
-        if not old_news:
-            conn.close()
-            return 0
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""SELECT id, code, name, date, subject, matched_rule
+                         FROM material_news
+                         WHERE tier = 2 AND status IS NULL
+                         AND created_at < datetime('now', '-20 days')""")
+            old_news = c.fetchall()
+            if not old_news:
+                return 0
 
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        archived = 0
-        for nid, code, name, news_date, subject, rule in old_news:
-            summary = f"[{rule}] {subject}".replace('\r', '').replace('\n', ' ')[:80]
-            c.execute("""INSERT INTO audit_log
-                (code, field, field_label, old_value, new_value, changed_at)
-                VALUES (?, 'news_archived', '自動歸檔新聞', ?, ?, ?)""",
-                (code, news_date or '', summary, now_str))
-            c.execute("UPDATE material_news SET status='dismissed' WHERE id=?", (nid,))
-            archived += 1
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            archived = 0
+            for nid, code, name, news_date, subject, rule in old_news:
+                summary = f"[{rule}] {subject}".replace('\r', '').replace('\n', ' ')[:80]
+                c.execute("""INSERT INTO audit_log
+                    (code, field, field_label, old_value, new_value, changed_at)
+                    VALUES (?, 'news_archived', '自動歸檔新聞', ?, ?, ?)""",
+                    (code, news_date or '', summary, now_str))
+                c.execute("UPDATE material_news SET status='dismissed' WHERE id=?", (nid,))
+                archived += 1
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         if archived:
             print(f"[自動歸檔] {archived} 則超過 20 天的重要新聞已存入紀錄")
         return archived
@@ -1881,27 +1831,26 @@ def _calc_val_levels(close, shen_eps, shen_div, blend_div,
 
 def _init_stock_state_table():
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS stock_state (
-            stock_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            price REAL,
-            price_pos INTEGER,
-            fair_low REAL,
-            fair_mid REAL,
-            fair_high REAL,
-            shen_eps REAL,
-            shen_pe REAL,
-            shen_yld REAL,
-            fin_grade TEXT,
-            updated_at TEXT,
-            UNIQUE(stock_id, date)
-        )""")
-        c.execute("""CREATE INDEX IF NOT EXISTS idx_stock_state_sd
-                     ON stock_state(stock_id, date DESC)""")
-        conn.commit()
-        conn.close()
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("""CREATE TABLE IF NOT EXISTS stock_state (
+                stock_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                price REAL,
+                price_pos INTEGER,
+                fair_low REAL,
+                fair_mid REAL,
+                fair_high REAL,
+                shen_eps REAL,
+                shen_pe REAL,
+                shen_yld REAL,
+                fin_grade TEXT,
+                updated_at TEXT,
+                UNIQUE(stock_id, date)
+            )""")
+            c.execute("""CREATE INDEX IF NOT EXISTS idx_stock_state_sd
+                         ON stock_state(stock_id, date DESC)""")
+            conn.commit()
     except Exception as e:
         print(f"[Guardian] stock_state table 初始化失敗: {e}")
 
@@ -1976,173 +1925,171 @@ def snapshot_stock_states():
     對觀察清單 + 體質通過的股票拍快照，寫入 stock_state。
     在 run() 和 quick_update() 結尾呼叫。
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
 
-    # 確保 stock_state 有評價欄位
-    for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
-                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
-                     ('discount_pct','REAL')]:
-        try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
-        except Exception: pass
-    # stocks 表加欄位
-    for col, typ in [('deepest_val_level','TEXT'),('val_cheap_days','INTEGER DEFAULT 0'),
-                     ('priority_grade','TEXT'),('grade_source','TEXT')]:
-        try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-        except Exception: pass
+        # 確保 stock_state 有評價欄位
+        for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
+                         ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
+                         ('discount_pct','REAL')]:
+            try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
+            except Exception: pass
+        # stocks 表加欄位
+        for col, typ in [('deepest_val_level','TEXT'),('val_cheap_days','INTEGER DEFAULT 0'),
+                         ('priority_grade','TEXT'),('grade_source','TEXT')]:
+            try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+            except Exception: pass
 
-    # 載入所有個股自訂估值參數（PE/殖利率）
-    user_val_params = {}
-    try:
-        ue_rows = c.execute("SELECT code, params FROM user_estimates WHERE params IS NOT NULL").fetchall()
-        for ue in ue_rows:
-            try:
-                d = json.loads(ue['params'])
-                p = {}
-                if d.get('peHigh'): p['pe_high'] = float(d['peHigh'])
-                if d.get('peLow'): p['pe_low'] = float(d['peLow'])
-                if d.get('yldHigh'): p['yld_high'] = float(d['yldHigh'])
-                if d.get('yldMax'): p['yld_max'] = float(d['yldMax'])
-                if p:
-                    user_val_params[ue['code']] = p
-            except Exception:
-                pass  # 單筆 JSON 解析失敗，跳過
-    except Exception as e:
-        print(f"[評價快照] user_estimates 讀取失敗: {e}")
+        # 載入所有個股自訂估值參數（PE/殖利率）
+        user_val_params = {}
+        try:
+            ue_rows = c.execute("SELECT code, params FROM user_estimates WHERE params IS NOT NULL").fetchall()
+            for ue in ue_rows:
+                try:
+                    d = json.loads(ue['params'])
+                    p = {}
+                    if d.get('peHigh'): p['pe_high'] = float(d['peHigh'])
+                    if d.get('peLow'): p['pe_low'] = float(d['peLow'])
+                    if d.get('yldHigh'): p['yld_high'] = float(d['yldHigh'])
+                    if d.get('yldMax'): p['yld_max'] = float(d['yldMax'])
+                    if p:
+                        user_val_params[ue['code']] = p
+                except Exception:
+                    pass  # 單筆 JSON 解析失敗，跳過
+        except Exception as e:
+            print(f"[評價快照] user_estimates 讀取失敗: {e}")
 
-    # 取所有有收盤價的股票
-    try:
-        c.execute("""SELECT code, close, volume,
-                            eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
-                            eps_4, eps_4q, eps_5, eps_5q,
-                            eps_y1, eps_ytd, fin_grade_1,
-                            div_c1, div_s1, deepest_val_level, val_cheap_days,
-                            sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld
-                     FROM stocks WHERE close IS NOT NULL""")
-    except Exception as e:
-        print(f"[評價快照] 查詢含系統估算欄位失敗，用舊查詢: {e}")
-        c.execute("""SELECT code, close, volume,
-                            eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
-                            eps_4, eps_4q, eps_5, eps_5q,
-                            eps_y1, eps_ytd, fin_grade_1,
-                            div_c1, div_s1
-                     FROM stocks WHERE close IS NOT NULL""")
-    rows = [dict(r) for r in c.fetchall()]
+        # 取所有有收盤價的股票
+        try:
+            c.execute("""SELECT code, close, volume,
+                                eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
+                                eps_4, eps_4q, eps_5, eps_5q,
+                                eps_y1, eps_ytd, fin_grade_1,
+                                div_c1, div_s1, deepest_val_level, val_cheap_days,
+                                sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld
+                         FROM stocks WHERE close IS NOT NULL""")
+        except Exception as e:
+            print(f"[評價快照] 查詢含系統估算欄位失敗，用舊查詢: {e}")
+            c.execute("""SELECT code, close, volume,
+                                eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
+                                eps_4, eps_4q, eps_5, eps_5q,
+                                eps_y1, eps_ytd, fin_grade_1,
+                                div_c1, div_s1
+                         FROM stocks WHERE close IS NOT NULL""")
+        rows = [dict(r) for r in c.fetchall()]
 
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # 用資料日（最近一次更新的日期），不用執行日
-    c.execute("SELECT updated_at FROM stocks ORDER BY updated_at DESC LIMIT 1")
-    r = c.fetchone()
-    data_date = r[0][:10] if r and r[0] else date.today().strftime('%Y-%m-%d')
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # 用資料日（最近一次更新的日期），不用執行日
+        c.execute("SELECT updated_at FROM stocks ORDER BY updated_at DESC LIMIT 1")
+        r = c.fetchone()
+        data_date = r[0][:10] if r and r[0] else date.today().strftime('%Y-%m-%d')
 
-    count = 0
-    for row in rows:
-        code = row['code']
-        close = row['close']
-        shen_eps = _calc_shen_eps(row)
-        price_pos, fair_low, fair_mid, fair_high = _calc_price_pos(close, shen_eps)
+        count = 0
+        for row in rows:
+            code = row['code']
+            close = row['close']
+            shen_eps = _calc_shen_eps(row)
+            price_pos, fair_low, fair_mid, fair_high = _calc_price_pos(close, shen_eps)
 
-        # 沈董殖利率
-        shen_yld = None
-        if shen_eps and shen_eps > 0 and close and close > 0:
-            # 沈董股利 = 沈董EPS * 簡易配息率（用最近一年股利/EPS）
+            # 沈董殖利率
+            shen_yld = None
+            if shen_eps and shen_eps > 0 and close and close > 0:
+                # 沈董股利 = 沈董EPS * 簡易配息率（用最近一年股利/EPS）
+                div_total = (row.get('div_c1') or 0) + (row.get('div_s1') or 0)
+                eps_y1 = row.get('eps_y1')
+                if div_total > 0 and eps_y1 and eps_y1 > 0:
+                    payout = min(1.0, div_total / eps_y1)
+                    shen_div = shen_eps * payout
+                    shen_yld = round(shen_div / close * 100, 2)
+
+            # 沈董 PE
+            shen_pe = round(close / shen_eps, 2) if shen_eps and shen_eps > 0 and close else None
+
+            # 計算評價等級
+            # 沈董股利（簡易版）
+            shen_div = None
+            blend_div = None
             div_total = (row.get('div_c1') or 0) + (row.get('div_s1') or 0)
-            eps_y1 = row.get('eps_y1')
-            if div_total > 0 and eps_y1 and eps_y1 > 0:
-                payout = min(1.0, div_total / eps_y1)
-                shen_div = shen_eps * payout
-                shen_yld = round(shen_div / close * 100, 2)
+            eps_y1_val = row.get('eps_y1')
+            if shen_eps and shen_eps > 0 and div_total > 0 and eps_y1_val and eps_y1_val > 0:
+                payout = min(1.0, div_total / eps_y1_val)
+                shen_div = round(shen_eps * payout, 4)
+                blend_div = shen_div
 
-        # 沈董 PE
-        shen_pe = round(close / shen_eps, 2) if shen_eps and shen_eps > 0 and close else None
+            # 預估值（與前端一致：sys_ann_eps/sys_ann_div 優先）
+            est_eps = row.get('sys_ann_eps')
+            est_div = row.get('sys_ann_div')
 
-        # 計算評價等級
-        # 沈董股利（簡易版）
-        shen_div = None
-        blend_div = None
-        div_total = (row.get('div_c1') or 0) + (row.get('div_s1') or 0)
-        eps_y1_val = row.get('eps_y1')
-        if shen_eps and shen_eps > 0 and div_total > 0 and eps_y1_val and eps_y1_val > 0:
-            payout = min(1.0, div_total / eps_y1_val)
-            shen_div = round(shen_eps * payout, 4)
-            blend_div = shen_div
+            # 個股自訂估值參數（優先於預設值）
+            uvp = user_val_params.get(code, {})
 
-        # 預估值（與前端一致：sys_ann_eps/sys_ann_div 優先）
-        est_eps = row.get('sys_ann_eps')
-        est_div = row.get('sys_ann_div')
+            vl = _calc_val_levels(close, shen_eps, shen_div, blend_div,
+                                  pe_low=uvp.get('pe_low'), pe_high=uvp.get('pe_high'),
+                                  yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'),
+                                  est_eps=est_eps, est_div=est_div)
 
-        # 個股自訂估值參數（優先於預設值）
-        uvp = user_val_params.get(code, {})
+            # 矩陣等級（優先順序：預估 > 系統 > 沈董 > X）
+            matrix_grade, grade_source = _calc_priority_grade(row, close, uvp)
+            vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
 
-        vl = _calc_val_levels(close, shen_eps, shen_div, blend_div,
-                              pe_low=uvp.get('pe_low'), pe_high=uvp.get('pe_high'),
-                              yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'),
-                              est_eps=est_eps, est_div=est_div)
+            # 折價%：統一用 val_aa 門檻算（只看相對於AA級的折價幅度）
+            if vl['val_aa'] and vl['val_aa'] > 0 and close:
+                vl['discount_pct'] = round((vl['val_aa'] - close) / vl['val_aa'] * 100, 2)
+            else:
+                vl['discount_pct'] = None
 
-        # 矩陣等級（優先順序：預估 > 系統 > 沈董 > X）
-        matrix_grade, grade_source = _calc_priority_grade(row, close, uvp)
-        vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
+            c.execute("""INSERT INTO stock_state
+                         (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                          shen_eps, shen_pe, shen_yld, fin_grade,
+                          val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                          updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                         ON CONFLICT(stock_id, date) DO UPDATE SET
+                         price=excluded.price, price_pos=excluded.price_pos,
+                         fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
+                         fair_high=excluded.fair_high, shen_eps=excluded.shen_eps,
+                         shen_pe=excluded.shen_pe, shen_yld=excluded.shen_yld,
+                         fin_grade=excluded.fin_grade,
+                         val_level=excluded.val_level, val_aa=excluded.val_aa,
+                         val_a1=excluded.val_a1, val_a2=excluded.val_a2,
+                         val_a=excluded.val_a, val_lt6=excluded.val_lt6,
+                         discount_pct=excluded.discount_pct,
+                         updated_at=excluded.updated_at""",
+                      (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
+                       shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
+                       vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
+                       vl['val_a'], vl['val_lt6'], vl['discount_pct'], now_str))
 
-        # 折價%：統一用 val_aa 門檻算（只看相對於AA級的折價幅度）
-        if vl['val_aa'] and vl['val_aa'] > 0 and close:
-            vl['discount_pct'] = round((vl['val_aa'] - close) / vl['val_aa'] * 100, 2)
-        else:
-            vl['discount_pct'] = None
+            # 更新便宜天數和歷史最深等級
+            cur_level = vl['val_level']
+            old_cheap_days = row.get('val_cheap_days') or 0
+            old_deepest = row.get('deepest_val_level')
 
-        c.execute("""INSERT INTO stock_state
-                     (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                      shen_eps, shen_pe, shen_yld, fin_grade,
-                      val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
-                      updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                     ON CONFLICT(stock_id, date) DO UPDATE SET
-                     price=excluded.price, price_pos=excluded.price_pos,
-                     fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
-                     fair_high=excluded.fair_high, shen_eps=excluded.shen_eps,
-                     shen_pe=excluded.shen_pe, shen_yld=excluded.shen_yld,
-                     fin_grade=excluded.fin_grade,
-                     val_level=excluded.val_level, val_aa=excluded.val_aa,
-                     val_a1=excluded.val_a1, val_a2=excluded.val_a2,
-                     val_a=excluded.val_a, val_lt6=excluded.val_lt6,
-                     discount_pct=excluded.discount_pct,
-                     updated_at=excluded.updated_at""",
-                  (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
-                   shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
-                   vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
-                   vl['val_a'], vl['val_lt6'], vl['discount_pct'], now_str))
+            # 便宜天數：AA/A1/A2/A 等級才累加，其他歸零
+            CHEAP_GRADES = {'AA', 'A1', 'A2', 'A'}
+            if cur_level in CHEAP_GRADES:
+                new_cheap_days = old_cheap_days + 1
+            else:
+                new_cheap_days = 0
 
-        # 更新便宜天數和歷史最深等級
-        cur_level = vl['val_level']
-        old_cheap_days = row.get('val_cheap_days') or 0
-        old_deepest = row.get('deepest_val_level')
+            # 歷史最深等級
+            LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, 'above': 0, None: 0}
+            cur_depth = LEVEL_DEPTH.get(cur_level, 0)
+            old_depth = LEVEL_DEPTH.get(old_deepest, 0)
+            new_deepest = cur_level if cur_depth > old_depth else old_deepest
 
-        # 便宜天數：AA/A1/A2/A 等級才累加，其他歸零
-        CHEAP_GRADES = {'AA', 'A1', 'A2', 'A'}
-        if cur_level in CHEAP_GRADES:
-            new_cheap_days = old_cheap_days + 1
-        else:
-            new_cheap_days = 0
+            # 同步寫回 stocks 表（含優先順序等級）
+            c.execute("""UPDATE stocks SET price_pos=?, fair_low=?, fair_high=?,
+                         deepest_val_level=?, val_cheap_days=?,
+                         priority_grade=?, grade_source=? WHERE code=?""",
+                      (price_pos, fair_low, fair_high, new_deepest, new_cheap_days,
+                       matrix_grade, grade_source, code))
+            count += 1
 
-        # 歷史最深等級
-        LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, 'above': 0, None: 0}
-        cur_depth = LEVEL_DEPTH.get(cur_level, 0)
-        old_depth = LEVEL_DEPTH.get(old_deepest, 0)
-        new_deepest = cur_level if cur_depth > old_depth else old_deepest
+        # 清理 180 天前的舊資料
+        c.execute("DELETE FROM stock_state WHERE date < date('now', '-180 days')")
 
-        # 同步寫回 stocks 表（含優先順序等級）
-        c.execute("""UPDATE stocks SET price_pos=?, fair_low=?, fair_high=?,
-                     deepest_val_level=?, val_cheap_days=?,
-                     priority_grade=?, grade_source=? WHERE code=?""",
-                  (price_pos, fair_low, fair_high, new_deepest, new_cheap_days,
-                   matrix_grade, grade_source, code))
-        count += 1
-
-    # 清理 180 天前的舊資料
-    c.execute("DELETE FROM stock_state WHERE date < date('now', '-180 days')")
-
-    conn.commit()
-    conn.close()
+        conn.commit()
     print(f"[狀態快照] {count} 支已記錄（{data_date}）")
 
     # 本機自動 push 評價資料到 Render
@@ -2159,24 +2106,22 @@ def _push_snapshot_to_render(data_date):
     """把本機的評價快照 push 到 Render"""
     import requests as _req
     RENDER_URL = "https://tock-system.onrender.com"
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute("""SELECT stock_id, date, val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
-                           FROM stock_state WHERE date=? AND val_level IS NOT NULL""", (data_date,)).fetchall()
-    extras = {}
-    for r in conn.execute("SELECT code, deepest_val_level, val_cheap_days FROM stocks"):
-        extras[r[0]] = (r[1], r[2])
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        rows = conn.execute("""SELECT stock_id, date, val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                               FROM stock_state WHERE date=? AND val_level IS NOT NULL""", (data_date,)).fetchall()
+        extras = {}
+        for r in conn.execute("SELECT code, deepest_val_level, val_cheap_days FROM stocks"):
+            extras[r[0]] = (r[1], r[2])
 
     if not rows:
         return
 
-    conn2 = sqlite3.connect(DB_PATH)
-    # 撈完整快照（含 price 等欄位）
-    full_rows = conn2.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                                       shen_eps, shen_pe, shen_yld, fin_grade,
-                                       val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
-                                FROM stock_state WHERE date=?""", (data_date,)).fetchall()
-    conn2.close()
+    with sqlite3.get_conn() as conn2:
+        # 撈完整快照（含 price 等欄位）
+        full_rows = conn2.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                                           shen_eps, shen_pe, shen_yld, fin_grade,
+                                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                                    FROM stock_state WHERE date=?""", (data_date,)).fetchall()
 
     if not full_rows:
         return
@@ -2205,28 +2150,29 @@ def get_daily_briefing():
     產生每日報告資料。
     比對最近兩筆快照，偵測狀態變化。
     """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-
     # 取所有有快照的股票的最近兩筆
+    all_rows = None
     try:
-        c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                            shen_eps, shen_pe, shen_yld, fin_grade,
-                            val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
-                     FROM stock_state ORDER BY stock_id, date DESC""")
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                                shen_eps, shen_pe, shen_yld, fin_grade,
+                                val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                         FROM stock_state ORDER BY stock_id, date DESC""")
+            all_rows = c.fetchall()
+            # 取股票名稱
+            c.execute("SELECT code, name FROM stocks")
+            names = {r['code']: r['name'] for r in c.fetchall()}
     except Exception:
-        # 評價欄位尚未建立，rollback 後用舊查詢
-        try: conn.commit()
-        except Exception: pass
-        conn.close()
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                            shen_eps, shen_pe, shen_yld, fin_grade
-                     FROM stock_state ORDER BY stock_id, date DESC""")
-    all_rows = c.fetchall()
+        # 評價欄位尚未建立，用舊查詢
+        with sqlite3.get_conn(row_factory=True) as conn:
+            c = conn.cursor()
+            c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                                shen_eps, shen_pe, shen_yld, fin_grade
+                         FROM stock_state ORDER BY stock_id, date DESC""")
+            all_rows = c.fetchall()
+            c.execute("SELECT code, name FROM stocks")
+            names = {r['code']: r['name'] for r in c.fetchall()}
 
     # 按 stock_id 分組，取最近 6 筆（去抖動需要看 5 日歷史）
     grouped = {}
@@ -2236,12 +2182,6 @@ def get_daily_briefing():
             grouped[sid] = []
         if len(grouped[sid]) < 6:
             grouped[sid].append(dict(row))
-
-    # 取股票名稱
-    c.execute("SELECT code, name FROM stocks")
-    names = {r['code']: r['name'] for r in c.fetchall()}
-
-    conn.close()
 
     alerts = []       # 紅色警示（等級下降）
     opportunities = [] # 藍色機會（往便宜移動）
@@ -2334,17 +2274,15 @@ def get_daily_briefing():
     # ETF 成分股異動（近 30 天）
     etf_changes = []
     try:
-        conn2 = sqlite3.connect(DB_PATH)
-        conn2.row_factory = sqlite3.Row
-        c2 = conn2.cursor()
-        c2.execute("""SELECT ec.etf_code, ei.name as etf_name, ec.stock_code, ec.stock_name,
-                             ec.action, ec.change_date, ec.created_at
-                      FROM etf_changes ec
-                      LEFT JOIN etf_info ei ON ec.etf_code = ei.code
-                      WHERE ec.created_at > datetime('now', '-30 days')
-                      ORDER BY ec.created_at DESC LIMIT 50""")
-        etf_changes = [dict(r) for r in c2.fetchall()]
-        conn2.close()
+        with sqlite3.get_conn(row_factory=True) as conn2:
+            c2 = conn2.cursor()
+            c2.execute("""SELECT ec.etf_code, ei.name as etf_name, ec.stock_code, ec.stock_name,
+                                 ec.action, ec.change_date, ec.created_at
+                          FROM etf_changes ec
+                          LEFT JOIN etf_info ei ON ec.etf_code = ei.code
+                          WHERE ec.created_at > datetime('now', '-30 days')
+                          ORDER BY ec.created_at DESC LIMIT 50""")
+            etf_changes = [dict(r) for r in c2.fetchall()]
     except Exception as e:
         print(f"[每日報告] ETF 異動查詢失敗: {e}")
 
@@ -2354,21 +2292,19 @@ def get_daily_briefing():
     # 取 stocks 表的便宜天數和歷史最深
     stock_extra = {}
     try:
-        conn3 = sqlite3.connect(DB_PATH)
-        conn3.row_factory = sqlite3.Row
-        c3 = conn3.cursor()
-        try:
-            c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
-            for r in c3.fetchall():
-                stock_extra[r['code']] = dict(r)
-        except Exception:
-            try: conn3.commit()
-            except Exception: pass
+        with sqlite3.get_conn(row_factory=True) as conn3:
             c3 = conn3.cursor()
-            c3.execute("SELECT code, volume FROM stocks")
-            for r in c3.fetchall():
-                stock_extra[r['code']] = dict(r)
-        conn3.close()
+            try:
+                c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days FROM stocks")
+                for r in c3.fetchall():
+                    stock_extra[r['code']] = dict(r)
+            except Exception:
+                try: conn3.commit()
+                except Exception: pass
+                c3 = conn3.cursor()
+                c3.execute("SELECT code, volume FROM stocks")
+                for r in c3.fetchall():
+                    stock_extra[r['code']] = dict(r)
     except Exception as e:
         print(f"[每日報告] stocks 補充資料查詢失敗: {e}")
 
@@ -2474,39 +2410,39 @@ def get_daily_briefing():
 
 def generate_health_report():
     """產生完整的系統健康報告"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
 
-    report = {
-        'generated_at': datetime.now().isoformat(),
-        'data_completeness': {},
-        'api_health': {},
-        'breaker_status': {},
-        'backup_status': {},
-    }
-
-    # 資料完成度
-    checks = [
-        ('close', '收盤價'), ('industry', '產業別'),
-        ('revenue_yoy', '營收'), ('eps_ytd', '近四季EPS'),
-        ('eps_y1', '年度EPS'), ('div_c1', '股利'),
-        ('fin_grade_1', '財務等級'), ('eps_2', '季度EPS明細'),
-        ('contract_1', '合約負債'),
-    ]
-    c.execute("SELECT COUNT(*) FROM stocks")
-    total = c.fetchone()[0]
-    for field, label in checks:
-        c.execute(f"SELECT COUNT(*) FROM stocks WHERE {field} IS NOT NULL")
-        n = c.fetchone()[0]
-        report['data_completeness'][label] = {
-            'count': n, 'total': total, 'pct': round(n / total * 100, 1)
+        report = {
+            'generated_at': datetime.now().isoformat(),
+            'data_completeness': {},
+            'api_health': {},
+            'breaker_status': {},
+            'backup_status': {},
         }
 
-    # API 健康
-    c.execute("SELECT * FROM api_health")
-    for r in c.fetchall():
-        cols = [d[0] for d in c.description]
-        report['api_health'][r[0]] = dict(zip(cols, r))
+        # 資料完成度
+        checks = [
+            ('close', '收盤價'), ('industry', '產業別'),
+            ('revenue_yoy', '營收'), ('eps_ytd', '近四季EPS'),
+            ('eps_y1', '年度EPS'), ('div_c1', '股利'),
+            ('fin_grade_1', '財務等級'), ('eps_2', '季度EPS明細'),
+            ('contract_1', '合約負債'),
+        ]
+        c.execute("SELECT COUNT(*) FROM stocks")
+        total = c.fetchone()[0]
+        for field, label in checks:
+            c.execute(f"SELECT COUNT(*) FROM stocks WHERE {field} IS NOT NULL")
+            n = c.fetchone()[0]
+            report['data_completeness'][label] = {
+                'count': n, 'total': total, 'pct': round(n / total * 100, 1)
+            }
+
+        # API 健康
+        c.execute("SELECT * FROM api_health")
+        for r in c.fetchall():
+            cols = [d[0] for d in c.description]
+            report['api_health'][r[0]] = dict(zip(cols, r))
 
     # 熔斷器（含 DB 持久化的）
     report['breaker_status'] = get_all_breakers()
@@ -2533,7 +2469,6 @@ def generate_health_report():
     # FinMind 額度
     report['finmind_quota'] = get_finmind_quota()
 
-    conn.close()
     return report
 
 
@@ -2552,135 +2487,132 @@ def focus_signal_check():
     DB_PATH = os.environ.get('STOCK_DB_PATH', 'stocks.db')
     today_str = date.today().strftime('%Y-%m-%d')
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    with sqlite3.get_conn(row_factory=True) as conn:
+        c = conn.cursor()
 
-    # 確保表存在
-    c.execute("""CREATE TABLE IF NOT EXISTS focus_tracking (
-        code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
-        signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
-        last_signal_date TEXT, last_signal_type TEXT, note TEXT)""")
-    c.execute("""CREATE TABLE IF NOT EXISTS focus_signals (
-        code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
-        detail TEXT, PRIMARY KEY (code, date, signal_type))""")
+        # 確保表存在
+        c.execute("""CREATE TABLE IF NOT EXISTS focus_tracking (
+            code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
+            signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
+            last_signal_date TEXT, last_signal_type TEXT, note TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS focus_signals (
+            code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
+            detail TEXT, PRIMARY KEY (code, date, signal_type))""")
 
-    # 讀取所有追蹤中的股票
-    tracked = [dict(r) for r in c.execute("SELECT * FROM focus_tracking").fetchall()]
-    if not tracked:
-        conn.close()
-        print("[重點追蹤] 無追蹤標的")
-        return []
+        # 讀取所有追蹤中的股票
+        tracked = [dict(r) for r in c.execute("SELECT * FROM focus_tracking").fetchall()]
+        if not tracked:
+            print("[重點追蹤] 無追蹤標的")
+            return []
 
-    signals_today = []
+        signals_today = []
 
-    for t in tracked:
-        code = t['code']
-        focus_date = t['focus_date']
-        focus_price = t['focus_price']
-        signal_mode = t['signal_mode'] or 'initial'
+        for t in tracked:
+            code = t['code']
+            focus_date = t['focus_date']
+            focus_price = t['focus_price']
+            signal_mode = t['signal_mode'] or 'initial'
 
-        # 取得當前股價
-        row = c.execute("SELECT close, volume FROM stocks WHERE code=?", (code,)).fetchone()
-        if not row or not row['close']:
-            continue
-        cur_price = row['close']
-        cur_volume = row['volume']
+            # 取得當前股價
+            row = c.execute("SELECT close, volume FROM stocks WHERE code=?", (code,)).fetchone()
+            if not row or not row['close']:
+                continue
+            cur_price = row['close']
+            cur_volume = row['volume']
 
-        # 取得近 20 日價量資料
-        dp_rows = c.execute(
-            """SELECT close_price, volume FROM daily_price
-               WHERE code=? AND date <= ? ORDER BY date DESC LIMIT 20""",
-            (code, today_str)
-        ).fetchall()
+            # 取得近 20 日價量資料
+            dp_rows = c.execute(
+                """SELECT close_price, volume FROM daily_price
+                   WHERE code=? AND date <= ? ORDER BY date DESC LIMIT 20""",
+                (code, today_str)
+            ).fetchall()
 
-        # ── 1. 模式切換判斷（initial → ma20）──
-        if signal_mode == 'initial' and focus_date:
-            trading_days = c.execute(
-                "SELECT COUNT(*) FROM daily_price WHERE code=? AND date > ?",
-                (code, focus_date)
-            ).fetchone()[0]
-            if trading_days >= 20:
-                signal_mode = 'ma20'
-                c.execute(
-                    "UPDATE focus_tracking SET signal_mode='ma20', mode_switch_date=? WHERE code=?",
-                    (today_str, code))
-                print(f"[重點追蹤] {code} 已滿 20 交易日，切換為 MA20 模式")
+            # ── 1. 模式切換判斷（initial → ma20）──
+            if signal_mode == 'initial' and focus_date:
+                trading_days = c.execute(
+                    "SELECT COUNT(*) FROM daily_price WHERE code=? AND date > ?",
+                    (code, focus_date)
+                ).fetchone()[0]
+                if trading_days >= 20:
+                    signal_mode = 'ma20'
+                    c.execute(
+                        "UPDATE focus_tracking SET signal_mode='ma20', mode_switch_date=? WHERE code=?",
+                        (today_str, code))
+                    print(f"[重點追蹤] {code} 已滿 20 交易日，切換為 MA20 模式")
 
-        # ── 2. 價格訊號 ──
-        price_signal = False
-        price_detail = ''
-        if signal_mode == 'initial' and focus_price:
-            threshold = round(focus_price * 1.03, 2)
-            if cur_price > threshold:
-                price_signal = True
-                price_detail = f'突破追蹤價 {focus_price}×1.03={threshold}，現價 {cur_price}'
-        elif signal_mode == 'ma20' and len(dp_rows) >= 20:
-            ma20 = sum(r['close_price'] for r in dp_rows[:20] if r['close_price']) / 20
-            ma20 = round(ma20, 2)
-            if cur_price > ma20:
-                price_signal = True
-                price_detail = f'突破 MA20={ma20}，現價 {cur_price}'
+            # ── 2. 價格訊號 ──
+            price_signal = False
+            price_detail = ''
+            if signal_mode == 'initial' and focus_price:
+                threshold = round(focus_price * 1.03, 2)
+                if cur_price > threshold:
+                    price_signal = True
+                    price_detail = f'突破追蹤價 {focus_price}×1.03={threshold}，現價 {cur_price}'
+            elif signal_mode == 'ma20' and len(dp_rows) >= 20:
+                ma20 = sum(r['close_price'] for r in dp_rows[:20] if r['close_price']) / 20
+                ma20 = round(ma20, 2)
+                if cur_price > ma20:
+                    price_signal = True
+                    price_detail = f'突破 MA20={ma20}，現價 {cur_price}'
 
-        if price_signal:
-            # 避免重複：同日同類型不重複
-            exists = c.execute(
-                "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='price'",
-                (code, today_str)).fetchone()
-            if not exists:
-                c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
-                          (code, today_str, 'price', price_detail))
-                c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='price' WHERE code=?",
-                          (today_str, code))
-                signals_today.append({'code': code, 'type': 'price', 'detail': price_detail})
-                print(f"[重點追蹤] {code} 價格訊號: {price_detail}")
-
-        # ── 3. 量能訊號 ──
-        if cur_volume and len(dp_rows) >= 20:
-            volumes = [r['volume'] for r in dp_rows[:20] if r['volume'] and r['volume'] > 0]
-            if volumes:
-                avg_vol = sum(volumes) / len(volumes)
-                if avg_vol > 0 and cur_volume > avg_vol * 1.5:
-                    exists = c.execute(
-                        "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='volume'",
-                        (code, today_str)).fetchone()
-                    if not exists:
-                        vol_detail = f'成交量 {cur_volume:,} > 均量 {int(avg_vol):,}×1.5={int(avg_vol*1.5):,}'
-                        c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
-                                  (code, today_str, 'volume', vol_detail))
-                        c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='volume' WHERE code=?",
-                                  (today_str, code))
-                        signals_today.append({'code': code, 'type': 'volume', 'detail': vol_detail})
-                        print(f"[重點追蹤] {code} 量能訊號: {vol_detail}")
-
-        # ── 4. 脫離便宜區訊號 ──
-        CHEAP_GRADES = {'AA', 'A1', 'A2', 'A'}
-        # 查昨天和今天的 val_level
-        yesterday_row = c.execute(
-            "SELECT val_level FROM stock_state WHERE stock_id=? AND date < ? ORDER BY date DESC LIMIT 1",
-            (code, today_str)).fetchone()
-        today_row = c.execute(
-            "SELECT val_level FROM stock_state WHERE stock_id=? AND date=?",
-            (code, today_str)).fetchone()
-
-        if yesterday_row and today_row:
-            old_level = yesterday_row['val_level'] or ''
-            new_level = today_row['val_level'] or ''
-            if old_level in CHEAP_GRADES and new_level not in CHEAP_GRADES:
+            if price_signal:
+                # 避免重複：同日同類型不重複
                 exists = c.execute(
-                    "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='cheap_exit'",
+                    "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='price'",
                     (code, today_str)).fetchone()
                 if not exists:
-                    exit_detail = f'脫離便宜區: {old_level} → {new_level}'
                     c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
-                              (code, today_str, 'cheap_exit', exit_detail))
-                    c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='cheap_exit' WHERE code=?",
+                              (code, today_str, 'price', price_detail))
+                    c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='price' WHERE code=?",
                               (today_str, code))
-                    signals_today.append({'code': code, 'type': 'cheap_exit', 'detail': exit_detail})
-                    print(f"[重點追蹤] {code} {exit_detail}")
+                    signals_today.append({'code': code, 'type': 'price', 'detail': price_detail})
+                    print(f"[重點追蹤] {code} 價格訊號: {price_detail}")
 
-    conn.commit()
-    conn.close()
+            # ── 3. 量能訊號 ──
+            if cur_volume and len(dp_rows) >= 20:
+                volumes = [r['volume'] for r in dp_rows[:20] if r['volume'] and r['volume'] > 0]
+                if volumes:
+                    avg_vol = sum(volumes) / len(volumes)
+                    if avg_vol > 0 and cur_volume > avg_vol * 1.5:
+                        exists = c.execute(
+                            "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='volume'",
+                            (code, today_str)).fetchone()
+                        if not exists:
+                            vol_detail = f'成交量 {cur_volume:,} > 均量 {int(avg_vol):,}×1.5={int(avg_vol*1.5):,}'
+                            c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
+                                      (code, today_str, 'volume', vol_detail))
+                            c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='volume' WHERE code=?",
+                                      (today_str, code))
+                            signals_today.append({'code': code, 'type': 'volume', 'detail': vol_detail})
+                            print(f"[重點追蹤] {code} 量能訊號: {vol_detail}")
+
+            # ── 4. 脫離便宜區訊號 ──
+            CHEAP_GRADES = {'AA', 'A1', 'A2', 'A'}
+            # 查昨天和今天的 val_level
+            yesterday_row = c.execute(
+                "SELECT val_level FROM stock_state WHERE stock_id=? AND date < ? ORDER BY date DESC LIMIT 1",
+                (code, today_str)).fetchone()
+            today_row = c.execute(
+                "SELECT val_level FROM stock_state WHERE stock_id=? AND date=?",
+                (code, today_str)).fetchone()
+
+            if yesterday_row and today_row:
+                old_level = yesterday_row['val_level'] or ''
+                new_level = today_row['val_level'] or ''
+                if old_level in CHEAP_GRADES and new_level not in CHEAP_GRADES:
+                    exists = c.execute(
+                        "SELECT 1 FROM focus_signals WHERE code=? AND date=? AND signal_type='cheap_exit'",
+                        (code, today_str)).fetchone()
+                    if not exists:
+                        exit_detail = f'脫離便宜區: {old_level} → {new_level}'
+                        c.execute("INSERT OR REPLACE INTO focus_signals (code, date, signal_type, detail) VALUES (?,?,?,?)",
+                                  (code, today_str, 'cheap_exit', exit_detail))
+                        c.execute("UPDATE focus_tracking SET last_signal_date=?, last_signal_type='cheap_exit' WHERE code=?",
+                                  (today_str, code))
+                        signals_today.append({'code': code, 'type': 'cheap_exit', 'detail': exit_detail})
+                        print(f"[重點追蹤] {code} {exit_detail}")
+
+        conn.commit()
 
     if signals_today:
         print(f"[重點追蹤] 今日共 {len(signals_today)} 個訊號")
