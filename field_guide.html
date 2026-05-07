@@ -467,9 +467,16 @@
 <div class="section" id="sec-daily">
   <div class="section-title" onclick="toggleSection(this)">每日評價報告 <span class="arrow">▼</span></div>
   <div class="section-body">
+    <p style="margin-bottom:12px">列出所有矩陣等級落在 AA/A1/A2/A 的股票，分兩個 Tab 瀏覽。</p>
     <table>
-      <tr><th width="120">區塊</th><th width="280">說明</th><th>資料來源</th></tr>
-      <tr><td class="field">深度挖寶</td><td>完整便宜清單（AA~A）</td><td><span class="src-calc">計算</span> 矩陣等級為 AA/A1/A2/A 的所有股票<div class="note">等級優先順序：系統預估 → 沈董，折價%用評價AA門檻</div></td></tr>
+      <tr><th width="120">項目</th><th>說明</th></tr>
+      <tr><td class="field">Tab 分頁</td><td>AA 獨立一頁；A1/A2/A 合併一頁，按等級分組顯示</td></tr>
+      <tr><td class="field">等級計算</td><td>用當前股價即時算 PE/殖利率，套入矩陣判斷等級<div class="note">優先順序：系統預估 EPS/股利 → 沈董 EPS/股利 → X</div></td></tr>
+      <tr><td class="field">折價幅度</td><td>統一用評價 AA 門檻計算：(AA門檻 - 股價) / AA門檻</td></tr>
+      <tr><td class="field">排序</td><td>同等級內按折價%由大到小排序（越便宜越前面）</td></tr>
+      <tr><td class="field">新增/刪除</td><td>與前一交易日比較，標示等級變動方向（如 above→AA、A1→A2）</td></tr>
+      <tr><td class="field">篩選</td><td>「僅體質佳」開關，只顯示體質清單中的股票</td></tr>
+      <tr><td class="field">追蹤</td><td>勾選追蹤個股，存入 focus_tracking 表（跨裝置同步）</td></tr>
     </table>
   </div>
 </div>
