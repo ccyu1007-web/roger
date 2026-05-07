@@ -1090,8 +1090,9 @@ def sync_manual():
                 since=_get_today_start(),
             )
             total += (n or 0)
-            # stocks 表（EPS/股利/等級等）
-            from render_sync import _push_annual_to_render
+            # stocks 表（股價+EPS/股利/等級等）
+            from render_sync import _push_prices_to_render, _push_annual_to_render
+            _push_prices_to_render()
             _push_annual_to_render()
             print(f"[手動同步] 完成，共 {total} 筆增量資料")
         except Exception as e:
