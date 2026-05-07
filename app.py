@@ -1121,12 +1121,16 @@ def refresh():
         with _refresh_lock:
             _is_refreshing = True
             try:
+                # 第一階段：股價（約7秒，完成就解鎖讓前端顯示）
                 refresh_prices()
-                # 存入每日價量
                 from scraper import _save_daily_price
                 try: _save_daily_price()
                 except Exception: pass
-                # 同步 EPS + 快照 + 新聞
+            finally:
+                _is_refreshing = False
+
+            # 第二階段：背景慢慢跑，不卡前端
+            try:
                 from scraper import _sync_eps_from_quarterly
                 from guardian import snapshot_stock_states, fetch_material_news, fetch_moneydj_news
                 try: _sync_eps_from_quarterly()
@@ -1137,10 +1141,9 @@ def refresh():
                 except Exception: pass
                 try: fetch_moneydj_news()
                 except Exception: pass
-                # 股價更新後重算檢核表
                 try: calc_all_checklists()
                 except Exception: pass
-                # 自動 push 到 Render（股價+stocks+營收+季報）
+                # push 到 Render
                 if not os.environ.get('DATABASE_URL'):
                     try:
                         from render_sync import _push_prices_to_render, _push_annual_to_render
@@ -1148,8 +1151,8 @@ def refresh():
                         _push_annual_to_render()
                     except Exception as e:
                         print(f"[更新股價] push Render 失敗: {e}")
-            finally:
-                _is_refreshing = False
+            except Exception as e:
+                print(f"[背景更新] 失敗: {e}")
 
     threading.Thread(target=do_refresh, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新資料"})
