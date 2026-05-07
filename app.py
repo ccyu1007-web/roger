@@ -1197,8 +1197,7 @@ def _get_today_start():
 # ── 手動觸發更新（背景執行，立即回應）─────────────────────
 @app.route("/api/refresh", methods=["POST"])
 def refresh():
-    if os.environ.get('DATABASE_URL'):
-        return jsonify({"status": "skip", "msg": "Render 環境不執行爬蟲，資料由本機排程更新"}), 200
+    is_cloud = bool(os.environ.get('DATABASE_URL'))
     global _is_refreshing
     if _is_refreshing:
         return jsonify({"status": "already_running", "msg": "更新中，請稍候"}), 200
@@ -1208,7 +1207,7 @@ def refresh():
         with _refresh_lock:
             _is_refreshing = True
             try:
-                # 第一階段：股價（約7秒，完成就解鎖讓前端顯示）
+                # 第一階段：股價（TWSE/TPEX 政府 API，海外可存取）
                 refresh_prices()
                 from scraper import _save_daily_price
                 try: _save_daily_price()
@@ -1230,8 +1229,8 @@ def refresh():
                 except Exception: pass
                 try: calc_all_checklists()
                 except Exception: pass
-                # push 到 Render
-                if not os.environ.get('DATABASE_URL'):
+                # 本機才 push 到 Render
+                if not is_cloud:
                     try:
                         from render_sync import _push_prices_to_render, _push_annual_to_render
                         _push_prices_to_render()
