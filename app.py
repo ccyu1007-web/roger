@@ -2420,75 +2420,80 @@ def get_monthly_revenue(code):
 # ── 系統健康報告 ──────────────────────────────────────────
 @app.route("/api/sync-status")
 def sync_status():
-    """同步狀態：比對本機 vs Render 的資料筆數和股價"""
-    import requests as req
-    is_cloud = IS_CLOUD
-    RENDER_URL = "https://tock-system.onrender.com"
+    """資料概況：各表筆數、最後更新時間、資料新鮮度"""
+    from datetime import datetime, timedelta
+    env = 'Render' if IS_CLOUD else '本機'
+    now = datetime.now()
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # 各表筆數
-    tables = ['stocks', 'quarterly_financial', 'financial_annual', 'pe_history',
-              'monthly_revenue', 'stock_state', 'material_news', 'etf_holdings', 'user_lists']
-    counts = []
-    for t in tables:
+    # 各表筆數 + 最後更新時間
+    table_info = [
+        ('stocks',              '股票總表',   'updated_at'),
+        ('quarterly_financial', '季度財報',   'updated_at'),
+        ('financial_annual',    '年度財報',   'updated_at'),
+        ('pe_history',          '歷史本益比', None),
+        ('monthly_revenue',     '月營收',     None),
+        ('stock_state',         '評價快照',   'date'),
+        ('material_news',       '新聞',       'created_at'),
+        ('etf_holdings',        'ETF成分股',  None),
+        ('user_lists',          '使用者清單', None),
+        ('daily_price',         '每日收盤價', 'date'),
+        ('stock_checklist',     '體質檢核表', None),
+    ]
+    tables = []
+    for tbl, label, ts_col in table_info:
         try:
-            local_cnt = c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            cnt = c.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
         except Exception:
-            local_cnt = 0
-        counts.append({'table': t, 'local': local_cnt, 'render': 0})
+            cnt = 0
+        last_ts = None
+        if ts_col and cnt > 0:
+            try:
+                r = c.execute(f"SELECT MAX({ts_col}) FROM {tbl}").fetchone()
+                last_ts = r[0] if r else None
+            except Exception:
+                pass
+        tables.append({'table': tbl, 'label': label, 'count': cnt, 'last_update': last_ts})
 
-    # Render 筆數
-    if not is_cloud:
+    # 資料新鮮度檢查
+    freshness = []
+    checks = [
+        ("股價", "SELECT MAX(updated_at) FROM stocks WHERE close IS NOT NULL", 1),
+        ("評價快照", "SELECT MAX(date) FROM stock_state", 1),
+        ("每日收盤價", "SELECT MAX(date) FROM daily_price", 1),
+        ("月營收", "SELECT MAX(year)||'-'||printf('%02d', MAX(month)) FROM monthly_revenue WHERE year=(SELECT MAX(year) FROM monthly_revenue)", None),
+        ("季報", "SELECT MAX(updated_at) FROM quarterly_financial", 7),
+    ]
+    for label, sql, max_days in checks:
         try:
-            r = req.get(f"{RENDER_URL}/api/sync-status?counts_only=1", timeout=15)
-            rd = r.json()
-            render_counts = {rc['table']: rc['local'] for rc in rd.get('counts', [])}
-            for ct in counts:
-                ct['render'] = render_counts.get(ct['table'], 0)
-        except Exception: pass
+            val = c.execute(sql).fetchone()[0]
+        except Exception:
+            val = None
+        status = 'unknown'
+        if val and max_days:
+            try:
+                ts = datetime.strptime(val[:10], '%Y-%m-%d')
+                age_days = (now - ts).days
+                status = 'ok' if age_days <= max_days else ('warn' if age_days <= max_days * 3 else 'error')
+            except Exception:
+                status = 'unknown'
+        freshness.append({'label': label, 'value': val, 'status': status})
 
-    # 股價抽樣比對
-    prices = []
+    # 股價抽樣
     sample_codes = ['2330', '2317', '1101', '2454', '2881', '2618', '3008', '1301']
-    local_prices = {}
+    prices = []
     for code in sample_codes:
-        r = c.execute("SELECT code, name, close FROM stocks WHERE code=?", (code,)).fetchone()
-        if r:
-            local_prices[r[0]] = {'code': r[0], 'name': r[1], 'local': r[2], 'render': None}
-
-    if not is_cloud:
         try:
-            r = req.get(f"{RENDER_URL}/api/stocks", timeout=30)
-            rd = r.json()
-            for s in rd.get('data', []):
-                if s['code'] in local_prices:
-                    local_prices[s['code']]['render'] = s.get('close')
-        except Exception: pass
-    prices = list(local_prices.values())
-
-    # 最近更新時間
-    times = {}
-    try:
-        r = c.execute("SELECT MAX(updated_at) FROM stocks").fetchone()
-        times['stocks 最後更新'] = r[0] if r else None
-    except Exception: pass
-    try:
-        r = c.execute("SELECT MAX(updated_at) FROM quarterly_financial").fetchone()
-        times['季報最後更新'] = r[0] if r else None
-    except Exception: pass
-    try:
-        r = c.execute("SELECT MAX(updated_at) FROM financial_annual").fetchone()
-        times['年報最後更新'] = r[0] if r else None
-    except Exception: pass
-    try:
-        r = c.execute("SELECT MAX(date) FROM stock_state").fetchone()
-        times['快照最新日期'] = r[0] if r else None
-    except Exception: pass
+            r = c.execute("SELECT code, name, close, updated_at FROM stocks WHERE code=?", (code,)).fetchone()
+            if r:
+                prices.append({'code': r[0], 'name': r[1], 'close': r[2], 'updated_at': r[3]})
+        except Exception:
+            pass
 
     conn.close()
-    return jsonify({'counts': counts, 'prices': prices, 'times': times})
+    return jsonify({'env': env, 'tables': tables, 'freshness': freshness, 'prices': prices})
 
 
 @app.route("/api/health")

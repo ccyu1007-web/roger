@@ -3,35 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>同步狀態 — 逍遙投資系統</title>
+<title>資料概況 — 逍遙投資系統</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Microsoft JhengHei', -apple-system, sans-serif; background: #f0f4f8; color: #1a202c; font-size: 14px; }
   header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
   header h1 { font-size: 1.2rem; }
-  header a { color: rgba(255,255,255,.9); text-decoration: none; font-size: .85rem; }
-  .container { max-width: 800px; margin: 20px auto; padding: 0 16px; }
+  .env-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: .78rem; font-weight: 600; margin-left: 10px; }
+  .env-render { background: #fbbf24; color: #78350f; }
+  .env-local { background: #34d399; color: #064e3b; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .container { max-width: 860px; margin: 20px auto; padding: 0 16px; }
   .card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.08); margin-bottom: 16px; overflow: hidden; }
   .card-title { padding: 10px 16px; font-weight: 700; font-size: .95rem; border-bottom: 1px solid #e2e8f0; }
-  .card-body { padding: 16px; }
+  .card-body { padding: 12px 16px; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 6px 10px; font-size: .82rem; color: #64748b; border-bottom: 2px solid #e2e8f0; }
   td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; font-size: .85rem; }
   .ok { color: #059669; font-weight: 600; }
   .warn { color: #d97706; font-weight: 600; }
   .error { color: #dc2626; font-weight: 600; }
+  .unknown { color: #94a3b8; }
   .loading { text-align: center; padding: 40px; color: #94a3b8; }
   .refresh-btn { padding: 6px 14px; border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.15); color: #fff; border-radius: 6px; cursor: pointer; font-size: .82rem; }
   .refresh-btn:hover { background: rgba(255,255,255,.25); }
   .ts { font-size: .78rem; color: #94a3b8; }
+  .cnt { font-variant-numeric: tabular-nums; text-align: right; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .dot-ok { background: #059669; }
+  .dot-warn { background: #d97706; }
+  .dot-error { background: #dc2626; }
+  .dot-unknown { background: #cbd5e1; }
+  .freshness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+  .freshness-item { padding: 10px 14px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; }
+  .freshness-label { font-size: .78rem; color: #64748b; margin-bottom: 2px; }
+  .freshness-value { font-size: .95rem; font-weight: 600; }
+  a { color: rgba(255,255,255,.9); text-decoration: none; font-size: .85rem; }
 </style>
 </head>
 <body>
 <header>
-  <h1>同步狀態</h1>
-  <div>
+  <div style="display:flex;align-items:center">
+    <h1>資料概況</h1>
+    <span class="env-badge" id="envBadge"></span>
+  </div>
+  <div class="header-right">
     <button class="refresh-btn" onclick="load()">重新檢查</button>
-    <a href="/" style="margin-left:16px">回總表</a>
+    <a href="/">回總表</a>
   </div>
 </header>
 <div class="container">
@@ -39,60 +57,85 @@
   <div id="content" style="display:none">
 
     <div class="card">
-      <div class="card-title">資料表筆數比對（本機 vs Render）</div>
-      <div class="card-body"><table id="tblCounts"><thead><tr><th>資料表</th><th>本機</th><th>Render</th><th>狀態</th></tr></thead><tbody></tbody></table></div>
+      <div class="card-title">資料新鮮度</div>
+      <div class="card-body">
+        <div class="freshness-grid" id="freshness"></div>
+      </div>
     </div>
 
     <div class="card">
-      <div class="card-title">股價抽樣比對</div>
-      <div class="card-body"><table id="tblPrices"><thead><tr><th>代碼</th><th>名稱</th><th>本機</th><th>Render</th><th>狀態</th></tr></thead><tbody></tbody></table></div>
+      <div class="card-title">各資料表概況</div>
+      <div class="card-body">
+        <table id="tblTables">
+          <thead><tr><th>資料表</th><th>說明</th><th style="text-align:right">筆數</th><th>最後更新</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="card">
-      <div class="card-title">最近同步時間</div>
-      <div class="card-body" id="syncTimes"></div>
+      <div class="card-title">股價抽樣（8大權值股）</div>
+      <div class="card-body">
+        <table id="tblPrices">
+          <thead><tr><th>代碼</th><th>名稱</th><th style="text-align:right">收盤價</th><th>更新時間</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
   </div>
 </div>
 <script>
+function statusDot(s) {
+  return `<span class="dot dot-${s}"></span>`;
+}
+function statusText(s) {
+  const m = {ok: '正常', warn: '稍舊', error: '過期', unknown: '未知'};
+  return `<span class="${s}">${m[s] || s}</span>`;
+}
+function fmtTs(ts) {
+  if (!ts) return '<span class="ts">—</span>';
+  return `<span class="ts">${ts}</span>`;
+}
+
 async function load() {
   document.getElementById('loading').style.display = 'block';
   document.getElementById('content').style.display = 'none';
   try {
     const res = await fetch('/api/sync-status');
     const data = await res.json();
-    renderCounts(data.counts);
-    renderPrices(data.prices);
-    renderTimes(data.times);
+
+    // 環境標示
+    const badge = document.getElementById('envBadge');
+    badge.textContent = data.env;
+    badge.className = 'env-badge ' + (data.env === 'Render' ? 'env-render' : 'env-local');
+
+    // 新鮮度
+    const fg = document.getElementById('freshness');
+    fg.innerHTML = data.freshness.map(f =>
+      `<div class="freshness-item">
+        <div class="freshness-label">${statusDot(f.status)} ${f.label}</div>
+        <div class="freshness-value ${f.status}">${f.value || '—'}</div>
+      </div>`
+    ).join('');
+
+    // 各表概況
+    const tbody = document.querySelector('#tblTables tbody');
+    tbody.innerHTML = data.tables.map(t =>
+      `<tr><td><code>${t.table}</code></td><td>${t.label}</td><td class="cnt">${t.count.toLocaleString()}</td><td>${fmtTs(t.last_update)}</td></tr>`
+    ).join('');
+
+    // 股價抽樣
+    const ptbody = document.querySelector('#tblPrices tbody');
+    ptbody.innerHTML = data.prices.map(p =>
+      `<tr><td>${p.code}</td><td>${p.name}</td><td class="cnt">${p.close ?? '—'}</td><td>${fmtTs(p.updated_at)}</td></tr>`
+    ).join('');
+
     document.getElementById('loading').style.display = 'none';
     document.getElementById('content').style.display = 'block';
   } catch(e) {
     document.getElementById('loading').textContent = '載入失敗: ' + e.message;
   }
-}
-
-function renderCounts(counts) {
-  const tbody = document.querySelector('#tblCounts tbody');
-  tbody.innerHTML = counts.map(c => {
-    const match = c.local === c.render;
-    const cls = match ? 'ok' : (Math.abs(c.local - c.render) / Math.max(c.local, 1) < 0.05 ? 'warn' : 'error');
-    return `<tr><td>${c.table}</td><td>${c.local.toLocaleString()}</td><td>${c.render.toLocaleString()}</td><td class="${cls}">${match ? '一致' : '差 ' + (c.local - c.render).toLocaleString()}</td></tr>`;
-  }).join('');
-}
-
-function renderPrices(prices) {
-  const tbody = document.querySelector('#tblPrices tbody');
-  tbody.innerHTML = prices.map(p => {
-    const match = p.local === p.render;
-    const cls = match ? 'ok' : 'error';
-    return `<tr><td>${p.code}</td><td>${p.name}</td><td>${p.local}</td><td>${p.render}</td><td class="${cls}">${match ? '一致' : '差 ' + (p.local - p.render).toFixed(2)}</td></tr>`;
-  }).join('');
-}
-
-function renderTimes(times) {
-  const el = document.getElementById('syncTimes');
-  el.innerHTML = Object.entries(times).map(([k, v]) => `<div style="margin-bottom:4px"><span style="font-weight:600">${k}：</span><span class="ts">${v || '—'}</span></div>`).join('');
 }
 
 load();
