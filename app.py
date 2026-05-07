@@ -532,29 +532,12 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     checks[2] = 1 if cum_yoy is not None and cum_yoy >= 0 else 0
     detail['chk_2'] = f'{cum_yoy}%' if cum_yoy is not None else None
 
-    # 3. 最近一季毛利率變化 > 0
-    gm_change = None
-    gm_latest = None
-    gm_prev = None
-    q0_label = ''
-    q1_label = ''
-    try:
-        qf = query_db("""SELECT quarter, revenue, gross_profit FROM quarterly_financial
-                         WHERE code=? AND revenue > 0 AND gross_profit IS NOT NULL
-                         ORDER BY CAST(SUBSTR(quarter,1,INSTR(quarter,'Q')-1) AS INT) DESC,
-                                  CAST(SUBSTR(quarter,INSTR(quarter,'Q')+1) AS INT) DESC
-                         LIMIT 2""", (r['code'],))
-        if len(qf) >= 2:
-            gm_latest = round(qf[0]['gross_profit'] / qf[0]['revenue'] * 100, 2)
-            gm_prev = round(qf[1]['gross_profit'] / qf[1]['revenue'] * 100, 2)
-            gm_change = round(gm_latest - gm_prev, 2)
-            q0_label = qf[0]['quarter']
-            q1_label = qf[1]['quarter']
-    except Exception:
-        pass
+    # 3. 最近一季毛利率變化 > 0（資料由外部傳入 r['_gm_data']）
+    gm_data = r.get('_gm_data')  # {'latest_q','latest_gm','prev_q','prev_gm','change'}
+    gm_change = gm_data.get('change') if gm_data else None
     checks[3] = 1 if gm_change is not None and gm_change > 0 else 0
-    if gm_change is not None:
-        detail['chk_3'] = f'{q0_label}毛利率{gm_latest}% - {q1_label}毛利率{gm_prev}% = {gm_change:+.2f}%'
+    if gm_data and gm_change is not None:
+        detail['chk_3'] = f'{gm_data["latest_q"]}毛利率{gm_data["latest_gm"]}% - {gm_data["prev_q"]}毛利率{gm_data["prev_gm"]}% = {gm_change:+.2f}%'
     else:
         detail['chk_3'] = None
 
@@ -790,6 +773,29 @@ def calc_all_checklists():
     except Exception as e:
         print(f"[Checklist] 成長率指標計算失敗: {e}")
 
+    # 批次查季報毛利率（一次查完，建 map）
+    gm_map = {}
+    try:
+        qf_rows = query_db("""SELECT code, quarter, revenue, gross_profit FROM quarterly_financial
+                              WHERE revenue > 0 AND gross_profit IS NOT NULL""")
+        # 按 code 分組，每組按季度數值排序取最近兩季
+        from collections import defaultdict
+        _qf_by_code = defaultdict(list)
+        for qr in qf_rows:
+            _qf_by_code[qr['code']].append(qr)
+        for code, qs in _qf_by_code.items():
+            qs.sort(key=lambda x: (int(x['quarter'].split('Q')[0]), int(x['quarter'].split('Q')[1])), reverse=True)
+            if len(qs) >= 2:
+                gm0 = round(qs[0]['gross_profit'] / qs[0]['revenue'] * 100, 2)
+                gm1 = round(qs[1]['gross_profit'] / qs[1]['revenue'] * 100, 2)
+                gm_map[code] = {
+                    'latest_q': qs[0]['quarter'], 'latest_gm': gm0,
+                    'prev_q': qs[1]['quarter'], 'prev_gm': gm1,
+                    'change': round(gm0 - gm1, 2),
+                }
+    except Exception as e:
+        print(f"[Checklist] 毛利率查詢失敗: {e}")
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -800,6 +806,7 @@ def calc_all_checklists():
         r = dict(r)
         _calc_shen_fields(r, cur_roc, gs)
         r['_gi'] = gi_map.get(r['code'])
+        r['_gm_data'] = gm_map.get(r['code'])
         r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
         user_params = ue_map.get(r['code'])
         result = _calc_checklist_for_stock(r, user_params, gs)
@@ -869,6 +876,22 @@ def _recalc_checklist_single(code):
     except Exception:
         pass
 
+    # 毛利率
+    try:
+        qf = query_db("""SELECT quarter, revenue, gross_profit FROM quarterly_financial
+                         WHERE code=? AND revenue > 0 AND gross_profit IS NOT NULL
+                         ORDER BY CAST(SUBSTR(quarter,1,INSTR(quarter,'Q')-1) AS INT) DESC,
+                                  CAST(SUBSTR(quarter,INSTR(quarter,'Q')+1) AS INT) DESC
+                         LIMIT 2""", (code,))
+        if len(qf) >= 2:
+            gm0 = round(qf[0]['gross_profit'] / qf[0]['revenue'] * 100, 2)
+            gm1 = round(qf[1]['gross_profit'] / qf[1]['revenue'] * 100, 2)
+            r['_gm_data'] = {'latest_q': qf[0]['quarter'], 'latest_gm': gm0,
+                             'prev_q': qf[1]['quarter'], 'prev_gm': gm1,
+                             'change': round(gm0 - gm1, 2)}
+    except Exception:
+        pass
+
     user_params = None
     try:
         ue = query_db("SELECT params FROM user_estimates WHERE code=?", (code,))
@@ -883,7 +906,7 @@ def _recalc_checklist_single(code):
     c = conn.cursor()
     # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
     all_fields = ['code', 'chk_1', 'chk_2', 'chk_3', 'chk_4', 'chk_5', 'chk_6',
-                   'chk_7', 'chk_8', 'chk_9', 'chk_10',
+                   'chk_7', 'chk_8', 'chk_9', 'chk_10', 'chk_11',
                    'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
                    'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                    'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
