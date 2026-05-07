@@ -1915,11 +1915,12 @@ async function initEstimator(sharesMillion) {
     }
     if (ddmEps != null) document.getElementById('ddmEps').value = ddmEps.toFixed(2);
 
-    // DDM 現金股利 = 綜合股利
-    if (_blendDiv != null) {
-      document.getElementById('ddmDiv1').value = _blendDiv.toFixed(2);
-      document.getElementById('ddmDiv2').value = _blendDiv.toFixed(2);
-      document.getElementById('ddmDiv3').value = _blendDiv.toFixed(2);
+    // DDM 現金股利 = 綜合股利（優先用後端算好的，確保一致性）
+    const _ddmDiv = _stockData.blend_div || _blendDiv;
+    if (_ddmDiv != null) {
+      document.getElementById('ddmDiv1').value = _ddmDiv.toFixed(2);
+      document.getElementById('ddmDiv2').value = _ddmDiv.toFixed(2);
+      document.getElementById('ddmDiv3').value = _ddmDiv.toFixed(2);
     }
 
     // === 逍遙評價法預設值（預估 > 沈董，與總表評價一致）===
@@ -1969,7 +1970,7 @@ async function initEstimator(sharesMillion) {
     } else {
       _ddmEpsSrc = '無資料';
     }
-    _ddmDivSrc = _blendDiv != null ? '綜合股利' : '無資料';
+    _ddmDivSrc = _ddmDiv != null ? '綜合股利' : '無資料';
     const ddmNote = document.getElementById('ddmSourceNote');
     if (ddmNote) {
       ddmNote.innerHTML = `三年後預估EPS來源：${_ddmEpsSrc}　|　現金股利來源：${_ddmDivSrc}`;
