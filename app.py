@@ -103,11 +103,71 @@ def query_db(sql, args=()):
         rows = [dict(r) for r in c.fetchall()]
     return rows
 
+# ── 全域設定讀取（user_settings 表）────────────────────────────
+_global_settings_cache = None
+_global_settings_time = 0
+
+def _get_global_settings():
+    """從 DB 讀取全域設定，30 秒快取"""
+    global _global_settings_cache, _global_settings_time
+    import time as _t, json as _j
+    now = _t.time()
+    if _global_settings_cache and now - _global_settings_time < 30:
+        return _global_settings_cache
+
+    defaults = {
+        'div_weights': [30, 30, 20, 10, 10],
+        'blend_ratio': {'shen': 50, 'wt': 50},
+        'pe_high': 18, 'pe_low': 10,
+        'yld_floor': 5, 'yld_high': 5.5, 'yld_max': 6,
+    }
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("SELECT key, value FROM user_settings WHERE key IN ('global_val_params','blend_ratio','global_div_weights')").fetchall()
+        conn.close()
+        for key, val in rows:
+            try:
+                d = _j.loads(val)
+                if key == 'global_val_params':
+                    if d.get('peHigh') is not None: defaults['pe_high'] = float(d['peHigh'])
+                    if d.get('peLow') is not None: defaults['pe_low'] = float(d['peLow'])
+                    if d.get('yldFloor') is not None: defaults['yld_floor'] = float(d['yldFloor'])
+                    if d.get('yldHigh') is not None: defaults['yld_high'] = float(d['yldHigh'])
+                    if d.get('yldMax') is not None: defaults['yld_max'] = float(d['yldMax'])
+                elif key == 'blend_ratio':
+                    defaults['blend_ratio'] = d
+                elif key == 'global_div_weights':
+                    if isinstance(d, list): defaults['div_weights'] = d
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    _global_settings_cache = defaults
+    _global_settings_time = now
+    return defaults
+
+def _get_stock_params(user_params, global_settings):
+    """取得個股參數（個股覆蓋 > 全域預設）"""
+    gs = global_settings
+    pe_hi = gs['pe_high']
+    pe_lo = gs['pe_low']
+    y_high = gs['yld_high']
+    y_max = gs['yld_max']
+    if user_params:
+        if user_params.get('peHigh'): pe_hi = float(user_params['peHigh'])
+        if user_params.get('peLow'): pe_lo = float(user_params['peLow'])
+        if user_params.get('yldHigh'): y_high = float(user_params['yldHigh'])
+        if user_params.get('yldMax'): y_max = float(user_params['yldMax'])
+    return pe_hi, pe_lo, y_high, y_max
+
 # ── 沈董EPS/股利/綜合股利 後端計算 ────────────────────────────
 DEFAULT_WEIGHTS = [30, 30, 20, 10, 10]
 
-def _calc_shen_fields(r, cur_roc):
+def _calc_shen_fields(r, cur_roc, global_settings=None):
     """計算沈董EPS、沈董股利、綜合股利，寫入 row dict"""
+    if global_settings is None:
+        global_settings = _get_global_settings()
     # 沈董EPS
     all_eps = []
     for i in range(1, 6):
@@ -143,13 +203,13 @@ def _calc_shen_fields(r, cur_roc):
         ds = r.get(f'div_s{i}') or 0
         if dl and (dc + ds) > 0: div_map[str(dl)] = dc + ds
 
-    # 加權股利
-    ws = DEFAULT_WEIGHTS
+    # 加權股利（用全域設定的權重）
+    ws = global_settings.get('div_weights', DEFAULT_WEIGHTS)
     wdiv = wsum = 0
     for i in range(1, 7):
         dc = r.get(f'div_c{i}') or 0
         ds = r.get(f'div_s{i}') or 0
-        w = ws[i - 1] if i <= 5 else 0
+        w = ws[i - 1] if i <= len(ws) else 0
         if (dc + ds) > 0 and w > 0:
             wdiv += (dc + ds) * w / 100
             wsum += w
@@ -191,12 +251,15 @@ def _calc_shen_fields(r, cur_roc):
                     r['_shen_div_formula'] = f'最近現金股利 = {dc}'
                     break
 
-    # 綜合股利 = 沈董股利 × 60% + 加權股利 × 40%（預設，前端可覆蓋）
+    # 綜合股利 = 沈董股利 × A% + 加權股利 × B%（從全域設定讀取比例）
+    br = global_settings.get('blend_ratio', {'shen': 50, 'wt': 50})
+    bS = (br.get('shen') or 50) / 100
+    bW = (br.get('wt') or 50) / 100
     sd = r.get('shen_div')
     wd = r.get('weighted_div')
     if sd is not None and wd is not None:
-        r['blend_div'] = round((sd * 0.6 + wd * 0.4) * 100) / 100
-        r['_blend_div_formula'] = f'沈董股利{sd}×60% + 加權股利{wd}×40% = {r["blend_div"]}'
+        r['blend_div'] = round((sd * bS + wd * bW) * 100) / 100
+        r['_blend_div_formula'] = f'沈董股利{sd}×{bS*100:.0f}% + 加權股利{wd}×{bW*100:.0f}% = {r["blend_div"]}'
     elif sd is not None:
         r['blend_div'] = round(sd * 100) / 100
         r['_blend_div_formula'] = f'沈董股利{sd}（無加權股利）'
@@ -296,20 +359,19 @@ def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor
         return grades[row][col]
     return None
 
-def _calc_checklist_for_stock(r, user_params=None):
+def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     """計算單支股票的 12 項檢核，r 為 stocks 表的 row dict（已含 shen 欄位）"""
     import json
     checks = {}
     detail = {}
 
-    # 讀取個股參數
-    pe_hi, pe_lo, y_high, y_max = 18, 10, 5.5, 6
+    # 讀取參數（個股覆蓋 > 全域預設）
+    if global_settings is None:
+        global_settings = _get_global_settings()
+    pe_hi, pe_lo, y_high, y_max = _get_stock_params(user_params, global_settings)
+    y_floor = global_settings.get('yld_floor', 5)
     est_eps_user, est_div_user = None, None
     if user_params:
-        if user_params.get('peHigh'): pe_hi = float(user_params['peHigh'])
-        if user_params.get('peLow'): pe_lo = float(user_params['peLow'])
-        if user_params.get('yldHigh'): y_high = float(user_params['yldHigh'])
-        if user_params.get('yldMax'): y_max = float(user_params['yldMax'])
         qs = [user_params.get(f'q{i}') for i in range(1, 5)]
         qs = [float(v) for v in qs if v]
         if qs:
@@ -365,7 +427,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     if shen_eps is not None and shen_eps <= 0:
         shen_grade = 'X'
     elif shen_pe and shen_yld:
-        shen_grade = _calc_matrix_grade(shen_pe, shen_yld, pe_hi, pe_lo, y_high, y_max)
+        shen_grade = _calc_matrix_grade(shen_pe, shen_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
     else:
         shen_grade = None
 
@@ -388,7 +450,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     if weighted_eps is not None and weighted_eps <= 0:
         weighted_grade = 'X'
     elif weighted_pe and weighted_yld:
-        weighted_grade = _calc_matrix_grade(weighted_pe, weighted_yld, pe_hi, pe_lo, y_high, y_max)
+        weighted_grade = _calc_matrix_grade(weighted_pe, weighted_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
     else:
         weighted_grade = None
 
@@ -408,7 +470,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     if blend_eps is not None and blend_eps <= 0:
         blend_grade = 'X'
     elif blend_pe and blend_yld:
-        blend_grade = _calc_matrix_grade(blend_pe, blend_yld, pe_hi, pe_lo, y_high, y_max)
+        blend_grade = _calc_matrix_grade(blend_pe, blend_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
     else:
         blend_grade = None
 
@@ -420,7 +482,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     if est_eps is not None and est_eps <= 0:
         est_grade = 'X'
     elif est_pe and est_yld:
-        est_grade = _calc_matrix_grade(est_pe, est_yld, pe_hi, pe_lo, y_high, y_max)
+        est_grade = _calc_matrix_grade(est_pe, est_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
     else:
         est_grade = None
 
@@ -477,7 +539,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     if sys_eps is not None and sys_eps > 0 and close and close > 0 and sys_div is not None and sys_div > 0:
         sys_pe = round(close / sys_eps, 2)
         sys_yld = round(sys_div / close * 100, 2)
-        sys_grade = _calc_matrix_grade(sys_pe, sys_yld, pe_hi, pe_lo, y_high, y_max)
+        sys_grade = _calc_matrix_grade(sys_pe, sys_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
     elif sys_eps is not None and sys_eps <= 0:
         sys_grade = 'X'
 
@@ -488,7 +550,7 @@ def _calc_checklist_for_stock(r, user_params=None):
     if trail_eps and trail_eps > 0 and close and close > 0 and trail_div and trail_div > 0:
         trail_pe = round(close / trail_eps, 2)
         trail_yld = round(trail_div / close * 100, 2)
-        trail_grade = _calc_matrix_grade(trail_pe, trail_yld, pe_hi, pe_lo, y_high, y_max)
+        trail_grade = _calc_matrix_grade(trail_pe, trail_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
     elif trail_eps is not None and trail_eps <= 0:
         trail_grade = 'X'
 
@@ -706,13 +768,14 @@ def calc_all_checklists():
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     count = 0
 
+    gs = _get_global_settings()
     for r in rows:
         r = dict(r)
-        _calc_shen_fields(r, cur_roc)
+        _calc_shen_fields(r, cur_roc, gs)
         r['_gi'] = gi_map.get(r['code'])
         r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
         user_params = ue_map.get(r['code'])
-        result = _calc_checklist_for_stock(r, user_params)
+        result = _calc_checklist_for_stock(r, user_params, gs)
 
         # 動態建構 INSERT/UPDATE（含成長率指標欄位）
         all_fields = ['code', 'chk_1', 'chk_2', 'chk_3', 'chk_4', 'chk_5', 'chk_6',
@@ -767,7 +830,8 @@ def _recalc_checklist_single(code):
         return
 
     r = dict(rows[0])
-    _calc_shen_fields(r, cur_roc)
+    gs = _get_global_settings()
+    _calc_shen_fields(r, cur_roc, gs)
 
     # 成長率指標（聶夫/林區）
     try:
@@ -785,7 +849,7 @@ def _recalc_checklist_single(code):
             user_params = json.loads(ue[0]['params'])
     except Exception: pass
 
-    result = _calc_checklist_for_stock(r, user_params)
+    result = _calc_checklist_for_stock(r, user_params, gs)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     conn = sqlite3.connect(DB_PATH)
@@ -946,10 +1010,11 @@ def get_stocks():
             chk_map[cr['code']] = cr
     except Exception: pass
 
+    gs = _get_global_settings()
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
         row["monthly_rev"] = rev_map.get(row["code"], [])
-        _calc_shen_fields(row, cur_roc)
+        _calc_shen_fields(row, cur_roc, gs)
         chk = chk_map.get(row["code"])
         row["_chk_pass"] = chk['pass_count'] if chk else None
         row["_chk_total"] = chk['total_count'] if chk else None

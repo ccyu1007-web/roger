@@ -2000,7 +2000,7 @@ function calcDerived(r) {
   if (r.shen_eps != null && r.shen_eps <= 0) {
     r.shen_grade = 'X';  // EPS <= 0 直接 X
   } else if (r.shen_pe != null && r.shen_yld != null) {
-    r.shen_grade = _calcMatrixGrade(r.shen_pe, r.shen_yld, r.code);
+    r.shen_grade = _calcMatrixGrade(r.shen_pe, r.shen_yld, r.code, r._ue);
   } else {
     r.shen_grade = null;
   }
@@ -2019,7 +2019,7 @@ function calcDerived(r) {
   if (r.weighted_eps != null && r.weighted_eps <= 0) {
     r.weighted_grade = 'X';
   } else if (r.weighted_pe != null && r.weighted_yld != null) {
-    r.weighted_grade = _calcMatrixGrade(r.weighted_pe, r.weighted_yld, r.code);
+    r.weighted_grade = _calcMatrixGrade(r.weighted_pe, r.weighted_yld, r.code, r._ue);
   }
 
   // 權重混合（沈董 × A% + 加權 × B%，正規化為加權平均）
@@ -2050,7 +2050,7 @@ function calcDerived(r) {
     // 等級
     if (r.blend_eps != null && r.blend_eps <= 0) r.blend_grade = 'X';
     else if (r.blend_pe != null && r.blend_yld != null)
-      r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code);
+      r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code, r._ue);
   }
 
   // 評價等級計算 — 移到後面，等 est_eps/est_div 算完才跑（見下方）
@@ -2129,7 +2129,7 @@ function calcDerived(r) {
       } else {
         if (r.est_pe && r.close && estDiv) {
           const curYld = estDiv / r.close * 100;
-          r.est_grade = _calcMatrixGrade(r.est_pe, curYld, r.code);
+          r.est_grade = _calcMatrixGrade(r.est_pe, curYld, r.code, r._ue);
         }
       }
     }
@@ -2146,7 +2146,7 @@ function calcDerived(r) {
     if (r.sys_ann_eps != null && r.sys_ann_eps <= 0) {
       r.sys_grade = 'X';
     } else if (r.sys_ann_pe != null && r.sys_ann_yld != null && r.sys_ann_pe > 0 && r.sys_ann_yld > 0) {
-      r.sys_grade = _calcMatrixGrade(r.sys_ann_pe, r.sys_ann_yld, r.code);
+      r.sys_grade = _calcMatrixGrade(r.sys_ann_pe, r.sys_ann_yld, r.code, r._ue);
     }
   }
 
@@ -2179,22 +2179,29 @@ function calcDerived(r) {
     r.trailing_yld = (r.trailing_div != null && r.trailing_div > 0 && r.close != null && r.close > 0)
       ? Math.round(r.trailing_div / r.close * 10000) / 100 : null;
     if (r.trailing_pe != null && r.trailing_yld != null)
-      r.trailing_grade = _calcMatrixGrade(r.trailing_pe, r.trailing_yld, r.code);
+      r.trailing_grade = _calcMatrixGrade(r.trailing_pe, r.trailing_yld, r.code, r._ue);
     else if (r.eps_4q_sum <= 0)
       r.trailing_grade = 'X';
   }
 
   // 評價等級計算（必須在 est_eps/est_div 之後）
+  // 個股自訂參數 > 全域預設
   {
     const eps = r.est_eps != null ? r.est_eps : r.shen_eps;
     const div = r.est_div != null ? r.est_div : r.shen_div;
     const bDiv = r.blend_div;
-    const peLo = _globalVal.peLow || 10;
-    const peHi = _globalVal.peHigh || 18;
+    let peLo = _globalVal.peLow || 10;
+    let peHi = _globalVal.peHigh || 18;
+    let yldHigh = _globalVal.yldHigh || 5.5;
+    let yldMax = _globalVal.yldMax || 6;
+    if (r._ue) {
+      if (r._ue.peLow) peLo = parseFloat(r._ue.peLow);
+      if (r._ue.peHigh) peHi = parseFloat(r._ue.peHigh);
+      if (r._ue.yldHigh) yldHigh = parseFloat(r._ue.yldHigh);
+      if (r._ue.yldMax) yldMax = parseFloat(r._ue.yldMax);
+    }
     const peMid = (peLo + peHi) / 2;
     const peLoBias = (peMid + peLo) / 2;
-    const yldHigh = _globalVal.yldHigh || 5.5;
-    const yldMax = _globalVal.yldMax || 6;
 
     function _calcVal(peVal, yldVal) {
       if (eps == null || eps <= 0 || div == null || div <= 0) return null;
@@ -2289,28 +2296,20 @@ function updateBlendTotal() {
 }
 
 // ── 矩陣等級計算（共用）────────────────────────────────
-function _calcMatrixGrade(curPE, curYld, code) {
+function _calcMatrixGrade(curPE, curYld, code, ue) {
   // EPS <= 0 或殖利率 <= 0 → 直接 X
   if (curPE == null || curPE <= 0 || curYld == null || curYld <= 0) return 'X';
 
-  // 優先用個股設定，沒有則用全域預設
-  let peHi, peLo, yHigh, yMax, yFloor;
-  try {
-    const saved = localStorage.getItem('estimate_' + code);
-    if (saved) {
-      const d = JSON.parse(saved);
-      peHi = d.peHigh ? parseFloat(d.peHigh) : null;
-      peLo = d.peLow ? parseFloat(d.peLow) : null;
-      yHigh = d.yldHigh ? parseFloat(d.yldHigh) : null;
-      yMax = d.yldMax ? parseFloat(d.yldMax) : null;
-    }
-  } catch(e) {}
-  // fallback 全域預設
-  if (!peHi) peHi = _globalVal.peHigh;
-  if (!peLo) peLo = _globalVal.peLow;
-  if (!yHigh) yHigh = _globalVal.yldHigh;
-  if (!yMax) yMax = _globalVal.yldMax;
-  yFloor = _globalVal.yldFloor;
+  // 優先用個股設定（從 DB user_estimates），沒有則用全域預設
+  let peHi = _globalVal.peHigh, peLo = _globalVal.peLow;
+  let yHigh = _globalVal.yldHigh, yMax = _globalVal.yldMax;
+  let yFloor = _globalVal.yldFloor;
+  if (ue) {
+    if (ue.peHigh) peHi = parseFloat(ue.peHigh);
+    if (ue.peLow) peLo = parseFloat(ue.peLow);
+    if (ue.yldHigh) yHigh = parseFloat(ue.yldHigh);
+    if (ue.yldMax) yMax = parseFloat(ue.yldMax);
+  }
 
   if (!peHi || !peLo || !yHigh || !yMax) return null;
 
