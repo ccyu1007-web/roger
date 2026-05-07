@@ -1837,71 +1837,15 @@ async function initEstimator(sharesMillion) {
     _stockData = stock;
   } catch(e) {}
 
-  // 預設值（每次載入都用最新資料重算）
+  // 預設值（從後端 DB 讀取，確保前後端一致）
   let _shenEps = null, _shenDiv = null, _blendDiv = null;
   if (_stockData) {
     const savedObj = (() => { try { return JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) { return {}; } })();
     const userEps = savedObj.vmEps ? parseFloat(savedObj.vmEps) : null;
     const sysEps = _stockData.sys_ann_eps || null;
-    _shenEps = _calcShenEps(_stockData);
-    _blendDiv = _calcBlendDiv(_stockData, _shenEps);
-
-    // 沈董股利
-    if (_shenEps != null && _shenEps > 0) {
-      const DEFAULT_WEIGHTS = [30, 30, 20, 10, 10];
-      const ws = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || DEFAULT_WEIGHTS;
-      // 自行計算加權配息率（用同年度 EPS 和股利配對）
-      // 建立 {label: eps} 和 {label: div} 對照表
-      const epsMap = {}, divMap = {};
-      for (let i = 1; i <= 6; i++) {
-        const el = _stockData[`eps_y${i}_label`], ev = _stockData[`eps_y${i}`];
-        if (el != null && ev != null) epsMap[String(el)] = ev;
-        const dl = _stockData[`div_${i}_label`], dc = _stockData[`div_c${i}`] || 0, ds = _stockData[`div_s${i}`] || 0;
-        if (dl != null && (dc + ds) > 0) divMap[String(dl)] = dc + ds;
-      }
-      // 按年度配對算配息率，用最近5年加權
-      const payoutPairs = [];
-      const sortedYears = Object.keys(epsMap).sort((a, b) => parseInt(b) - parseInt(a));
-      for (const yr of sortedYears) {
-        if (divMap[yr] && epsMap[yr] > 0) {
-          payoutPairs.push(Math.min(divMap[yr] / epsMap[yr], 1.0));
-        }
-        if (payoutPairs.length >= 5) break;
-      }
-      let wpSum = 0, wpW = 0;
-      for (let i = 0; i < payoutPairs.length; i++) {
-        const w = ws[i] || 0;
-        if (w > 0) { wpSum += payoutPairs[i] * w; wpW += w; }
-      }
-      const weightedPayout = wpW > 0 ? wpSum / wpW : null;  // 0~1 的小數
-
-      const curRoc = new Date().getFullYear() - 1911;
-      const hasCurYear = [1,2,3,4,5].some(i => {
-        const q = _stockData[`eps_${i}q`];
-        return q && parseInt(q.split('Q')[0]) === curRoc;
-      });
-      if (!hasCurYear) {
-        const divLabel = _stockData.eps_y1_label;
-        for (let i = 1; i <= 6; i++) {
-          if (_stockData[`div_${i}_label`] == divLabel) {
-            const cd = _stockData[`div_c${i}`] || 0;
-            const sd = _stockData[`div_s${i}`] || 0;
-            if (cd + sd > 0) _shenDiv = Math.round((cd + sd) * 100) / 100;
-            break;
-          }
-        }
-      }
-      if (_shenDiv == null && weightedPayout != null) {
-        _shenDiv = Math.round(_shenEps * weightedPayout * 100) / 100;
-      }
-      // fallback：最近有值的現金股利
-      if (_shenDiv == null) {
-        for (let i = 1; i <= 6; i++) {
-          const cd = _stockData[`div_c${i}`];
-          if (cd != null && cd > 0) { _shenDiv = cd; break; }
-        }
-      }
-    }
+    _shenEps = _stockData.shen_eps;
+    _shenDiv = _stockData.shen_div;
+    _blendDiv = _stockData.blend_div;
 
     // === DDM 預設值 ===
     // 三年後預估EPS：自行預估EPS(vmEps) > min(系統EPS, 沈董EPS)
@@ -1915,8 +1859,8 @@ async function initEstimator(sharesMillion) {
     }
     if (ddmEps != null) document.getElementById('ddmEps').value = ddmEps.toFixed(2);
 
-    // DDM 現金股利 = 綜合股利（優先用後端算好的，確保一致性）
-    const _ddmDiv = _stockData.blend_div || _blendDiv;
+    // DDM 現金股利 = 綜合股利（後端算好的）
+    const _ddmDiv = _blendDiv;
     if (_ddmDiv != null) {
       document.getElementById('ddmDiv1').value = _ddmDiv.toFixed(2);
       document.getElementById('ddmDiv2').value = _ddmDiv.toFixed(2);
@@ -1943,7 +1887,7 @@ async function initEstimator(sharesMillion) {
     } else {
       _vmDivSrc = '手動設定';
     }
-    const _ltDivDefault = _stockData.blend_div || _blendDiv;
+    const _ltDivDefault = _blendDiv;
     if (!savedObj.vmLtDiv && _ltDivDefault != null) {
       document.getElementById('vmLtDiv').value = _ltDivDefault.toFixed(2);
       _vmLtDivSrc = '綜合股利';
