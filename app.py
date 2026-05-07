@@ -527,20 +527,48 @@ def _calc_checklist_for_stock(r, user_params=None):
         detail['chk_5'] = None
 
     # 6. 股利折現模式現價潛在年報酬 >= 10%
-    ddm_eps = est_eps if est_eps is not None else shen_eps
+    # 優先用使用者在 DDM 區填的參數，fallback 到預估/沈董
     ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
     ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
-    ddm_div = blend_div or shen_div
+    # EPS：DDM區 ddmEps > 預估 > 沈董
+    ddm_eps = None
+    if user_params and user_params.get('ddmEps') and str(user_params['ddmEps']).strip():
+        try: ddm_eps = float(user_params['ddmEps'])
+        except Exception: pass
+    if ddm_eps is None:
+        ddm_eps = est_eps if est_eps is not None else shen_eps
+    # 股利：DDM區 ddmDiv1~3 > 綜合股利 > 沈董股利
+    ddm_divs = []
+    if user_params:
+        for i in range(1, 4):
+            dv = user_params.get(f'ddmDiv{i}')
+            if dv and str(dv).strip():
+                try: ddm_divs.append(float(dv))
+                except Exception: pass
     ddm_ann_ret = None
-    if ddm_eps and ddm_eps > 0 and close and close > 0 and ddm_div and ddm_div > 0:
+    if ddm_eps and ddm_eps > 0 and close and close > 0:
         sell_price = ddm_eps * ddm_pe
-        total_div = ddm_div * 3
-        target_price = sell_price + total_div
-        total_ret = (target_price - close) / close
-        ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
+        if ddm_divs:
+            # 用使用者填的逐年股利
+            total_div = sum(ddm_divs)
+            ddm_div_display = '+'.join(str(d) for d in ddm_divs)
+        else:
+            # fallback 到綜合股利×3
+            fallback_div = blend_div or shen_div
+            if fallback_div and fallback_div > 0:
+                total_div = fallback_div * 3
+                ddm_div_display = f'{fallback_div}×3'
+            else:
+                total_div = 0
+                ddm_div_display = '0'
+        if total_div > 0 or sell_price > close:
+            target_price = sell_price + total_div
+            total_ret = (target_price - close) / close
+            n_years = len(ddm_divs) if ddm_divs else 3
+            ddm_ann_ret = round((pow(1 + total_ret, 1/n_years) - 1) * 100, 2)
     checks[6] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
     if ddm_ann_ret is not None:
-        detail['chk_6'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div} 折現率={ddm_rate}'
+        detail['chk_6'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
     else:
         detail['chk_6'] = None
 
