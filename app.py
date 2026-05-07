@@ -1134,17 +1134,17 @@ def status():
 # ── 手動更新營收/季報 ──────────────────────────────────────
 @app.route("/api/refresh/revenue", methods=["POST"])
 def refresh_revenue():
-    if os.environ.get('DATABASE_URL'):
-        return jsonify({"status": "skip", "msg": "Render 環境不執行爬蟲，資料由本機排程更新"}), 200
     import threading
+    is_cloud = bool(os.environ.get('DATABASE_URL'))
+
     def do_update():
         try:
-            # 1. 抓最新營收（MOPS）
+            # 1. 抓最新營收（MOPS）— 本機和 Render 都可以跑
             from mops_fetcher import fetch_mops_monthly_revenue
             mops_count = fetch_mops_monthly_revenue()
             print(f"[手動營收] MOPS 更新 {mops_count} 筆")
 
-            # 2. 抓最新季報（MOPS）
+            # 2. 抓最新季報（MOPS）— 本機和 Render 都可以跑
             from mops_fetcher import fetch_latest_mops_quarterly
             mops_q = fetch_latest_mops_quarterly()
             if mops_q and mops_q > 0:
@@ -1152,8 +1152,8 @@ def refresh_revenue():
                 _sync_eps_from_quarterly()
                 print(f"[手動季報] MOPS 更新 {mops_q} 筆")
 
-            # 3. push 到 Render
-            if not os.environ.get('DATABASE_URL'):
+            # 3. 本機才 push 到 Render（Render 上已直接寫入 PostgreSQL）
+            if not is_cloud:
                 from render_sync import _push_table_to_render, _push_annual_to_render
                 _push_table_to_render(
                     table='monthly_revenue',
@@ -1174,7 +1174,7 @@ def refresh_revenue():
         except Exception as e:
             print(f"[手動營收/季報] 失敗: {e}")
     threading.Thread(target=do_update, daemon=True).start()
-    return jsonify({"status": "ok", "msg": "開始更新營收/季報"})
+    return jsonify({"status": "ok", "msg": "開始更新營收/季報（MOPS）"})
 
 def _get_today_start():
     from datetime import date
