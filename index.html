@@ -2379,18 +2379,15 @@ let PAGE_SIZE = 50;
 // ── 初始載入 ────────────────────────────────────────────────
 async function loadData() {
   try {
-    const [sRes, stRes, nfRes, giRes, ueRes] = await Promise.all([
+    const [sRes, stRes, nfRes, ueRes] = await Promise.all([
       fetch('/api/status'),
       fetch('/api/stocks'),
       fetch('/api/news-flags'),
-      fetch('/api/growth-indicators'),
       fetch('/api/user-estimates-all'),
     ]);
     const status = await sRes.json();
     const stocks = await stRes.json();
     try { _newsFlags = await nfRes.json(); } catch(e) { _newsFlags = {}; }
-    let _growthData = {};
-    try { _growthData = await giRes.json(); } catch(e) { _growthData = {}; }
     let _userEstimates = {};
     try { _userEstimates = await ueRes.json(); } catch(e) { _userEstimates = {}; }
 
@@ -2399,9 +2396,8 @@ async function loadData() {
 
     allData  = stocks.data;
 
-    // 合併成長率指標資料 + 個股估值參數
+    // 成長率指標已由後端從 stock_checklist 帶入 _gi，只需合併個股估值參數
     allData.forEach(r => {
-      r._gi = _growthData[r.code] || null;
       r._ue = _userEstimates[r.code] || null;
     });
 
@@ -2517,6 +2513,8 @@ async function refreshPricesOnly() {
       if (fresh.sys_est_quarter != null) r.sys_est_quarter = fresh.sys_est_quarter;
       if (fresh.sys_ann_eps != null) r.sys_ann_eps = fresh.sys_ann_eps;
       if (fresh.sys_ann_div != null) r.sys_ann_div = fresh.sys_ann_div;
+      // 成長率指標（從 stock_checklist DB 帶入）
+      if (fresh._gi) r._gi = fresh._gi;
       calcDerived(r);
     }
     filtered = [...allData];
@@ -2549,22 +2547,19 @@ async function reloadStocks() {
   const btn = document.getElementById('btnReload');
   if (btn) { btn.style.borderColor = '#f59e0b'; btn.style.color = '#f59e0b'; btn.textContent = '載入中...'; }
   try {
-    const [sRes, stRes, giRes, ueRes] = await Promise.all([
+    const [sRes, stRes, ueRes] = await Promise.all([
       fetch('/api/status'),
       fetch('/api/stocks'),
-      fetch('/api/growth-indicators'),
       fetch('/api/user-estimates-all'),
     ]);
     const status = await sRes.json();
     const stocks = await stRes.json();
-    let _growthData = {};
-    try { _growthData = await giRes.json(); } catch(e) { _growthData = {}; }
     let _userEstimates = {};
     try { _userEstimates = await ueRes.json(); } catch(e) { _userEstimates = {}; }
     updateStatusBar(status);
     allData  = stocks.data;
+    // 成長率指標已由後端從 stock_checklist 帶入 _gi，只需合併個股估值參數
     allData.forEach(r => {
-      r._gi = _growthData[r.code] || null;
       r._ue = _userEstimates[r.code] || null;
     });
     allData.forEach(calcDerived);

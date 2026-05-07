@@ -234,7 +234,18 @@ def _init_checklist_db():
                      ('lt_div','REAL'),('lt_yld','REAL'),
                      ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
                      ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
-                     ('base_count','INTEGER'),('bonus_count','INTEGER')]:
+                     ('base_count','INTEGER'),('bonus_count','INTEGER'),
+                     # 成長率指標欄位（聶夫/林區）
+                     ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
+                     ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
+                     ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
+                     ('gi_intrinsic_growth','REAL'),
+                     ('gi_lynch_a','REAL'),('gi_lynch_b','REAL'),
+                     ('gi_lynch_c','REAL'),('gi_lynch_d','REAL'),
+                     ('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
+                     ('gi_yield','REAL'),('gi_pe','REAL'),
+                     ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
+                     ('gi_warnings','TEXT')]:
         try: conn.execute(f"ALTER TABLE stock_checklist ADD COLUMN {col} {typ}")
         except Exception: pass
     conn.commit()
@@ -579,6 +590,30 @@ def _calc_checklist_for_stock(r, user_params=None):
     bonus_count = sum(checks[i] for i in range(7, 11))
     pass_count = base_count + bonus_count
 
+    # 成長率指標（從 r['_gi'] 取出存入 DB）
+    gi = r.get('_gi') or {}
+    gi_fields = {
+        'gi_neff_a': gi.get('neff_a'),
+        'gi_neff_b': gi.get('neff_b'),
+        'gi_neff_3a': gi.get('neff_3a'),
+        'gi_neff_3b': gi.get('neff_3b'),
+        'gi_neff_c': gi.get('neff_c'),
+        'gi_neff_d': gi.get('neff_d'),
+        'gi_intrinsic_growth': gi.get('intrinsic_growth'),
+        'gi_lynch_a': gi.get('lynch_a'),
+        'gi_lynch_b': gi.get('lynch_b'),
+        'gi_lynch_c': gi.get('lynch_c'),
+        'gi_lynch_d': gi.get('lynch_d'),
+        'gi_rev_cagr_5y': gi.get('rev_cagr_5y'),
+        'gi_shares_change': gi.get('shares_change'),
+        'gi_yield': gi.get('yield'),
+        'gi_pe': gi.get('pe'),
+        'gi_gray': 1 if gi.get('gray') else 0,
+        'gi_neff_gray': 1 if gi.get('neff_gray') else 0,
+        'gi_lynch_gray': 1 if gi.get('lynch_gray') else 0,
+        'gi_warnings': json.dumps(gi.get('warnings', []), ensure_ascii=False) if gi.get('warnings') else None,
+    }
+
     return {
         'code': r['code'],
         **{f'chk_{i}': checks.get(i, 0) for i in range(1, 11)},
@@ -602,6 +637,7 @@ def _calc_checklist_for_stock(r, user_params=None):
         'lt5': lt5,
         'lt6': lt6,
         'lt7': lt7,
+        **gi_fields,
     }
 
 def calc_all_checklists():
@@ -657,41 +693,25 @@ def calc_all_checklists():
         user_params = ue_map.get(r['code'])
         result = _calc_checklist_for_stock(r, user_params)
 
-        c.execute("""INSERT INTO stock_checklist
-                     (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
-                      chk_7, chk_8, chk_9, chk_10,
-                      pass_count, total_count, base_count, bonus_count, detail,
-                      eps_setting, div_setting, yld_high, yld_max, pe_high, pe_low,
-                      lt_div, lt_yld, val_a, val_a1, val_a2, val_aa, lt5, lt6, lt7,
-                      updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                     ON CONFLICT(code) DO UPDATE SET
-                      chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
-                      chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
-                      chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
-                      chk_10=excluded.chk_10,
-                      pass_count=excluded.pass_count, total_count=excluded.total_count,
-                      base_count=excluded.base_count, bonus_count=excluded.bonus_count,
-                      detail=excluded.detail,
-                      eps_setting=excluded.eps_setting, div_setting=excluded.div_setting,
-                      yld_high=excluded.yld_high, yld_max=excluded.yld_max,
-                      pe_high=excluded.pe_high, pe_low=excluded.pe_low,
-                      lt_div=excluded.lt_div, lt_yld=excluded.lt_yld,
-                      val_a=excluded.val_a, val_a1=excluded.val_a1,
-                      val_a2=excluded.val_a2, val_aa=excluded.val_aa,
-                      lt5=excluded.lt5, lt6=excluded.lt6, lt7=excluded.lt7,
-                      updated_at=excluded.updated_at""",
-                  (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
-                   result['chk_4'], result['chk_5'], result['chk_6'],
-                   result['chk_7'], result['chk_8'], result['chk_9'],
-                   result['chk_10'],
-                   result['pass_count'], result['total_count'],
-                   result['base_count'], result['bonus_count'], result['detail'],
-                   result['eps_setting'], result['div_setting'],
-                   result['yld_high'], result['yld_max'], result['pe_high'], result['pe_low'],
-                   result['lt_div'], result['lt_yld'],
-                   result['val_a'], result['val_a1'], result['val_a2'], result['val_aa'],
-                   result['lt5'], result['lt6'], result['lt7'], now))
+        # 動態建構 INSERT/UPDATE（含成長率指標欄位）
+        all_fields = ['code', 'chk_1', 'chk_2', 'chk_3', 'chk_4', 'chk_5', 'chk_6',
+                       'chk_7', 'chk_8', 'chk_9', 'chk_10',
+                       'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
+                       'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
+                       'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
+                       'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
+                       'gi_neff_c', 'gi_neff_d', 'gi_intrinsic_growth',
+                       'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
+                       'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
+                       'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
+                       'updated_at']
+        result['updated_at'] = now
+        placeholders = ','.join(['?'] * len(all_fields))
+        update_clause = ', '.join(f'{f}=excluded.{f}' for f in all_fields if f != 'code')
+        values = [result.get(f) for f in all_fields]
+        c.execute(f"""INSERT INTO stock_checklist ({','.join(all_fields)})
+                     VALUES ({placeholders})
+                     ON CONFLICT(code) DO UPDATE SET {update_clause}""", values)
         count += 1
 
     conn.commit()
@@ -749,40 +769,25 @@ def _recalc_checklist_single(code):
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""INSERT INTO stock_checklist
-                 (code, chk_1, chk_2, chk_3, chk_4, chk_5, chk_6,
-                  chk_7, chk_8, chk_9, chk_10, chk_11, chk_12, chk_13,
-                  pass_count, total_count, detail,
-                  eps_setting, div_setting, yld_high, yld_max, pe_high, pe_low,
-                  lt_div, lt_yld, val_a, val_a1, val_a2, val_aa, lt5, lt6, lt7,
-                  updated_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                 ON CONFLICT(code) DO UPDATE SET
-                  chk_1=excluded.chk_1, chk_2=excluded.chk_2, chk_3=excluded.chk_3,
-                  chk_4=excluded.chk_4, chk_5=excluded.chk_5, chk_6=excluded.chk_6,
-                  chk_7=excluded.chk_7, chk_8=excluded.chk_8, chk_9=excluded.chk_9,
-                  chk_10=excluded.chk_10, chk_11=excluded.chk_11, chk_12=excluded.chk_12,
-                  chk_13=excluded.chk_13,
-                  pass_count=excluded.pass_count, total_count=excluded.total_count,
-                  detail=excluded.detail,
-                  eps_setting=excluded.eps_setting, div_setting=excluded.div_setting,
-                  yld_high=excluded.yld_high, yld_max=excluded.yld_max,
-                  pe_high=excluded.pe_high, pe_low=excluded.pe_low,
-                  lt_div=excluded.lt_div, lt_yld=excluded.lt_yld,
-                  val_a=excluded.val_a, val_a1=excluded.val_a1,
-                  val_a2=excluded.val_a2, val_aa=excluded.val_aa,
-                  lt5=excluded.lt5, lt6=excluded.lt6, lt7=excluded.lt7,
-                  updated_at=excluded.updated_at""",
-              (result['code'], result['chk_1'], result['chk_2'], result['chk_3'],
-               result['chk_4'], result['chk_5'], result['chk_6'],
-               result['chk_7'], result['chk_8'], result['chk_9'],
-               result.get('chk_10', 0), result.get('chk_11', 0), result.get('chk_12', 0), result.get('chk_13', 0),
-               result['pass_count'], result['total_count'], result['detail'],
-               result['eps_setting'], result['div_setting'],
-               result['yld_high'], result['yld_max'], result['pe_high'], result['pe_low'],
-               result['lt_div'], result['lt_yld'],
-               result['val_a'], result['val_a1'], result['val_a2'], result['val_aa'],
-               result['lt5'], result['lt6'], result['lt7'], now))
+    # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
+    all_fields = ['code', 'chk_1', 'chk_2', 'chk_3', 'chk_4', 'chk_5', 'chk_6',
+                   'chk_7', 'chk_8', 'chk_9', 'chk_10',
+                   'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
+                   'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
+                   'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
+                   'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
+                   'gi_neff_c', 'gi_neff_d', 'gi_intrinsic_growth',
+                   'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
+                   'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
+                   'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
+                   'updated_at']
+    result['updated_at'] = now
+    placeholders = ','.join(['?'] * len(all_fields))
+    update_clause = ', '.join(f'{f}=excluded.{f}' for f in all_fields if f != 'code')
+    values = [result.get(f) for f in all_fields]
+    c.execute(f"""INSERT INTO stock_checklist ({','.join(all_fields)})
+                 VALUES ({placeholders})
+                 ON CONFLICT(code) DO UPDATE SET {update_clause}""", values)
     conn.commit()
     conn.close()
     with _cache_lock:
@@ -909,9 +914,15 @@ def get_stocks():
     chk_map = {}
     try:
         _init_checklist_db()
-        chk_rows = query_db("SELECT code, pass_count, total_count FROM stock_checklist")
+        chk_rows = query_db("""SELECT code, pass_count, total_count,
+                                gi_neff_a, gi_neff_b, gi_neff_3a, gi_neff_3b,
+                                gi_neff_c, gi_neff_d, gi_intrinsic_growth,
+                                gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
+                                gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
+                                gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings
+                             FROM stock_checklist""")
         for cr in chk_rows:
-            chk_map[cr['code']] = (cr['pass_count'], cr['total_count'])
+            chk_map[cr['code']] = cr
     except Exception: pass
 
     for row in rows:
@@ -919,8 +930,26 @@ def get_stocks():
         row["monthly_rev"] = rev_map.get(row["code"], [])
         _calc_shen_fields(row, cur_roc)
         chk = chk_map.get(row["code"])
-        row["_chk_pass"] = chk[0] if chk else None
-        row["_chk_total"] = chk[1] if chk else None
+        row["_chk_pass"] = chk['pass_count'] if chk else None
+        row["_chk_total"] = chk['total_count'] if chk else None
+        # 成長率指標（從 stock_checklist 讀取，不再前端獨立計算）
+        if chk:
+            import json as _json_mod
+            row["_gi"] = {
+                'neff_a': chk['gi_neff_a'], 'neff_b': chk['gi_neff_b'],
+                'neff_3a': chk['gi_neff_3a'], 'neff_3b': chk['gi_neff_3b'],
+                'neff_c': chk['gi_neff_c'], 'neff_d': chk['gi_neff_d'],
+                'intrinsic_growth': chk['gi_intrinsic_growth'],
+                'lynch_a': chk['gi_lynch_a'], 'lynch_b': chk['gi_lynch_b'],
+                'lynch_c': chk['gi_lynch_c'], 'lynch_d': chk['gi_lynch_d'],
+                'rev_cagr_5y': chk['gi_rev_cagr_5y'], 'shares_change': chk['gi_shares_change'],
+                'yield': chk['gi_yield'], 'pe': chk['gi_pe'],
+                'gray': bool(chk['gi_gray']), 'neff_gray': bool(chk['gi_neff_gray']),
+                'lynch_gray': bool(chk['gi_lynch_gray']),
+                'warnings': _json_mod.loads(chk['gi_warnings']) if chk['gi_warnings'] else [],
+            }
+        else:
+            row["_gi"] = None
 
     result_data = {"count": len(rows), "data": rows}
     resp = jsonify(result_data)
