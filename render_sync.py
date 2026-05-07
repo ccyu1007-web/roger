@@ -42,7 +42,7 @@ def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
     return None
 
 
-def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500, clear_first=False):
+def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500, clear_first=False, since=None):
     """
     通用全表同步：把本機任意資料表 push 到 Render
     table: 表名
@@ -51,11 +51,14 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     create_sql: 建表 SQL（Render 端自動建表）
     where: 可選的 WHERE 條件
     clear_first: 由 Render 端在同一 transaction 裡清空+寫入（避免空窗期）
+    since: 只推 updated_at >= since 的資料（增量同步），格式 'YYYY-MM-DD HH:MM:SS'
     """
     col_str = ','.join(columns)
     sql = f"SELECT {col_str} FROM {table}"
     if where:
         sql += f" {where}"
+    if since and 'updated_at' in columns:
+        sql += (" AND" if where else " WHERE") + f" updated_at >= '{since}'"
     with sqlite3.get_conn() as conn:
         rows = conn.execute(sql).fetchall()
 
@@ -182,8 +185,27 @@ def _pull_user_estimates_from_render():
         print(f"[拉回] user_estimates 同步 {updated} 支到本機")
 
 
+_LAST_SYNC_TIME_FILE = os.path.join(os.path.dirname(__file__), 'logs', '.last_sync_time')
+
+def _get_last_sync_time():
+    """讀取上次同步時間"""
+    try:
+        with open(_LAST_SYNC_TIME_FILE, 'r') as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
+def _save_last_sync_time(ts):
+    """儲存同步時間"""
+    try:
+        os.makedirs(os.path.dirname(_LAST_SYNC_TIME_FILE), exist_ok=True)
+        with open(_LAST_SYNC_TIME_FILE, 'w') as f:
+            f.write(ts)
+    except Exception:
+        pass
+
 def _push_all_to_render():
-    """一次 push 所有資料到 Render — 通用全表同步"""
+    """一次 push 所有資料到 Render — 增量同步（只推上次同步後更新的）"""
     global _last_sync_result
     if _is_cloud():
         return
@@ -194,7 +216,9 @@ def _push_all_to_render():
     except Exception as e:
         print(f"[拉回] user_estimates 失敗: {e}")
 
-    print("[全量同步] 開始 push 到 Render...")
+    last_sync = _get_last_sync_time()
+    mode = f"增量（since {last_sync}）" if last_sync else "全量（首次）"
+    print(f"[同步] 開始 push 到 Render...（{mode}）")
     failures = []
 
     # 既有的專用 push（stocks 表結構特殊，保留原函式）
@@ -383,8 +407,19 @@ def _push_all_to_render():
         },
     ]
 
+    from datetime import datetime
+    sync_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     for cfg in SYNC_TABLES:
         try:
+            # clear_first 的表必須全量（新聞/ETF等需要清空重推）
+            # merge_mode 的表用合併邏輯
+            # 其他表：有 updated_at 欄位就用增量同步
+            use_since = (last_sync
+                         and not cfg.get('clear_first')
+                         and not cfg.get('merge_mode')
+                         and 'updated_at' in cfg['columns'])
+
             if cfg.get('merge_mode'):
                 _merge_push_to_render(
                     table=cfg['table'],
@@ -400,12 +435,12 @@ def _push_all_to_render():
                     create_sql=cfg.get('create_sql'),
                     where=cfg.get('where'),
                     clear_first=cfg.get('clear_first', False),
+                    since=last_sync if use_since else None,
                 )
         except Exception as e:
             print(f"  [{cfg['table']}] 失敗: {e}")
             failures.append(f"{cfg['table']}: {e}")
 
-    from datetime import datetime
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     is_ok = len(failures) == 0
     _last_sync_result = {
@@ -414,10 +449,13 @@ def _push_all_to_render():
         'failures': failures,
         'ok': is_ok,
     }
+    # 同步成功才更新時間戳
+    if is_ok:
+        _save_last_sync_time(sync_start)
     if failures:
-        print(f"[全量同步] 完成，{len(failures)} 張表有失敗: {', '.join(failures)}")
+        print(f"[同步] 完成，{len(failures)} 張表有失敗: {', '.join(failures)}")
     else:
-        print("[全量同步] 完成，全部成功")
+        print("[同步] 完成，全部成功")
 
 
 def _push_news_to_render():
