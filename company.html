@@ -2797,11 +2797,16 @@ function clearValParams() {
   ['vmEps','vmDiv','vmLtDiv'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  // 清除 DDM 自訂值（EPS/股利恢復預設，PE/折現率/安全邊際也清除）
+  ['ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
   // 從 localStorage 移除所有參數欄位
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   ['q1','q2','q3','q4','pr','div','peHigh','peLow','yldHigh','yldMax',
-   'vmEps','vmDiv','vmLtDiv','valParamsDate'].forEach(k => delete saved[k]);
+   'vmEps','vmDiv','vmLtDiv','valParamsDate',
+   'ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin'].forEach(k => delete saved[k]);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB
   fetch(`/api/user-estimates/${CODE}`, {
@@ -2814,10 +2819,26 @@ function clearValParams() {
    'yldFair','yldPriceHigh','yldPriceFair','yldPriceMax','annEPS'].forEach(id => {
     const el = document.getElementById(id); if (el) el.textContent = '-';
   });
+  // 恢復全域預設值到 PE/殖利率欄位
+  document.getElementById('peHigh').value = _gvGlobal.peHigh;
+  document.getElementById('peLow').value = _gvGlobal.peLow;
+  document.getElementById('yldHigh').value = _gvGlobal.yldHigh;
+  document.getElementById('yldMax').value = _gvGlobal.yldMax;
+  _peHi = _gvGlobal.peHigh; _peLo = _gvGlobal.peLow;
+  _yHigh = _gvGlobal.yldHigh; _yMax = _gvGlobal.yldMax;
+  // 恢復綜合股利預設值
+  if (_stockData && _stockData.blend_div != null) {
+    document.getElementById('vmLtDiv').value = _stockData.blend_div.toFixed(2);
+  }
+  // 恢復 DDM 預設值
+  document.getElementById('ddmPE').value = '14';
+  document.getElementById('ddmRate').value = '0.10';
+  document.getElementById('ddmMargin').value = '0.90';
   calcAnnual();
   calcPERange();
   calcYldRange();
   calcValMethod();
+  calcDDM();
   renderMatrix();
 }
 
