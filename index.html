@@ -510,7 +510,7 @@
           <th class="g-lynch" data-col="lynch_d" onclick="sortBy('lynch_d')">PEG<span class="sort-icon" id="si_lynch_d">↕</span></th>
           <th class="g-revchg col-div" data-col="rev_date" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
-          <th class="g-revchg" data-col="rev_cum" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
+          <th class="g-revchg col-div" data-col="rev_cum" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
           <th class="g-revchg" data-col="rev_yoy" onclick="sortBy('revenue_yoy')">營收年增<span class="sort-icon" id="si_revenue_yoy">↕</span></th>
           <th class="g-revchg" data-col="rev_mom" onclick="sortBy('revenue_mom')">營收月增<span class="sort-icon" id="si_revenue_mom">↕</span></th>
           <!-- 動態月營收欄位（JS 插入） -->
@@ -2980,7 +2980,7 @@ function render() {
       <td class="g-lynch" data-col="lynch_d" style="${r._gi?.lynch_d != null ? (r._gi.gray ? 'color:#94a3b8' : r._gi.lynch_d <= 1.0 ? 'color:#dc2626;font-weight:700' : r._gi.lynch_d <= 1.5 ? 'color:#ea580c;font-weight:600' : 'color:#94a3b8') : ''}">${r._gi?.lynch_d != null ? r._gi.lynch_d.toFixed(2) : '－'}</td>
       <td class="g-revchg col-div" data-col="rev_date">${revDateHtml}</td>
       <!-- 成長性 -->
-      <td class="g-revchg" data-col="rev_cum">${fmtRevPct(r.revenue_cum_yoy)}</td>
+      <td class="g-revchg col-div" data-col="rev_cum">${fmtRevPct(r.revenue_cum_yoy)}</td>
       <td class="g-revchg" data-col="rev_yoy">${fmtRevPct(r.revenue_yoy)}</td>
       <td class="g-revchg" data-col="rev_mom">${fmtRevPct(r.revenue_mom)}</td>
       ${_revMonths.map((m, idx) => {
