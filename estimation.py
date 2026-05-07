@@ -817,20 +817,30 @@ def estimate_annual_eps(code):
     est_yld = round(est_div / cur_price * 100, 2) if cur_price and est_div and cur_price > 0 else None
 
     # === 系統價值評估矩陣 ===
-    # 優先使用個股自訂參數，沒有才用預設值
+    # 先讀全域設定，再用個股自訂參數覆蓋
     _user_pe_low, _user_pe_high, _user_yld_high, _user_yld_max = 10, 18, 5.5, 6.0
     try:
+        import json as _json
+        # 讀取全域設定（user_settings 表）
+        with sqlite3.get_conn(row_factory=True) as gs_conn:
+            gs_row = gs_conn.execute("SELECT value FROM user_settings WHERE key='global_val_params'").fetchone()
+        if gs_row and gs_row['value']:
+            _gs = _json.loads(gs_row['value'])
+            if _gs.get('peHigh') is not None: _user_pe_high = float(_gs['peHigh'])
+            if _gs.get('peLow') is not None: _user_pe_low = float(_gs['peLow'])
+            if _gs.get('yldHigh') is not None: _user_yld_high = float(_gs['yldHigh'])
+            if _gs.get('yldMax') is not None: _user_yld_max = float(_gs['yldMax'])
+        # 個股自訂參數覆蓋全域
         with sqlite3.get_conn(row_factory=True) as ue_conn:
             ue_row = ue_conn.execute("SELECT params FROM user_estimates WHERE code=?", (code,)).fetchone()
         if ue_row and ue_row['params']:
-            import json as _json
             _ue = _json.loads(ue_row['params'])
             if _ue.get('peHigh'): _user_pe_high = float(_ue['peHigh'])
             if _ue.get('peLow'): _user_pe_low = float(_ue['peLow'])
             if _ue.get('yldHigh'): _user_yld_high = float(_ue['yldHigh'])
             if _ue.get('yldMax'): _user_yld_max = float(_ue['yldMax'])
     except Exception as e:
-        pass  # user_estimates 讀取失敗，用預設值
+        pass  # 讀取失敗，用預設值
 
     val = {}
     if est_eps and est_eps > 0 and est_div is not None:
