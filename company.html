@@ -633,6 +633,7 @@ async function loadDecision() {
     const baseLabels = [
       '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上',
       '累積營收年增率 >= 0%',
+      '最近一季毛利率變化 > 0',
       '最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）',
       '目前股價低於總表評價 AA',
       '綜合殖利率 >= 6%',
@@ -651,19 +652,19 @@ async function loadDecision() {
     let bonusCount = cl.bonus_count;
     if (baseCount == null) {
       baseCount = 0;
-      for (let i = 1; i <= 6; i++) if (cl[`chk_${i}`] === 1) baseCount++;
+      for (let i = 1; i <= 7; i++) if (cl[`chk_${i}`] === 1) baseCount++;
     }
     if (bonusCount == null) {
       bonusCount = 0;
-      for (let i = 7; i <= 10; i++) if (cl[`chk_${i}`] === 1) bonusCount++;
+      for (let i = 8; i <= 11; i++) if (cl[`chk_${i}`] === 1) bonusCount++;
     }
-    const baseClass = baseCount >= 5 ? 'chk-score-pass' : baseCount >= 3 ? 'chk-score-warn' : 'chk-score-fail';
+    const baseClass = baseCount >= 6 ? 'chk-score-pass' : baseCount >= 4 ? 'chk-score-warn' : 'chk-score-fail';
     const bonusClass = bonusCount >= 3 ? 'chk-score-pass' : bonusCount >= 1 ? 'chk-score-warn' : 'chk-score-fail';
 
     let html = '';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score ${baseClass}">基本 ${baseCount}/6</span>`;
+    html += `<span class="chk-score ${baseClass}">基本 ${baseCount}/7</span>`;
     html += `<span class="chk-score ${bonusClass}" style="margin-left:8px">加分 ${bonusCount}/4</span>`;
     html += '</div>';
 
