@@ -46,25 +46,28 @@ if ! git push origin master 2>> "$LOG_FILE"; then
 fi
 log "push 成功"
 
-# 驗證 Render 部署（等待最多 120 秒）
-RENDER_URL="https://tock-system.onrender.com/api/health"
-log "等待 Render 部署..."
+# 背景驗證 Render 部署（不阻塞 Stop hook）
+(
+    RENDER_URL="https://tock-system.onrender.com/api/health"
+    log "背景驗證 Render 部署..."
 
-# 先等 30 秒讓 Render 開始重新部署
-sleep 30
+    sleep 30
 
-RETRY=0
-MAX_RETRY=6
-while [ $RETRY -lt $MAX_RETRY ]; do
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$RENDER_URL" 2>/dev/null)
-    if [ "$HTTP_CODE" = "200" ]; then
-        log "Render 部署驗證成功 (HTTP $HTTP_CODE)"
-        exit 0
-    fi
-    RETRY=$((RETRY + 1))
-    log "Render 尚未就緒 (HTTP $HTTP_CODE)，第 ${RETRY}/${MAX_RETRY} 次重試..."
-    sleep 15
-done
+    RETRY=0
+    MAX_RETRY=6
+    while [ $RETRY -lt $MAX_RETRY ]; do
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$RENDER_URL" 2>/dev/null)
+        if [ "$HTTP_CODE" = "200" ]; then
+            log "Render 部署驗證成功 (HTTP $HTTP_CODE)"
+            exit 0
+        fi
+        RETRY=$((RETRY + 1))
+        log "Render 尚未就緒 (HTTP $HTTP_CODE)，第 ${RETRY}/${MAX_RETRY} 次重試..."
+        sleep 15
+    done
 
-log "WARNING: Render 部署驗證超時，請手動確認 $RENDER_URL"
+    log "WARNING: Render 部署驗證超時，請手動確認 $RENDER_URL"
+) &
+
+log "deploy.sh 完成（驗證在背景執行）"
 exit 0
