@@ -2895,13 +2895,15 @@ def quick_update():
     # ── 3. 政府 API 批次營收（補充 MOPS 缺的，COALESCE 不覆蓋已有值）──
     _quick_gov_revenue(today_str)
 
-    # ── 必跑步驟的 Render 同步（營收+季報）──
+    # ── 必跑步驟的 Render 同步（營收+季報，增量）──
     if not IS_CLOUD:
         try:
+            _today_start = date.today().strftime('%Y-%m-%d') + ' 00:00:00'
             _push_table_to_render(
                 table='monthly_revenue',
                 columns=['code','year','month','revenue','updated_at'],
                 pk=['code','year','month'],
+                since=_today_start,
             )
         except Exception as e:
             print(f"[營收同步Render] 失敗: {e}")
@@ -3296,76 +3298,64 @@ def _quick_update_inner(t0, today_str):
                 logger.warning(f"[即時重算] {code} 失敗: {e}")
         print(f"[即時重算] 完成")
 
-    # ── 8. 自動 push 到 Render（僅本機）──
+    # ── 8. 自動 push 到 Render（僅本機，增量同步）──
     if not IS_CLOUD:
         try:
+            _today_start = date.today().strftime('%Y-%m-%d') + ' 00:00:00'
             # push stocks 表（含營收/EPS/等級等核心欄位）
             _push_prices_to_render()
             _push_annual_to_render()
             _push_estimates_to_render()
-            # push monthly_revenue 表（只推近兩年，避免全表 9 萬筆太慢）
+            # push monthly_revenue（增量：只推今天更新的）
             _push_table_to_render(
                 table='monthly_revenue',
                 columns=['code','year','month','revenue','updated_at'],
                 pk=['code','year','month'],
-                where='WHERE year >= 2025',
-                create_sql="""CREATE TABLE IF NOT EXISTS monthly_revenue (
-                    code TEXT NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
-                    revenue REAL, updated_at TEXT, PRIMARY KEY (code, year, month))""",
+                since=_today_start,
             )
-            # push stock_state（評價快照）
+            # push stock_state（評價快照，只推今天）
             _push_table_to_render(
                 table='stock_state',
                 columns=['stock_id','date','price','price_pos','fair_low','fair_mid','fair_high',
                          'shen_eps','shen_pe','shen_yld','fin_grade','updated_at',
                          'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct'],
                 pk=['stock_id','date'],
-                create_sql="""CREATE TABLE IF NOT EXISTS stock_state (
-                    stock_id TEXT NOT NULL, date TEXT NOT NULL,
-                    price REAL, price_pos REAL, fair_low REAL, fair_mid REAL, fair_high REAL,
-                    shen_eps REAL, shen_pe REAL, shen_yld REAL, fin_grade TEXT, updated_at TEXT,
-                    val_level TEXT, val_aa REAL, val_a1 REAL, val_a2 REAL, val_a REAL,
-                    val_lt6 REAL, discount_pct REAL,
-                    PRIMARY KEY (stock_id, date))""",
+                since=_today_start,
             )
-            # push stock_checklist（體質檢核）
+            # push stock_checklist（名稱制欄位，增量）
             _push_table_to_render(
                 table='stock_checklist',
-                columns=['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
-                         'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12','chk_13',
-                         'pass_count','total_count','detail',
+                columns=['code',
+                         'chk_fin_grade','chk_cum_yoy','chk_gm_change',
+                         'chk_best_grade_aa','chk_price_below_aa','chk_blend_yield','chk_ddm_return',
+                         'chk_neff_growth','chk_neff_ratio','chk_lynch_peg','chk_lynch_consist',
+                         'pass_count','total_count','base_count','bonus_count','detail',
                          'eps_setting','div_setting','yld_high','yld_max','pe_high','pe_low',
                          'lt_div','lt_yld','val_a','val_a1','val_a2','val_aa','lt5','lt6','lt7',
+                         'gi_neff_a','gi_neff_b','gi_neff_3a','gi_neff_3b',
+                         'gi_neff_c','gi_neff_d','gi_intrinsic_growth',
+                         'gi_lynch_a','gi_lynch_b','gi_lynch_c','gi_lynch_d',
+                         'gi_rev_cagr_5y','gi_shares_change','gi_yield','gi_pe',
+                         'gi_gray','gi_neff_gray','gi_lynch_gray','gi_warnings',
                          'updated_at'],
                 pk=['code'],
-                create_sql="""CREATE TABLE IF NOT EXISTS stock_checklist (
-                    code TEXT PRIMARY KEY,
-                    chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
-                    chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
-                    chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
-                    chk_13 INTEGER,
-                    pass_count INTEGER, total_count INTEGER DEFAULT 13,
-                    detail TEXT,
-                    eps_setting REAL, div_setting REAL,
-                    yld_high REAL, yld_max REAL, pe_high REAL, pe_low REAL,
-                    lt_div REAL, lt_yld REAL,
-                    val_a REAL, val_a1 REAL, val_a2 REAL, val_aa REAL,
-                    lt5 REAL, lt6 REAL, lt7 REAL,
-                    updated_at TEXT)""",
+                since=_today_start,
             )
-            # push quarterly_financial（MOPS 季報更新後需同步）
+            # push quarterly_financial（增量：只推今天更新的）
             _push_table_to_render(
                 table='quarterly_financial',
                 columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
                          'operating_income','non_operating','pretax_income','tax','continuing_income',
                          'net_income_parent','eps','contract_liability','inventory','updated_at'],
                 pk=['code','quarter'],
+                since=_today_start,
             )
-            # push pe_history
+            # push pe_history（增量）
             _push_table_to_render(
                 table='pe_history',
                 columns=['code','year','pe_high','pe_low','updated_at'],
                 pk=['code','year'],
+                since=_today_start,
             )
             print(f"[quick_update] 已 push 到 Render")
         except Exception as e:
