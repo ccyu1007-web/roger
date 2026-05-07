@@ -61,13 +61,9 @@
   .grade-a { color: #dc2626; font-weight: 700; }
   .grade-b { color: #d97706; font-weight: 600; }
   .grade-c { color: #94a3b8; }
-  .arrow-up { color: #22c55e; }
-  .arrow-down { color: #ef4444; }
 
   .chg-add { background: #dcfce7; color: #166534; font-size: .72rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
   .chg-rm { background: #fee2e2; color: #991b1b; font-size: .72rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
-  .filter-bar { display: flex; gap: 12px; align-items: center; padding: 0 20px 12px; flex-wrap: wrap; }
-  .filter-bar label { font-size: .82rem; color: #64748b; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -105,6 +101,8 @@ let _tab = 'aa';
 let _qualityOnly = false;
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
+let _cheapList = [];   // 從 DB 的 val_cheap_list
+let _changes = [];     // 從 DB 的 val_level_changes
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
@@ -113,27 +111,10 @@ const GRADE_CLS = g => {
   return 'grade-c';
 };
 
-// 沈董等級矩陣（與 index.html 一致）
-function _calcShenGrade(pe, yld) {
-  if (pe == null || pe <= 0 || yld == null || yld <= 0) return 'X';
-  const peHi=18, peLo=10, yFloor=5, yHigh=5.5, yMax=6;
-  const peFair=(peHi+peLo)/2, peAbove=(peHi+peFair)/2, peBelow=(peFair+peLo)/2;
-  const peCols=[[-Infinity,peLo],[peLo,peBelow],[peBelow,peFair],[peFair,peAbove],[peAbove,peHi],[peHi,Infinity]];
-  const yRows=[[yMax,Infinity],[yHigh,yMax],[yFloor,yHigh],[-Infinity,yFloor]];
-  const grades=[['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
-  const col=peCols.findIndex(c=>pe>=c[0]&&pe<c[1]);
-  const row=yRows.findIndex(y=>yld>=y[0]&&yld<y[1]);
-  return (col>=0&&row>=0)?grades[row][col]:null;
-}
-
-let _stocks = [];
-let removedByGrade = {};
-
 async function load() {
   try {
-    const [briefRes, stocksRes, listRes, focusRes] = await Promise.all([
+    const [briefRes, listRes, focusRes] = await Promise.all([
       fetch('/api/daily-briefing'),
-      fetch('/api/stocks'),
       fetch('/api/user-lists'),
       fetch('/api/focus-tracking'),
     ]);
@@ -142,97 +123,37 @@ async function load() {
     const focusData = await focusRes.json();
     _focusTrackSet = new Set((focusData.tracked || []).map(r => r.code));
     _data = await briefRes.json();
-    const stocksData = await stocksRes.json();
 
-    // 計算等級（優先順序：系統 > 沈董 > X）+ 折價%，存到 _stocks
-    // 注意：必須用 price 重算 PE/殖利率，不能用存好的 sys_ann_pe/yld（那是固定值，無法偵測跨日變動）
-    function _calcPriorityGrade(s, price) {
-      if (!price || price <= 0) return { grade: 'X', source: 'none', pe: null, yld: null };
-      // 1. 系統等級（用系統預估 EPS/股利 + 當前股價重算 PE/殖利率）
-      if (s.sys_ann_eps && s.sys_ann_eps > 0) {
-        const pe = price / s.sys_ann_eps;
-        const div = s.sys_ann_div || 0;
-        const yld = div > 0 ? div / price * 100 : null;
-        if (pe > 0 && yld != null && yld > 0) {
-          const g = _calcShenGrade(pe, yld);
-          if (g) return { grade: g, source: 'sys', pe: pe, yld: yld };
-        }
-      }
-      // 2. 沈董等級
-      const eps = s.shen_eps;
-      const div = s.shen_div;
-      if (eps && eps > 0) {
-        const pe = price / eps;
-        const yld = (div && div > 0) ? div / price * 100 : null;
-        if (pe > 0 && yld != null && yld > 0) {
-          const g = _calcShenGrade(pe, yld);
-          if (g) return { grade: g, source: 'shen', pe: pe, yld: yld };
-        }
-      }
-      return { grade: 'X', source: 'none', pe: null, yld: null };
-    }
+    // 直接用 DB 算好的資料
+    _cheapList = _data.val_cheap_list || [];
+    _changes = _data.val_level_changes || [];
 
-    const CHEAP_GRADES = new Set(['AA','A1','A2','A']);
+    // 建立等級變動查找表（code → change info）
+    const changeMap = {};
+    _changes.forEach(c => { changeMap[c.code] = c; });
 
-    (stocksData.data || []).forEach(s => {
-      const close = s.close;
-      if (!close || close <= 0) return;
-
-      // 今天的等級：優先用後端算好的 priority_grade
-      const cur = s.priority_grade
-        ? { grade: s.priority_grade, source: s.grade_source || 'db', pe: s.sys_ann_pe, yld: s.sys_ann_yld }
-        : _calcPriorityGrade(s, close);
-
-      // 昨天的等級（用昨天股價重算）
-      const prevClose = (s.change != null) ? close - s.change : null;
-      const prev = prevClose ? _calcPriorityGrade(s, prevClose) : { grade: null };
-
-      // 今天或昨天至少有一個在便宜區才列入
-      if (!CHEAP_GRADES.has(cur.grade) && !CHEAP_GRADES.has(prev.grade)) return;
-
-      // 折價% 用 val_aa
-      const estEps = s.sys_ann_eps != null ? s.sys_ann_eps : s.shen_eps;
-      const estDiv = s.sys_ann_div != null ? s.sys_ann_div : s.shen_div;
-      let val_aa = null;
-      if (estEps && estEps > 0 && estDiv && estDiv > 0) {
-        const v1 = estEps * 10;
-        const v2 = estDiv / 0.06;
-        val_aa = Math.round(Math.min(v1, v2) * 100) / 100;
-      }
-
-      let chgStatus = null;
-      if (cur.grade !== prev.grade) {
-        chgStatus = 'new';
-      }
-
-      _stocks.push({
-        code: s.code, name: s.name,
-        shen_grade: cur.grade, prev_grade: prev.grade,
-        chg: chgStatus,
-        price: close,
-        val_aa: val_aa,
-        shen_yld: cur.yld != null ? Math.round(cur.yld * 100) / 100 : null,
-        shen_pe: cur.pe != null ? Math.round(cur.pe * 100) / 100 : null,
-        grade_source: cur.source,
-      });
-    });
-
-    // 標記新增/刪除
-    removedByGrade = {};
-    _stocks.forEach(s => {
-      if (s.prev_grade && s.prev_grade !== s.shen_grade) {
-        s.chg = 'new';
-        if (CHEAP_GRADES.has(s.prev_grade)) {
-          if (!removedByGrade[s.prev_grade]) removedByGrade[s.prev_grade] = [];
-          removedByGrade[s.prev_grade].push({ code: s.code, name: s.name, price: s.price, chg: 'removed', prev_grade: s.prev_grade, shen_grade: s.shen_grade });
-        }
+    // 為每個便宜股標記變動狀態
+    _cheapList.forEach(item => {
+      const chg = changeMap[item.code];
+      if (chg) {
+        item._chg_from = chg.from;
+        item._chg_to = chg.to;
+        item._chg_direction = chg.direction;
       }
     });
 
-    // changes 也加上沈董等級
-    const sgMap = {};
-    _stocks.forEach(s => { sgMap[s.code] = s.shen_grade; });
-    (_data.val_level_changes || []).forEach(c => { c.shen_grade = sgMap[c.code] || null; });
+    // 找出「離開便宜區」的股票（昨天在某等級，今天不在便宜區了）
+    const cheapCodes = new Set(_cheapList.map(c => c.code));
+    _changes.forEach(c => {
+      if (c.direction === 'expensive' && !cheapCodes.has(c.code)) {
+        // 加到便宜清單裡當「刪除」項
+        _cheapList.push({
+          code: c.code, name: c.name, level: c.from,
+          price: c.price, discount_pct: null,
+          _removed: true, _chg_from: c.from, _chg_to: c.to,
+        });
+      }
+    });
 
     if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
     updateCounts();
@@ -251,9 +172,10 @@ function switchTab(tab, btn) {
 }
 
 function updateCounts() {
-  let pool = _qualityOnly ? _stocks.filter(s => _qualitySet.has(s.code)) : _stocks;
-  document.getElementById('cntAA').textContent = pool.filter(s => s.shen_grade === 'AA').length;
-  document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.shen_grade)).length;
+  let pool = _qualityOnly ? _cheapList.filter(s => _qualitySet.has(s.code)) : _cheapList;
+  pool = pool.filter(s => !s._removed);
+  document.getElementById('cntAA').textContent = pool.filter(s => s.level === 'AA').length;
+  document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.level)).length;
 }
 
 function renderTab() {
@@ -263,48 +185,54 @@ function renderTab() {
 
 function renderList(mode) {
   let items = mode === 'AA'
-    ? _stocks.filter(s => s.shen_grade === 'AA')
-    : _stocks.filter(s => ['A1','A2','A'].includes(s.shen_grade));
+    ? _cheapList.filter(s => s.level === 'AA')
+    : _cheapList.filter(s => ['A1','A2','A'].includes(s.level));
   if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
-  // A1/A2/A tab 按沈董等級分組
+  // 分：正常項 vs 刪除項
+  const normal = items.filter(s => !s._removed);
+  const removed = items.filter(s => s._removed);
+
+  // 按等級分組
   const groups = {};
-  items.forEach(c => {
-    const g = c.shen_grade;
+  normal.forEach(c => {
+    const g = c.level;
     if (!groups[g]) groups[g] = [];
     groups[g].push(c);
   });
+  // 刪除項也歸組
+  const removedByGrade = {};
+  removed.forEach(c => {
+    const g = c.level;
+    if (!removedByGrade[g]) removedByGrade[g] = [];
+    removedByGrade[g].push(c);
+  });
 
   const gradeOrder = ['AA','A1','A2','A'];
-  const sortedGrades = Object.keys(groups).sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+  const allGrades = new Set([...Object.keys(groups), ...Object.keys(removedByGrade)]);
+  const sortedGrades = [...allGrades].sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
 
   const title = mode === 'AA' ? 'AA 級' : 'A1 / A2 / A 級';
   const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
 
   let html = `<div class="section">
     <div class="section-header" style="${headerColor}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
+      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${normal.length} 支</span>
     </div>`;
 
   sortedGrades.forEach(grade => {
-    let gItems = groups[grade];
-    if (!gItems.length) return;
+    let gItems = groups[grade] || [];
+    let gRemoved = removedByGrade[grade] || [];
+    if (!gItems.length && !gRemoved.length) return;
 
-    // 計算折價%並排序（正值在前=股價低於門檻）
-    gItems.forEach(c => {
-      if (c.val_aa != null && c.val_aa > 0 && c.price != null) {
-        c.discount_pct = Math.round((c.val_aa - c.price) / c.val_aa * 10000) / 100;
-      } else {
-        c.discount_pct = -999;
-      }
-    });
+    // 按折價%排序（DB 已算好 discount_pct）
     gItems.sort((a, b) => (b.discount_pct || -999) - (a.discount_pct || -999));
 
     if (mode !== 'AA') {
       const gcls = GRADE_CLS(grade);
       html += `<div style="padding:0 20px">
         <div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0">
-          <span class="${gcls}" style="font-size:.9rem">沈董等級 ${grade}</span>
+          <span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span>
           <span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span>
         </div>`;
     } else {
@@ -320,17 +248,18 @@ function renderList(mode) {
         <th style="width:70px;text-align:center">刪除</th>
       </tr></thead><tbody>`;
 
-    // 合併刪除的項目
-    const removed = removedByGrade[grade] || [];
-
-    [...gItems, ...removed].forEach(c => {
-      const isRemoved = c.chg === 'removed';
-      const dp = (!isRemoved && c.val_aa != null && c.val_aa > 0 && c.price != null)
-        ? Math.round((c.val_aa - c.price) / c.val_aa * 10000) / 100 : null;
+    [...gItems, ...gRemoved].forEach(c => {
+      const isRemoved = !!c._removed;
+      const dp = (!isRemoved && c.discount_pct != null) ? c.discount_pct : null;
       const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
       const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-      const addHtml = (c.chg === 'new' && c.prev_grade) ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c.prev_grade}→${c.shen_grade}</span>` : '';
-      const rmHtml = (isRemoved && c.shen_grade) ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c.prev_grade}→${c.shen_grade}</span>` : '';
+
+      // 新增：變便宜進入此等級
+      const addHtml = (c._chg_direction === 'cheaper' && c._chg_from)
+        ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c._chg_from || 'above'}→${c._chg_to}</span>` : '';
+      // 刪除：變貴離開此等級
+      const rmHtml = isRemoved
+        ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c._chg_from}→${c._chg_to || 'above'}</span>` : '';
       const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
       const isFocused = _focusTrackSet.has(c.code);
@@ -347,67 +276,15 @@ function renderList(mode) {
     html += '</tbody></table></div>';
   });
 
+  if (!normal.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
   html += '</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
-function renderChanges() {
-  const changes = _data.val_level_changes || [];
-  const cheaper = changes.filter(c => c.direction === 'cheaper');
-  const expensive = changes.filter(c => c.direction === 'expensive');
-
-  let html = '';
-
-  if (cheaper.length) {
-    html += `<div class="section">
-      <div class="section-header" style="background:#f0fdf4;color:#166534;border-color:#22c55e">今日變便宜（${cheaper.length} 支）</div>
-      <div style="padding:0 20px">
-      <table class="val-table"><thead><tr>
-        <th>代碼</th><th>名稱</th><th>沈董等級</th><th>變動</th><th style="text-align:right">股價</th><th style="text-align:right">折價%</th><th>備註</th>
-      </tr></thead><tbody>`;
-    cheaper.forEach(c => {
-      const gcls = GRADE_CLS(c.shen_grade);
-      html += `<tr>
-        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-        <td>${c.name}</td>
-        <td><span class="${gcls}">${c.shen_grade || '-'}</span></td>
-        <td><span class="chg-add">${c.from || 'above'} → ${c.to}</span></td>
-        <td style="text-align:right;font-weight:600">${c.price}</td>
-        <td style="text-align:right;color:#dc2626;font-weight:600">${c.discount_pct != null ? c.discount_pct.toFixed(1) + '%' : '-'}</td>
-        <td>${c.threshold_changed ? '<span style="color:#f59e0b;font-size:.72rem">門檻調整</span>' : ''}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div></div>';
-  }
-
-  if (expensive.length) {
-    html += `<div class="section">
-      <div class="section-header" style="background:#fef2f2;color:#991b1b;border-color:#ef4444">今日變貴（${expensive.length} 支）</div>
-      <div style="padding:0 20px">
-      <table class="val-table"><thead><tr>
-        <th>代碼</th><th>名稱</th><th>沈董等級</th><th>變動</th><th style="text-align:right">股價</th>
-      </tr></thead><tbody>`;
-    expensive.forEach(c => {
-      const gcls = GRADE_CLS(c.shen_grade);
-      html += `<tr>
-        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-        <td>${c.name}</td>
-        <td><span class="${gcls}">${c.shen_grade || '-'}</span></td>
-        <td><span class="chg-rm">${c.from} → ${c.to || 'above'}</span></td>
-        <td style="text-align:right">${c.price}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div></div>';
-  }
-
-  if (!changes.length) html = '<div style="text-align:center;padding:60px;color:#94a3b8">今日無評價等級異動</div>';
   document.getElementById('content').innerHTML = html;
 }
 
 function _toggleFocusTrack(cb) {
   const code = cb.dataset.code;
-  const s = _stocks.find(r => r.code === code);
-  const price = s ? s.price : null;
+  const item = _cheapList.find(r => r.code === code);
+  const price = item ? item.price : null;
   if (cb.checked) {
     _focusTrackSet.add(code);
     fetch('/api/focus-tracking', {
