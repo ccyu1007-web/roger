@@ -279,7 +279,6 @@ def ensure_indexes(conn):
         "CREATE INDEX IF NOT EXISTS idx_stock_state_date ON stock_state(date)",
         "CREATE INDEX IF NOT EXISTS idx_daily_price_code ON daily_price(code)",
         "CREATE INDEX IF NOT EXISTS idx_pe_history_code ON pe_history(code)",
-        "CREATE INDEX IF NOT EXISTS idx_financial_detail_code ON financial_detail(code)",
         "CREATE INDEX IF NOT EXISTS idx_material_news_code ON material_news(code)",
         "CREATE INDEX IF NOT EXISTS idx_focus_signals_code ON focus_signals(code)",
         "CREATE INDEX IF NOT EXISTS idx_stock_checklist_code ON stock_checklist(code)",

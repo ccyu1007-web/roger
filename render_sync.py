@@ -385,12 +385,6 @@ def _push_all_to_render():
                 updated_at TEXT)""",
         },
         {
-            'table': 'financial_detail',
-            'columns': ['code','period','period_type','report_type','item','value','updated_at'],
-            'pk': ['code','period','period_type','report_type','item'],
-            'where': "WHERE DATE(updated_at) = DATE('now')",
-        },
-        {
             'table': 'daily_price',
             'columns': ['code','date','close_price','volume'],
             'pk': ['code','date'],
@@ -525,35 +519,6 @@ def _push_pe_history_to_render():
         print(f"[PE歷史同步] 失敗: {e}")
 
 
-def _push_financial_detail_to_render():
-    """本機完整財報明細 push 到 Render（只推當天更新的）"""
-    if _is_cloud():
-        return
-    try:
-        with sqlite3.get_conn() as conn:
-            rows = conn.execute("""SELECT code, period, period_type, report_type, item, value, updated_at
-                                  FROM financial_detail""").fetchall()
-
-        if not rows:
-            print("[財報明細同步] 今天沒有更新")
-            return
-
-        cols = ['code', 'period', 'period_type', 'report_type', 'item', 'value', 'updated_at']
-        data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
-
-        failed = 0
-        for i in range(0, len(data), 500):
-            batch = data[i:i+500]
-            resp = _post_with_retry(f'{RENDER_URL}/api/sync/financial-detail',
-                                    {'data': batch}, label=f'財報明細 batch {i//500+1}')
-            if not resp:
-                failed += len(batch)
-        msg = f"[財報明細同步] 已 push {len(data)} 筆到 Render"
-        if failed:
-            msg += f"（{failed} 筆失敗）"
-        print(msg)
-    except Exception as e:
-        print(f"[財報明細同步] 失敗: {e}")
 
 
 def _push_financial_annual_to_render():

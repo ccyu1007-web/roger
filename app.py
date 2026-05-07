@@ -29,7 +29,6 @@ from scraper import (run as scraper_run, refresh_prices, init_db, init_financial
                      cross_validate_financial)
 from etf_fetcher import (init_etf_db, get_stock_etf_membership,
                          get_etf_holdings_list, get_etf_changes)
-from capital_fetcher import fetch_financial_detail
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1399,36 +1398,6 @@ def refresh_institutional():
     threading.Thread(target=do_inst, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新三大法人資料"})
 
-@app.route("/api/sync/financial-detail", methods=["POST"])
-def sync_financial_detail():
-    """本機 push 完整財報明細到 Render"""
-    if not check_sync_token():
-        return jsonify({"status": "error", "msg": "unauthorized"}), 403
-    if not request.is_json or not request.json.get('data'):
-        return jsonify({"status": "error", "msg": "no data"}), 400
-    rows = request.json['data']
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    try:
-        c.execute("""CREATE TABLE IF NOT EXISTS financial_detail (
-            code TEXT NOT NULL, period TEXT NOT NULL, period_type TEXT NOT NULL,
-            report_type TEXT NOT NULL, item TEXT NOT NULL, value REAL, updated_at TEXT,
-            PRIMARY KEY (code, period, report_type, item))""")
-        conn.commit()
-    except Exception: pass
-    updated = 0
-    for r in rows:
-        try:
-            c.execute("""INSERT INTO financial_detail (code, period, period_type, report_type, item, value, updated_at)
-                VALUES (?,?,?,?,?,?,?)
-                ON CONFLICT(code, period, report_type, item) DO UPDATE SET
-                value=excluded.value, period_type=excluded.period_type, updated_at=excluded.updated_at""",
-                (r['code'], r['period'], r['period_type'], r['report_type'], r['item'], r['value'], r.get('updated_at', '')))
-            updated += 1
-        except Exception: pass
-    conn.commit()
-    conn.close()
-    return jsonify({"status": "ok", "updated": updated})
 
 
 @app.route("/api/sync/quarterly", methods=["POST"])
@@ -1516,7 +1485,7 @@ def sync_table():
         'etf_holdings', 'etf_changes', 'etf_info',
         'user_lists', 'user_notes', 'user_estimates', 'user_settings',
         'system_eps_actual', 'system_eps_log',
-        'quarterly_financial', 'financial_annual', 'financial_detail',
+        'quarterly_financial', 'financial_annual',
         'stocks', 'stock_checklist',
         'daily_price', 'focus_tracking', 'focus_signals',
     }
@@ -2259,65 +2228,6 @@ def get_pe_history(code):
     return jsonify({"code": code, "name": name, "data": data, "estimate": est})
 
 
-# ── 個股完整財報（損益表+資產負債表）─────────────────────────
-@app.route("/api/stocks/<code>/financial-detail")
-def get_financial_detail(code):
-    from datetime import datetime, timedelta
-    is_cloud = IS_CLOUD
-
-    # 確保表存在
-    try:
-        conn_init = sqlite3.connect(DB_PATH)
-        conn_init.execute("""CREATE TABLE IF NOT EXISTS financial_detail (
-            code TEXT NOT NULL, period TEXT NOT NULL, period_type TEXT NOT NULL,
-            report_type TEXT NOT NULL, item TEXT NOT NULL, value REAL, updated_at TEXT,
-            PRIMARY KEY (code, period, report_type, item))""")
-        conn_init.commit()
-        conn_init.close()
-    except Exception: pass
-
-    rows = query_db(
-        "SELECT period, period_type, report_type, item, value, updated_at FROM financial_detail WHERE code = ? ORDER BY period DESC",
-        (code,)
-    )
-
-    # 快取：有資料且 24 小時內更新過就不重抓
-    cache_valid = False
-    if rows:
-        try:
-            latest = max(r['updated_at'] for r in rows if r.get('updated_at'))
-            updated = datetime.strptime(latest, '%Y-%m-%d %H:%M:%S')
-            if datetime.now() - updated < timedelta(hours=24):
-                cache_valid = True
-        except Exception: pass
-
-    if not cache_valid and not is_cloud:
-        if rows:
-            def _bg(c=code):
-                try: fetch_financial_detail(c)
-                except Exception: pass
-            threading.Thread(target=_bg, daemon=True).start()
-        else:
-            try: fetch_financial_detail(code)
-            except Exception: pass
-            rows = query_db(
-                "SELECT period, period_type, report_type, item, value, updated_at FROM financial_detail WHERE code = ? ORDER BY period DESC",
-                (code,)
-            )
-
-    # 整理成前端友好格式
-    result = {'income_statement': {'annual': {}, 'quarterly': {}},
-              'balance_sheet': {'annual': {}, 'quarterly': {}}}
-    for r in rows:
-        rt = r['report_type']
-        pt = r['period_type']
-        period = r['period']
-        if rt in result and pt in result[rt]:
-            if period not in result[rt][pt]:
-                result[rt][pt][period] = {}
-            result[rt][pt][period][r['item']] = r['value']
-
-    return jsonify(result)
 
 
 # ── 個股月營收 ──────────────────────────────────────────────

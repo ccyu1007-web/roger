@@ -45,7 +45,7 @@ from guardian import (backup_raw_response, cleanup_old_backups,
                       focus_signal_check)
 from render_sync import (
     _push_table_to_render, _push_all_to_render, _push_news_to_render,
-    _push_pe_history_to_render, _push_financial_detail_to_render,
+    _push_pe_history_to_render,
     _push_financial_annual_to_render, _push_quarterly_to_render,
     _push_annual_to_render, _push_prices_to_render,
     _push_institutional_to_render, _push_estimates_to_render
