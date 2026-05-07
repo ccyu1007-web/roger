@@ -1062,6 +1062,47 @@ def status():
         "is_refreshing": _is_refreshing
     })
 
+# ── 手動同步 Render（增量推送營收+季報等）──────────────────
+@app.route("/api/sync/manual", methods=["POST"])
+def sync_manual():
+    if os.environ.get('DATABASE_URL'):
+        return jsonify({"status": "skip", "msg": "雲端環境不執行"}), 200
+    import threading
+    def do_sync():
+        try:
+            from render_sync import _push_table_to_render
+            total = 0
+            # 營收
+            n = _push_table_to_render(
+                table='monthly_revenue',
+                columns=['code','year','month','revenue','updated_at'],
+                pk=['code','year','month'],
+                since=_get_today_start(),
+            )
+            total += (n or 0)
+            # 季報
+            n = _push_table_to_render(
+                table='quarterly_financial',
+                columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
+                         'operating_income','non_operating','pretax_income','tax','continuing_income',
+                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
+                pk=['code','quarter'],
+                since=_get_today_start(),
+            )
+            total += (n or 0)
+            # stocks 表（EPS/股利/等級等）
+            from render_sync import _push_annual_to_render
+            _push_annual_to_render()
+            print(f"[手動同步] 完成，共 {total} 筆增量資料")
+        except Exception as e:
+            print(f"[手動同步] 失敗: {e}")
+    threading.Thread(target=do_sync, daemon=True).start()
+    return jsonify({"status": "ok", "msg": "同步已開始"})
+
+def _get_today_start():
+    from datetime import date
+    return date.today().strftime('%Y-%m-%d') + ' 00:00:00'
+
 # ── 手動觸發更新（背景執行，立即回應）─────────────────────
 @app.route("/api/refresh", methods=["POST"])
 def refresh():

@@ -306,6 +306,7 @@
       <button class="btn-refresh" id="btnRefresh" onclick="triggerRefresh()">
         <span id="refreshIcon">↻</span> 更新股價
       </button>
+      <button class="mkt-btn" id="btnSync" onclick="triggerSync()" style="border-color:#059669;color:#059669">同步Render</button>
     </div>
     <div class="toolbar-row">
       <div class="tb-group">
@@ -2461,6 +2462,23 @@ function updateStatusBar(status) {
     html += `　<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem;cursor:pointer" onclick="alert('資料來源異常：\\n${alerts.map(a => a.description + '（連續失敗' + a.fail_count + '次，上次成功：' + (a.last_success||'無') + '）').join('\\n')}')">資料來源異常 ${alerts.length} 個</span>`;
   }
   document.getElementById('statusBar').innerHTML = html;
+}
+
+// ── 手動同步 Render ──────────────────────────────────────────
+async function triggerSync() {
+  const btn = document.getElementById('btnSync');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.style.color = '#f59e0b'; btn.style.borderColor = '#f59e0b'; btn.textContent = '同步中...';
+  try {
+    const res = await fetch('/api/sync/manual', { method: 'POST' });
+    const data = await res.json();
+    btn.style.color = '#059669'; btn.style.borderColor = '#059669';
+    btn.textContent = data.status === 'ok' ? `已同步 ${data.total || 0} 筆` : '同步失敗';
+  } catch(e) {
+    btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444'; btn.textContent = '同步失敗';
+  }
+  btn.disabled = false;
+  setTimeout(() => { btn.textContent = '同步Render'; btn.style.color = '#059669'; btn.style.borderColor = '#059669'; }, 3000);
 }
 
 // ── 更新股價 ────────────────────────────────────────────────
