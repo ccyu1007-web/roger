@@ -2434,7 +2434,7 @@ def sync_status():
         ('quarterly_financial', '季度財報',   'updated_at'),
         ('financial_annual',    '年度財報',   'updated_at'),
         ('pe_history',          '歷史本益比', None),
-        ('monthly_revenue',     '月營收',     None),
+        ('monthly_revenue',     '月營收',     'updated_at'),
         ('stock_state',         '評價快照',   'date'),
         ('material_news',       '新聞',       'created_at'),
         ('etf_holdings',        'ETF成分股',  None),
@@ -2463,12 +2463,17 @@ def sync_status():
         ("股價", "SELECT MAX(updated_at) FROM stocks WHERE close IS NOT NULL", 1),
         ("評價快照", "SELECT MAX(date) FROM stock_state", 1),
         ("每日收盤價", "SELECT MAX(date) FROM daily_price", 1),
-        ("月營收", "SELECT MAX(year)||'-'||printf('%02d', MAX(month)) FROM monthly_revenue WHERE year=(SELECT MAX(year) FROM monthly_revenue)", None),
+        ("月營收", "SELECT MAX(year), MAX(month) FROM monthly_revenue WHERE year=(SELECT MAX(year) FROM monthly_revenue)", None),
         ("季報", "SELECT MAX(updated_at) FROM quarterly_financial", 7),
     ]
     for label, sql, max_days in checks:
         try:
-            val = c.execute(sql).fetchone()[0]
+            row = c.execute(sql).fetchone()
+            if label == '月營收':
+                yr, mo = row[0], row[1]
+                val = f"{yr}-{mo:02d}" if yr and mo else None
+            else:
+                val = row[0] if row else None
         except Exception:
             val = None
         status = 'unknown'
@@ -2477,6 +2482,16 @@ def sync_status():
                 ts = datetime.strptime(val[:10], '%Y-%m-%d')
                 age_days = (now - ts).days
                 status = 'ok' if age_days <= max_days else ('warn' if age_days <= max_days * 3 else 'error')
+            except Exception:
+                status = 'unknown'
+        elif val and label == '月營收':
+            # 月營收用 year-month 判斷：當月或上月算正常
+            try:
+                yr, mo = int(val[:4]), int(val[5:7])
+                now_ym = now.year * 12 + now.month
+                data_ym = yr * 12 + mo
+                diff = now_ym - data_ym
+                status = 'ok' if diff <= 1 else ('warn' if diff <= 3 else 'error')
             except Exception:
                 status = 'unknown'
         freshness.append({'label': label, 'value': val, 'status': status})
