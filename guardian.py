@@ -1719,30 +1719,32 @@ def _calc_matrix_grade(pe, yld, pe_high=None, pe_low=None, yld_max=None, yld_hig
     return 'X'
 
 
-def _calc_priority_grade(row, close, uvp=None):
+def _calc_priority_grade(row, close, uvp=None, est_eps=None, est_div=None):
     """
-    等級優先順序：預估 > 系統 > 沈董 > 綜合 > 加權 > 近四季 > X
-    每個等級都用矩陣計算（PE + 殖利率）。
+    等級優先順序：預估等級 → 沈董等級 → X
+    預估等級：使用者在季估計表輸入的 vmEps/vmDiv（存在 user_estimates）
+    沈董等級：從季度 EPS 推算的沈董 EPS + 配息率推算股利
     uvp: 個股自訂估值參數 dict（pe_high, pe_low, yld_high, yld_max）
+    est_eps/est_div: 使用者預估 EPS/股利（從 user_estimates 的 vmEps/vmDiv）
     回傳: (grade, source)
     """
     if uvp is None:
         uvp = {}
 
-    # 1. 預估等級（使用者手動輸入，存在 user_estimates）
-    # DB 裡沒有預算好的預估 PE/殖利率，跳過（前端才有）
+    # 1. 預估等級（使用者手動輸入的 vmEps/vmDiv）
+    if est_eps and est_eps > 0 and close and close > 0:
+        est_pe = round(close / est_eps, 2)
+        est_yld = 0
+        if est_div and est_div > 0:
+            est_yld = round(est_div / close * 100, 2)
+        if est_pe > 0 and est_yld > 0:
+            g = _calc_matrix_grade(est_pe, est_yld,
+                                   pe_high=uvp.get('pe_high'), pe_low=uvp.get('pe_low'),
+                                   yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'))
+            if g:
+                return g, 'est'
 
-    # 2. 系統等級
-    sys_pe = row.get('sys_ann_pe')
-    sys_yld = row.get('sys_ann_yld')
-    if sys_pe and sys_yld and sys_pe > 0 and sys_yld > 0:
-        g = _calc_matrix_grade(sys_pe, sys_yld,
-                               pe_high=uvp.get('pe_high'), pe_low=uvp.get('pe_low'),
-                               yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'))
-        if g:
-            return g, 'sys'
-
-    # 3. 沈董等級
+    # 2. 沈董等級
     shen_eps = _calc_shen_eps(row)
     if shen_eps and shen_eps > 0 and close and close > 0:
         shen_pe = round(close / shen_eps, 2)
@@ -1760,10 +1762,7 @@ def _calc_priority_grade(row, close, uvp=None):
             if g:
                 return g, 'shen'
 
-    # 4~6. 綜合/加權/近四季 — 需要前端的 blend/weighted 計算，後端簡化跳過
-    # 這些在前端 calcDerived 裡算，後端沒有完整資料
-
-    # 7. 都沒有
+    # 3. 都沒有
     return 'X', 'none'
 
 
@@ -1940,8 +1939,9 @@ def snapshot_stock_states():
             try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except Exception: pass
 
-        # 載入所有個股自訂估值參數（PE/殖利率）
+        # 載入所有個股自訂估值參數（PE/殖利率）+ 預估 EPS/股利
         user_val_params = {}
+        user_est_values = {}  # code → {eps, div}
         try:
             ue_rows = c.execute("SELECT code, params FROM user_estimates WHERE params IS NOT NULL").fetchall()
             for ue in ue_rows:
@@ -1954,6 +1954,13 @@ def snapshot_stock_states():
                     if d.get('yldMax'): p['yld_max'] = float(d['yldMax'])
                     if p:
                         user_val_params[ue['code']] = p
+                    # 預估 EPS/股利（使用者在季估計表輸入）
+                    vm_eps = d.get('vmEps')
+                    vm_div = d.get('vmDiv')
+                    if vm_eps:
+                        ev = {'eps': float(vm_eps)}
+                        if vm_div: ev['div'] = float(vm_div)
+                        user_est_values[ue['code']] = ev
                 except Exception:
                     pass  # 單筆 JSON 解析失敗，跳過
         except Exception as e:
@@ -2016,9 +2023,10 @@ def snapshot_stock_states():
                 shen_div = round(shen_eps * payout, 4)
                 blend_div = shen_div
 
-            # 預估值（與前端一致：sys_ann_eps/sys_ann_div 優先）
-            est_eps = row.get('sys_ann_eps')
-            est_div = row.get('sys_ann_div')
+            # 預估值：優先用使用者輸入的 vmEps/vmDiv，沒有才用系統估算
+            ue = user_est_values.get(code, {})
+            est_eps = ue.get('eps') or row.get('sys_ann_eps')
+            est_div = ue.get('div') or row.get('sys_ann_div')
 
             # 個股自訂估值參數（優先於預設值）
             uvp = user_val_params.get(code, {})
@@ -2028,8 +2036,10 @@ def snapshot_stock_states():
                                   yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'),
                                   est_eps=est_eps, est_div=est_div)
 
-            # 矩陣等級（優先順序：預估 > 系統 > 沈董 > X）
-            matrix_grade, grade_source = _calc_priority_grade(row, close, uvp)
+            # 矩陣等級（優先順序：預估 → 沈董 → X）
+            matrix_grade, grade_source = _calc_priority_grade(
+                row, close, uvp,
+                est_eps=ue.get('eps'), est_div=ue.get('div'))
             vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
 
             # 折價%：統一用 val_aa 門檻算（只看相對於AA級的折價幅度）
