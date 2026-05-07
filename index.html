@@ -2455,8 +2455,10 @@ async function loadData() {
 
 function updateStatusBar(status) {
   const upd = status.updated_at || '尚未更新';
+  const bgDone = status.bg_done_at || '';
   const alerts = status.api_alerts || [];
   let html = `共 ${(status.total||0).toLocaleString()} 支股票　資料更新：${upd}`;
+  if (bgDone) html += `　背景更新：${bgDone}`;
   if (alerts.length > 0) {
     const names = alerts.map(a => a.description).join('、');
     html += `　<span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem;cursor:pointer" onclick="alert('資料來源異常：\\n${alerts.map(a => a.description + '（連續失敗' + a.fail_count + '次，上次成功：' + (a.last_success||'無') + '）').join('\\n')}')">資料來源異常 ${alerts.length} 個</span>`;

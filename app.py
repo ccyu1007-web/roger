@@ -95,6 +95,7 @@ _cache_lock = threading.Lock()
 # ── 爬蟲狀態鎖（避免同時跑兩次）──────────────────────────
 _refresh_lock   = threading.Lock()
 _is_refreshing  = False
+_bg_done_at     = None  # 背景更新完成時間
 
 def query_db(sql, args=()):
     with sqlite3.get_conn(row_factory=True) as conn:
@@ -1059,7 +1060,8 @@ def status():
         "updated_at":   updated,
         "api_alerts":   alerts,
         "total":        total,
-        "is_refreshing": _is_refreshing
+        "is_refreshing": _is_refreshing,
+        "bg_done_at":   _bg_done_at,
     })
 
 # ── 手動更新營收/季報 ──────────────────────────────────────
@@ -1153,6 +1155,8 @@ def refresh():
                         print(f"[更新股價] push Render 失敗: {e}")
             except Exception as e:
                 print(f"[背景更新] 失敗: {e}")
+            global _bg_done_at
+            _bg_done_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     threading.Thread(target=do_refresh, daemon=True).start()
     return jsonify({"status": "started", "msg": "開始更新資料"})
