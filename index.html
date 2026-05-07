@@ -2516,8 +2516,11 @@ async function refreshPricesOnly() {
       if (fresh._gi) r._gi = fresh._gi;
       calcDerived(r);
     }
+    const _savedPage = page;
     filtered = [...allData];
     applyFilter();
+    page = _savedPage;
+    render();
     fetchRealtimePrices();
   } catch(e) {
     console.error('[refreshPricesOnly] 失敗，改用完整重載', e);
@@ -2605,7 +2608,11 @@ async function fetchRealtimePrices() {
     } catch(e) { break; }
   }
 
+  // 即時報價更新後重新渲染，但保留當前頁碼
+  const _savedPage = page;
   applyFilter();
+  page = _savedPage;
+  render();
   document.getElementById('statusBar').innerHTML += ' <span style="background:#059669;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem">即時報價</span>';
 }
 
