@@ -222,7 +222,7 @@ if DATABASE_URL:
         """佔位類別，讓 conn.row_factory = sqlite3.Row 語法通用"""
         pass
 
-    def connect(path=None):
+    def connect(path=None, **kwargs):
         return _PGConnection()
 
 # ═══════════════════════════════════════════════════════════════

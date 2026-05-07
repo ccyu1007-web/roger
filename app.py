@@ -1134,87 +1134,65 @@ def status():
 # ── 手動更新營收/季報 ──────────────────────────────────────
 @app.route("/api/refresh/revenue", methods=["POST"])
 def refresh_revenue():
-    import threading
     is_cloud = bool(os.environ.get('DATABASE_URL'))
+    results = {'mops_revenue': 0, 'mops_quarterly': 0, 'errors': []}
 
-    def do_update():
+    try:
+        # 1. 抓最新營收（MOPS）— 本機和 Render 都可以跑
+        from mops_fetcher import fetch_mops_monthly_revenue
+        mops_count = fetch_mops_monthly_revenue()
+        results['mops_revenue'] = mops_count or 0
+        print(f"[手動營收] MOPS 更新 {mops_count} 筆")
+    except Exception as e:
+        results['errors'].append(f"營收: {e}")
+        print(f"[手動營收] 失敗: {e}")
+
+    try:
+        # 2. 抓最新季報（MOPS）— 本機和 Render 都可以跑
+        from mops_fetcher import fetch_latest_mops_quarterly
+        mops_q = fetch_latest_mops_quarterly()
+        results['mops_quarterly'] = mops_q or 0
+        if mops_q and mops_q > 0:
+            from scraper import _sync_eps_from_quarterly
+            _sync_eps_from_quarterly()
+            print(f"[手動季報] MOPS 更新 {mops_q} 筆")
+    except Exception as e:
+        results['errors'].append(f"季報: {e}")
+        print(f"[手動季報] 失敗: {e}")
+
+    # 3. 本機才 push 到 Render（Render 上已直接寫入 PostgreSQL）
+    if not is_cloud:
         try:
-            # 1. 抓最新營收（MOPS）— 本機和 Render 都可以跑
-            from mops_fetcher import fetch_mops_monthly_revenue
-            mops_count = fetch_mops_monthly_revenue()
-            print(f"[手動營收] MOPS 更新 {mops_count} 筆")
-
-            # 2. 抓最新季報（MOPS）— 本機和 Render 都可以跑
-            from mops_fetcher import fetch_latest_mops_quarterly
-            mops_q = fetch_latest_mops_quarterly()
-            if mops_q and mops_q > 0:
-                from scraper import _sync_eps_from_quarterly
-                _sync_eps_from_quarterly()
-                print(f"[手動季報] MOPS 更新 {mops_q} 筆")
-
-            # 3. 本機才 push 到 Render（Render 上已直接寫入 PostgreSQL）
-            if not is_cloud:
-                from render_sync import _push_table_to_render, _push_annual_to_render
-                _push_table_to_render(
-                    table='monthly_revenue',
-                    columns=['code','year','month','revenue','updated_at'],
-                    pk=['code','year','month'],
-                    since=_get_today_start(),
-                )
-                _push_table_to_render(
-                    table='quarterly_financial',
-                    columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
-                             'operating_income','non_operating','pretax_income','tax','continuing_income',
-                             'net_income_parent','eps','contract_liability','inventory','updated_at'],
-                    pk=['code','quarter'],
-                    since=_get_today_start(),
-                )
-                _push_annual_to_render()
-                print("[手動營收/季報] push Render 完成")
+            from render_sync import _push_table_to_render, _push_annual_to_render
+            _push_table_to_render(
+                table='monthly_revenue',
+                columns=['code','year','month','revenue','updated_at'],
+                pk=['code','year','month'],
+                since=_get_today_start(),
+            )
+            _push_table_to_render(
+                table='quarterly_financial',
+                columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
+                         'operating_income','non_operating','pretax_income','tax','continuing_income',
+                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
+                pk=['code','quarter'],
+                since=_get_today_start(),
+            )
+            _push_annual_to_render()
+            print("[手動營收/季報] push Render 完成")
         except Exception as e:
-            print(f"[手動營收/季報] 失敗: {e}")
-    threading.Thread(target=do_update, daemon=True).start()
-    return jsonify({"status": "ok", "msg": "開始更新營收/季報（MOPS）"})
+            results['errors'].append(f"push: {e}")
+
+    total = results['mops_revenue'] + results['mops_quarterly']
+    if results['errors']:
+        return jsonify({"status": "error", "msg": f"部分失敗: {'; '.join(results['errors'])}", "detail": results})
+    if total == 0:
+        return jsonify({"status": "ok", "msg": "MOPS 無新資料（可能尚未申報）", "detail": results})
+    return jsonify({"status": "ok", "msg": f"更新完成：營收 {results['mops_revenue']} 筆、季報 {results['mops_quarterly']} 筆", "detail": results})
 
 def _get_today_start():
     from datetime import date
     return date.today().strftime('%Y-%m-%d') + ' 00:00:00'
-
-# ── MOPS 連線診斷（臨時，確認後刪除）─────────────────────
-@app.route("/api/debug/mops-test")
-def debug_mops_test():
-    """測試 Render 能否連到 MOPS，回傳抓到的筆數"""
-    import requests as _req
-    from datetime import date as _date
-    today = _date.today()
-    month = today.month - 1 if today.month > 1 else 12
-    roc_year = today.year - 1911 if today.month > 1 else today.year - 1911 - 1
-    results = {}
-    for mtype, mpath in [('sii', 'sii'), ('otc', 'otc')]:
-        url = f"https://mopsov.twse.com.tw/nas/t21/{mpath}/t21sc03_{roc_year}_{month}_0.html"
-        try:
-            r = _req.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
-            results[mtype] = {
-                'status_code': r.status_code,
-                'content_length': len(r.text),
-                'encoding': r.encoding,
-                'first_200': r.text[:200],
-            }
-            # 數有幾筆
-            from bs4 import BeautifulSoup as _BS
-            r.encoding = 'big5'
-            soup = _BS(r.text, 'html.parser')
-            cnt = 0
-            for tr in soup.find_all('tr'):
-                tds = tr.find_all(['td', 'th'])
-                texts = [td.get_text(strip=True) for td in tds]
-                if len(texts) >= 8 and texts[0].isdigit() and len(texts[0]) == 4:
-                    cnt += 1
-            results[mtype]['parsed_rows'] = cnt
-        except Exception as e:
-            results[mtype] = {'error': str(e)}
-    results['target'] = f'{roc_year}年{month}月'
-    return jsonify(results)
 
 # ── 手動觸發更新（背景執行，立即回應）─────────────────────
 @app.route("/api/refresh", methods=["POST"])

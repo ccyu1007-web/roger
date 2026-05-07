@@ -2470,18 +2470,22 @@ function updateStatusBar(status) {
 async function triggerUpdateRevenue() {
   const btn = document.getElementById('btnUpdateRev');
   if (!btn || btn.disabled) return;
-  btn.disabled = true; btn.style.color = '#f59e0b'; btn.style.borderColor = '#f59e0b'; btn.textContent = '更新中...';
+  btn.disabled = true; btn.style.color = '#f59e0b'; btn.style.borderColor = '#f59e0b'; btn.textContent = '更新中（MOPS）...';
   try {
     const res = await fetch('/api/refresh/revenue', { method: 'POST' });
     const data = await res.json();
-    btn.style.color = data.status === 'skip' ? '#94a3b8' : '#059669';
-    btn.style.borderColor = data.status === 'skip' ? '#94a3b8' : '#059669';
-    btn.textContent = data.status === 'skip' ? data.msg : data.status === 'ok' ? '更新完成' : '更新失敗';
+    if (data.status === 'error') {
+      btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444';
+      btn.textContent = data.msg;
+    } else {
+      btn.style.color = '#059669'; btn.style.borderColor = '#059669';
+      btn.textContent = data.msg;
+    }
   } catch(e) {
     btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444'; btn.textContent = '更新失敗';
   }
   btn.disabled = false;
-  setTimeout(() => { btn.textContent = '更新營收/季報'; btn.style.color = '#059669'; btn.style.borderColor = '#059669'; }, 3000);
+  setTimeout(() => { btn.textContent = '更新營收/季報'; btn.style.color = '#059669'; btn.style.borderColor = '#059669'; }, 5000);
 }
 
 // ── 更新股價 ────────────────────────────────────────────────
