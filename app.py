@@ -1134,6 +1134,8 @@ def status():
 # ── 手動更新營收/季報 ──────────────────────────────────────
 @app.route("/api/refresh/revenue", methods=["POST"])
 def refresh_revenue():
+    if os.environ.get('DATABASE_URL'):
+        return jsonify({"status": "skip", "msg": "Render 環境不執行爬蟲，資料由本機排程更新"}), 200
     import threading
     def do_update():
         try:
@@ -1181,6 +1183,8 @@ def _get_today_start():
 # ── 手動觸發更新（背景執行，立即回應）─────────────────────
 @app.route("/api/refresh", methods=["POST"])
 def refresh():
+    if os.environ.get('DATABASE_URL'):
+        return jsonify({"status": "skip", "msg": "Render 環境不執行爬蟲，資料由本機排程更新"}), 200
     global _is_refreshing
     if _is_refreshing:
         return jsonify({"status": "already_running", "msg": "更新中，請稍候"}), 200

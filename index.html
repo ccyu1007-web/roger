@@ -2474,8 +2474,9 @@ async function triggerUpdateRevenue() {
   try {
     const res = await fetch('/api/refresh/revenue', { method: 'POST' });
     const data = await res.json();
-    btn.style.color = '#059669'; btn.style.borderColor = '#059669';
-    btn.textContent = data.status === 'ok' ? '更新完成' : '更新失敗';
+    btn.style.color = data.status === 'skip' ? '#94a3b8' : '#059669';
+    btn.style.borderColor = data.status === 'skip' ? '#94a3b8' : '#059669';
+    btn.textContent = data.status === 'skip' ? data.msg : data.status === 'ok' ? '更新完成' : '更新失敗';
   } catch(e) {
     btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444'; btn.textContent = '更新失敗';
   }
@@ -2487,7 +2488,14 @@ async function triggerUpdateRevenue() {
 async function triggerRefresh() {
   const btn = document.getElementById('btnRefresh');
   if (btn.disabled) return;
-  await fetch('/api/refresh', { method: 'POST' });
+  const res = await fetch('/api/refresh', { method: 'POST' });
+  const data = await res.json();
+  if (data.status === 'skip') {
+    btn.textContent = data.msg;
+    btn.style.color = '#94a3b8';
+    setTimeout(() => { btn.textContent = '更新股價'; btn.style.color = ''; }, 3000);
+    return;
+  }
   setRefreshingUI(true);
   pollRefresh();
 }
