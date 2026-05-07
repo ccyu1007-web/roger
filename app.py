@@ -1062,43 +1062,48 @@ def status():
         "is_refreshing": _is_refreshing
     })
 
-# ── 手動同步 Render（增量推送營收+季報等）──────────────────
-@app.route("/api/sync/manual", methods=["POST"])
-def sync_manual():
-    if os.environ.get('DATABASE_URL'):
-        return jsonify({"status": "skip", "msg": "雲端環境不執行"}), 200
+# ── 手動更新營收/季報 ──────────────────────────────────────
+@app.route("/api/refresh/revenue", methods=["POST"])
+def refresh_revenue():
     import threading
-    def do_sync():
+    def do_update():
         try:
-            from render_sync import _push_table_to_render
-            total = 0
-            # 營收
-            n = _push_table_to_render(
-                table='monthly_revenue',
-                columns=['code','year','month','revenue','updated_at'],
-                pk=['code','year','month'],
-                since=_get_today_start(),
-            )
-            total += (n or 0)
-            # 季報
-            n = _push_table_to_render(
-                table='quarterly_financial',
-                columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
-                         'operating_income','non_operating','pretax_income','tax','continuing_income',
-                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
-                pk=['code','quarter'],
-                since=_get_today_start(),
-            )
-            total += (n or 0)
-            # stocks 表（股價+EPS/股利/等級等）
-            from render_sync import _push_prices_to_render, _push_annual_to_render
-            _push_prices_to_render()
-            _push_annual_to_render()
-            print(f"[手動同步] 完成，共 {total} 筆增量資料")
+            # 1. 抓最新營收（MOPS）
+            from mops_fetcher import fetch_mops_monthly_revenue
+            mops_count = fetch_mops_monthly_revenue()
+            print(f"[手動營收] MOPS 更新 {mops_count} 筆")
+
+            # 2. 抓最新季報（MOPS）
+            from mops_fetcher import fetch_latest_mops_quarterly
+            mops_q = fetch_latest_mops_quarterly()
+            if mops_q and mops_q > 0:
+                from scraper import _sync_eps_from_quarterly
+                _sync_eps_from_quarterly()
+                print(f"[手動季報] MOPS 更新 {mops_q} 筆")
+
+            # 3. push 到 Render
+            if not os.environ.get('DATABASE_URL'):
+                from render_sync import _push_table_to_render, _push_annual_to_render
+                _push_table_to_render(
+                    table='monthly_revenue',
+                    columns=['code','year','month','revenue','updated_at'],
+                    pk=['code','year','month'],
+                    since=_get_today_start(),
+                )
+                _push_table_to_render(
+                    table='quarterly_financial',
+                    columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
+                             'operating_income','non_operating','pretax_income','tax','continuing_income',
+                             'net_income_parent','eps','contract_liability','inventory','updated_at'],
+                    pk=['code','quarter'],
+                    since=_get_today_start(),
+                )
+                _push_annual_to_render()
+                print("[手動營收/季報] push Render 完成")
         except Exception as e:
-            print(f"[手動同步] 失敗: {e}")
-    threading.Thread(target=do_sync, daemon=True).start()
-    return jsonify({"status": "ok", "msg": "同步已開始"})
+            print(f"[手動營收/季報] 失敗: {e}")
+    threading.Thread(target=do_update, daemon=True).start()
+    return jsonify({"status": "ok", "msg": "開始更新營收/季報"})
 
 def _get_today_start():
     from datetime import date

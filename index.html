@@ -306,7 +306,7 @@
       <button class="btn-refresh" id="btnRefresh" onclick="triggerRefresh()">
         <span id="refreshIcon">↻</span> 更新股價
       </button>
-      <button class="mkt-btn" id="btnSync" onclick="triggerSync()" style="border-color:#059669;color:#059669">同步Render</button>
+      <button class="mkt-btn" id="btnUpdateRev" onclick="triggerUpdateRevenue()" style="border-color:#059669;color:#059669">更新營收/季報</button>
     </div>
     <div class="toolbar-row">
       <div class="tb-group">
@@ -2464,21 +2464,21 @@ function updateStatusBar(status) {
   document.getElementById('statusBar').innerHTML = html;
 }
 
-// ── 手動同步 Render ──────────────────────────────────────────
-async function triggerSync() {
-  const btn = document.getElementById('btnSync');
+// ── 手動更新營收/季報 ────────────────────────────────────────
+async function triggerUpdateRevenue() {
+  const btn = document.getElementById('btnUpdateRev');
   if (!btn || btn.disabled) return;
-  btn.disabled = true; btn.style.color = '#f59e0b'; btn.style.borderColor = '#f59e0b'; btn.textContent = '同步中...';
+  btn.disabled = true; btn.style.color = '#f59e0b'; btn.style.borderColor = '#f59e0b'; btn.textContent = '更新中...';
   try {
-    const res = await fetch('/api/sync/manual', { method: 'POST' });
+    const res = await fetch('/api/refresh/revenue', { method: 'POST' });
     const data = await res.json();
     btn.style.color = '#059669'; btn.style.borderColor = '#059669';
-    btn.textContent = data.status === 'ok' ? `已同步 ${data.total || 0} 筆` : '同步失敗';
+    btn.textContent = data.status === 'ok' ? '更新完成' : '更新失敗';
   } catch(e) {
-    btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444'; btn.textContent = '同步失敗';
+    btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444'; btn.textContent = '更新失敗';
   }
   btn.disabled = false;
-  setTimeout(() => { btn.textContent = '同步Render'; btn.style.color = '#059669'; btn.style.borderColor = '#059669'; }, 3000);
+  setTimeout(() => { btn.textContent = '更新營收/季報'; btn.style.color = '#059669'; btn.style.borderColor = '#059669'; }, 3000);
 }
 
 // ── 更新股價 ────────────────────────────────────────────────
