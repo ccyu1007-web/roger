@@ -1576,7 +1576,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div class="val-inp-group"><label>最高殖利率</label><span class="auto-val" id="vmYldMax">-</span></div>
       </div>
       <div class="val-inputs">
-        <div class="val-inp-group"><label>長期現金股利水準</label><input id="vmLtDiv" type="text" placeholder="權重法" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>綜合股利</label><input id="vmLtDiv" type="text" placeholder="綜合股利" oninput="calcValMethod()"></div>
         <div class="val-inp-group">
           <label>長期殖利率設定</label><input id="vmLtYld" type="text" value="${_ltYld}" oninput="onLtYldChange()" style="width:60px">
           <span class="val-global-note">%（全部公司）</span>
@@ -1943,9 +1943,10 @@ async function initEstimator(sharesMillion) {
     } else {
       _vmDivSrc = '手動設定';
     }
-    if (!savedObj.vmLtDiv && _blendDiv != null) {
-      document.getElementById('vmLtDiv').value = _blendDiv.toFixed(2);
-      _vmLtDivSrc = '綜合股利（沈董×60%+加權×40%）';
+    const _ltDivDefault = _stockData.blend_div || _blendDiv;
+    if (!savedObj.vmLtDiv && _ltDivDefault != null) {
+      document.getElementById('vmLtDiv').value = _ltDivDefault.toFixed(2);
+      _vmLtDivSrc = '綜合股利';
     } else if (savedObj.vmLtDiv) {
       _vmLtDivSrc = '手動設定';
     } else {
@@ -1954,7 +1955,7 @@ async function initEstimator(sharesMillion) {
     // 顯示來源註記
     const vmNote = document.getElementById('vmSourceNote');
     if (vmNote) {
-      vmNote.innerHTML = `EPS設定來源：${_vmEpsSrc}　|　股利設定來源：${_vmDivSrc}　|　長期現金股利水準來源：${_vmLtDivSrc}`;
+      vmNote.innerHTML = `EPS設定來源：${_vmEpsSrc}　|　股利設定來源：${_vmDivSrc}　|　綜合股利來源：${_vmLtDivSrc}`;
     }
 
     // DDM 來源註記
