@@ -198,6 +198,7 @@
   body.hide-g-sys .g-sys,
   body.hide-g-neff .g-neff,
   body.hide-g-lynch .g-lynch,
+  body.hide-g-240d .g-240d,
   body.hide-g-etf .g-etf { display: none !important; }
 
   /* ETF 標籤 */
@@ -557,7 +558,7 @@
           <!-- 財務等級（最新年度，放在核心區） -->
           <th id="dynFgAnchor" style="display:none"></th>
           <!-- 補充資訊 -->
-          <th class="g-mkt col-div" data-col="change_240d" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
+          <th class="g-240d col-div" data-col="change_240d" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
           <th class="g-qeps col-div" data-col="eps_date" onclick="sortBy('eps_date')">EPS更新<span class="sort-icon" id="si_eps_date">↕</span></th>
           <!-- 動態欄位 -->
           <th id="dynColAnchor" style="display:none"></th>
@@ -603,6 +604,7 @@ function gradeHtml(g) {
 // ── 欄位群組開關 ─────────────────────────────────────────────
 const COL_GROUPS = [
   { key: 'g-mkt', label: '市場產業', default: true },
+  { key: 'g-240d', label: '240日漲跌', default: false },
   { key: 'g-val', label: '評價', default: true },
   { key: 'g-neff', label: '聶夫', default: false },
   { key: 'g-lynch', label: '林區', default: false },
@@ -704,7 +706,10 @@ const CUSTOM_COLS = [
     { id: 'close', label: '收盤價' }, { id: 'change', label: '漲跌' }
   ]},
   { group: '市場產業', cols: [
-    { id: 'market', label: '市場' }, { id: 'industry', label: '產業別' }, { id: 'change_240d', label: '240日漲跌幅' }
+    { id: 'market', label: '市場' }, { id: 'industry', label: '產業別' }
+  ]},
+  { group: '240日漲跌', cols: [
+    { id: 'change_240d', label: '240日漲跌幅' }
   ]},
   { group: '評價', cols: [
     { id: 'val_aa', label: 'AA' }, { id: 'val_a1', label: 'A1' }, { id: 'val_a2', label: 'A2' },
@@ -3040,7 +3045,7 @@ function render() {
         return `<td class="g-fg${divCls}">${gradeHtml(g)}</td>`;
       }).join('')}
       <!-- 補充 -->
-      <td class="g-mkt ${c240Class} col-div" data-col="change_240d">${c240Str}</td>
+      <td class="g-240d ${c240Class} col-div" data-col="change_240d">${c240Str}</td>
       <td class="g-qeps col-div" data-col="eps_date">${epsDateHtml}</td>
       <!-- 動態欄位 -->
       ${_fixedQ.map((q, i) => { const v = r._qeps[q]; return `<td class="g-qeps${i===0?' col-div':''}">${v != null ? fmtEps(v) : '－'}</td>`; }).join('')}
