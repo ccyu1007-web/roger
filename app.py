@@ -314,8 +314,16 @@ def _calc_checklist_for_stock(r, user_params=None):
         qs = [float(v) for v in qs if v]
         if qs:
             est_eps_user = round(sum(qs), 2)
-        if user_params.get('div'):
+        # fallback: 估值模型的預估EPS（vmEps）
+        if est_eps_user is None and user_params.get('vmEps') and str(user_params['vmEps']).strip():
+            try: est_eps_user = float(user_params['vmEps'])
+            except Exception: pass
+        if user_params.get('div') and str(user_params['div']).strip():
             est_div_user = float(user_params['div'])
+        # fallback: 估值模型的預估股利（vmDiv）
+        if est_div_user is None and user_params.get('vmDiv') and str(user_params['vmDiv']).strip():
+            try: est_div_user = float(user_params['vmDiv'])
+            except Exception: pass
 
     close = r.get('close')
     shen_eps = r.get('shen_eps')
