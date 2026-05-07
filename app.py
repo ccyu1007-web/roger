@@ -1135,6 +1135,14 @@ def refresh():
                 # 股價更新後重算檢核表
                 try: calc_all_checklists()
                 except Exception: pass
+                # 自動 push 到 Render（股價+stocks+營收+季報）
+                if not os.environ.get('DATABASE_URL'):
+                    try:
+                        from render_sync import _push_prices_to_render, _push_annual_to_render
+                        _push_prices_to_render()
+                        _push_annual_to_render()
+                    except Exception as e:
+                        print(f"[更新股價] push Render 失敗: {e}")
             finally:
                 _is_refreshing = False
 
