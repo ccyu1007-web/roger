@@ -5,3 +5,12 @@ db_backups/
 raw_backup/
 logs/
 .DS_Store
+.env
+.env.*
+*.key
+*.pem
+credentials*
+secrets*
+*.secret
+venv/
+.venv/
