@@ -1180,6 +1180,42 @@ def _get_today_start():
     from datetime import date
     return date.today().strftime('%Y-%m-%d') + ' 00:00:00'
 
+# ── MOPS 連線診斷（臨時，確認後刪除）─────────────────────
+@app.route("/api/debug/mops-test")
+def debug_mops_test():
+    """測試 Render 能否連到 MOPS，回傳抓到的筆數"""
+    import requests as _req
+    from datetime import date as _date
+    today = _date.today()
+    month = today.month - 1 if today.month > 1 else 12
+    roc_year = today.year - 1911 if today.month > 1 else today.year - 1911 - 1
+    results = {}
+    for mtype, mpath in [('sii', 'sii'), ('otc', 'otc')]:
+        url = f"https://mopsov.twse.com.tw/nas/t21/{mpath}/t21sc03_{roc_year}_{month}_0.html"
+        try:
+            r = _req.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+            results[mtype] = {
+                'status_code': r.status_code,
+                'content_length': len(r.text),
+                'encoding': r.encoding,
+                'first_200': r.text[:200],
+            }
+            # 數有幾筆
+            from bs4 import BeautifulSoup as _BS
+            r.encoding = 'big5'
+            soup = _BS(r.text, 'html.parser')
+            cnt = 0
+            for tr in soup.find_all('tr'):
+                tds = tr.find_all(['td', 'th'])
+                texts = [td.get_text(strip=True) for td in tds]
+                if len(texts) >= 8 and texts[0].isdigit() and len(texts[0]) == 4:
+                    cnt += 1
+            results[mtype]['parsed_rows'] = cnt
+        except Exception as e:
+            results[mtype] = {'error': str(e)}
+    results['target'] = f'{roc_year}年{month}月'
+    return jsonify(results)
+
 # ── 手動觸發更新（背景執行，立即回應）─────────────────────
 @app.route("/api/refresh", methods=["POST"])
 def refresh():
