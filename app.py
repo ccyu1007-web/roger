@@ -273,16 +273,33 @@ def _calc_shen_fields(r, cur_roc, global_settings=None):
 
 # ── 檢核表計算 ─────────────────────────────────────────────
 
+# 檢核項目定義（順序即顯示順序，插入/調序只改這裡）
+CHECKLIST_ITEMS = [
+    # ── 基本門檻 ──
+    {'key': 'fin_grade',      'category': 'base',  'label': '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上'},
+    {'key': 'cum_yoy',        'category': 'base',  'label': '累積營收年增率 >= 0%'},
+    {'key': 'gm_change',      'category': 'base',  'label': '最近一季毛利率變化 > 0'},
+    {'key': 'best_grade_aa',  'category': 'base',  'label': '最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）'},
+    {'key': 'price_below_aa', 'category': 'base',  'label': '目前股價低於總表評價 AA'},
+    {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
+    {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
+    # ── 成長加分 ──
+    {'key': 'neff_growth',    'category': 'bonus', 'label': '聶夫保守成長率 >= 7%'},
+    {'key': 'neff_ratio',     'category': 'bonus', 'label': '聶夫 Neff 比率 >= 0.7'},
+    {'key': 'lynch_peg',      'category': 'bonus', 'label': '林區 PEG <= 1.0'},
+    {'key': 'lynch_consist',  'category': 'bonus', 'label': '林區成長一致性 >= 0.5'},
+]
+CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
+CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
+CHECKLIST_ALL_KEYS = [item['key'] for item in CHECKLIST_ITEMS]
+
 def _init_checklist_db():
     """建立 stock_checklist 資料表"""
     conn = sqlite3.connect(DB_PATH)
     conn.execute("""CREATE TABLE IF NOT EXISTS stock_checklist (
         code TEXT PRIMARY KEY,
-        chk_1 INTEGER, chk_2 INTEGER, chk_3 INTEGER, chk_4 INTEGER,
-        chk_5 INTEGER, chk_6 INTEGER, chk_7 INTEGER, chk_8 INTEGER,
-        chk_9 INTEGER, chk_10 INTEGER, chk_11 INTEGER, chk_12 INTEGER,
-        chk_13 INTEGER,
-        pass_count INTEGER, total_count INTEGER DEFAULT 13,
+        pass_count INTEGER, total_count INTEGER,
+        base_count INTEGER, bonus_count INTEGER,
         detail TEXT,
         eps_setting REAL, div_setting REAL,
         yld_high REAL, yld_max REAL, pe_high REAL, pe_low REAL,
@@ -291,25 +308,31 @@ def _init_checklist_db():
         lt5 REAL, lt6 REAL, lt7 REAL,
         updated_at TEXT
     )""")
-    # 既有表加欄位
-    for col, typ in [('chk_13','INTEGER'),
-                     ('eps_setting','REAL'),('div_setting','REAL'),
-                     ('yld_high','REAL'),('yld_max','REAL'),('pe_high','REAL'),('pe_low','REAL'),
-                     ('lt_div','REAL'),('lt_yld','REAL'),
-                     ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
-                     ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
-                     ('base_count','INTEGER'),('bonus_count','INTEGER'),
-                     # 成長率指標欄位（聶夫/林區）
-                     ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
-                     ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
-                     ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
-                     ('gi_intrinsic_growth','REAL'),
-                     ('gi_lynch_a','REAL'),('gi_lynch_b','REAL'),
-                     ('gi_lynch_c','REAL'),('gi_lynch_d','REAL'),
-                     ('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
-                     ('gi_yield','REAL'),('gi_pe','REAL'),
-                     ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
-                     ('gi_warnings','TEXT')]:
+    # 動態加 chk_{key} 欄位（名稱制）
+    add_cols = [(f'chk_{item["key"]}', 'INTEGER') for item in CHECKLIST_ITEMS]
+    # 舊欄位相容（保留但不再寫入）
+    add_cols += [('chk_1','INTEGER'),('chk_2','INTEGER'),('chk_3','INTEGER'),
+                 ('chk_4','INTEGER'),('chk_5','INTEGER'),('chk_6','INTEGER'),
+                 ('chk_7','INTEGER'),('chk_8','INTEGER'),('chk_9','INTEGER'),
+                 ('chk_10','INTEGER'),('chk_11','INTEGER'),('chk_12','INTEGER'),('chk_13','INTEGER')]
+    # 其他欄位
+    add_cols += [('eps_setting','REAL'),('div_setting','REAL'),
+                 ('yld_high','REAL'),('yld_max','REAL'),('pe_high','REAL'),('pe_low','REAL'),
+                 ('lt_div','REAL'),('lt_yld','REAL'),
+                 ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
+                 ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
+                 ('base_count','INTEGER'),('bonus_count','INTEGER'),
+                 ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
+                 ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
+                 ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
+                 ('gi_intrinsic_growth','REAL'),
+                 ('gi_lynch_a','REAL'),('gi_lynch_b','REAL'),
+                 ('gi_lynch_c','REAL'),('gi_lynch_d','REAL'),
+                 ('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
+                 ('gi_yield','REAL'),('gi_pe','REAL'),
+                 ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
+                 ('gi_warnings','TEXT')]
+    for col, typ in add_cols:
         try: conn.execute(f"ALTER TABLE stock_checklist ADD COLUMN {col} {typ}")
         except Exception: pass
     conn.commit()
@@ -361,7 +384,7 @@ def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor
     return None
 
 def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
-    """計算單支股票的 12 項檢核，r 為 stocks 表的 row dict（已含 shen 欄位）"""
+    """計算單支股票的檢核表（名稱制），r 為 stocks 表的 row dict（已含 shen 欄位）"""
     import json
     checks = {}
     detail = {}
@@ -512,37 +535,36 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     lt6 = round(lt_div / 0.06, 2) if lt_div and lt_div > 0 else None
     lt7 = round(lt_div / 0.07, 2) if lt_div and lt_div > 0 else None
 
-    # === 基本門檻 6 項 + 成長加分 4 項 ===
+    # === 基本門檻 + 成長加分（名稱制） ===
 
     # ── 基本門檻 ──
 
-    # 1. 近五年財務等級：有3年以上B級以上，且近兩年都B級以上
+    # fin_grade: 近五年財務等級有3年以上B級以上，且近兩年都B級以上
     grades5 = [r.get(f'fin_grade_{i}') for i in range(1, 6)]
     grades5y = [r.get(f'fin_grade_{i}y') for i in range(1, 6)]
     above_b = sum(1 for g in grades5 if _is_grade_above_b(g))
     recent2 = _is_grade_above_b(grades5[0]) and _is_grade_above_b(grades5[1]) if len(grades5) >= 2 else False
-    checks[1] = 1 if above_b >= 3 and recent2 else 0
-    detail['chk_1'] = ' / '.join(
+    checks['fin_grade'] = 1 if above_b >= 3 and recent2 else 0
+    detail['fin_grade'] = ' / '.join(
         f'{grades5y[i] or ""}:{grades5[i]}' if grades5[i] else '--'
         for i in range(5)
     )
 
-    # 2. 累積營收年增率 >= 0%
+    # cum_yoy: 累積營收年增率 >= 0%
     cum_yoy = r.get('revenue_cum_yoy')
-    checks[2] = 1 if cum_yoy is not None and cum_yoy >= 0 else 0
-    detail['chk_2'] = f'{cum_yoy}%' if cum_yoy is not None else None
+    checks['cum_yoy'] = 1 if cum_yoy is not None and cum_yoy >= 0 else 0
+    detail['cum_yoy'] = f'{cum_yoy}%' if cum_yoy is not None else None
 
-    # 3. 最近一季毛利率變化 > 0（資料由外部傳入 r['_gm_data']）
+    # gm_change: 最近一季毛利率變化 > 0（資料由外部傳入 r['_gm_data']）
     gm_data = r.get('_gm_data')  # {'latest_q','latest_gm','prev_q','prev_gm','change'}
     gm_change = gm_data.get('change') if gm_data else None
-    checks[3] = 1 if gm_change is not None and gm_change > 0 else 0
+    checks['gm_change'] = 1 if gm_change is not None and gm_change > 0 else 0
     if gm_data and gm_change is not None:
-        detail['chk_3'] = f'{gm_data["latest_q"]}毛利率{gm_data["latest_gm"]}% - {gm_data["prev_q"]}毛利率{gm_data["prev_gm"]}% = {gm_change:+.2f}%'
+        detail['gm_change'] = f'{gm_data["latest_q"]}毛利率{gm_data["latest_gm"]}% - {gm_data["prev_q"]}毛利率{gm_data["prev_gm"]}% = {gm_change:+.2f}%'
     else:
-        detail['chk_3'] = None
+        detail['gm_change'] = None
 
-    # 4. 最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）
-    # 系統等級
+    # best_grade_aa: 最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）
     sys_grade = None
     sys_eps = r.get('sys_ann_eps')
     sys_div = r.get('sys_ann_div')
@@ -553,9 +575,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     elif sys_eps is not None and sys_eps <= 0:
         sys_grade = 'X'
 
-    # 近四季等級
     trail_eps = r.get('eps_4q_sum')
-    trail_div = shen_div  # 近四季用沈董股利
+    trail_div = shen_div
     trail_grade = None
     if trail_eps and trail_eps > 0 and close and close > 0 and trail_div and trail_div > 0:
         trail_pe = round(close / trail_eps, 2)
@@ -579,40 +600,37 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
             best_grade = g
             best_grade_src = src
             break
-    checks[4] = 1 if _is_grade_aa(best_grade) else 0
+    checks['best_grade_aa'] = 1 if _is_grade_aa(best_grade) else 0
     grade_summary = ' / '.join(f'{src}:{g or "-"}' for src, g in best_grade_order)
-    detail['chk_4'] = f'最佳={best_grade_src}:{best_grade}　({grade_summary})'
+    detail['best_grade_aa'] = f'最佳={best_grade_src}:{best_grade}　({grade_summary})'
 
-    # 5. 目前股價低於總表評價 AA
+    # price_below_aa: 目前股價低於總表評價 AA
     _eps_src = '預估EPS' if est_eps is not None else '沈董EPS'
     _div_src = '預估股利' if est_div is not None else '沈董股利'
     _val_param = f'EPS={val_eps}({_eps_src}) 股利={val_div}({_div_src})'
-    checks[5] = 1 if close is not None and val_aa is not None and close <= val_aa + 0.005 else 0
-    detail['chk_5'] = f'股價:{close} 評價AA:{val_aa}　{_val_param}' if val_aa is not None else None
+    checks['price_below_aa'] = 1 if close is not None and val_aa is not None and close <= val_aa + 0.005 else 0
+    detail['price_below_aa'] = f'股價:{close} 評價AA:{val_aa}　{_val_param}' if val_aa is not None else None
 
-    # 6. 綜合殖利率 >= 6%
-    checks[6] = 1 if blend_yld is not None and blend_yld >= 6 else 0
+    # blend_yield: 綜合殖利率 >= 6%
+    checks['blend_yield'] = 1 if blend_yld is not None and blend_yld >= 6 else 0
     if blend_yld is not None:
         _blend_formula = r.get('_blend_div_formula') or ''
-        detail['chk_6'] = f'殖利率={blend_yld}%　綜合股利{blend_div} / 股價{close} × 100　股利算法：{_blend_formula}'
+        detail['blend_yield'] = f'殖利率={blend_yld}%　綜合股利{blend_div} / 股價{close} × 100　股利算法：{_blend_formula}'
     else:
-        detail['chk_6'] = None
+        detail['blend_yield'] = None
 
-    # 7. 股利折現模式現價潛在年報酬 >= 10%
-    # 與前端 calcDDM 一致：EPS 和股利每次從最新資料帶入，PE/折現率用使用者設定
+    # ddm_return: 股利折現模式現價潛在年報酬 >= 10%
     ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
     ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
-    # EPS：與前端一致 vmEps > min(sysEps, shenEps) > sysEps || shenEps
     ddm_eps = None
     if est_eps_user is not None:
-        ddm_eps = est_eps_user  # vmEps（預估EPS）
+        ddm_eps = est_eps_user
     else:
         sys_eps_val = r.get('sys_ann_eps')
         if sys_eps_val is not None and shen_eps is not None:
             ddm_eps = min(sys_eps_val, shen_eps)
         else:
             ddm_eps = sys_eps_val or shen_eps
-    # 股利：與前端一致，用綜合股利填入三年
     ddm_div = blend_div or shen_div
     ddm_ann_ret = None
     if ddm_eps and ddm_eps > 0 and close and close > 0:
@@ -623,64 +641,64 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
             target_price = sell_price + total_div
             total_ret = (target_price - close) / close
             ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
-    checks[7] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
+    checks['ddm_return'] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
     if ddm_ann_ret is not None:
-        detail['chk_7'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
+        detail['ddm_return'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
     else:
-        detail['chk_7'] = None
+        detail['ddm_return'] = None
 
     # ── 成長加分 ──
 
-    # 8. 保守成長率 >= 7%（聶夫法門檻）
+    # neff_growth: 保守成長率 >= 7%（聶夫法門檻）
     gi = r.get('_gi') or {}
     neff_a = gi.get('neff_a')    # 5年端點
     neff_b = gi.get('neff_b')    # 5年平滑
     neff_3a = gi.get('neff_3a')  # 3年端點
     neff_3b = gi.get('neff_3b')  # 3年平滑
     neff_c = gi.get('neff_c')
-    checks[8] = 1 if neff_c is not None and neff_c >= 7 else 0
+    checks['neff_growth'] = 1 if neff_c is not None and neff_c >= 7 else 0
     if neff_c is not None:
         _parts = []
         if neff_a is not None: _parts.append(f'5年端點{neff_a}%')
         if neff_b is not None: _parts.append(f'5年平滑{neff_b}%')
         if neff_3a is not None: _parts.append(f'3年端點{neff_3a}%')
         if neff_3b is not None: _parts.append(f'3年平滑{neff_3b}%')
-        detail['chk_8'] = f'保守成長率={neff_c}%　min({", ".join(_parts)})，>20%以20%計'
+        detail['neff_growth'] = f'保守成長率={neff_c}%　min({", ".join(_parts)})，>20%以20%計'
     else:
-        detail['chk_8'] = None
+        detail['neff_growth'] = None
 
-    # 9. Neff比率 >= 0.7
+    # neff_ratio: Neff比率 >= 0.7
     neff_d = gi.get('neff_d')
     _gi_yld = gi.get('yield', 0)
     _gi_pe = gi.get('pe', 0)
-    checks[9] = 1 if neff_d is not None and neff_d >= 0.7 else 0
+    checks['neff_ratio'] = 1 if neff_d is not None and neff_d >= 0.7 else 0
     if neff_d is not None:
         _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
-        detail['chk_9'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {_total_ret}/{_gi_pe} = {neff_d}'
+        detail['neff_ratio'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {_total_ret}/{_gi_pe} = {neff_d}'
     else:
-        detail['chk_9'] = None
+        detail['neff_ratio'] = None
 
-    # 10. 林區PEG <= 1.0
+    # lynch_peg: 林區PEG <= 1.0
     lynch_d = gi.get('lynch_d')
-    checks[10] = 1 if lynch_d is not None and lynch_d <= 1.0 else 0
+    checks['lynch_peg'] = 1 if lynch_d is not None and lynch_d <= 1.0 else 0
     if lynch_d is not None:
         _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
         _lynch_gray_note = '（景氣循環股：PEG參考用）' if gi.get('lynch_gray') else ''
-        detail['chk_10'] = f'PEG={lynch_d}　PE{_gi_pe} / (保守成長率{neff_c}% + 殖利率{_gi_yld}%) = {_gi_pe}/{_total_ret} = {lynch_d}{_lynch_gray_note}'
+        detail['lynch_peg'] = f'PEG={lynch_d}　PE{_gi_pe} / (保守成長率{neff_c}% + 殖利率{_gi_yld}%) = {_gi_pe}/{_total_ret} = {lynch_d}{_lynch_gray_note}'
     else:
-        detail['chk_10'] = None
+        detail['lynch_peg'] = None
 
-    # 11. 林區成長一致性 >= 0.5
+    # lynch_consist: 林區成長一致性 >= 0.5
     lynch_b = gi.get('lynch_b')
     lynch_c = gi.get('lynch_c')
-    checks[11] = 1 if lynch_c is not None and lynch_c >= 0.5 else 0
+    checks['lynch_consist'] = 1 if lynch_c is not None and lynch_c >= 0.5 else 0
     if lynch_c is not None:
-        detail['chk_11'] = f'一致性={lynch_c}　1 - |算術平均{lynch_b}% - 5年淨利CAGR{neff_a}%| / {neff_a}% = {lynch_c}'
+        detail['lynch_consist'] = f'一致性={lynch_c}　1 - |算術平均{lynch_b}% - 5年淨利CAGR{neff_a}%| / {neff_a}% = {lynch_c}'
     else:
-        detail['chk_11'] = None
+        detail['lynch_consist'] = None
 
-    base_count = sum(checks[i] for i in range(1, 8))
-    bonus_count = sum(checks[i] for i in range(8, 12))
+    base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
+    bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
     pass_count = base_count + bonus_count
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
@@ -709,9 +727,9 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
 
     return {
         'code': r['code'],
-        **{f'chk_{i}': checks.get(i, 0) for i in range(1, 12)},
+        **{f'chk_{k}': checks.get(k, 0) for k in CHECKLIST_ALL_KEYS},
         'pass_count': pass_count,
-        'total_count': 11,
+        'total_count': len(CHECKLIST_ALL_KEYS),
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
@@ -811,9 +829,9 @@ def calc_all_checklists():
         user_params = ue_map.get(r['code'])
         result = _calc_checklist_for_stock(r, user_params, gs)
 
-        # 動態建構 INSERT/UPDATE（含成長率指標欄位）
-        all_fields = ['code', 'chk_1', 'chk_2', 'chk_3', 'chk_4', 'chk_5', 'chk_6',
-                       'chk_7', 'chk_8', 'chk_9', 'chk_10', 'chk_11',
+        # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位）
+        chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
+        all_fields = ['code'] + chk_fields + [
                        'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
                        'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                        'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
@@ -905,8 +923,8 @@ def _recalc_checklist_single(code):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
-    all_fields = ['code', 'chk_1', 'chk_2', 'chk_3', 'chk_4', 'chk_5', 'chk_6',
-                   'chk_7', 'chk_8', 'chk_9', 'chk_10', 'chk_11',
+    chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
+    all_fields = ['code'] + chk_fields + [
                    'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
                    'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                    'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
@@ -3721,8 +3739,10 @@ def get_checklist(code):
         if r.get('detail'):
             try: r['detail'] = json.loads(r['detail'])
             except Exception: pass
+        # 附帶檢核項目定義，前端動態渲染用
+        r['_items'] = CHECKLIST_ITEMS
         return jsonify(r)
-    return jsonify({})
+    return jsonify({'_items': CHECKLIST_ITEMS})
 
 @app.route("/api/checklist/refresh", methods=["POST"])
 def refresh_checklist():

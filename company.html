@@ -630,21 +630,10 @@ async function loadDecision() {
     const fmtV = v => v != null ? Number(v).toFixed(2) : '-';
     const chgStr = chg != null ? `<span style="color:${chg > 0 ? '#dc2626' : chg < 0 ? '#16a34a' : '#64748b'};font-weight:600">${chg > 0 ? '+' : ''}${chg.toFixed(2)}</span>` : '-';
 
-    const baseLabels = [
-      '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上',
-      '累積營收年增率 >= 0%',
-      '最近一季毛利率變化 > 0',
-      '最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）',
-      '目前股價低於總表評價 AA',
-      '綜合殖利率 >= 6%',
-      '股利折現模式現價潛在年報酬 >= 10%',
-    ];
-    const bonusLabels = [
-      '聶夫保守成長率 >= 7%',
-      '聶夫 Neff 比率 >= 0.7',
-      '林區 PEG <= 1.0',
-      '林區成長一致性 >= 0.5',
-    ];
+    // 從 API 取得檢核項目定義（單一來源，不用前端維護 labels）
+    const items = cl._items || [];
+    const baseItems = items.filter(it => it.category === 'base');
+    const bonusItems = items.filter(it => it.category === 'bonus');
 
     const detail = cl.detail || {};
     // 容錯：Render DB 可能沒有 base_count/bonus_count 欄位，自己算
@@ -652,11 +641,11 @@ async function loadDecision() {
     let bonusCount = cl.bonus_count;
     if (baseCount == null) {
       baseCount = 0;
-      for (let i = 1; i <= 7; i++) if (cl[`chk_${i}`] === 1) baseCount++;
+      baseItems.forEach(it => { if (cl[`chk_${it.key}`] === 1) baseCount++; });
     }
     if (bonusCount == null) {
       bonusCount = 0;
-      for (let i = 8; i <= 11; i++) if (cl[`chk_${i}`] === 1) bonusCount++;
+      bonusItems.forEach(it => { if (cl[`chk_${it.key}`] === 1) bonusCount++; });
     }
     const baseClass = baseCount >= 6 ? 'chk-score-pass' : baseCount >= 4 ? 'chk-score-warn' : 'chk-score-fail';
     const bonusClass = bonusCount >= 3 ? 'chk-score-pass' : bonusCount >= 1 ? 'chk-score-warn' : 'chk-score-fail';
@@ -664,46 +653,44 @@ async function loadDecision() {
     let html = '';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score ${baseClass}">基本 ${baseCount}/7</span>`;
-    html += `<span class="chk-score ${bonusClass}" style="margin-left:8px">加分 ${bonusCount}/4</span>`;
+    html += `<span class="chk-score ${baseClass}">基本 ${baseCount}/${baseItems.length}</span>`;
+    html += `<span class="chk-score ${bonusClass}" style="margin-left:8px">加分 ${bonusCount}/${bonusItems.length}</span>`;
     html += '</div>';
 
-    // 基本門檻
+    // 基本門檻（動態渲染，順序由後端定義）
     html += '<table class="chk-table">';
     html += '<thead><tr><th>#</th><th>基本門檻</th><th>是</th><th>否</th></tr></thead>';
     html += '<tbody>';
-    for (let i = 0; i < 6; i++) {
-      const chkIdx = i + 1;
-      const pass = cl[`chk_${chkIdx}`] === 1;
-      const d = detail[`chk_${chkIdx}`] || '';
+    baseItems.forEach((it, i) => {
+      const pass = cl[`chk_${it.key}`] === 1;
+      const d = detail[it.key] || '';
       html += '<tr>';
-      html += `<td>${chkIdx}</td>`;
-      html += `<td class="chk-cond">${baseLabels[i]}`;
+      html += `<td>${i + 1}</td>`;
+      html += `<td class="chk-cond">${it.label}`;
       if (d) html += `<div class="chk-detail">${d}</div>`;
       html += '</td>';
       html += `<td class="chk-yes">${pass ? 'V' : ''}</td>`;
       html += `<td class="chk-no">${pass ? '' : 'X'}</td>`;
       html += '</tr>';
-    }
+    });
     html += '</tbody></table>';
 
-    // 成長加分
+    // 成長加分（動態渲染）
     html += '<table class="chk-table" style="margin-top:12px">';
     html += '<thead><tr><th>#</th><th>成長加分</th><th>是</th><th>否</th></tr></thead>';
     html += '<tbody>';
-    for (let i = 0; i < 4; i++) {
-      const chkIdx = i + 7;
-      const pass = cl[`chk_${chkIdx}`] === 1;
-      const d = detail[`chk_${chkIdx}`] || '';
+    bonusItems.forEach((it, i) => {
+      const pass = cl[`chk_${it.key}`] === 1;
+      const d = detail[it.key] || '';
       html += '<tr>';
-      html += `<td>${chkIdx}</td>`;
-      html += `<td class="chk-cond">${bonusLabels[i]}`;
+      html += `<td>${i + 1}</td>`;
+      html += `<td class="chk-cond">${it.label}`;
       if (d) html += `<div class="chk-detail">${d}</div>`;
       html += '</td>';
       html += `<td class="chk-yes">${pass ? 'V' : ''}</td>`;
       html += `<td class="chk-no">${pass ? '' : 'X'}</td>`;
       html += '</tr>';
-    }
+    });
     html += '</tbody></table>';
 
     // === 配息率歷史（近5年）===
