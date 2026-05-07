@@ -28,6 +28,10 @@ TABLE_PK = {
     'daily_price':          ['code', 'date'],
     'focus_tracking':       ['code'],
     'focus_signals':        ['code', 'date', 'signal_type'],
+    'user_lists':           ['list_type', 'code'],
+    'user_notes':           ['code'],
+    'user_estimates':       ['code'],
+    'user_settings':        ['key'],
 }
 
 
