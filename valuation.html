@@ -105,7 +105,7 @@ let _qualitySet = new Set();
 let _focusTrackSet = new Set();
 let _cheapList = [];   // 從 DB 的 val_cheap_list
 let _changes = [];     // 從 DB 的 val_level_changes
-let _crosses = [];     // 從 DB 的 val_threshold_crosses
+let _byThreshold = {}; // 從 DB 的 val_by_threshold
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
@@ -130,7 +130,7 @@ async function load() {
     // 直接用 DB 算好的資料
     _cheapList = _data.val_cheap_list || [];
     _changes = _data.val_level_changes || [];
-    _crosses = _data.val_threshold_crosses || [];
+    _byThreshold = _data.val_by_threshold || {};
 
     // 建立等級變動查找表（code → change info）
     const changeMap = {};
@@ -180,7 +180,8 @@ function updateCounts() {
   pool = pool.filter(s => !s._removed);
   document.getElementById('cntAA').textContent = pool.filter(s => s.level === 'AA').length;
   document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.level)).length;
-  document.getElementById('cntCross').textContent = _crosses.length;
+  const totalCross = Object.values(_byThreshold).reduce((s, arr) => s + arr.filter(x => x.cross).length, 0);
+  document.getElementById('cntCross').textContent = totalCross;
 }
 
 function renderTab() {
@@ -288,44 +289,63 @@ function renderList(mode) {
 }
 
 function renderCrosses() {
-  const belows = _crosses.filter(c => c.direction === 'below');
-  const aboves = _crosses.filter(c => c.direction === 'above');
+  const thNames = ['AA', 'A1', 'A2', 'A', '長期6%'];
+  const thStyle = {
+    'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
+    'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
+    'A2':    {bg:'#eff6ff', color:'#1d4ed8', border:'#3b82f6'},
+    'A':     {bg:'#f0fdf4', color:'#166534', border:'#22c55e'},
+    '長期6%': {bg:'#ecfdf5', color:'#065f46', border:'#10b981'},
+  };
 
-  const thColor = {'AA':'#dc2626','A1':'#92400e','A2':'#1d4ed8','A':'#166534','長期6%':'#059669'};
-  const thBg = {'AA':'#fee2e2','A1':'#fef3c7','A2':'#dbeafe','A':'#dcfce7','長期6%':'#ecfdf5'};
+  let html = '';
+  thNames.forEach(th => {
+    const items = _byThreshold[th] || [];
+    const normal = items.filter(s => !s._removed);
+    const removed = items.filter(s => s._removed);
+    const st = thStyle[th];
 
-  function renderGroup(items, title, headerStyle) {
-    if (!items.length) return `<div class="section">
-      <div class="section-header" style="${headerStyle}">${title}<span style="font-weight:400;font-size:.82rem;margin-left:8px">0 支</span></div>
-      <div style="text-align:center;padding:30px;color:#94a3b8">今日無穿越</div></div>`;
+    html += `<div class="section">
+      <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
+        ${th} 門檻
+        <span style="font-weight:400;font-size:.82rem;margin-left:8px">${normal.length} 支</span>
+      </div>`;
 
-    let html = `<div class="section">
-      <div class="section-header" style="${headerStyle}">${title}<span style="font-weight:400;font-size:.82rem;margin-left:8px">${items.length} 支</span></div>
-      <div style="padding:0 20px"><table class="val-table"><thead><tr>
+    if (!normal.length && !removed.length) {
+      html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
+    } else {
+      html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-        <th style="width:80px;text-align:center">穿越門檻</th>
+        <th style="width:80px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">門檻價</th>
-        <th style="width:80px;text-align:right">今日股價</th>
-        <th style="width:80px;text-align:right">昨日股價</th>
+        <th style="width:80px;text-align:right">折價幅度</th>
+        <th style="width:80px;text-align:center">狀態</th>
       </tr></thead><tbody>`;
-    items.forEach(c => {
-      const color = thColor[c.threshold] || '#475569';
-      const bg = thBg[c.threshold] || '#f8fafc';
-      html += `<tr>
-        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-        <td>${c.name}</td>
-        <td style="text-align:center"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:700;background:${bg};color:${color}">${c.threshold}</span></td>
-        <td style="text-align:right;font-weight:600;color:${color}">${c.threshold_val.toFixed(2)}</td>
-        <td style="text-align:right;font-weight:600">${c.price.toFixed(2)}</td>
-        <td style="text-align:right;color:#94a3b8">${c.prev_price.toFixed(2)}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div></div>';
-    return html;
-  }
 
-  let html = renderGroup(belows, '跌破門檻（變便宜）', 'background:#fef2f2;color:#991b1b;border-color:#ef4444');
-  html += renderGroup(aboves, '突破門檻（變貴）', 'background:#f0fdf4;color:#166534;border-color:#22c55e');
+      [...normal, ...removed].forEach(c => {
+        const isRemoved = !!c._removed;
+        const dp = c.discount_pct;
+        const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
+        const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
+        const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
+        let statusHtml = '';
+        if (c.cross === 'below') statusHtml = '<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破</span>';
+        else if (c.cross === 'above') statusHtml = '<span style="color:#059669;font-weight:700;font-size:.78rem">突破</span>';
+
+        html += `<tr${rowStyle}>
+          <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+          <td>${c.name}</td>
+          <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+          <td style="text-align:right;color:${st.color}">${c.threshold_val.toFixed(2)}</td>
+          <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
+          <td style="text-align:center">${statusHtml}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+  });
+
   document.getElementById('content').innerHTML = html;
 }
 

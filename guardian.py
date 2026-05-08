@@ -2320,7 +2320,10 @@ def get_daily_briefing():
 
     val_level_changes = []  # 閃電機會
     val_cheap_list = []     # 便宜清單
-    val_threshold_crosses = []  # 門檻穿越
+    # 門檻清單：每個門檻各自一份 below 清單 + 穿越標記
+    _TH_NAMES = ['AA', 'A1', 'A2', 'A', '長期6%']
+    _TH_FIELDS = {'AA': 'val_aa', 'A1': 'val_a1', 'A2': 'val_a2', 'A': 'val_a', '長期6%': 'val_lt6'}
+    val_by_threshold = {th: [] for th in _TH_NAMES}
     val_dist = {'AA': 0, 'A1': 0, 'A2': 0, 'A': 0}  # 累積分布
     val_dist_prev = {'AA': 0, 'A1': 0, 'A2': 0, 'A': 0}
 
@@ -2368,38 +2371,32 @@ def get_daily_briefing():
                         'val_a1': latest.get('val_a1'),
                             })
 
-        # 門檻穿越偵測（比較今天 vs 昨天股價是否穿越各門檻）
-        if len(snapshots) >= 2:
-            cur_price = latest.get('price')
-            prev_price = snapshots[1].get('price')
-            if cur_price and prev_price:
-                thresholds = [
-                    ('AA', latest.get('val_aa')),
-                    ('A1', latest.get('val_a1')),
-                    ('A2', latest.get('val_a2')),
-                    ('A', latest.get('val_a')),
-                    ('長期6%', latest.get('val_lt6')),
-                ]
-                for th_name, th_val in thresholds:
-                    if not th_val or th_val <= 0:
-                        continue
-                    tol = 0.005
-                    # 跌破：昨天在門檻上方，今天在門檻以下
-                    if prev_price > th_val + tol and cur_price <= th_val + tol:
-                        val_threshold_crosses.append({
-                            'code': sid, 'name': name,
-                            'price': cur_price, 'prev_price': prev_price,
-                            'threshold': th_name, 'threshold_val': th_val,
-                            'direction': 'below',
-                        })
-                    # 突破：昨天在門檻以下，今天在門檻上方
-                    elif prev_price <= th_val + tol and cur_price > th_val + tol:
-                        val_threshold_crosses.append({
-                            'code': sid, 'name': name,
-                            'price': cur_price, 'prev_price': prev_price,
-                            'threshold': th_name, 'threshold_val': th_val,
-                            'direction': 'above',
-                        })
+        # 門檻清單：每個門檻各自收集 below 的股票 + 穿越標記
+        cur_price = latest.get('price')
+        if cur_price:
+            prev_price = snapshots[1].get('price') if len(snapshots) >= 2 else None
+            tol = 0.005
+            for th_name in _TH_NAMES:
+                th_field = _TH_FIELDS[th_name]
+                th_val = latest.get(th_field)
+                if not th_val or th_val <= 0:
+                    continue
+                is_below = cur_price <= th_val + tol
+                was_below = prev_price <= th_val + tol if prev_price else None
+                cross = None
+                if prev_price:
+                    if is_below and not was_below:
+                        cross = 'below'   # 今天跌破
+                    elif not is_below and was_below:
+                        cross = 'above'   # 今天突破
+                if is_below or cross == 'above':
+                    val_by_threshold[th_name].append({
+                        'code': sid, 'name': name,
+                        'price': cur_price, 'threshold_val': th_val,
+                        'discount_pct': round((th_val - cur_price) / th_val * 100, 2) if is_below else None,
+                        'cross': cross,
+                        '_removed': cross == 'above',
+                    })
 
         # 便宜清單（AA/A1/A2/A 才列入）
         if cur_level and cur_level in CHEAP_GRADES:
@@ -2432,9 +2429,9 @@ def get_daily_briefing():
     # 排序
     val_level_changes.sort(key=lambda x: (0 if x['direction'] == 'cheaper' else 1, x['code']))
     val_cheap_list.sort(key=lambda x: (-LEVEL_DEPTH.get(x['level'], 0), -(x.get('discount_pct') or 0)))
-    # 門檻穿越排序：跌破在前，再按門檻深度排序
-    _TH_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, '長期6%': 1}
-    val_threshold_crosses.sort(key=lambda x: (0 if x['direction'] == 'below' else 1, -_TH_DEPTH.get(x['threshold'], 0), x['code']))
+    # 門檻清單排序：折價%高的在前，突破（removed）放最後
+    for th_name in _TH_NAMES:
+        val_by_threshold[th_name].sort(key=lambda x: (1 if x.get('_removed') else 0, -(x.get('discount_pct') or -999), x['code']))
 
     # 分布增減
     val_dist_delta = {}
@@ -2448,7 +2445,7 @@ def get_daily_briefing():
         'etf_changes': etf_changes,
         'summary': summary,
         'val_level_changes': val_level_changes,
-        'val_threshold_crosses': val_threshold_crosses,
+        'val_by_threshold': val_by_threshold,
         'val_dist': val_dist,
         'val_dist_delta': val_dist_delta,
         'val_cheap_list': val_cheap_list,
