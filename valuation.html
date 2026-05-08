@@ -340,13 +340,9 @@ function renderCrosses(thNames) {
         const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
         let statusHtml = '';
         if (c.cross === 'below') {
-          const from = c.from_level || 'above';
-          const to = c.to_level || '-';
-          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${from}→${to}</span>`;
+          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${c.from_th || 'above'}→${c.to_th}</span>`;
         } else if (c.cross === 'above') {
-          const from = c.from_level || '-';
-          const to = c.to_level || 'above';
-          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${from}→${to}</span>`;
+          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${c.from_th}→${c.to_th || 'above'}</span>`;
         }
 
         html += `<tr${rowStyle}>

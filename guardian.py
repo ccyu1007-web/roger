@@ -2422,8 +2422,8 @@ def get_daily_briefing():
                     'price': cur_price, 'threshold_val': th_val,
                     'discount_pct': round((th_val - cur_price) / th_val * 100, 2) if th_val > 0 else None,
                     'cross': cross,
-                    'from_level': prev_level if cross else None,
-                    'to_level': cur_level if cross else None,
+                    'from_th': prev_assigned or 'above' if cross else None,
+                    'to_th': assigned if cross else None,
                     '_removed': False,
                 })
 
@@ -2435,8 +2435,8 @@ def get_daily_briefing():
                     'price': cur_price, 'threshold_val': th_val,
                     'discount_pct': None,
                     'cross': 'above',
-                    'from_level': prev_level if prev_price else None,
-                    'to_level': cur_level,
+                    'from_th': prev_assigned,
+                    'to_th': assigned or 'above',
                     '_removed': True,
                 })
 
