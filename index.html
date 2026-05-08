@@ -490,7 +490,7 @@
           <!-- 股價 -->
           <th class="col-div" data-col="close" onclick="sortBy('close')">收盤價<span class="sort-icon" id="si_close">↕</span></th>
           <th data-col="change" onclick="sortBy('change')">漲跌<span class="sort-icon" id="si_change">↕</span></th>
-          <th class="g-240d" data-col="change_240d" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
+          <th class="g-240d col-div" data-col="change_240d" onclick="sortBy('change_240d')">240日漲跌幅<span class="sort-icon" id="si_change_240d">↕</span></th>
           <!-- 評價（可收合） -->
           <th class="g-val col-div" data-col="val_aa" onclick="sortBy('val_aa')">評價AA<span class="sort-icon" id="si_val_aa">↕</span></th>
           <th class="g-val" data-col="val_a1" onclick="sortBy('val_a1')">評價A1<span class="sort-icon" id="si_val_a1">↕</span></th>
@@ -2968,7 +2968,7 @@ function render() {
       <!-- 股價 -->
       <td class="col-div" data-col="close"><strong>${fmt(r.close)}</strong></td>
       <td class="${chgClass}" data-col="change">${chgStr}</td>
-      <td class="g-240d ${c240Class}" data-col="change_240d">${c240Str}</td>
+      <td class="g-240d ${c240Class} col-div" data-col="change_240d">${c240Str}</td>
       <!-- 評價 -->
       <td class="g-val col-div" data-col="val_aa"${r.val_aa != null && r.close != null && r.close <= r.val_aa ? ' style="background:#fee2e2;color:#dc2626;font-weight:700"' : ''}>${r.val_aa != null ? r.val_aa.toFixed(2) : '－'}</td>
       <td class="g-val" data-col="val_a1"${r.val_a1 != null && r.close != null && r.close <= r.val_a1 ? ' style="background:#fef3c7;color:#92400e;font-weight:700"' : ''}>${r.val_a1 != null ? r.val_a1.toFixed(2) : '－'}</td>
