@@ -1180,27 +1180,8 @@ def _post_process_after_save_inner(conn):
                 cnt += c.rowcount
         if cnt: print(f"  產業別 {label}: {cnt} 支")
 
-    # ── 營收用政府官方值覆蓋（避免 FinMind 自算值） ──
-    for label, url in [
-        ("上市", "https://openapi.twse.com.tw/v1/openData/t187ap05_L"),
-        ("上櫃", "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O"),
-    ]:
-        data = fetch_json(url)
-        if not data: continue
-        for d in data:
-            code = str(d.get('公司代號', '')).strip()
-            if not code: continue
-            ym_str = str(d.get('資料年月', '')).strip()
-            if len(ym_str) < 4: continue
-            try:
-                roc_year = int(ym_str[:-2])
-                month = int(ym_str[-2:])
-            except Exception: continue
-            yoy = safe_float(d.get('營業收入-去年同月增減(%)'))
-            mom = safe_float(d.get('營業收入-上月比較增減(%)'))
-            cum_yoy = safe_float(d.get('累計營業收入-前期比較增減(%)'))
-            c.execute("""UPDATE stocks SET revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?
-                         WHERE code=?""", (yoy, mom, cum_yoy, code))
+    # 已移除「營收用政府官方值覆蓋」— FinMind 已移除，不再需要。
+    # 此段曾造成 bug：政府 API 回傳舊月份的 yoy/mom/cum_yoy，覆蓋 MOPS 已寫入的新月份正確值。
 
     # ── eps_ytd 補齊 ──
     c.execute("UPDATE stocks SET eps_ytd=eps_y1, eps_ytd_label=eps_y1_label WHERE eps_ytd IS NULL AND eps_y1 IS NOT NULL")
