@@ -242,6 +242,7 @@ else:
     def connect(path=None, timeout=30):
         conn = _sqlite3.connect(path or 'stocks.db', timeout=timeout)
         conn.execute("PRAGMA busy_timeout=5000")  # 遇鎖等 5 秒再失敗
+        conn.execute("PRAGMA journal_mode=WAL")    # WAL 模式：讀寫不互擋
         return conn
 
 

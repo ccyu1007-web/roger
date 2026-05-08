@@ -3960,10 +3960,422 @@ def _fix_tax_data():
         print(f"  稅務資料修正：{fixed} 筆")
 
 
+# ══════════════════════════════════════════════════════════════
+# 三層架構：run_prices / run_maintenance / quick_update
+# ══════════════════════════════════════════════════════════════
+
+def run_prices(scheduled=True):
+    """14:30 盤後更新：股價 + 等級 + 評價 + push。目標 2~3 分鐘完成。"""
+    with ScraperLock('run_prices', timeout_sec=300) as lock:
+        if lock is None:
+            return
+        _run_prices_inner(scheduled)
+
+def _run_prices_inner(scheduled=True):
+    if scheduled:
+        jitter = random.randint(0, 30)
+        print(f"[排程抖動] 延遲 {jitter} 秒後開始...")
+        time.sleep(jitter)
+
+    t0 = time.time()
+    def _elapsed():
+        return f"{time.time()-t0:.1f}s"
+
+    print(f"\n{'='*50}")
+    print(f"股價更新  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'='*50}")
+    init_db()
+
+    # 1. 平行抓取股票清單 + 股價
+    t1 = time.time()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_twse = pool.submit(fetch_twse)
+        f_tpex = pool.submit(fetch_tpex)
+        twse_rows = f_twse.result()
+        tpex_rows = f_tpex.result()
+    all_rows = twse_rows + tpex_rows
+    print(f"[1.股價] {len(all_rows)} 支，{time.time()-t1:.1f}s")
+
+    # 2. 寫入 DB（只有股價欄位有值，其他為 None 不覆蓋）
+    t1 = time.time()
+    save_to_db(all_rows)
+    print(f"[2.寫入DB] {len(all_rows)} 筆，{time.time()-t1:.1f}s")
+
+    # 3. 股價修正：批次 API 日期不對 → 即時 API 覆蓋
+    if _twse_batch_date and _twse_batch_date != _today_roc() and datetime.now().weekday() < 5:
+        t1 = time.time()
+        rt_count = _refresh_realtime()
+        print(f"[3.股價修正] 即時API {rt_count} 支，{time.time()-t1:.1f}s")
+
+    # 4. 等級重算
+    t1 = time.time()
+    _refresh_fin_grades()
+    _refresh_grades_from_pbr()
+    _sync_eps_from_quarterly()
+    _sync_contract_from_quarterly()
+    print(f"[4.等級重算] {time.time()-t1:.1f}s")
+
+    # 5. 每日價量 + 評價快照
+    t1 = time.time()
+    _save_daily_price()
+    snapshot_stock_states()
+    try: focus_signal_check()
+    except Exception as e: print(f"[重點追蹤] 失敗: {e}")
+    print(f"[5.評價快照] {time.time()-t1:.1f}s")
+
+    # 6. Checklist + 衍生欄位
+    t1 = time.time()
+    try:
+        from app import calc_all_checklists, recalc_all_derived
+        calc_all_checklists()
+        recalc_all_derived()
+    except Exception as e:
+        print(f"[Checklist/Derived] 失敗: {e}")
+    print(f"[6.Checklist] {time.time()-t1:.1f}s")
+
+    # 7. Push 到 Render（只推股價+等級+評價）
+    t1 = time.time()
+    if not IS_CLOUD:
+        try:
+            _push_prices_to_render()
+            _push_annual_to_render()
+            _push_estimates_to_render()
+            _push_table_to_render(
+                table='stock_checklist',
+                columns=['code','checklist_data','updated_at'],
+                pk=['code'],
+            )
+        except Exception as e:
+            print(f"[Push] 失敗: {e}")
+    print(f"[7.Push Render] {time.time()-t1:.1f}s")
+
+    print(f"\n股價更新完成！{len(all_rows)} 支，總耗時 {_elapsed()}")
+
+
+def run_maintenance(scheduled=True):
+    """06:00 每日維護：補缺資料 + 股利 + ETF + 驗證 + 全量 push。不趕時間。"""
+    with ScraperLock('run_maintenance', timeout_sec=5400) as lock:
+        if lock is None:
+            return
+        _run_maintenance_inner(scheduled)
+
+def _run_maintenance_inner(scheduled=True):
+    if scheduled:
+        jitter = random.randint(0, 60)
+        print(f"[排程抖動] 延遲 {jitter} 秒後開始...")
+        time.sleep(jitter)
+
+    t0 = time.time()
+    def _elapsed():
+        return f"{time.time()-t0:.1f}s"
+
+    print(f"\n{'='*50}")
+    print(f"每日維護  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'='*50}")
+    init_db()
+
+    # 1. 240 日歷史收盤價
+    t1 = time.time()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f1 = pool.submit(fetch_twse_history_240d)
+        f2 = pool.submit(fetch_tpex_history_240d)
+        twse_hist = f1.result()
+        tpex_hist = f2.result()
+    hist_map = {**twse_hist, **tpex_hist}
+    # 更新 change_240d
+    if hist_map:
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            for code, hist_price in hist_map.items():
+                c.execute("SELECT close FROM stocks WHERE code=?", (code,))
+                row = c.fetchone()
+                if row and row[0]:
+                    chg = calc_change_240d(row[0], hist_price)
+                    if chg is not None:
+                        c.execute("UPDATE stocks SET change_240d=? WHERE code=?", (chg, code))
+            conn.commit()
+    print(f"[1.240日歷史] {len(hist_map)} 支，{time.time()-t1:.1f}s")
+
+    # 2. 股利（政府 API 批次）
+    t1 = time.time()
+    div_map = fetch_dividends_bulk()
+    # 寫入 stocks 表
+    if div_map:
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            for code, div in div_map.items():
+                sets, vals = [], []
+                for k, v in div.items():
+                    if v is not None:
+                        sets.append(f"{k}=?")
+                        vals.append(v)
+                if sets:
+                    vals.append(code)
+                    c.execute(f"UPDATE stocks SET {','.join(sets)} WHERE code=?", vals)
+            conn.commit()
+    print(f"[2.股利] {len(div_map)} 支，{time.time()-t1:.1f}s")
+
+    # 3. 年度 EPS 歷史（BWIBBU 反推）
+    t1 = time.time()
+    hist = fetch_eps_annual_history()
+    if hist:
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            label_cols = ', '.join(f'eps_y{i}_label' for i in range(1, 7))
+            all_labels = {}
+            for r in c.execute(f"SELECT code, {label_cols} FROM stocks WHERE code IN ({','.join('?' * len(hist))})", list(hist.keys())).fetchall():
+                all_labels[r[0]] = [r[j] for j in range(1, 7)]
+            for code, years in hist.items():
+                labels = all_labels.get(code, [None] * 6)
+                for yr, eps_val in years.items():
+                    for i in range(6):
+                        if labels[i] == yr: break
+                        if labels[i] is None:
+                            c.execute(f"UPDATE stocks SET eps_y{i+1}=?, eps_y{i+1}_label=? WHERE code=?", (eps_val, yr, code))
+                            labels[i] = yr
+                            break
+            conn.commit()
+    print(f"[3.BWIBBU] {len(hist)} 支，{time.time()-t1:.1f}s")
+
+    # 4. 產業別 + 營收官方值
+    t1 = time.time()
+    with sqlite3.get_conn() as conn:
+        _post_process_after_save_inner(conn)
+    print(f"[4.產業別+等級] {time.time()-t1:.1f}s")
+
+    # 5. 合併補缺（群益 8 並發）
+    t1 = time.time()
+    _fill_all_gaps()
+    print(f"[5.補缺] {time.time()-t1:.1f}s")
+
+    # 6. 系統 EPS 估算
+    t1 = time.time()
+    _batch_system_estimate()
+    _batch_annual_estimate()
+    print(f"[6.系統估算] {time.time()-t1:.1f}s")
+
+    # 7. BWIBBU 股利補充 + EPS/合約負債同步
+    t1 = time.time()
+    _fill_dividends_from_bwibbu()
+    _sync_eps_from_quarterly()
+    _sync_contract_from_quarterly()
+    print(f"[7.股利補充+同步] {time.time()-t1:.1f}s")
+
+    # 8. 等級重算 + 評價快照
+    t1 = time.time()
+    _refresh_fin_grades()
+    _refresh_grades_from_pbr()
+    _save_daily_price()
+    snapshot_stock_states()
+    print(f"[8.等級+快照] {time.time()-t1:.1f}s")
+
+    # 9. Yahoo 財報補充 + 月營收歷史
+    t1 = time.time()
+    _prefetch_watchlist_details()
+    print(f"[9.Yahoo+月營收] {time.time()-t1:.1f}s")
+
+    # 10. ETF 成分股
+    t1 = time.time()
+    try:
+        from etf_fetcher import run as etf_run
+        etf_run()
+    except Exception as e:
+        print(f"[ETF] 失敗: {e}")
+    print(f"[10.ETF] {time.time()-t1:.1f}s")
+
+    # 11. 交叉校驗
+    t1 = time.time()
+    try:
+        from guardian import cross_validate
+        cv = cross_validate(sample_size=20)
+        if cv['mismatches']:
+            print(f"[交叉校驗] {cv['checked']} 支抽查，{len(cv['mismatches'])} 支有差異")
+        else:
+            print(f"[交叉校驗] {cv['checked']} 支全部一致")
+    except Exception as e:
+        print(f"[交叉校驗] 失敗: {e}")
+    print(f"[11.校驗] {time.time()-t1:.1f}s")
+
+    # 12. Checklist + 衍生欄位
+    t1 = time.time()
+    try:
+        from app import calc_all_checklists, recalc_all_derived
+        calc_all_checklists()
+        recalc_all_derived()
+    except Exception as e:
+        print(f"[Checklist] 失敗: {e}")
+    print(f"[12.Checklist] {time.time()-t1:.1f}s")
+
+    # 13. 全量 Push 到 Render
+    t1 = time.time()
+    if not IS_CLOUD:
+        _push_all_to_render()
+    print(f"[13.Push Render] {time.time()-t1:.1f}s")
+
+    print(f"\n每日維護完成！總耗時 {_elapsed()}")
+
+
+def _fill_all_gaps():
+    """
+    合併補缺：一次掃描所有股票，找出缺 EPS/股利/財報/PE 的，
+    每支一次補齊所有缺漏，群益 8 並發。
+    取代原本分散的 _check_annual_eps/dividend_completeness + _fill_missing_financials。
+    """
+    from capital_fetcher import (
+        fetch_capital_annual_eps, fetch_capital_dividend,
+        fetch_all_three
+    )
+
+    cur_year = date.today().year
+    cur_roc = cur_year - 1911
+    expected_year = str(cur_roc - 1)  # 預期最新年度 EPS/股利（如 114）
+
+    # 查缺
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+
+        # 缺年度 EPS（4~6 月才檢查）
+        needs_eps = set()
+        if 4 <= date.today().month <= 6:
+            for r in c.execute(
+                "SELECT code FROM stocks WHERE close IS NOT NULL AND (eps_y1_label IS NULL OR eps_y1_label != ?)",
+                (expected_year,)
+            ).fetchall():
+                needs_eps.add(r[0])
+
+        # 缺股利
+        needs_div = set()
+        for r in c.execute(
+            "SELECT code FROM stocks WHERE close IS NOT NULL AND (div_1_label IS NULL OR div_1_label != ?)",
+            (expected_year,)
+        ).fetchall():
+            needs_div.add(r[0])
+
+        # 缺關鍵財報（年報 equity/cf/capex/dividend 或季報 inventory）
+        needs_financial = set()
+        for r in c.execute("""
+            SELECT DISTINCT s.code FROM stocks s
+            WHERE s.close IS NOT NULL AND (
+                s.code IN (
+                    SELECT code FROM financial_annual WHERE year = ? AND (
+                        total_equity IS NULL OR operating_cf IS NULL OR capex IS NULL
+                    )
+                )
+                OR (s.code NOT IN (SELECT DISTINCT code FROM pe_history)
+                    AND s.eps_y1 IS NOT NULL AND s.eps_y1 > 0)
+            )
+        """, (cur_year - 1,)).fetchall():
+            needs_financial.add(r[0])
+
+    # 合併去重
+    all_needs = {}  # {code: {'eps', 'div', 'fin'}}
+    for code in needs_eps:
+        all_needs.setdefault(code, set()).add('eps')
+    for code in needs_div:
+        all_needs.setdefault(code, set()).add('div')
+    for code in needs_financial:
+        all_needs.setdefault(code, set()).add('fin')
+
+    if not all_needs:
+        print(f"  [補缺] 無缺漏")
+        return
+
+    total_eps = sum(1 for v in all_needs.values() if 'eps' in v)
+    total_div = sum(1 for v in all_needs.values() if 'div' in v)
+    total_fin = sum(1 for v in all_needs.values() if 'fin' in v)
+    print(f"  [補缺] {len(all_needs)} 支需補齊（EPS:{total_eps} 股利:{total_div} 財報:{total_fin}）")
+
+    def _fill_one(code, needs):
+        """單支股票補齊所有缺漏"""
+        try:
+            if 'fin' in needs:
+                # 需要財報 → 跑全套（已包含 EPS + 股利）
+                fetch_all_three(code)
+            else:
+                if 'eps' in needs:
+                    fetch_capital_annual_eps(code)
+                if 'div' in needs:
+                    fetch_capital_dividend(code)
+            time.sleep(random.uniform(0.1, 0.3))
+            return code, True
+        except Exception as e:
+            logger.debug(f"[補缺] {code} 失敗: {e}")
+            return code, False
+
+    # 8 並發
+    done, ok = 0, 0
+    codes_list = list(all_needs.items())
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {}
+        for i, (code, needs) in enumerate(codes_list):
+            futures[pool.submit(_fill_one, code, needs)] = code
+            if (i + 1) % 8 == 0:
+                time.sleep(0.3)
+        for f in as_completed(futures):
+            code, success = f.result()
+            done += 1
+            if success:
+                ok += 1
+            if done % 100 == 0:
+                print(f"    補缺進度：{done}/{len(codes_list)}")
+
+    # 補完後同步 EPS + 股利到 stocks 表
+    if needs_eps:
+        _sync_annual_eps_from_financial(list(needs_eps), expected_year)
+    if needs_div:
+        _sync_dividends_from_financial(list(needs_div))
+
+    print(f"  [補缺] 完成 {ok}/{len(codes_list)} 支")
+
+
+def _sync_annual_eps_from_financial(codes, expected_year):
+    """從 financial_annual 同步年度 EPS 到 stocks 表"""
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        for code in codes:
+            rows = c.execute(
+                "SELECT year, eps FROM financial_annual WHERE code=? AND eps IS NOT NULL ORDER BY year DESC LIMIT 6",
+                (code,)
+            ).fetchall()
+            if not rows:
+                continue
+            for i, (year, eps) in enumerate(rows, 1):
+                roc_yr = str(year - 1911)
+                c.execute(f"UPDATE stocks SET eps_y{i}=?, eps_y{i}_label=? WHERE code=?",
+                          (eps, roc_yr, code))
+        conn.commit()
+
+
+def _sync_dividends_from_financial(codes):
+    """從 financial_annual 同步股利到 stocks 表"""
+    from collections import defaultdict
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        placeholders = ','.join('?' * len(codes))
+        all_divs = c.execute(f"""SELECT code, year, cash_dividend, stock_dividend FROM financial_annual
+                               WHERE code IN ({placeholders}) AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
+                               ORDER BY code, year DESC""", codes).fetchall()
+        div_by_code = defaultdict(list)
+        for r in all_divs:
+            if len(div_by_code[r[0]]) < 6:
+                div_by_code[r[0]].append(r)
+        for code in codes:
+            rows = div_by_code.get(code, [])
+            for i, r in enumerate(rows, 1):
+                roc_yr = str(r[1] - 1911)
+                c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",
+                          (r[2], r[3], roc_yr, code))
+        conn.commit()
+
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == '--quick':
         quick_update()
+    elif len(sys.argv) > 1 and sys.argv[1] == '--prices':
+        run_prices()
+    elif len(sys.argv) > 1 and sys.argv[1] == '--maintenance':
+        run_maintenance()
     else:
         run()
 

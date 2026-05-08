@@ -19,7 +19,8 @@ from guardian import (generate_health_report, get_provider_status, PROVIDER_TIER
                       get_audit_log, get_daily_briefing,
                       get_recent_news,
                       cross_validate, get_latest_validation)
-from scraper import (run as scraper_run, refresh_prices, init_db, init_financial_db,
+from scraper import (run as scraper_run, run_prices, run_maintenance,
+                     refresh_prices, init_db, init_financial_db,
                      init_monthly_revenue_db, init_quarterly_db,
                      init_pe_history_db, fetch_company_financials,
                      fetch_company_monthly_revenue, fetch_company_quarterly,
@@ -3661,10 +3662,10 @@ if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'tr
         scheduler.add_job(_run_and_cleanup(quick_update, 'quick_update'), 'interval', minutes=30,
                           id='quick_update', replace_existing=True)
         # 每天 07:00 完整爬蟲（本機 06:00 跑 28~41 分鐘，錯開 1 小時避免撞車）
-        scheduler.add_job(_run_and_cleanup(scraper_run, 'daily_scrape'), 'cron', hour=7, minute=0,
+        scheduler.add_job(_run_and_cleanup(run_maintenance, 'daily_scrape'), 'cron', hour=7, minute=0,
                           id='daily_scrape', replace_existing=True)
         # 週一到週五 15:30 盤後更新（本機 14:30 跑完+push 約需 40 分鐘）
-        scheduler.add_job(_run_and_cleanup(scraper_run, 'afternoon_scrape'), 'cron', day_of_week='mon-fri',
+        scheduler.add_job(_run_and_cleanup(run_prices, 'afternoon_prices'), 'cron', day_of_week='mon-fri',
                           hour=15, minute=30,
                           id='afternoon_scrape', replace_existing=True)
         # 三大法人：Render 上群益會被擋，不排程
