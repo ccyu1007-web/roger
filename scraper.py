@@ -3996,10 +3996,35 @@ def _run_prices_inner(scheduled=True):
     all_rows = twse_rows + tpex_rows
     print(f"[1.股價] {len(all_rows)} 支，{time.time()-t1:.1f}s")
 
-    # 2. 寫入 DB（只有股價欄位有值，其他為 None 不覆蓋）
+    # 2. 直接寫入股價（不走 save_to_db，避免 audit lock）
     t1 = time.time()
-    save_to_db(all_rows)
-    print(f"[2.寫入DB] {len(all_rows)} 筆，{time.time()-t1:.1f}s")
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        new_count = 0
+        for r in all_rows:
+            code = r.get('code')
+            if not code:
+                continue
+            # 新股 INSERT（首次出現）
+            c.execute("SELECT code FROM stocks WHERE code=?", (code,))
+            if not c.fetchone():
+                c.execute("INSERT INTO stocks (code, name, market) VALUES (?,?,?)",
+                          (code, r.get('name'), r.get('market')))
+                new_count += 1
+            # UPDATE 股價欄位
+            c.execute("""UPDATE stocks SET
+                close=?, change=?, volume=?, open=?, high=?, low=?,
+                updated_at=?
+                WHERE code=?""",
+                (r.get('close'), r.get('change'), r.get('volume'),
+                 r.get('open'), r.get('high'), r.get('low'),
+                 now_str, code))
+        conn.commit()
+    if new_count:
+        print(f"[2.寫入DB] {len(all_rows)} 筆（{new_count} 支新股），{time.time()-t1:.1f}s")
+    else:
+        print(f"[2.寫入DB] {len(all_rows)} 筆，{time.time()-t1:.1f}s")
 
     # 3. 股價修正：批次 API 日期不對 → 即時 API 覆蓋
     if _twse_batch_date and _twse_batch_date != _today_roc() and datetime.now().weekday() < 5:
