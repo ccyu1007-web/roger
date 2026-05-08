@@ -1249,19 +1249,15 @@ def get_stocks():
     # 附加 ETF 持股資訊（批次查詢，避免 N+1）
     etf_map = {}
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        c = conn.cursor()
-        c.execute("""
+        etf_rows = query_db("""
             SELECT h.stock_code,
                    GROUP_CONCAT(h.etf_code || ':' || COALESCE(i.name,''), ',') as etf_list
             FROM etf_holdings h
             LEFT JOIN etf_info i ON h.etf_code = i.code
             GROUP BY h.stock_code
         """)
-        for r in c.fetchall():
+        for r in etf_rows:
             etf_map[r["stock_code"]] = r["etf_list"]
-        conn.close()
     except Exception: pass
 
     # 批次查詢月營收（當年度各月）
@@ -1269,15 +1265,12 @@ def get_stocks():
     try:
         from datetime import date
         cur_west = date.today().year
-        conn_rev = sqlite3.connect(DB_PATH)
-        conn_rev.row_factory = sqlite3.Row
-        rev_rows = conn_rev.execute(
+        rev_rows = query_db(
             """SELECT r.code, r.month, r.revenue, r2.revenue as prev_revenue
                FROM monthly_revenue r
                LEFT JOIN monthly_revenue r2 ON r.code = r2.code AND r2.year = r.year - 1 AND r2.month = r.month
                WHERE r.year = ?
-               ORDER BY r.code, r.month""", (cur_west,)).fetchall()
-        conn_rev.close()
+               ORDER BY r.code, r.month""", (cur_west,))
         for r in rev_rows:
             code = r['code']
             if code not in rev_map:
