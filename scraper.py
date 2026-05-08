@@ -3971,49 +3971,57 @@ def _refresh_realtime():
         updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         count = 0
 
-        # 每批 50 檔
+        # 每批 50 檔，5 並發
+        batches = []
         for i in range(0, len(all_stocks), 50):
             batch = all_stocks[i:i+50]
             ex_codes = []
             for code, market in batch:
                 prefix = 'tse' if market == '上市' else 'otc'
                 ex_codes.append(f"{prefix}_{code}.tw")
+            batches.append(ex_codes)
 
+        def _fetch_batch(ex_codes):
             try:
                 url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ex_codes)}"
                 r = _session.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-                data = r.json()
-                for s in data.get("msgArray", []):
-                    code = s.get("c")
-                    # 取價：成交 > 買價 > 昨收
-                    price = s.get("z")
-                    if price == "-" or not price:
-                        bid = s.get("b", "")
-                        if bid and "_" in bid:
-                            price = bid.split("_")[0]
-                    if price == "-" or not price:
-                        continue  # 完全沒有價格就跳過
-
-                    try:
-                        close = float(price)
-                        if close <= 0:
-                            continue  # 無效價格不寫入
-                        yesterday = float(s.get("y", 0))
-                        change = round(close - yesterday, 2) if yesterday else None
-                        op = float(s["o"]) if s.get("o") else None
-                        hi = float(s["h"]) if s.get("h") else None
-                        lo = float(s["l"]) if s.get("l") else None
-                        vol = int(s["v"]) if s.get("v") else None
-
-                        c.execute("""UPDATE stocks SET close=?, change=?, open=?, high=?, low=?,
-                                     volume=?, updated_at=? WHERE code=?""",
-                                  (close, change, op, hi, lo, vol, updated_at, code))
-                        if c.rowcount:
-                            count += 1
-                    except Exception as e:
-                        logger.debug(f"[即時股價] {code} 寫入失敗: {e}")
+                return r.json().get("msgArray", [])
             except Exception as e:
-                logger.warning(f"[即時股價] 批次解析失敗: {e}")
+                logger.warning(f"[即時股價] 批次請求失敗: {e}")
+                return []
+
+        from concurrent.futures import ThreadPoolExecutor
+        results = []
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            results = list(pool.map(_fetch_batch, batches))
+
+        for msg_array in results:
+            for s in msg_array:
+                code = s.get("c")
+                price = s.get("z")
+                if price == "-" or not price:
+                    bid = s.get("b", "")
+                    if bid and "_" in bid:
+                        price = bid.split("_")[0]
+                if price == "-" or not price:
+                    continue
+                try:
+                    close = float(price)
+                    if close <= 0:
+                        continue
+                    yesterday = float(s.get("y", 0))
+                    change = round(close - yesterday, 2) if yesterday else None
+                    op = float(s["o"]) if s.get("o") else None
+                    hi = float(s["h"]) if s.get("h") else None
+                    lo = float(s["l"]) if s.get("l") else None
+                    vol = int(s["v"]) if s.get("v") else None
+                    c.execute("""UPDATE stocks SET close=?, change=?, open=?, high=?, low=?,
+                                 volume=?, updated_at=? WHERE code=?""",
+                              (close, change, op, hi, lo, vol, updated_at, code))
+                    if c.rowcount:
+                        count += 1
+                except Exception as e:
+                    logger.debug(f"[即時股價] {code} 寫入失敗: {e}")
 
         conn.commit()
     return count
