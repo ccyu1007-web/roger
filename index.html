@@ -2567,6 +2567,12 @@ async function refreshPricesOnly() {
       if (fresh.sys_ann_div != null) r.sys_ann_div = fresh.sys_ann_div;
       // 成長率指標（從 stock_checklist DB 帶入）
       if (fresh._gi) r._gi = fresh._gi;
+      // 同步 DB 衍生欄位（沈董/加權/綜合/近四季/合約負債等）
+      const _derivedKeys = ['shen_eps','shen_div','shen_pe','shen_yld','shen_grade',
+        'weighted_eps','weighted_div','weighted_pe','weighted_yld','weighted_grade','weighted_payout',
+        'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
+        'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade','contract_chg'];
+      _derivedKeys.forEach(k => { if (fresh[k] !== undefined) r[k] = fresh[k]; });
       calcDerived(r);
     }
     const _savedPage = page;
