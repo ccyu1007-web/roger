@@ -489,6 +489,7 @@ CHECKLIST_ITEMS = [
     {'key': 'gm_change',      'category': 'base',  'label': '最近一季毛利率變化 > 0'},
     {'key': 'best_grade_aa',  'category': 'base',  'label': '最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）'},
     {'key': 'price_below_aa', 'category': 'base',  'label': '目前股價低於總表評價 AA'},
+    {'key': 'blend_pe_12',    'category': 'base',  'label': '綜合本益比 <= 12 倍'},
     {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
     {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
     # ── 成長加分 ──
@@ -818,6 +819,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     _val_param = f'EPS={val_eps}({_eps_src}) 股利={val_div}({_div_src})'
     checks['price_below_aa'] = 1 if close is not None and val_aa is not None and close <= val_aa + 0.005 else 0
     detail['price_below_aa'] = f'股價:{close} 評價AA:{val_aa}　{_val_param}' if val_aa is not None else None
+
+    # blend_pe_12: 綜合本益比 <= 12 倍
+    checks['blend_pe_12'] = 1 if blend_pe is not None and blend_pe > 0 and blend_pe <= 12 else 0
+    detail['blend_pe_12'] = f'綜合PE={blend_pe}' if blend_pe is not None else None
 
     # blend_yield: 綜合殖利率 >= 6%
     checks['blend_yield'] = 1 if blend_yld is not None and blend_yld >= 6 else 0
