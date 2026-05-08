@@ -1465,6 +1465,13 @@ def _run_inner(scheduled=True):
     except Exception as e:
         print(f"[Checklist] 計算失敗: {e}")
 
+    # 重算衍生欄位（沈董/加權/綜合/近四季 PE/殖利率/等級等）
+    try:
+        from app import recalc_all_derived
+        recalc_all_derived()
+    except Exception as e:
+        print(f"[Derived] 衍生欄位重算失敗: {e}")
+
     # 自動 push 所有資料到 Render（僅本機）
     # 注意：必須在 ETF、法人、交叉校驗、checklist 全部完成後才 push
     if not IS_CLOUD:
@@ -3297,6 +3304,13 @@ def _quick_update_inner(t0, today_str):
             except Exception as e:
                 logger.warning(f"[即時重算] {code} 失敗: {e}")
         print(f"[即時重算] 完成")
+
+    # ── 7b. 重算衍生欄位 ──
+    try:
+        from app import recalc_all_derived
+        recalc_all_derived()
+    except Exception as e:
+        print(f"[Derived] 衍生欄位重算失敗: {e}")
 
     # ── 8. 自動 push 到 Render（僅本機，增量同步）──
     if not IS_CLOUD:

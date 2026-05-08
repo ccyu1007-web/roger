@@ -614,7 +614,12 @@ def _push_annual_to_render():
                 fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
                 fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
                 fin_grade_5, fin_grade_5y, fin_grade_6, fin_grade_6y,
-                deepest_val_level, val_cheap_days
+                deepest_val_level, val_cheap_days,
+                shen_eps, shen_div, shen_pe, shen_yld, shen_grade,
+                weighted_eps, weighted_div, weighted_pe, weighted_yld, weighted_grade, weighted_payout,
+                blend_eps, blend_div, blend_pe, blend_yld, blend_grade,
+                eps_4q_sum, trailing_div, trailing_pe, trailing_yld, trailing_grade,
+                contract_chg
                 FROM stocks WHERE close IS NOT NULL""").fetchall()
 
         cols = ['code', 'eps_date',
@@ -628,7 +633,12 @@ def _push_annual_to_render():
             'fin_grade_1','fin_grade_1y','fin_grade_2','fin_grade_2y',
             'fin_grade_3','fin_grade_3y','fin_grade_4','fin_grade_4y',
             'fin_grade_5','fin_grade_5y','fin_grade_6','fin_grade_6y',
-            'deepest_val_level','val_cheap_days']
+            'deepest_val_level','val_cheap_days',
+            'shen_eps','shen_div','shen_pe','shen_yld','shen_grade',
+            'weighted_eps','weighted_div','weighted_pe','weighted_yld','weighted_grade','weighted_payout',
+            'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
+            'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
+            'contract_chg']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
 
         failed = 0

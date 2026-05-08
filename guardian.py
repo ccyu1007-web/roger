@@ -2102,6 +2102,13 @@ def snapshot_stock_states():
         conn.commit()
     print(f"[狀態快照] {count} 支已記錄（{data_date}）")
 
+    # 重算衍生欄位（快照後股價/等級可能已更新）
+    try:
+        from app import recalc_all_derived
+        recalc_all_derived()
+    except Exception as e:
+        print(f"[Derived] 衍生欄位重算失敗: {e}")
+
     # 本機自動 push 評價資料到 Render
     if not os.environ.get('DATABASE_URL'):
         try:

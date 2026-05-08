@@ -1828,49 +1828,51 @@ function clearWatch() {
 
 // ── 重點追蹤 ────────────────────────────────────────────
 // ── 衍生欄位計算 ──────────────────────────────────────────
+// 大部分衍生欄位已由後端算好存 DB，前端直接讀取。
+// 只有 DB 值為 null 時才 fallback 前端計算（過渡期相容）。
 function calcDerived(r) {
+  // DB 已有衍生值則跳過前端計算（shen_eps 有值代表後端已算過）
+  const _hasDB = r.shen_eps != null;
+
   const eps4 = [r.eps_1, r.eps_2, r.eps_3, r.eps_4].filter(v => v != null);
 
-  // 近四季 EPS 加總 + PE（股利/殖利率/評等移到 weighted_payout 之後計算）
-  if (eps4.length === 4) {
-    const sum = eps4.reduce((a, b) => a + b, 0);
-    r.eps_4q_sum = Math.round(sum * 100) / 100;
-    r.trailing_pe = (sum > 0 && r.close != null) ? Math.round(r.close / sum * 100) / 100 : null;
-  } else {
-    r.eps_4q_sum = null;
-    r.trailing_pe = null;
+  if (!_hasDB) {
+    // 近四季 EPS 加總 + PE
+    if (eps4.length === 4) {
+      const sum = eps4.reduce((a, b) => a + b, 0);
+      r.eps_4q_sum = Math.round(sum * 100) / 100;
+      r.trailing_pe = (sum > 0 && r.close != null) ? Math.round(r.close / sum * 100) / 100 : null;
+    } else {
+      r.eps_4q_sum = null;
+      r.trailing_pe = null;
+    }
+    r.trailing_div = null;
+    r.trailing_yld = null;
+    r.trailing_grade = null;
+
+    // 沈董 EPS
+    const allEps = [
+      { q: r.eps_1q, v: r.eps_1 },
+      { q: r.eps_2q, v: r.eps_2 },
+      { q: r.eps_3q, v: r.eps_3 },
+      { q: r.eps_4q, v: r.eps_4 },
+      { q: r.eps_5q, v: r.eps_5 },
+    ].filter(e => e.q != null && e.v != null);
+    const curYearEps = allEps.filter(e => parseInt(e.q.split('Q')[0]) === CUR_ROC_YEAR);
+    const n = curYearEps.length;
+    r._shen_is_fallback = false;
+    if (n >= 4) {
+      r.shen_eps = Math.round(curYearEps.reduce((a, e) => a + e.v, 0) * 100) / 100;
+    } else if (n > 0) {
+      const sum = curYearEps.reduce((a, e) => a + e.v, 0);
+      r.shen_eps = Math.round(sum / n * 4 * 100) / 100;
+    } else {
+      r.shen_eps = (eps4.length === 4 ? r.eps_4q_sum : null) || r.eps_y1 || r.eps_ytd || null;
+      r._shen_is_fallback = true;
+    }
+    r.shen_pe = (r.shen_eps != null && r.shen_eps > 0 && r.close != null)
+      ? Math.round(r.close / r.shen_eps * 100) / 100 : null;
   }
-  r.trailing_div = null;
-  r.trailing_yld = null;
-  r.trailing_grade = null;
-
-  // 沈董 EPS：用當年度已公佈季度推算全年
-  const allEps = [
-    { q: r.eps_1q, v: r.eps_1 },
-    { q: r.eps_2q, v: r.eps_2 },
-    { q: r.eps_3q, v: r.eps_3 },
-    { q: r.eps_4q, v: r.eps_4 },
-    { q: r.eps_5q, v: r.eps_5 },
-  ].filter(e => e.q != null && e.v != null);
-
-  const curYearEps = allEps.filter(e => parseInt(e.q.split('Q')[0]) === CUR_ROC_YEAR);
-  const n = curYearEps.length;
-
-  r._shen_is_fallback = false;  // 標記是否用 fallback（非當年度年化）
-  if (n >= 4) {
-    r.shen_eps = Math.round(curYearEps.reduce((a, e) => a + e.v, 0) * 100) / 100;
-  } else if (n > 0) {
-    const sum = curYearEps.reduce((a, e) => a + e.v, 0);
-    r.shen_eps = Math.round(sum / n * 4 * 100) / 100;
-  } else {
-    // fallback: 近四季加總 → 年度EPS → 近四季trailing
-    r.shen_eps = r.eps_4q_sum || r.eps_y1 || r.eps_ytd || null;
-    r._shen_is_fallback = true;
-  }
-
-  // 沈董本益比
-  r.shen_pe = (r.shen_eps != null && r.shen_eps > 0 && r.close != null)
-    ? Math.round(r.close / r.shen_eps * 100) / 100 : null;
 
   // 價位判斷：前端用即時股價重新計算（確保盤中連動）
   if (r.shen_eps != null && r.shen_eps > 0 && r.close != null) {
@@ -1922,146 +1924,140 @@ function calcDerived(r) {
     }
   }
 
-  // 加權股息
-  r.weighted_div = null;
+  // 加權/沈董股利/殖利率/等級/綜合 — DB 有值時直接用，無值時 fallback 前端計算
   const ws = _divWeights;
-  if (ws) {
-    let wdiv = 0, wsum = 0;
-    for (let i = 1; i <= 5; i++) {
-      const cash = r[`div_c${i}`] || 0;
-      const stock = r[`div_s${i}`] || 0;
-      const w = ws[i - 1] || 0;
-      if ((cash + stock) > 0 && w > 0) {
-        wdiv += (cash + stock) * w / 100;
-        wsum += w;
-      }
-    }
-    if (wsum > 0) r.weighted_div = Math.round(wdiv * 100) / 100;
-  }
-
-  // 加權EPS
-  r.weighted_eps = null;
-  if (ws) {
-    let weps = 0, wesum = 0;
-    for (let i = 1; i <= 5; i++) {
-      const eps = r[`eps_y${i}`];
-      const w = ws[i - 1] || 0;
-      if (eps != null && w > 0) {
-        weps += eps * w / 100;
-        wesum += w;
-      }
-    }
-    if (wesum > 0) r.weighted_eps = Math.round(weps * 100) / 100;
-  }
-
-  // 加權配息率 = 加權各年度配息率（而非 加權股息/加權EPS），只用最新5年
-  r.weighted_payout = null;
-  {
-    let wpSum = 0, wSum = 0;
-    for (let i = 1; i <= 5; i++) {
-      const p = r[`payout_${i}`];
-      const w = ws[i - 1] || 0;
-      if (p != null && w > 0) {
-        wpSum += p * w / 100;
-        wSum += w;
-      }
-    }
-    if (wSum > 0) r.weighted_payout = Math.round(wpSum * 100) / 100;
-  }
-
-  // 沈董股利
-  r.shen_div = null;
-  if (r.shen_eps != null && r.shen_eps > 0) {
-    if (r._shen_is_fallback) {
-      // fallback 模式（用過去四季加總）→ 優先取該年度的實際股利
-      // eps_y1_label 是最新完整年度的民國年
-      const divLabel = r.eps_y1_label;
-      let foundDiv = false;
+  if (!_hasDB) {
+    // 加權股息
+    r.weighted_div = null;
+    if (ws) {
+      let wdiv = 0, wsum = 0;
       for (let i = 1; i <= 5; i++) {
-        if (r[`div_${i}_label`] === divLabel) {
-          const cd = r[`div_c${i}`] || 0;
-          const sd = r[`div_s${i}`] || 0;
-          if (cd + sd > 0) {
-            r.shen_div = Math.round((cd + sd) * 100) / 100;
-            foundDiv = true;
-          }
-          break;
+        const cash = r[`div_c${i}`] || 0;
+        const stock = r[`div_s${i}`] || 0;
+        const w = ws[i - 1] || 0;
+        if ((cash + stock) > 0 && w > 0) {
+          wdiv += (cash + stock) * w / 100;
+          wsum += w;
         }
       }
-      // 沒有該年度股利 → 才用 沈董EPS × 加權配息率
-      if (!foundDiv && r.weighted_payout != null) {
-        r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+      if (wsum > 0) r.weighted_div = Math.round(wdiv * 100) / 100;
+    }
+
+    // 加權EPS
+    r.weighted_eps = null;
+    if (ws) {
+      let weps = 0, wesum = 0;
+      for (let i = 1; i <= 5; i++) {
+        const eps = r[`eps_y${i}`];
+        const w = ws[i - 1] || 0;
+        if (eps != null && w > 0) {
+          weps += eps * w / 100;
+          wesum += w;
+        }
       }
-    } else {
-      // 當年度年化模式 → 沈董EPS × 加權配息率
-      if (r.weighted_payout != null) {
-        r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+      if (wesum > 0) r.weighted_eps = Math.round(weps * 100) / 100;
+    }
+
+    // 加權配息率
+    r.weighted_payout = null;
+    {
+      let wpSum = 0, wSum = 0;
+      for (let i = 1; i <= 5; i++) {
+        const p = r[`payout_${i}`];
+        const w = ws[i - 1] || 0;
+        if (p != null && w > 0) {
+          wpSum += p * w / 100;
+          wSum += w;
+        }
+      }
+      if (wSum > 0) r.weighted_payout = Math.round(wpSum * 100) / 100;
+    }
+
+    // 沈董股利
+    r.shen_div = null;
+    if (r.shen_eps != null && r.shen_eps > 0) {
+      if (r._shen_is_fallback) {
+        const divLabel = r.eps_y1_label;
+        let foundDiv = false;
+        for (let i = 1; i <= 5; i++) {
+          if (r[`div_${i}_label`] === divLabel) {
+            const cd = r[`div_c${i}`] || 0;
+            const sd = r[`div_s${i}`] || 0;
+            if (cd + sd > 0) {
+              r.shen_div = Math.round((cd + sd) * 100) / 100;
+              foundDiv = true;
+            }
+            break;
+          }
+        }
+        if (!foundDiv && r.weighted_payout != null) {
+          r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+        }
+      } else {
+        if (r.weighted_payout != null) {
+          r.shen_div = Math.round(r.shen_eps * r.weighted_payout) / 100;
+        }
       }
     }
-  }
 
-  // 沈董殖利率 = 沈董股利 / 目前股價
-  r.shen_yld = null;
-  if (r.shen_div != null && r.close != null && r.close > 0) {
-    r.shen_yld = Math.round(r.shen_div / r.close * 10000) / 100;
-  }
+    // 沈董殖利率
+    r.shen_yld = null;
+    if (r.shen_div != null && r.close != null && r.close > 0) {
+      r.shen_yld = Math.round(r.shen_div / r.close * 10000) / 100;
+    }
 
-  // 沈董價值等級
-  if (r.shen_eps != null && r.shen_eps <= 0) {
-    r.shen_grade = 'X';  // EPS <= 0 直接 X
-  } else if (r.shen_pe != null && r.shen_yld != null) {
-    r.shen_grade = _calcMatrixGrade(r.shen_pe, r.shen_yld, r.code, r._ue);
-  } else {
-    r.shen_grade = null;
-  }
+    // 沈董等級
+    if (r.shen_eps != null && r.shen_eps <= 0) {
+      r.shen_grade = 'X';
+    } else if (r.shen_pe != null && r.shen_yld != null) {
+      r.shen_grade = _calcMatrixGrade(r.shen_pe, r.shen_yld, r.code, r._ue);
+    } else {
+      r.shen_grade = null;
+    }
 
-  // 加權本益比、加權殖利率、權重評估等級
-  r.weighted_pe = null;
-  r.weighted_yld = null;
-  r.weighted_grade = null;
-  if (r.weighted_eps && r.weighted_eps > 0 && r.close != null) {
-    r.weighted_pe = Math.round(r.close / r.weighted_eps * 100) / 100;
-  }
-  if (r.weighted_div && r.weighted_div > 0 && r.close != null && r.close > 0) {
-    r.weighted_yld = Math.round(r.weighted_div / r.close * 10000) / 100;
-  }
-  // 權重評估等級
-  if (r.weighted_eps != null && r.weighted_eps <= 0) {
-    r.weighted_grade = 'X';
-  } else if (r.weighted_pe != null && r.weighted_yld != null) {
-    r.weighted_grade = _calcMatrixGrade(r.weighted_pe, r.weighted_yld, r.code, r._ue);
-  }
+    // 加權 PE / 殖利率 / 等級
+    r.weighted_pe = null;
+    r.weighted_yld = null;
+    r.weighted_grade = null;
+    if (r.weighted_eps && r.weighted_eps > 0 && r.close != null) {
+      r.weighted_pe = Math.round(r.close / r.weighted_eps * 100) / 100;
+    }
+    if (r.weighted_div && r.weighted_div > 0 && r.close != null && r.close > 0) {
+      r.weighted_yld = Math.round(r.weighted_div / r.close * 10000) / 100;
+    }
+    if (r.weighted_eps != null && r.weighted_eps <= 0) {
+      r.weighted_grade = 'X';
+    } else if (r.weighted_pe != null && r.weighted_yld != null) {
+      r.weighted_grade = _calcMatrixGrade(r.weighted_pe, r.weighted_yld, r.code, r._ue);
+    }
 
-  // 權重混合（沈董 × A% + 加權 × B%，正規化為加權平均）
-  const bS = _blendShen, bW = _blendWt;
-  const bTotal = bS + bW;
-  r.blend_eps = null;
-  r.blend_div = null;
-  r.blend_pe = null;
-  r.blend_yld = null;
-  r.blend_grade = null;
-  if (bTotal > 0) {
-    const nS = bS / bTotal, nW = bW / bTotal;  // 正規化權重，確保合計=1
-    // EPS
-    const se = r.shen_eps, we = r.weighted_eps;
-    if (se != null && we != null) r.blend_eps = Math.round((se * nS + we * nW) * 100) / 100;
-    else if (se != null) r.blend_eps = Math.round(se * 100) / 100;
-    else if (we != null) r.blend_eps = Math.round(we * 100) / 100;
-    // 股利
-    const sd = r.shen_div, wd = r.weighted_div;
-    if (sd != null && wd != null) r.blend_div = Math.round((sd * nS + wd * nW) * 100) / 100;
-    else if (sd != null) r.blend_div = Math.round(sd * 100) / 100;
-    else if (wd != null) r.blend_div = Math.round(wd * 100) / 100;
-    // PE & 殖利率
-    if (r.blend_eps != null && r.blend_eps > 0 && r.close != null)
-      r.blend_pe = Math.round(r.close / r.blend_eps * 100) / 100;
-    if (r.blend_div != null && r.blend_div > 0 && r.close != null && r.close > 0)
-      r.blend_yld = Math.round(r.blend_div / r.close * 10000) / 100;
-    // 等級
-    if (r.blend_eps != null && r.blend_eps <= 0) r.blend_grade = 'X';
-    else if (r.blend_pe != null && r.blend_yld != null)
-      r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code, r._ue);
-  }
+    // 綜合（沈董 × A% + 加權 × B%）
+    const bS = _blendShen, bW = _blendWt;
+    const bTotal = bS + bW;
+    r.blend_eps = null;
+    r.blend_div = null;
+    r.blend_pe = null;
+    r.blend_yld = null;
+    r.blend_grade = null;
+    if (bTotal > 0) {
+      const nS = bS / bTotal, nW = bW / bTotal;
+      const se = r.shen_eps, we = r.weighted_eps;
+      if (se != null && we != null) r.blend_eps = Math.round((se * nS + we * nW) * 100) / 100;
+      else if (se != null) r.blend_eps = Math.round(se * 100) / 100;
+      else if (we != null) r.blend_eps = Math.round(we * 100) / 100;
+      const sd = r.shen_div, wd = r.weighted_div;
+      if (sd != null && wd != null) r.blend_div = Math.round((sd * nS + wd * nW) * 100) / 100;
+      else if (sd != null) r.blend_div = Math.round(sd * 100) / 100;
+      else if (wd != null) r.blend_div = Math.round(wd * 100) / 100;
+      if (r.blend_eps != null && r.blend_eps > 0 && r.close != null)
+        r.blend_pe = Math.round(r.close / r.blend_eps * 100) / 100;
+      if (r.blend_div != null && r.blend_div > 0 && r.close != null && r.close > 0)
+        r.blend_yld = Math.round(r.blend_div / r.close * 10000) / 100;
+      if (r.blend_eps != null && r.blend_eps <= 0) r.blend_grade = 'X';
+      else if (r.blend_pe != null && r.blend_yld != null)
+        r.blend_grade = _calcMatrixGrade(r.blend_pe, r.blend_yld, r.code, r._ue);
+    }
+  } // end !_hasDB
 
   // 評價等級計算 — 移到後面，等 est_eps/est_div 算完才跑（見下方）
 
@@ -2095,10 +2091,12 @@ function calcDerived(r) {
     }
   }
 
-  // 合約負債變動率 = (最新季 - 前一季) / 前一季
-  r.contract_chg = (r.contract_1 != null && r.contract_2 != null && r.contract_2 !== 0)
-    ? Math.round((r.contract_1 - r.contract_2) / Math.abs(r.contract_2) * 10000) / 100
-    : null;
+  // 合約負債變動率 = (最新季 - 前一季) / 前一季（DB 無值時 fallback）
+  if (!_hasDB) {
+    r.contract_chg = (r.contract_1 != null && r.contract_2 != null && r.contract_2 !== 0)
+      ? Math.round((r.contract_1 - r.contract_2) / Math.abs(r.contract_2) * 10000) / 100
+      : null;
+  }
 
   // 預估 EPS + 等級（優先 DB，fallback localStorage）
   r.est_eps = null;
@@ -2160,11 +2158,9 @@ function calcDerived(r) {
     }
   }
 
-  // 近四季股利/殖利率/評等（必須在 weighted_payout 之後）
-  if (r.eps_4q_sum != null && r.eps_4q_sum > 0) {
-    // 判斷近四季是否全為去年度（跟沈董 fallback 同條件）
+  // 近四季股利/殖利率/評等（DB 無值時 fallback）
+  if (!_hasDB && r.eps_4q_sum != null && r.eps_4q_sum > 0) {
     if (r._shen_is_fallback) {
-      // 去年完整四季 → 優先取該年度實際股利
       const divLabel = r.eps_y1_label;
       let foundDiv = false;
       for (let i = 1; i <= 5; i++) {
@@ -2182,7 +2178,6 @@ function calcDerived(r) {
         r.trailing_div = Math.round(r.eps_4q_sum * r.weighted_payout) / 100;
       }
     } else {
-      // 有新年度季資料 → EPS × 加權配息率
       r.trailing_div = (r.weighted_payout != null)
         ? Math.round(r.eps_4q_sum * r.weighted_payout) / 100 : null;
     }
@@ -2249,9 +2244,11 @@ function onWeightChange() {
   localStorage.setItem('global_div_weights', JSON.stringify(_divWeights));
   syncUserSettings();
   updateWeightTotal();
-  // 重算全部
-  allData.forEach(calcDerived);
+  // 前端即時預覽（拖動時立即反應）
+  allData.forEach(r => { r.shen_eps = null; calcDerived(r); });
   applyFilter();
+  // 背景呼叫 API 重算存 DB
+  _triggerRecalcDerived();
 }
 
 function updateWeightTotal() {
@@ -2266,8 +2263,9 @@ function resetWeights() {
   localStorage.setItem('global_div_weights', JSON.stringify(_divWeights));
   syncUserSettings();
   initWeights();
-  allData.forEach(calcDerived);
+  allData.forEach(r => { r.shen_eps = null; calcDerived(r); });
   applyFilter();
+  _triggerRecalcDerived();
 }
 
 // ── 權重混合比 ─────────────────────────────────────────────
@@ -2292,8 +2290,9 @@ function onBlendChange() {
   localStorage.setItem('blend_ratio', JSON.stringify({ shen: _blendShen, wt: _blendWt }));
   syncUserSettings();
   updateBlendTotal();
-  allData.forEach(calcDerived);
+  allData.forEach(r => { r.shen_eps = null; calcDerived(r); });
   applyFilter();
+  _triggerRecalcDerived();
 }
 
 function updateBlendTotal() {
@@ -2303,6 +2302,19 @@ function updateBlendTotal() {
     el.textContent = `合計 ${sum}%`;
     el.className = 'wb-total ' + (Math.abs(sum - 100) < 0.01 ? 'ok' : 'ng');
   }
+}
+
+// ── 背景呼叫後端重算衍生欄位 ────────────────────────────
+let _recalcTimer = null;
+function _triggerRecalcDerived() {
+  // 防抖：連續調整時只觸發一次（500ms 後）
+  if (_recalcTimer) clearTimeout(_recalcTimer);
+  _recalcTimer = setTimeout(() => {
+    fetch('/api/recalc-derived', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => console.log('[Derived] 後端重算完成:', d))
+      .catch(e => console.warn('[Derived] 重算失敗:', e));
+  }, 500);
 }
 
 // ── 矩陣等級計算（共用）────────────────────────────────

@@ -189,6 +189,7 @@ def _calc_shen_fields(r, cur_roc, global_settings=None):
         r['shen_eps'] = round(sum(eps4), 2) if len(eps4) == 4 else (r.get('eps_y1') or r.get('eps_ytd'))
         is_fallback = True
 
+    r['_shen_is_fallback'] = is_fallback
     shen_eps = r.get('shen_eps')
 
     # 配息率（同年度 EPS × 股利配對）
@@ -230,6 +231,7 @@ def _calc_shen_fields(r, cur_roc, global_settings=None):
             wpS += p * w
             wpW += w
     weighted_payout = wpS / wpW if wpW > 0 else None
+    r['weighted_payout'] = round(weighted_payout * 100 * 100) / 100 if weighted_payout is not None else None  # 存百分比值（如 52.57 代表 52.57%）
 
     # 沈董股利
     r['shen_div'] = None
@@ -268,6 +270,213 @@ def _calc_shen_fields(r, cur_roc, global_settings=None):
         r['_blend_div_formula'] = f'加權股利{wd}（無沈董股利）'
     else:
         r['blend_div'] = None
+
+
+# ── 矩陣等級計算（與 guardian.py 一致）─────────────────────────
+def _calc_matrix_grade(pe, yld, pe_high=18, pe_low=10, yld_max=6.0, yld_high=5.5, yld_floor=5.0):
+    """矩陣等級：AA/A1/A2/A/BA1/BA2/B1/B2/觀察/臨界點/X"""
+    if pe is None or pe <= 0 or yld is None or yld <= 0:
+        return 'X'
+    pe_fair = (pe_high + pe_low) / 2
+    pe_above = (pe_high + pe_fair) / 2
+    pe_below = (pe_fair + pe_low) / 2
+    pe_cols = [(-9999, pe_low), (pe_low, pe_below), (pe_below, pe_fair),
+               (pe_fair, pe_above), (pe_above, pe_high), (pe_high, 9999)]
+    y_rows = [(yld_max, 9999), (yld_high, yld_max), (yld_floor, yld_high), (-9999, yld_floor)]
+    grades = [
+        ['AA', 'A2', 'BA2', '觀察', '臨界點', 'X'],
+        ['A1', 'A', 'B2', '臨界點', 'X', 'X'],
+        ['BA1', 'B1', '臨界點', 'X', 'X', 'X'],
+        ['觀察', '臨界點', 'X', 'X', 'X', 'X'],
+    ]
+    col = next((i for i, (lo, hi) in enumerate(pe_cols) if pe >= lo and pe < hi), -1)
+    row = next((i for i, (lo, hi) in enumerate(y_rows) if yld >= lo and yld < hi), -1)
+    return grades[row][col] if col >= 0 and row >= 0 else 'X'
+
+
+# ── 衍生欄位計算（統一由後端算完存 DB）───────────────────────────
+DERIVED_COLS = [
+    'shen_eps','shen_div','shen_pe','shen_yld','shen_grade',
+    'weighted_eps','weighted_div','weighted_pe','weighted_yld','weighted_grade','weighted_payout',
+    'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
+    'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
+    'contract_chg'
+]
+
+def _calc_derived_fields(r, global_settings=None, user_params=None):
+    """
+    根據 row dict 裡已有的基礎欄位，計算所有衍生欄位並寫回 row。
+    呼叫前需先跑過 _calc_shen_fields()（提供 shen_eps/shen_div/weighted_div/blend_div/weighted_payout 等）。
+    """
+    if global_settings is None:
+        global_settings = _get_global_settings()
+
+    close = r.get('close')
+
+    # ── 個股PE/殖利率參數 ──
+    gs = global_settings
+    pe_hi, pe_lo, y_high, y_max = gs['pe_high'], gs['pe_low'], gs['yld_high'], gs['yld_max']
+    y_floor = gs.get('yld_floor', 5.0)
+    if user_params:
+        if user_params.get('peHigh'): pe_hi = float(user_params['peHigh'])
+        if user_params.get('peLow'): pe_lo = float(user_params['peLow'])
+        if user_params.get('yldHigh'): y_high = float(user_params['yldHigh'])
+        if user_params.get('yldMax'): y_max = float(user_params['yldMax'])
+
+    # ── 沈董 PE / 殖利率 / 等級 ──
+    shen_eps = r.get('shen_eps')
+    shen_div = r.get('shen_div')
+    r['shen_pe'] = round(close / shen_eps, 2) if close and shen_eps and shen_eps > 0 else None
+    r['shen_yld'] = round(shen_div / close * 100, 2) if close and close > 0 and shen_div and shen_div > 0 else None
+    r['shen_grade'] = _calc_matrix_grade(r['shen_pe'], r['shen_yld'], pe_hi, pe_lo, y_max, y_high, y_floor) if r['shen_pe'] and r['shen_yld'] else 'X'
+
+    # ── 加權 EPS ──
+    ws = gs.get('div_weights', DEFAULT_WEIGHTS)
+    weps_sum = weps_w = 0
+    for i in range(1, 6):
+        v = r.get(f'eps_y{i}')
+        w = ws[i - 1] if i - 1 < len(ws) else 0
+        if v is not None and w > 0:
+            weps_sum += v * w / 100
+            weps_w += w
+    r['weighted_eps'] = round(weps_sum * 100) / 100 if weps_w > 0 else None
+    # weighted_div 和 weighted_payout 已在 _calc_shen_fields 算好
+
+    # ── 加權 PE / 殖利率 / 等級 ──
+    weps = r.get('weighted_eps')
+    wdiv = r.get('weighted_div')
+    r['weighted_pe'] = round(close / weps, 2) if close and weps and weps > 0 else None
+    r['weighted_yld'] = round(wdiv / close * 100, 2) if close and close > 0 and wdiv and wdiv > 0 else None
+    r['weighted_grade'] = _calc_matrix_grade(r['weighted_pe'], r['weighted_yld'], pe_hi, pe_lo, y_max, y_high, y_floor) if r['weighted_pe'] and r['weighted_yld'] else 'X'
+
+    # ── 綜合 EPS / PE / 殖利率 / 等級 ──
+    br = gs.get('blend_ratio', {'shen': 50, 'wt': 50})
+    bS = (br.get('shen') or 50)
+    bW = (br.get('wt') or 50)
+    total = bS + bW
+    nS = bS / total if total > 0 else 0.5
+    nW = bW / total if total > 0 else 0.5
+    if shen_eps is not None and weps is not None:
+        r['blend_eps'] = round(shen_eps * nS + weps * nW, 2)
+    elif shen_eps is not None:
+        r['blend_eps'] = round(shen_eps, 2)
+    elif weps is not None:
+        r['blend_eps'] = round(weps, 2)
+    else:
+        r['blend_eps'] = None
+    # blend_div 已在 _calc_shen_fields 算好
+    beps = r.get('blend_eps')
+    bdiv = r.get('blend_div')
+    r['blend_pe'] = round(close / beps, 2) if close and beps and beps > 0 else None
+    r['blend_yld'] = round(bdiv / close * 100, 2) if close and close > 0 and bdiv and bdiv > 0 else None
+    r['blend_grade'] = _calc_matrix_grade(r['blend_pe'], r['blend_yld'], pe_hi, pe_lo, y_max, y_high, y_floor) if r['blend_pe'] and r['blend_yld'] else 'X'
+
+    # ── 近四季 EPS / 股利 / PE / 殖利率 / 等級 ──
+    eps4 = [r.get(f'eps_{i}') for i in range(1, 5)]
+    if all(v is not None for v in eps4):
+        r['eps_4q_sum'] = round(sum(eps4), 2)
+    else:
+        r['eps_4q_sum'] = None
+
+    # trailing_div：跟前端邏輯一致
+    r['trailing_div'] = None
+    wp = r.get('weighted_payout')
+    e4 = r.get('eps_4q_sum')
+    is_fallback = r.get('_shen_is_fallback', False)
+    if is_fallback:
+        # fallback 模式：找對應年度實際股利
+        lbl = r.get('eps_y1_label')
+        if lbl:
+            for i in range(1, 7):
+                dl = r.get(f'div_{i}_label')
+                if dl and str(dl) == str(lbl):
+                    dc = r.get(f'div_c{i}') or 0
+                    ds = r.get(f'div_s{i}') or 0
+                    if dc + ds > 0:
+                        r['trailing_div'] = round(dc + ds, 2)
+                    break
+        if r['trailing_div'] is None and e4 and e4 > 0 and wp:
+            r['trailing_div'] = round(e4 * wp) / 100
+    else:
+        if e4 and e4 > 0 and wp:
+            r['trailing_div'] = round(e4 * wp) / 100
+
+    r['trailing_pe'] = round(close / e4, 2) if close and e4 and e4 > 0 else None
+    tdiv = r.get('trailing_div')
+    r['trailing_yld'] = round(tdiv / close * 100, 2) if close and close > 0 and tdiv and tdiv > 0 else None
+    r['trailing_grade'] = _calc_matrix_grade(r['trailing_pe'], r['trailing_yld'], pe_hi, pe_lo, y_max, y_high, y_floor) if r['trailing_pe'] and r['trailing_yld'] else 'X'
+
+    # ── 合約負債變動率 ──
+    c1 = r.get('contract_1')
+    c2 = r.get('contract_2')
+    if c1 is not None and c2 is not None and c2 != 0:
+        r['contract_chg'] = round((c1 - c2) / abs(c2) * 100, 2)
+    else:
+        r['contract_chg'] = None
+
+
+def _save_derived_to_db(code, r):
+    """將衍生欄位寫回 stocks 表"""
+    sets = ', '.join(f'{col}=?' for col in DERIVED_COLS)
+    vals = [r.get(col) for col in DERIVED_COLS] + [code]
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(f"UPDATE stocks SET {sets} WHERE code=?", vals)
+    conn.commit()
+    conn.close()
+
+
+def recalc_all_derived(codes=None):
+    """批次重算所有（或指定）股票的衍生欄位並存DB。
+    供排程、API、權重變更時呼叫。
+    """
+    import json as _json
+    gs = _get_global_settings()
+    cur_roc = __import__('datetime').date.today().year - 1911
+
+    where = ""
+    params = []
+    if codes:
+        placeholders = ','.join('?' * len(codes))
+        where = f" WHERE code IN ({placeholders})"
+        params = list(codes)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(f"""SELECT code, close,
+        eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
+        eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
+        eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+        div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
+        div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
+        div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
+        contract_1, contract_2
+    FROM stocks{where}""", params).fetchall()
+
+    # 讀取 user_estimates
+    ue_map = {}
+    try:
+        ue_rows = conn.execute("SELECT code, params FROM user_estimates WHERE params IS NOT NULL").fetchall()
+        for ue in ue_rows:
+            if ue['params']:
+                ue_map[ue['code']] = _json.loads(ue['params'])
+    except Exception:
+        pass
+
+    updated = 0
+    sets_sql = ', '.join(f'{col}=?' for col in DERIVED_COLS)
+    for row in rows:
+        r = dict(row)
+        _calc_shen_fields(r, cur_roc, gs)
+        up = ue_map.get(r['code'])
+        _calc_derived_fields(r, gs, up)
+        vals = [r.get(col) for col in DERIVED_COLS] + [r['code']]
+        conn.execute(f"UPDATE stocks SET {sets_sql} WHERE code=?", vals)
+        updated += 1
+
+    conn.commit()
+    conn.close()
+    logger.info(f"[Derived] 重算完成：{updated} 支股票")
+    return updated
 
 
 # ── 檢核表計算 ─────────────────────────────────────────────
@@ -963,7 +1172,15 @@ def get_stocks():
                         ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT'),
                         ('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
                         ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT'),
-                        ('priority_grade','TEXT'),('grade_source','TEXT')]:
+                        ('priority_grade','TEXT'),('grade_source','TEXT'),
+                        # 衍生計算欄位（原本在前端JS計算，現統一存DB）
+                        ('shen_eps','REAL'),('shen_div','REAL'),
+                        ('shen_pe','REAL'),('shen_yld','REAL'),('shen_grade','TEXT'),
+                        ('weighted_eps','REAL'),('weighted_div','REAL'),('weighted_pe','REAL'),('weighted_yld','REAL'),('weighted_grade','TEXT'),
+                        ('weighted_payout','REAL'),
+                        ('blend_eps','REAL'),('blend_div','REAL'),('blend_pe','REAL'),('blend_yld','REAL'),('blend_grade','TEXT'),
+                        ('eps_4q_sum','REAL'),('trailing_div','REAL'),('trailing_pe','REAL'),('trailing_yld','REAL'),('trailing_grade','TEXT'),
+                        ('contract_chg','REAL')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except Exception: pass
         try: conn_init.commit()
@@ -993,7 +1210,13 @@ def get_stocks():
                        inst_foreign, inst_trust, inst_dealer,
                        revenue_note,
                        sys_est_eps, sys_est_quarter, sys_est_confidence,
-                       sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, sys_ann_confidence
+                       sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, sys_ann_confidence,
+                       shen_eps, shen_div,
+                       shen_pe, shen_yld, shen_grade,
+                       weighted_eps, weighted_div, weighted_pe, weighted_yld, weighted_grade, weighted_payout,
+                       blend_eps, blend_div, blend_pe, blend_yld, blend_grade,
+                       eps_4q_sum, trailing_div, trailing_pe, trailing_yld, trailing_grade,
+                       contract_chg
                 FROM stocks WHERE 1=1"""
     params = []
     exact = request.args.get("exact", "")
@@ -1059,9 +1282,6 @@ def get_stocks():
             rev_map[code].append({'month': r['month'], 'revenue': r['revenue'], 'yoy': yoy})
     except Exception: pass
 
-    # 後端統一計算沈董EPS/股利/綜合股利，避免前後端不一致
-    cur_roc = __import__('datetime').date.today().year - 1911
-
     # 批次查詢 checklist pass_count
     chk_map = {}
     try:
@@ -1077,11 +1297,10 @@ def get_stocks():
             chk_map[cr['code']] = cr
     except Exception: pass
 
-    gs = _get_global_settings()
     for row in rows:
         row["etf_tags"] = etf_map.get(row["code"], "")
         row["monthly_rev"] = rev_map.get(row["code"], [])
-        _calc_shen_fields(row, cur_roc, gs)
+        # 衍生欄位已存 DB，直接從 SELECT 讀取，不再即時計算
         chk = chk_map.get(row["code"])
         row["_chk_pass"] = chk['pass_count'] if chk else None
         row["_chk_total"] = chk['total_count'] if chk else None
@@ -1129,6 +1348,25 @@ def status():
         "is_refreshing": _is_refreshing,
         "bg_done_at":   _bg_done_at,
     })
+
+# ── 批次重算衍生欄位（權重變更時呼叫）──────────────────────────
+@app.route("/api/recalc-derived", methods=["POST"])
+def api_recalc_derived():
+    """重算所有股票的衍生欄位（沈董PE/殖利率/等級、加權、綜合、近四季、合約負債變動）"""
+    import time as _t
+    t0 = _t.time()
+    # 清快取
+    with _cache_lock:
+        _stocks_cache_time = 0
+    cnt = recalc_all_derived()
+    elapsed = round(_t.time() - t0, 2)
+    # 背景 push 到 Render
+    if not IS_CLOUD:
+        _bg_push_table('stocks',
+                       ['code'] + DERIVED_COLS,
+                       'code')
+    return jsonify({"status": "ok", "updated": cnt, "elapsed_sec": elapsed})
+
 
 # ── 手動更新營收/季報 ──────────────────────────────────────
 @app.route("/api/refresh/revenue", methods=["POST"])
@@ -1745,8 +1983,13 @@ def sync_annual():
                 if prefix in r:
                     fields.append(f'{prefix}=?')
                     vals.append(r[prefix])
-        # eps_ytd, deepest_val_level, val_cheap_days
-        for extra in ['eps_ytd', 'eps_ytd_label', 'deepest_val_level', 'val_cheap_days']:
+        # eps_ytd, deepest_val_level, val_cheap_days, 衍生欄位
+        for extra in ['eps_ytd', 'eps_ytd_label', 'deepest_val_level', 'val_cheap_days',
+                       'shen_eps','shen_div','shen_pe','shen_yld','shen_grade',
+                       'weighted_eps','weighted_div','weighted_pe','weighted_yld','weighted_grade','weighted_payout',
+                       'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
+                       'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
+                       'contract_chg']:
             if extra in r:
                 fields.append(f'{extra}=?')
                 vals.append(r[extra])
