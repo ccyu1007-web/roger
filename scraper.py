@@ -4049,23 +4049,37 @@ def _run_maintenance_inner(scheduled=True):
             conn.commit()
     print(f"[1.240日歷史] {len(hist_map)} 支，{time.time()-t1:.1f}s")
 
-    # 2. 股利（政府 API 批次）
+    # 2. 股利（政府 API 批次 → financial_annual → stocks）
     t1 = time.time()
     div_map = fetch_dividends_bulk()
-    # 寫入 stocks 表
+    # 先寫入 financial_annual（COALESCE 不覆蓋群益已有值）
     if div_map:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with sqlite3.get_conn() as conn:
             c = conn.cursor()
             for code, div in div_map.items():
-                sets, vals = [], []
-                for k, v in div.items():
-                    if v is not None:
-                        sets.append(f"{k}=?")
-                        vals.append(v)
-                if sets:
-                    vals.append(code)
-                    c.execute(f"UPDATE stocks SET {','.join(sets)} WHERE code=?", vals)
+                # div 裡是 div_c1/div_s1/div_1_label 格式，需要轉成 year/cash/stock
+                for i in range(1, 7):
+                    label = div.get(f'div_{i}_label')
+                    cash = div.get(f'div_c{i}')
+                    stock = div.get(f'div_s{i}')
+                    if label is None:
+                        continue
+                    year = int(label) + 1911
+                    c.execute("""INSERT INTO financial_annual (code, year, cash_dividend, stock_dividend, updated_at)
+                        VALUES (?,?,?,?,?)
+                        ON CONFLICT(code, year) DO UPDATE SET
+                        cash_dividend = COALESCE(financial_annual.cash_dividend, excluded.cash_dividend),
+                        stock_dividend = COALESCE(financial_annual.stock_dividend, excluded.stock_dividend),
+                        updated_at = excluded.updated_at""",
+                        (code, year, cash, stock, now_str))
             conn.commit()
+    # 從 financial_annual 統一同步到 stocks（確保完整性）
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        all_codes = [r[0] for r in c.execute("SELECT code FROM stocks WHERE close IS NOT NULL").fetchall()]
+    if all_codes:
+        _sync_dividends_from_financial(all_codes)
     print(f"[2.股利] {len(div_map)} 支，{time.time()-t1:.1f}s")
 
     # 3. 年度 EPS 歷史（BWIBBU 反推）
