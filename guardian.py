@@ -2375,6 +2375,7 @@ def get_daily_briefing():
         cur_price = latest.get('price')
         if cur_price:
             prev_price = snapshots[1].get('price') if len(snapshots) >= 2 else None
+            prev_level = snapshots[1].get('val_level') if len(snapshots) >= 2 else None
             tol = 0.005
             for th_name in _TH_NAMES:
                 th_field = _TH_FIELDS[th_name]
@@ -2395,6 +2396,8 @@ def get_daily_briefing():
                         'price': cur_price, 'threshold_val': th_val,
                         'discount_pct': round((th_val - cur_price) / th_val * 100, 2) if is_below else None,
                         'cross': cross,
+                        'from_level': prev_level if cross else None,
+                        'to_level': cur_level if cross else None,
                         '_removed': cross == 'above',
                     })
 

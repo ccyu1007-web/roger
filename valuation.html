@@ -87,7 +87,8 @@
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('aa',this)">AA<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
       <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
-      <button class="tab-btn" onclick="switchTab('cross',this)">門檻穿越<span class="count-badge" id="cntCross" style="background:#e0e7ff;color:#3730a3"></span></button>
+      <button class="tab-btn" onclick="switchTab('crossAA',this)">門檻AA<span class="count-badge" id="cntCrossAA" style="background:#fecaca;color:#991b1b"></span></button>
+      <button class="tab-btn" onclick="switchTab('crossOther',this)">門檻A1~6%<span class="count-badge" id="cntCrossOther" style="background:#e0e7ff;color:#3730a3"></span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
@@ -180,14 +181,19 @@ function updateCounts() {
   pool = pool.filter(s => !s._removed);
   document.getElementById('cntAA').textContent = pool.filter(s => s.level === 'AA').length;
   document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.level)).length;
-  const totalCross = Object.values(_byThreshold).reduce((s, arr) => s + arr.filter(x => x.cross).length, 0);
-  document.getElementById('cntCross').textContent = totalCross;
+  const _filt = arr => _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
+  const aaItems = _filt((_byThreshold['AA'] || []).filter(s => !s._removed));
+  document.getElementById('cntCrossAA').textContent = aaItems.length;
+  const otherThs = ['A1','A2','A','長期6%'];
+  const otherCount = otherThs.reduce((s, th) => s + _filt((_byThreshold[th] || []).filter(x => !x._removed)).length, 0);
+  document.getElementById('cntCrossOther').textContent = otherCount;
 }
 
 function renderTab() {
   if (_tab === 'aa') renderList('AA');
   else if (_tab === 'cheap') renderList('cheap');
-  else if (_tab === 'cross') renderCrosses();
+  else if (_tab === 'crossAA') renderCrosses(['AA']);
+  else if (_tab === 'crossOther') renderCrosses(['A1','A2','A','長期6%']);
 }
 
 function renderList(mode) {
@@ -288,8 +294,7 @@ function renderList(mode) {
   document.getElementById('content').innerHTML = html;
 }
 
-function renderCrosses() {
-  const thNames = ['AA', 'A1', 'A2', 'A', '長期6%'];
+function renderCrosses(thNames) {
   const thStyle = {
     'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
     'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
@@ -300,7 +305,8 @@ function renderCrosses() {
 
   let html = '';
   thNames.forEach(th => {
-    const items = _byThreshold[th] || [];
+    let items = _byThreshold[th] || [];
+    if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
     const normal = items.filter(s => !s._removed);
     const removed = items.filter(s => s._removed);
     const st = thStyle[th];
@@ -319,7 +325,7 @@ function renderCrosses() {
         <th style="width:80px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">門檻價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
-        <th style="width:80px;text-align:center">狀態</th>
+        <th style="width:100px;text-align:center">狀態</th>
       </tr></thead><tbody>`;
 
       [...normal, ...removed].forEach(c => {
@@ -329,8 +335,15 @@ function renderCrosses() {
         const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
         const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
         let statusHtml = '';
-        if (c.cross === 'below') statusHtml = '<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破</span>';
-        else if (c.cross === 'above') statusHtml = '<span style="color:#059669;font-weight:700;font-size:.78rem">突破</span>';
+        if (c.cross === 'below') {
+          const from = c.from_level || 'above';
+          const to = c.to_level || '-';
+          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${from}→${to}</span>`;
+        } else if (c.cross === 'above') {
+          const from = c.from_level || '-';
+          const to = c.to_level || 'above';
+          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${from}→${to}</span>`;
+        }
 
         html += `<tr${rowStyle}>
           <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
