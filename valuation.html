@@ -88,7 +88,8 @@
       <button class="tab-btn active" onclick="switchTab('aa',this)">AA<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
       <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
       <button class="tab-btn" onclick="switchTab('crossAA',this)">門檻AA<span class="count-badge" id="cntCrossAA" style="background:#fecaca;color:#991b1b"></span></button>
-      <button class="tab-btn" onclick="switchTab('crossOther',this)">門檻A1~6%<span class="count-badge" id="cntCrossOther" style="background:#e0e7ff;color:#3730a3"></span></button>
+      <button class="tab-btn" onclick="switchTab('crossOther',this)">門檻A1~A<span class="count-badge" id="cntCrossOther" style="background:#e0e7ff;color:#3730a3"></span></button>
+      <button class="tab-btn" onclick="switchTab('crossLt6',this)">門檻6%<span class="count-badge" id="cntCrossLt6" style="background:#d1fae5;color:#065f46"></span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
@@ -184,16 +185,19 @@ function updateCounts() {
   const _filt = arr => _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
   const aaItems = _filt((_byThreshold['AA'] || []).filter(s => !s._removed));
   document.getElementById('cntCrossAA').textContent = aaItems.length;
-  const otherThs = ['A1','A2','A','長期6%'];
+  const otherThs = ['A1','A2','A'];
   const otherCount = otherThs.reduce((s, th) => s + _filt((_byThreshold[th] || []).filter(x => !x._removed)).length, 0);
   document.getElementById('cntCrossOther').textContent = otherCount;
+  const lt6Items = _filt((_byThreshold['長期6%'] || []).filter(s => !s._removed));
+  document.getElementById('cntCrossLt6').textContent = lt6Items.length;
 }
 
 function renderTab() {
   if (_tab === 'aa') renderList('AA');
   else if (_tab === 'cheap') renderList('cheap');
   else if (_tab === 'crossAA') renderCrosses(['AA']);
-  else if (_tab === 'crossOther') renderCrosses(['A1','A2','A','長期6%']);
+  else if (_tab === 'crossOther') renderCrosses(['A1','A2','A']);
+  else if (_tab === 'crossLt6') renderCrosses(['長期6%']);
 }
 
 function renderList(mode) {
