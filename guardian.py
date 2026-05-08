@@ -435,10 +435,17 @@ def audit_changes(code, new_row, old_row):
                     (code, field, field_label, old_value, new_value, changed_at)
                     VALUES (?,?,?,?,?,?)""", changes)
                 conn.commit()
+                _audit_fail_count[0] = 0  # 成功時重置
         except Exception as e:
-            print(f"[Guardian] audit 寫入失敗: {e}")
+            _audit_fail_count[0] += 1
+            if _audit_fail_count[0] <= 3:
+                print(f"[Guardian] audit 寫入失敗({_audit_fail_count[0]}/3): {e}")
+            elif _audit_fail_count[0] == 4:
+                print(f"[Guardian] audit 寫入持續失敗，後續靜默")
 
     return len(changes)
+
+_audit_fail_count = [0]  # 用 list 以便在 closure 中修改
 
 
 def get_audit_log(limit=100, code=None):

@@ -7,9 +7,9 @@
   - 上櫃批次收盤價：櫃買中心 TPEX OpenAPI（tpex_mainboard_quotes）
   - 即時股價（上市+上櫃）：證交所 MIS（mis.twse.com.tw，上市用 tse_ 前綴、上櫃用 otc_ 前綴）
   - 上櫃歷史：TPEX 每日收盤行情批次 API
-  - 營收：政府API t187ap05（主要）/ FinMind TaiwanStockMonthRevenue（補充）
-  - EPS：FinMind TaiwanStockFinancialStatements
-  - 最新累計EPS：TWSE/TPEX t187ap14（批次，無限制）
+  - 營收：MOPS t21sc03（即時）/ 政府API t187ap05（批次）
+  - EPS：MOPS t163sb04（季報）/ 群益 zce（逐支）/ TWSE/TPEX t187ap14（批次）
+  - 年度EPS：群益年度損益表（逐支）/ 政府API t187ap14 / TWSE/TPEX BWIBBU 反推
   - 三大法人：群益證券 zcl（每天17:10後抓取）
 """
 
@@ -36,7 +36,6 @@ from fetcher_utils import (
 
 from guardian import (backup_raw_response, cleanup_old_backups,
                       validate_batch, get_breaker, get_priority_queue,
-                      track_finmind_call, should_skip_finmind,
                       arbitrate_values,
                       get_active_provider, log_provider_switch,
                       sanity_check, audit_changes,
@@ -522,69 +521,10 @@ def read_old_meta():
         return {}
 
 
-# ── 營收：FinMind（只抓缺少資料的股票）─────────────────────
-def _fetch_revenue(code, start_date):
-    try:
-        time.sleep(random.uniform(0.1, 0.5))
-        url = (f"https://api.finmindtrade.com/api/v4/data"
-               f"?dataset=TaiwanStockMonthRevenue"
-               f"&data_id={code}&start_date={start_date}")
-        r = _session.get(url, timeout=15)
-        data = r.json()
-        if data.get('status') == 200:
-            return code, data.get('data', [])
-    except Exception as e:
-        logger.warning(f"[FinMind營收] {code} 抓取失敗: {e}")
-    return code, None
-
-def _calc_revenue_metrics(records):
-    if not records:
-        return None
-    rev_map = {}
-    for r in records:
-        try:
-            y = int(r['revenue_year'])
-            m = int(r['revenue_month'])
-            v = float(r['revenue'])
-            rev_map[(y, m)] = v
-        except Exception: pass
-    if not rev_map:
-        return None
-    latest_ym = max(rev_map.keys())
-    ly, lm    = latest_ym
-    cur_rev   = rev_map[latest_ym]
-
-    yoy_rev     = rev_map.get((ly - 1, lm))
-    revenue_yoy = round((cur_rev / yoy_rev - 1) * 100, 2) if yoy_rev else None
-
-    prev_ym = (ly - 1, 12) if lm == 1 else (ly, lm - 1)
-    mom_rev     = rev_map.get(prev_ym)
-    revenue_mom = round((cur_rev / mom_rev - 1) * 100, 2) if mom_rev else None
-
-    cur_cum  = sum(rev_map.get((ly,     m), 0) for m in range(1, lm + 1))
-    prev_cum = sum(rev_map.get((ly - 1, m), 0) for m in range(1, lm + 1))
-    revenue_cum_yoy = round((cur_cum / prev_cum - 1) * 100, 2) if prev_cum else None
-
-    return {
-        'revenue_year': ly, 'revenue_month': lm,
-        'revenue_yoy': revenue_yoy, 'revenue_mom': revenue_mom,
-        'revenue_cum_yoy': revenue_cum_yoy,
-    }
-
+# ── 營收：從 DB 讀取（已由 quick_update 的 MOPS + 政府API 維護）────
 def fetch_revenue(codes, old_meta):
-    today_str = date.today().strftime('%Y-%m-%d')
-    rev_start = (date.today() - timedelta(days=425)).strftime('%Y-%m-%d')
-
-    # 跳過已有今日營收的股票
-    need_codes = [c for c in codes if not old_meta.get(c, {}).get('revenue_yoy')]
-    cached     = len(codes) - len(need_codes)
-    if cached:
-        print(f"[營收] 已有 {cached} 支有舊資料，需抓取 {len(need_codes)} 支")
-    else:
-        print(f"[營收] 抓取 {len(need_codes)} 支")
-
+    """營收資料直接從 DB 取，不再逐支抓取。由 quick_update 的 MOPS + 政府API 維護。"""
     results = {}
-    # 先把有舊資料的帶入
     for code in codes:
         old = old_meta.get(code, {})
         if old.get('revenue_yoy') is not None:
@@ -596,28 +536,8 @@ def fetch_revenue(codes, old_meta):
                 'revenue_mom':     old.get('revenue_mom'),
                 'revenue_cum_yoy': old.get('revenue_cum_yoy'),
             }
-
-    if need_codes:
-        done = 0
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            futures = {pool.submit(_fetch_revenue, c, rev_start): c for c in need_codes}
-            for f in as_completed(futures):
-                code, records = f.result()
-                old = old_meta.get(code, {})
-                metrics = _calc_revenue_metrics(records) if records else None
-                if metrics:
-                    old_y, old_m = old.get('revenue_year'), old.get('revenue_month')
-                    if metrics['revenue_year'] != old_y or metrics['revenue_month'] != old_m:
-                        rev_date = today_str
-                    else:
-                        rev_date = old.get('revenue_date') or today_str
-                    results[code] = {**metrics, 'revenue_date': rev_date}
-                done += 1
-                if done % 200 == 0:
-                    print(f"  營收進度：{done}/{len(need_codes)}")
-
-    hit = sum(1 for v in results.values() if v.get('revenue_yoy') is not None)
-    print(f"[營收] 完成：{hit}/{len(codes)} 筆含年增率")
+    hit = len(results)
+    print(f"[營收] DB 已有 {hit}/{len(codes)} 筆（由 MOPS + 政府API 維護）")
     return results
 
 
@@ -680,66 +600,7 @@ def fetch_dividends_bulk():
 
     print(f"[股利] 政府 API（107-110）共取得 {len(div_map)} 支")
 
-    # ── FinMind 補充 111 年以後（含季配年度加總）──
-    import re
-    def _fetch_div_finmind(code):
-        try:
-            time.sleep(random.uniform(0.1, 0.5))
-            url = (f"https://api.finmindtrade.com/api/v4/data"
-                   f"?dataset=TaiwanStockDividend&data_id={code}&start_date=2020-01-01")
-            r = _session.get(url, timeout=15)
-            d = r.json()
-            return d.get('data', []) if d.get('status') == 200 else []
-        except Exception as e:
-            logger.debug(f"time.sleep(random.uniform(0.1, 0.5)): {e}")
-            return []
-
-    all_codes_set = set(div_map.keys())
-    print(f"[股利] FinMind 補充 111 年以後（{len(all_codes_set)} 支）...")
-    done = 0
-    fail_streak = 0
-    fm_div_calls = 0
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = {pool.submit(_fetch_div_finmind, c): c for c in all_codes_set}
-        for f in as_completed(futures):
-            code = futures[f]
-            records = f.result()
-            fm_div_calls += 1
-            if records:
-                fm_yearly = {}
-                for rec in records:
-                    yr_str = rec.get('year', '')
-                    m_match = re.match(r'(\d+)年', yr_str)
-                    if not m_match:
-                        continue
-                    roc_yr = m_match.group(1)
-                    if int(roc_yr) <= 110:
-                        continue  # 110 以前用政府 API
-                    cash = float(rec.get('CashEarningsDistribution', 0) or 0)
-                    cash2 = float(rec.get('CashStatutorySurplus', 0) or 0)
-                    stock = float(rec.get('StockEarningsDistribution', 0) or 0)
-                    stock2 = float(rec.get('StockStatutorySurplus', 0) or 0)
-                    prev = fm_yearly.get(roc_yr, {'cash': 0, 'stock': 0})
-                    fm_yearly[roc_yr] = {
-                        'cash':  round(prev['cash'] + cash + cash2, 4),
-                        'stock': round(prev['stock'] + stock + stock2, 4),
-                    }
-                # FinMind 覆蓋 111 年以後
-                for roc_yr, vals in fm_yearly.items():
-                    div_map.setdefault(code, {})[roc_yr] = vals
-                fail_streak = 0
-            else:
-                fail_streak += 1
-            done += 1
-            if done % 200 == 0:
-                print(f"  股利補充進度：{done}/{len(all_codes_set)}")
-            if fail_streak >= 50 and done > 100:
-                print(f"  [股利] 偵測到限速，提前結束")
-                break
-            if should_skip_finmind():
-                break
-
-    # ── 政府 t187ap45 補最新季度（只補 FinMind 沒有的年度）──
+    # ── 政府 t187ap45 補充 111 年以後 ──
     for label, url in [
         ("TWSE", "https://openapi.twse.com.tw/v1/openData/t187ap45_L"),
         ("TPEX", "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap45_O"),
@@ -753,19 +614,24 @@ def fetch_dividends_bulk():
             year = str(d.get('股利年度', '')).strip()
             if not code or not year:
                 continue
-            # FinMind 已有此年度 → 跳過（FinMind 的加總更完整）
-            if code in div_map and year in div_map[code]:
-                continue
             cash  = safe_float(d.get('股東配發-盈餘分配之現金股利(元/股)')) or 0
             cash2 = safe_float(d.get('股東配發-法定盈餘公積發放之現金(元/股)')) or 0
             cash3 = safe_float(d.get('股東配發-資本公積發放之現金(元/股)')) or 0
             stock  = safe_float(d.get('股東配發-盈餘轉增資配股(元/股)')) or 0
             stock2 = safe_float(d.get('股東配發-法定盈餘公積轉增資配股(元/股)')) or 0
             stock3 = safe_float(d.get('股東配發-資本公積轉增資配股(元/股)')) or 0
-            div_map.setdefault(code, {})[year] = {
-                'cash':  round(cash + cash2 + cash3, 4),
-                'stock': round(stock + stock2 + stock3, 4),
-            }
+            # 同年度多筆（季配）加總
+            existing = div_map.get(code, {}).get(year)
+            if existing:
+                div_map[code][year] = {
+                    'cash':  round(existing['cash'] + cash + cash2 + cash3, 4),
+                    'stock': round(existing['stock'] + stock + stock2 + stock3, 4),
+                }
+            else:
+                div_map.setdefault(code, {})[year] = {
+                    'cash':  round(cash + cash2 + cash3, 4),
+                    'stock': round(stock + stock2 + stock3, 4),
+                }
             cnt += 1
         print(f"  {label} t187ap45 補充：{cnt} 筆")
     print(f"[股利] 完成，共 {len(div_map)} 支")
@@ -786,7 +652,6 @@ def fetch_dividends_bulk():
         results[code] = r
 
     print(f"[股利] 共取得 {len(results)} 支股票的股利資料")
-    track_finmind_call(fm_div_calls)
     return results
 
 
@@ -903,49 +768,7 @@ def fetch_eps_annual_bulk():
     return result
 
 
-# ── 合約負債：FinMind TaiwanStockBalanceSheet ──────────────
-def _fetch_contract_liability(code, start_date):
-    try:
-        time.sleep(random.uniform(0.1, 0.5))
-        url = (f"https://api.finmindtrade.com/api/v4/data"
-               f"?dataset=TaiwanStockBalanceSheet"
-               f"&data_id={code}&start_date={start_date}")
-        r = _session.get(url, timeout=15)
-        data = r.json()
-        if data.get('status') == 200:
-            return code, data.get('data', [])
-    except Exception as e:
-        logger.warning(f"[FinMind資產負債] {code} 抓取失敗: {e}")
-    return code, None
-
-def _calc_contract_metrics(records):
-    if not records:
-        return None
-    # 找合約負債（ContractLiabilities），排除 _per 百分比型態，同季度加總（流動+非流動）
-    quarter_sums = {}  # {label: {'date': date, 'value': total}}
-    for r in records:
-        t = r.get('type', '')
-        if '_per' in t:
-            continue
-        if 'ContractLiabilit' in t or 'contract_liabilit' in t.lower():
-            label = date_to_quarter_label(r['date'])
-            if not label:
-                continue
-            if label not in quarter_sums:
-                quarter_sums[label] = {'date': r['date'], 'value': 0}
-            quarter_sums[label]['value'] += r['value']
-    if not quarter_sums:
-        return None
-    # 按季度排序取最近 3 季
-    sorted_qs = sorted(quarter_sums.items(), key=lambda x: x[1]['date'], reverse=True)[:3]
-    result = {}
-    for i, (label, data) in enumerate(sorted_qs, 1):
-        result[f'contract_{i}']  = data['value']
-        result[f'contract_{i}q'] = label
-    for i in range(len(sorted_qs) + 1, 4):
-        result[f'contract_{i}']  = None
-        result[f'contract_{i}q'] = None
-    return result
+# ── 合約負債：從 DB 讀取（已由 MOPS 季報 + 群益 zcpa 維護）──────
 
 def _expected_latest_quarter():
     """根據現在日期推算市場上應有的最新季度標籤"""
@@ -960,192 +783,34 @@ def _expected_latest_quarter():
     else:           return f"{roc_y - 1}Q3"
 
 def fetch_contract_liabilities(codes, old_meta):
-    today_str = date.today().strftime('%Y-%m-%d')
-    cl_start = (date.today() - timedelta(days=500)).strftime('%Y-%m-%d')
-    expected_q = _expected_latest_quarter()
-
-    # 跳過已有最新季度資料的股票
+    """合約負債直接從 DB 取，不再逐支抓取。由 MOPS 季報 + 群益 zcpa 維護。"""
     cl_keys = ['contract_1', 'contract_1q', 'contract_2', 'contract_2q', 'contract_3', 'contract_3q']
-    need_codes = []
     results = {}
     for c in codes:
         old = old_meta.get(c, {})
-        if old.get('contract_1q') and old['contract_1q'] >= expected_q:
+        if old.get('contract_1') is not None:
             results[c] = {k: old.get(k) for k in cl_keys}
-        else:
-            need_codes.append(c)
-    cached = len(codes) - len(need_codes)
-    if cached:
-        print(f"[合約負債] 已有 {cached} 支為最新（{expected_q}），需抓取 {len(need_codes)} 支")
-
-    if need_codes:
-        # 優先權排序：重要股票先抓
-        need_codes = get_priority_queue(need_codes, 'contract')
-        print(f"[合約負債] 開始抓取 {len(need_codes)} 支（已依優先權排序）...")
-        done = 0
-        fail_streak = 0
-        with ThreadPoolExecutor(max_workers=10) as pool:  # 群益逐支抓取，10 並發（I/O 密集）
-            futures = {pool.submit(_fetch_contract_liability, c, cl_start): c
-                       for c in need_codes}
-            for f in as_completed(futures):
-                code, records = f.result()
-                track_finmind_call()
-                metrics = _calc_contract_metrics(records) if records else None
-                if metrics:
-                    results[code] = metrics
-                    fail_streak = 0
-                else:
-                    fail_streak += 1
-                done += 1
-                if done % 200 == 0:
-                    print(f"  合約負債進度：{done}/{len(need_codes)}")
-                if fail_streak >= 50 and done > 100:
-                    print(f"  [合約負債] 偵測到限速，提前結束")
-                    break
-                if should_skip_finmind():
-                    print(f"  [合約負債] 額度即將用盡，已完成 {done} 支")
-                    break
-
-    hit = sum(1 for v in results.values() if v.get('contract_1') is not None)
-    print(f"[合約負債] 完成：{hit}/{len(codes)} 筆")
+    hit = len(results)
+    print(f"[合約負債] DB 已有 {hit}/{len(codes)} 筆（由 MOPS 季報 + 群益維護）")
     return results
 
 
-# ── EPS：FinMind 逐支抓取 ──────────────────────────────────
-def _fetch_eps(code, start_date):
-    try:
-        time.sleep(random.uniform(0.1, 0.5))
-        url = (f"https://api.finmindtrade.com/api/v4/data"
-               f"?dataset=TaiwanStockFinancialStatements"
-               f"&data_id={code}&start_date={start_date}")
-        r = _session.get(url, timeout=15)
-        data = r.json()
-        if data.get('status') == 200:
-            return code, data.get('data', [])
-    except Exception as e:
-        logger.warning(f"[FinMind損益] {code} 抓取失敗: {e}")
-    return code, None
-
-def _calc_eps_metrics(records):
-    if not records:
-        return None
-    eps_list = []
-    for r in records:
-        if r.get('type') == 'EPS':
-            label = date_to_quarter_label(r['date'])
-            if label:
-                eps_list.append({'date': r['date'], 'label': label, 'value': r['value']})
-    if not eps_list:
-        return None
-    eps_list.sort(key=lambda x: x['date'], reverse=True)
-
-    # 最近 5 季
-    latest_5 = eps_list[:5]
-    result = {}
-    for i, ep in enumerate(latest_5, 1):
-        result[f'eps_{i}']  = ep['value']
-        result[f'eps_{i}q'] = ep['label']
-    for i in range(len(latest_5) + 1, 6):
-        result[f'eps_{i}']  = None
-        result[f'eps_{i}q'] = None
-
-    # 年度 EPS：依年份分組加總（只取四季齊全的年份）
-    cur_roc_year = date.today().year - 1911  # 115
-    yearly = {}  # {roc_year: {quarter: value}}
-    for ep in eps_list:
-        parts = ep['label'].split('Q')
-        y, q = int(parts[0]), int(parts[1])
-        yearly.setdefault(y, {})[q] = ep['value']
-
-    # 當年度累計
-    if cur_roc_year in yearly:
-        qs = yearly[cur_roc_year]
-        result['eps_ytd'] = round(sum(qs.values()), 2)
-        result['eps_ytd_label'] = str(cur_roc_year)
-    else:
-        result['eps_ytd'] = None
-        result['eps_ytd_label'] = None
-
-    # 最近 6 個完整年度（4 季齊全）
-    full_years = sorted(
-        [y for y, qs in yearly.items() if len(qs) == 4 and y != cur_roc_year],
-        reverse=True
-    )[:6]
-    for i, y in enumerate(full_years, 1):
-        result[f'eps_y{i}'] = round(sum(yearly[y].values()), 2)
-        result[f'eps_y{i}_label'] = str(y)
-    for i in range(len(full_years) + 1, 7):
-        result[f'eps_y{i}'] = None
-        result[f'eps_y{i}_label'] = None
-
-    return result
-
+# ── 季度 EPS：從 DB 讀取（已由 MOPS t163sb04 + 群益 zce + 政府API t187ap14 維護）──
 def fetch_eps(codes, old_meta):
-    today_str = date.today().strftime('%Y-%m-%d')
-    eps_start = (date.today() - timedelta(days=2200)).strftime('%Y-%m-%d')  # ~6 年
-
-    # 需要抓取的條件：沒有完整季度 EPS（至少要有 eps_2q 才算完整）
+    """季度EPS直接從 DB 取，不再逐支抓取。由 MOPS + 群益 + 政府API 維護。"""
     eps_keys = (
         ['eps_date']
         + [f'eps_{i}' for i in range(1,6)] + [f'eps_{i}q' for i in range(1,6)]
         + [f'eps_y{i}' for i in range(1,7)] + [f'eps_y{i}_label' for i in range(1,7)]
         + ['eps_ytd', 'eps_ytd_label']
     )
-
-    expected_q = _expected_latest_quarter()
-    need_codes = []
-    for c in codes:
-        old = old_meta.get(c, {})
-        # 沒有完整季度，或最新季度過時 → 需重抓
-        if not old.get('eps_2q') or (old.get('eps_1q') and old['eps_1q'] < expected_q):
-            need_codes.append(c)
-    cached = len(codes) - len(need_codes)
-    if cached:
-        print(f"[EPS] 已有 {cached} 支為最新（{expected_q}），需抓取 {len(need_codes)} 支")
-
     results = {}
-    # 帶入舊 EPS 資料（只帶入不需重抓的）
     for code in codes:
-        if code not in need_codes:
-            old = old_meta.get(code, {})
-            if old.get('eps_2q'):
-                results[code] = {k: old.get(k) for k in eps_keys}
-
-    if need_codes:
-        # 優先權排序：重要股票先抓
-        need_codes = get_priority_queue(need_codes, 'eps')
-        print(f"[EPS] 開始抓取 {len(need_codes)} 支（已依優先權排序）...")
-        done = 0
-        fail_streak = 0
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            futures = {pool.submit(_fetch_eps, c, eps_start): c for c in need_codes}
-            for f in as_completed(futures):
-                code, records = f.result()
-                track_finmind_call()
-                old = old_meta.get(code, {})
-                metrics = _calc_eps_metrics(records) if records else None
-                if metrics:
-                    new_q = metrics.get('eps_1q')
-                    old_q = old.get('eps_1q')
-                    eps_date = today_str if new_q != old_q else (old.get('eps_date') or today_str)
-                    results[code] = {**metrics, 'eps_date': eps_date}
-                    fail_streak = 0
-                else:
-                    fail_streak += 1
-                done += 1
-                if done % 200 == 0:
-                    print(f"  EPS 進度：{done}/{len(need_codes)}")
-                # 連續失敗太多次 → 可能被限速，提前結束
-                if fail_streak >= 50 and done > 100:
-                    print(f"  [EPS] 偵測到連續 {fail_streak} 次失敗，可能被限速，提前結束")
-                    break
-                # 額度預警：超過 90% 停止抓取
-                if should_skip_finmind():
-                    print(f"  [EPS] 額度即將用盡，已完成 {done} 支，剩餘留待下次")
-                    break
-
-    hit = sum(1 for v in results.values() if v.get('eps_1') is not None)
-    print(f"[EPS] 完成：{hit}/{len(codes)} 筆含最近一季")
+        old = old_meta.get(code, {})
+        if old.get('eps_1') is not None:
+            results[code] = {k: old.get(k) for k in eps_keys}
+    hit = len(results)
+    print(f"[EPS] DB 已有 {hit}/{len(codes)} 筆（由 MOPS + 群益 + 政府API 維護）")
     return results
 
 
@@ -1300,10 +965,10 @@ def _run_inner(scheduled=True):
     # 4. 股利（政府 API，批次無限制）
     div_map = fetch_dividends_bulk()
 
-    # 5. 合約負債（FinMind）
+    # 5. 合約負債（從 DB，由 MOPS 季報 + 群益維護）
     contract_map = fetch_contract_liabilities(all_codes, old_meta)
 
-    # 6. EPS 年度 — 群益優先，政府API+BWIBBU反推驗證，FinMind補齊
+    # 6. EPS 年度 — 群益優先，政府API+BWIBBU反推驗證
     from capital_fetcher import fetch_capital_annual_eps_batch
     eps_capital = fetch_capital_annual_eps_batch(all_codes)  # 群益年度EPS（最優先）
 
@@ -1313,7 +978,7 @@ def _run_inner(scheduled=True):
     # 6c. EPS 年度歷史（TWSE/TPEX 本益比反推，批次無限制）— 驗證+補齊
     eps_annual_hist = fetch_eps_annual_history()
 
-    # 7. EPS 季度+歷史年度（FinMind，有速率限制）— 最後補齊
+    # 7. EPS 季度（從 DB，由 MOPS + 群益 + 政府API 維護）
     eps_map = fetch_eps(all_codes, old_meta)
 
     # 6. 合併所有資料
@@ -1340,7 +1005,7 @@ def _run_inner(scheduled=True):
         r['eps_ytd']       = eps.get('eps_ytd')
         r['eps_ytd_label'] = eps.get('eps_ytd_label')
 
-        # 多源合併年度 EPS：群益優先 → 政府API+BWIBBU驗證 → FinMind補齊
+        # 多源合併年度 EPS：群益優先 → 政府API+BWIBBU驗證 → DB既有值補齊
         cap = eps_capital.get(r['code'], {})   # 群益（最優先）
         annual = eps_annual.get(r['code'])      # 政府API t187ap14（驗證）
         hist = eps_annual_hist.get(r['code'], {})  # BWIBBU反推（驗證+補齊）
@@ -1367,7 +1032,7 @@ def _run_inner(scheduled=True):
             if yr not in merged:
                 merged[yr] = eps_val
 
-        # 第四層：FinMind（最後補齊）
+        # 第四層：DB 既有值（保留先前已存的資料）
         for i in range(1, 7):
             if r.get(f'eps_y{i}_label') and r.get(f'eps_y{i}') is not None:
                 yr = r[f'eps_y{i}_label']
@@ -2787,7 +2452,7 @@ def _fetch_quarterly_finmind(code):
     return results
 
 
-# ── 歷史本益比（FinMind TaiwanStockPER）──────────────────
+# ── 歷史本益比（群益）──────────────────
 
 def init_pe_history_db():
     with sqlite3.get_conn() as conn:
@@ -2806,61 +2471,14 @@ def init_pe_history_db():
 
 
 def fetch_pe_history(code):
-    """群益優先抓歷史本益比，FinMind 為 fallback"""
-    # 來源 1：群益（免費無限制）
+    """從群益抓歷史本益比"""
     try:
         from capital_fetcher import fetch_capital_pe_history
         n = fetch_capital_pe_history(code)
-        if n > 0:
-            return []  # 群益成功，不用 FinMind
+        return n
     except Exception as e:
-        logger.warning(f"[PE歷史] {code} 群益失敗，fallback FinMind: {e}")
-
-    # 來源 2：FinMind（有額度限制）
-    start_date = f"{date.today().year - 8}-01-01"
-    url = (f"https://api.finmindtrade.com/api/v4/data"
-           f"?dataset=TaiwanStockPER&data_id={code}&start_date={start_date}")
-    try:
-        r = _session.get(url, timeout=20)
-        data = r.json()
-        records = data.get('data', []) if data.get('status') == 200 else []
-    except Exception as e:
-        records = []
-
-    if not records:
-        return []
-
-    # 按年分組取最高最低
-    from collections import defaultdict
-    yearly = defaultdict(list)
-    for rec in records:
-        yr = int(rec['date'][:4])
-        pe = rec.get('PER')
-        if pe and pe > 0:
-            yearly[yr].append(pe)
-
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cur_year = date.today().year
-    results = []
-    with sqlite3.get_conn() as conn:
-        c = conn.cursor()
-        for yr in sorted(yearly.keys()):
-            if yr == cur_year:
-                continue  # 跳過當年度（不完整）
-            vals = yearly[yr]
-            row = {
-                'code': code, 'year': yr,
-                'pe_high': round(max(vals), 2),
-                'pe_low': round(min(vals), 2),
-                'updated_at': now_str,
-            }
-            results.append(row)
-            c.execute("""
-                INSERT OR REPLACE INTO pe_history (code, year, pe_high, pe_low, updated_at)
-                VALUES (:code, :year, :pe_high, :pe_low, :updated_at)
-            """, row)
-        conn.commit()
-    return results
+        logger.warning(f"[PE歷史] {code} 群益失敗: {e}")
+        return 0
 
 
 # ── 快速更新：批次營收 + EPS（政府 API，無限制）─────────────
@@ -3492,7 +3110,7 @@ def _refresh_stale_financials():
     if not stale:
         return
 
-    # 限制每次最多刷新 20 支（避免用光 FinMind 額度）
+    # 限制每次最多刷新 20 支
     stale = stale[:20]
     print(f"[財報] 偵測到 {len(stale)} 支有新年報待刷新")
 
@@ -3508,10 +3126,8 @@ def _refresh_stale_financials():
 def _prefetch_watchlist_details():
     """
     觀察清單個股資料預抓取。
-    三層來源：Yahoo Finance → 政府 API → FinMind。
+    來源：Yahoo Finance → 政府 API。
     """
-    from guardian import should_skip_finmind, track_finmind_call
-
     # ── 0. Yahoo Finance 補年度/季度財報（免費無限制）──
     print("[預抓取] Yahoo Finance 補齊財報...")
     try:
@@ -3694,60 +3310,9 @@ def _prefetch_revenue_and_financials(conn):
         c.execute("SELECT COUNT(*) FROM pe_history WHERE code=?", (code,))
         if c.fetchone()[0] > 0:
             continue  # 已有就跳過
-        # 從 stock_state 歷史估算（簡易版：用最近的 shen_pe 做紀錄）
-        # 真正的 PE 歷史需要 FinMind，這裡先跳過
+        # PE 歷史由群益在 _fill_missing_financials 中補齊
 
     conn.commit()
-
-    # ── 4. FinMind 補充（有額度才跑）──
-    if should_skip_finmind():
-        print("[預抓取] FinMind 額度不足，跳過個股補充")
-        return
-
-    with sqlite3.get_conn(row_factory=True) as conn:
-        c = conn.cursor()
-        c.execute("SELECT DISTINCT stock_id FROM stock_state")
-        tracked = [r[0] for r in c.fetchall()]
-
-        need_fetch = []
-        now = datetime.now()
-        for code in tracked:
-            c.execute("SELECT updated_at FROM quarterly_financial WHERE code=? ORDER BY updated_at DESC LIMIT 1", (code,))
-            r = c.fetchone()
-            if not r or not r['updated_at']:
-                need_fetch.append(code)
-                continue
-            try:
-                updated = datetime.strptime(r['updated_at'], '%Y-%m-%d %H:%M:%S')
-                if (now - updated).days >= 7:
-                    need_fetch.append(code)
-            except Exception as e:
-                need_fetch.append(code)
-
-    if not need_fetch:
-        print("[預抓取] FinMind 補充：觀察清單都是最新的")
-        return
-
-    batch = need_fetch[:15]
-    print(f"[預抓取] FinMind 補充 {len(batch)} 支（季度財報+PE歷史）")
-
-    done = 0
-    for code in batch:
-        if should_skip_finmind():
-            break
-        try:
-            r3 = fetch_company_quarterly(code)
-            track_finmind_call(2)
-            r4 = fetch_pe_history(code)
-            track_finmind_call(1)
-            if r3 or r4:
-                print(f"  {code}: 季度{len(r3) if r3 else 0}季, PE{len(r4) if r4 else 0}年")
-            done += 1
-            time.sleep(random.uniform(0.3, 1.0))
-        except Exception as e:
-            logger.warning(f"[預抓取] {code} FinMind失敗: {e}")
-
-    print(f"[預抓取] FinMind 補充完成 {done}/{len(batch)} 支")
 
 
 def _parse_inst_val(v):

@@ -1014,7 +1014,30 @@ def fetch_capital_annual_eps(code):
 
 def fetch_capital_annual_eps_batch(codes):
     """批次抓取群益年度 EPS，回傳 {code: {民國年: eps}}
-    用於年度 EPS 主要來源 + 公告期結束後批次驗證"""
+    用於年度 EPS 主要來源 + 公告期結束後批次驗證。
+    非公告期（5~12月）只抓 DB 缺年度EPS的股票，避免每天重複抓不會變的資料。
+    """
+    from datetime import date as _date
+    month = _date.today().month
+
+    # 公告期（1~4月）：全量抓取，確保新年報資料完整
+    # 非公告期（5~12月）：只抓 DB 缺最新年度 EPS 的股票
+    if month >= 5:
+        import db as _db
+        latest_year = str(_date.today().year - 1911 - 1)  # 如 2026 → 114
+        with _db.get_conn() as conn:
+            existing = set()
+            for r in conn.execute(
+                "SELECT code FROM stocks WHERE eps_y1_label = ?", (latest_year,)
+            ).fetchall():
+                existing.add(r[0])
+        need_codes = [c for c in codes if c not in existing]
+        if not need_codes:
+            print(f"[群益年度EPS] 非公告期，DB 已有 {len(existing)} 支最新年度({latest_year})，跳過")
+            return {}
+        print(f"[群益年度EPS] 非公告期，{len(existing)} 支已有最新，只抓 {len(need_codes)} 支缺的")
+        codes = need_codes
+
     print(f"[群益年度EPS] 開始抓取 {len(codes)} 支...")
     t0 = time.time()
     result = {}
