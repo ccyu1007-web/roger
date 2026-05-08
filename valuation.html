@@ -118,15 +118,13 @@ const GRADE_CLS = g => {
 
 async function load() {
   try {
-    const [briefRes, listRes, focusRes] = await Promise.all([
+    const [briefRes, listRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/user-lists'),
-      fetch('/api/focus-tracking'),
     ]);
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
-    const focusData = await focusRes.json();
-    _focusTrackSet = new Set((focusData.tracked || []).map(r => r.code));
+    _focusTrackSet = new Set((lists.track || []).map(r => r.code));
     _data = await briefRes.json();
 
     // 直接用 DB 算好的資料
@@ -367,17 +365,15 @@ function renderCrosses(thNames) {
 
 function _toggleFocusTrack(cb) {
   const code = cb.dataset.code;
-  const item = _cheapList.find(r => r.code === code);
-  const price = item ? item.price : null;
   if (cb.checked) {
     _focusTrackSet.add(code);
-    fetch('/api/focus-tracking', {
+    fetch('/api/user-lists/track', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action: 'add', code, price})
+      body: JSON.stringify({action: 'add', code})
     });
   } else {
     _focusTrackSet.delete(code);
-    fetch('/api/focus-tracking', {
+    fetch('/api/user-lists/track', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({action: 'remove', code})
     });
