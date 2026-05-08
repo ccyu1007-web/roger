@@ -289,5 +289,10 @@ def ensure_indexes(conn):
             c.execute(sql)
         except Exception:
             pass
+    # 清理已廢棄的表
+    try:
+        c.execute("DROP TABLE IF EXISTS financial_detail")
+    except Exception:
+        pass
     if hasattr(conn, 'commit'):
         conn.commit()
