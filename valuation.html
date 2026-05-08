@@ -36,6 +36,7 @@
   }
   .tab-btn:first-child { border-radius: 8px 0 0 8px; }
   .tab-btn:last-child { border-radius: 0 8px 8px 0; }
+  .tab-btn:not(:first-child):not(:last-child) { border-radius: 0; }
   .tab-btn.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
   .count-badge { font-size: .75rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }
 
@@ -86,6 +87,7 @@
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('aa',this)">AA<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
       <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
+      <button class="tab-btn" onclick="switchTab('cross',this)">門檻穿越<span class="count-badge" id="cntCross" style="background:#e0e7ff;color:#3730a3"></span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
@@ -103,6 +105,7 @@ let _qualitySet = new Set();
 let _focusTrackSet = new Set();
 let _cheapList = [];   // 從 DB 的 val_cheap_list
 let _changes = [];     // 從 DB 的 val_level_changes
+let _crosses = [];     // 從 DB 的 val_threshold_crosses
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
@@ -127,6 +130,7 @@ async function load() {
     // 直接用 DB 算好的資料
     _cheapList = _data.val_cheap_list || [];
     _changes = _data.val_level_changes || [];
+    _crosses = _data.val_threshold_crosses || [];
 
     // 建立等級變動查找表（code → change info）
     const changeMap = {};
@@ -176,11 +180,13 @@ function updateCounts() {
   pool = pool.filter(s => !s._removed);
   document.getElementById('cntAA').textContent = pool.filter(s => s.level === 'AA').length;
   document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.level)).length;
+  document.getElementById('cntCross').textContent = _crosses.length;
 }
 
 function renderTab() {
   if (_tab === 'aa') renderList('AA');
-  else renderList('cheap');
+  else if (_tab === 'cheap') renderList('cheap');
+  else if (_tab === 'cross') renderCrosses();
 }
 
 function renderList(mode) {
@@ -278,6 +284,48 @@ function renderList(mode) {
 
   if (!normal.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
   html += '</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderCrosses() {
+  const belows = _crosses.filter(c => c.direction === 'below');
+  const aboves = _crosses.filter(c => c.direction === 'above');
+
+  const thColor = {'AA':'#dc2626','A1':'#92400e','A2':'#1d4ed8','A':'#166534','長期6%':'#059669'};
+  const thBg = {'AA':'#fee2e2','A1':'#fef3c7','A2':'#dbeafe','A':'#dcfce7','長期6%':'#ecfdf5'};
+
+  function renderGroup(items, title, headerStyle) {
+    if (!items.length) return `<div class="section">
+      <div class="section-header" style="${headerStyle}">${title}<span style="font-weight:400;font-size:.82rem;margin-left:8px">0 支</span></div>
+      <div style="text-align:center;padding:30px;color:#94a3b8">今日無穿越</div></div>`;
+
+    let html = `<div class="section">
+      <div class="section-header" style="${headerStyle}">${title}<span style="font-weight:400;font-size:.82rem;margin-left:8px">${items.length} 支</span></div>
+      <div style="padding:0 20px"><table class="val-table"><thead><tr>
+        <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+        <th style="width:80px;text-align:center">穿越門檻</th>
+        <th style="width:80px;text-align:right">門檻價</th>
+        <th style="width:80px;text-align:right">今日股價</th>
+        <th style="width:80px;text-align:right">昨日股價</th>
+      </tr></thead><tbody>`;
+    items.forEach(c => {
+      const color = thColor[c.threshold] || '#475569';
+      const bg = thBg[c.threshold] || '#f8fafc';
+      html += `<tr>
+        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+        <td>${c.name}</td>
+        <td style="text-align:center"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:700;background:${bg};color:${color}">${c.threshold}</span></td>
+        <td style="text-align:right;font-weight:600;color:${color}">${c.threshold_val.toFixed(2)}</td>
+        <td style="text-align:right;font-weight:600">${c.price.toFixed(2)}</td>
+        <td style="text-align:right;color:#94a3b8">${c.prev_price.toFixed(2)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  let html = renderGroup(belows, '跌破門檻（變便宜）', 'background:#fef2f2;color:#991b1b;border-color:#ef4444');
+  html += renderGroup(aboves, '突破門檻（變貴）', 'background:#f0fdf4;color:#166534;border-color:#22c55e');
   document.getElementById('content').innerHTML = html;
 }
 
