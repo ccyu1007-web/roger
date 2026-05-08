@@ -611,10 +611,10 @@ const COL_GROUPS = [
   { key: 'g-revchg', label: '營收變化', default: true },
   { key: 'g-revmon', label: '當年度營收', default: false },
   { key: 'g-est',  label: '預估明細', default: false },
+  { key: 'g-sys',  label: '系統估算', default: false },
   { key: 'g-shen', label: '沈董明細', default: false },
   { key: 'g-blend', label: '綜合明細', default: false },
   { key: 'g-wt',   label: '加權明細', default: false },
-  { key: 'g-sys',  label: '系統估算', default: false },
   { key: 'g-trail', label: '近四季明細', default: false },
   { key: 'g-fg',   label: '財務等級', default: true },
   { key: 'g-qeps', label: '季度EPS', default: false },
@@ -753,13 +753,13 @@ const CUSTOM_COLS = [
     { id: 'blend_grade', label: '等級' }, { id: 'blend_pe', label: 'PE' }, { id: 'blend_yld', label: '殖利率' },
     { id: 'blend_eps', label: 'EPS' }, { id: 'blend_div', label: '股利' }
   ]},
-  { group: '近四季', cols: [
-    { id: 'trail_ytd', label: '當年累計' }, { id: 'trail_grade', label: '評等' }, { id: 'trail_pe', label: 'PE' },
-    { id: 'trail_yld', label: '殖利率' }, { id: 'trail_eps', label: 'EPS' }, { id: 'trail_div', label: '股利' }
-  ]},
   { group: '加權明細', cols: [
     { id: 'wt_grade', label: '等級' }, { id: 'wt_pe', label: 'PE' }, { id: 'wt_yld', label: '殖利率' },
     { id: 'wt_eps', label: 'EPS' }, { id: 'wt_div', label: '股息' }, { id: 'wt_payout', label: '配息率' }
+  ]},
+  { group: '近四季', cols: [
+    { id: 'trail_ytd', label: '當年累計' }, { id: 'trail_grade', label: '評等' }, { id: 'trail_pe', label: 'PE' },
+    { id: 'trail_yld', label: '殖利率' }, { id: 'trail_eps', label: 'EPS' }, { id: 'trail_div', label: '股利' }
   ]},
   { group: '法人買賣', cols: [
     { id: 'inst_foreign', label: '外資' }, { id: 'inst_trust', label: '投信' }, { id: 'inst_dealer', label: '自營商' }
