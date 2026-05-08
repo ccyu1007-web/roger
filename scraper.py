@@ -1205,60 +1205,19 @@ def _post_process_after_save_inner(conn):
     # ── eps_ytd 補齊 ──
     c.execute("UPDATE stocks SET eps_ytd=eps_y1, eps_ytd_label=eps_y1_label WHERE eps_ytd IS NULL AND eps_y1 IS NOT NULL")
 
-    # ── 年度EPS歷史（TWSE/TPEX 本益比反推） ──
-    hist = fetch_eps_annual_history()
-    if hist:
-        # 批次讀取所有 eps_y labels，避免逐支 SELECT
-        label_cols = ', '.join(f'eps_y{i}_label' for i in range(1, 7))
-        all_labels = {}
-        for r in c.execute(f"SELECT code, {label_cols} FROM stocks WHERE code IN ({','.join('?' * len(hist))})", list(hist.keys())).fetchall():
-            all_labels[r[0]] = [r[j] for j in range(1, 7)]
-        for code, years in hist.items():
-            labels = all_labels.get(code, [None] * 6)
-            for yr, eps_val in years.items():
-                for i in range(6):
-                    if labels[i] == yr: break  # 已有
-                    if labels[i] is None:
-                        c.execute(f"UPDATE stocks SET eps_y{i+1}=?, eps_y{i+1}_label=? WHERE code=?", (eps_val, yr, code))
-                        labels[i] = yr  # 更新本地快取
-                        break
-
     conn.commit()
-
-    # ── 財務等級重算（各自管理 DB 連線）──
-    _refresh_fin_grades()
-    _refresh_grades_from_pbr()
-
-    # ── MOPS 最新季 EPS ──
-    try: fetch_mops_quarterly_eps()
-    except Exception as e: print(f"[MOPS季報EPS] 失敗: {e}")
 
     # ── 稅務資料修正 ──
     _fix_tax_data()
 
-    # ── 交叉驗證 ──
-    try: cross_validate_financial()
-    except Exception as e: print(f"[交叉驗證] 失敗: {e}")
-
-    # ── 年報公告截止後：確認年度 EPS + 股利到齊 ──
-    try: _check_annual_eps_completeness()
-    except Exception as e: print(f"[年度EPS檢查] 失敗: {e}")
-    try: _check_annual_dividend_completeness()
-    except Exception as e: print(f"[年度股利檢查] 失敗: {e}")
-
-    # ── 季報公告截止後：用群益批次確認季度資料 ──
-    try: _check_quarterly_completeness()
-    except Exception as e: print(f"[季報完整性檢查] 失敗: {e}")
-
-    # ── 系統 EPS 估算（季+年，批次更新所有股票）──
-    _batch_system_estimate()
-    _batch_annual_estimate()
-
-    # ── 補抓缺任何關鍵資料的股票（群益全套）──
-    try: _fill_missing_financials()
-    except Exception as e: print(f"  [補資料] 失敗: {e}")
-
-    print("  後處理完成")
+    # 注意：以下步驟已移到 run_maintenance() 獨立執行，不在這裡重複：
+    # - BWIBBU 年度EPS歷史（run_maintenance step 3）
+    # - 財務等級重算（run_maintenance step 8）
+    # - MOPS 季報EPS（quick_update 已處理）
+    # - 交叉驗證（run_maintenance step 11）
+    # - 年度EPS/股利完整性檢查（run_maintenance _fill_all_gaps）
+    # - 系統EPS估算（run_maintenance step 6）
+    # - 補缺資料（run_maintenance _fill_all_gaps）
 
 
 def _fill_missing_financials():
@@ -4032,23 +3991,15 @@ def _run_prices_inner(scheduled=True):
         rt_count = _refresh_realtime()
         print(f"[3.股價修正] 即時API {rt_count} 支，{time.time()-t1:.1f}s")
 
-    # 4. 等級重算
-    t1 = time.time()
-    _refresh_fin_grades()
-    _refresh_grades_from_pbr()
-    _sync_eps_from_quarterly()
-    _sync_contract_from_quarterly()
-    print(f"[4.等級重算] {time.time()-t1:.1f}s")
-
-    # 5. 每日價量 + 評價快照
+    # 4. 每日價量 + 評價快照（等級重算由 quick_update / run_maintenance 負責）
     t1 = time.time()
     _save_daily_price()
     snapshot_stock_states()
     try: focus_signal_check()
     except Exception as e: print(f"[重點追蹤] 失敗: {e}")
-    print(f"[5.評價快照] {time.time()-t1:.1f}s")
+    print(f"[4.評價快照] {time.time()-t1:.1f}s")
 
-    # 6. Checklist + 衍生欄位
+    # 5. Checklist + 衍生欄位
     t1 = time.time()
     try:
         from app import calc_all_checklists, recalc_all_derived
@@ -4056,23 +4007,19 @@ def _run_prices_inner(scheduled=True):
         recalc_all_derived()
     except Exception as e:
         print(f"[Checklist/Derived] 失敗: {e}")
-    print(f"[6.Checklist] {time.time()-t1:.1f}s")
+    print(f"[5.Checklist] {time.time()-t1:.1f}s")
 
-    # 7. Push 到 Render（只推股價+等級+評價）
+    # 6. Push 到 Render（只推股價+等級+評價）
     t1 = time.time()
     if not IS_CLOUD:
         try:
-            _push_prices_to_render()
-            _push_annual_to_render()
-            _push_estimates_to_render()
-            _push_table_to_render(
-                table='stock_checklist',
-                columns=['code','checklist_data','updated_at'],
-                pk=['code'],
-            )
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                pool.submit(_push_prices_to_render)
+                pool.submit(_push_annual_to_render)
+                pool.submit(_push_estimates_to_render)
         except Exception as e:
             print(f"[Push] 失敗: {e}")
-    print(f"[7.Push Render] {time.time()-t1:.1f}s")
+    print(f"[6.Push Render] {time.time()-t1:.1f}s")
 
     print(f"\n股價更新完成！{len(all_rows)} 支，總耗時 {_elapsed()}")
 
