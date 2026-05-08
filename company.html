@@ -582,10 +582,10 @@ function switchTab(tab) {
   document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
   document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
-  document.getElementById('tabISA').classList.toggle('active', tab === 'is_annual');
-  document.getElementById('tabISQ').classList.toggle('active', tab === 'is_quarterly');
-  document.getElementById('tabBSA').classList.toggle('active', tab === 'bs_annual');
-  document.getElementById('tabBSQ').classList.toggle('active', tab === 'bs_quarterly');
+  ['tabISA','tabISQ','tabBSA','tabBSQ'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
   if (tab === 'decision') loadDecision();
   else if (tab === 'financial') loadFinancial();
   else if (tab === 'quarterly') loadQuarterly();
