@@ -1449,11 +1449,13 @@ def refresh():
         with _refresh_lock:
             _is_refreshing = True
             try:
-                # 第一階段：股價（TWSE/TPEX 政府 API，海外可存取）
-                refresh_prices()
-                from scraper import _save_daily_price
-                try: _save_daily_price()
-                except Exception: pass
+                if not is_cloud:
+                    # 本機：呼叫 TWSE/TPEX API 更新股價
+                    refresh_prices()
+                    from scraper import _save_daily_price
+                    try: _save_daily_price()
+                    except Exception: pass
+                # Render（雲端）：不自己抓股價，由本機 push 過來
             finally:
                 _is_refreshing = False
 
@@ -1471,6 +1473,8 @@ def refresh():
                 except Exception: pass
                 try: calc_all_checklists()
                 except Exception: pass
+                try: recalc_all_derived()
+                except Exception: pass
                 # 本機才 push 到 Render
                 if not is_cloud:
                     try:
@@ -1485,7 +1489,8 @@ def refresh():
             _bg_done_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     threading.Thread(target=do_refresh, daemon=True).start()
-    return jsonify({"status": "started", "msg": "開始更新資料"})
+    msg = "開始更新資料" if not is_cloud else "開始更新（股價由本機排程推送）"
+    return jsonify({"status": "started", "msg": msg})
 
 # ── 更新進度查詢 ────────────────────────────────────────────
 @app.route("/api/refresh/status")
