@@ -2371,35 +2371,74 @@ def get_daily_briefing():
                         'val_a1': latest.get('val_a1'),
                             })
 
-        # 門檻清單：每個門檻各自收集 below 的股票 + 穿越標記
+        # 門檻清單：每支股票只歸入最深的門檻，不重複
         cur_price = latest.get('price')
         if cur_price:
             prev_price = snapshots[1].get('price') if len(snapshots) >= 2 else None
             prev_level = snapshots[1].get('val_level') if len(snapshots) >= 2 else None
             tol = 0.005
-            for th_name in _TH_NAMES:
-                th_field = _TH_FIELDS[th_name]
-                th_val = latest.get(th_field)
-                if not th_val or th_val <= 0:
-                    continue
-                is_below = cur_price <= th_val + tol
-                was_below = prev_price <= th_val + tol if prev_price else None
+            v_aa = latest.get('val_aa')
+            v_a1 = latest.get('val_a1')
+            v_a2 = latest.get('val_a2')
+            v_a  = latest.get('val_a')
+            v_lt6 = latest.get('val_lt6')
+
+            # 判定歸屬門檻（最深的）
+            assigned = None
+            if v_aa and v_aa > 0 and cur_price <= v_aa + tol:
+                assigned = 'AA'
+            elif v_a1 and v_a1 > 0 and cur_price <= v_a1 + tol:
+                assigned = 'A1'
+            elif v_a2 and v_a2 > 0 and cur_price <= v_a2 + tol:
+                assigned = 'A2'
+            elif v_a and v_a > 0 and cur_price <= v_a + tol:
+                assigned = 'A'
+            elif v_lt6 and v_lt6 > 0 and cur_price <= v_lt6 + tol:
+                assigned = '長期6%'
+
+            # 昨天歸屬門檻
+            prev_assigned = None
+            if prev_price:
+                if v_aa and v_aa > 0 and prev_price <= v_aa + tol:
+                    prev_assigned = 'AA'
+                elif v_a1 and v_a1 > 0 and prev_price <= v_a1 + tol:
+                    prev_assigned = 'A1'
+                elif v_a2 and v_a2 > 0 and prev_price <= v_a2 + tol:
+                    prev_assigned = 'A2'
+                elif v_a and v_a > 0 and prev_price <= v_a + tol:
+                    prev_assigned = 'A'
+                elif v_lt6 and v_lt6 > 0 and prev_price <= v_lt6 + tol:
+                    prev_assigned = '長期6%'
+
+            th_vals = {'AA': v_aa, 'A1': v_a1, 'A2': v_a2, 'A': v_a, '長期6%': v_lt6}
+
+            if assigned:
+                th_val = th_vals.get(assigned) or 0
                 cross = None
-                if prev_price:
-                    if is_below and not was_below:
-                        cross = 'below'   # 今天跌破
-                    elif not is_below and was_below:
-                        cross = 'above'   # 今天突破
-                if is_below or cross == 'above':
-                    val_by_threshold[th_name].append({
-                        'code': sid, 'name': name,
-                        'price': cur_price, 'threshold_val': th_val,
-                        'discount_pct': round((th_val - cur_price) / th_val * 100, 2) if is_below else None,
-                        'cross': cross,
-                        'from_level': prev_level if cross else None,
-                        'to_level': cur_level if cross else None,
-                        '_removed': cross == 'above',
-                    })
+                if prev_price and assigned != prev_assigned:
+                    cross = 'below'
+                val_by_threshold[assigned].append({
+                    'code': sid, 'name': name,
+                    'price': cur_price, 'threshold_val': th_val,
+                    'discount_pct': round((th_val - cur_price) / th_val * 100, 2) if th_val > 0 else None,
+                    'cross': cross,
+                    'from_level': prev_level if cross else None,
+                    'to_level': cur_level if cross else None,
+                    '_removed': False,
+                })
+
+            # 昨天在某門檻，今天離開了 → 加到昨天那個門檻當「突破」
+            if prev_assigned and prev_assigned != assigned:
+                th_val = th_vals.get(prev_assigned) or 0
+                val_by_threshold[prev_assigned].append({
+                    'code': sid, 'name': name,
+                    'price': cur_price, 'threshold_val': th_val,
+                    'discount_pct': None,
+                    'cross': 'above',
+                    'from_level': prev_level if prev_price else None,
+                    'to_level': cur_level,
+                    '_removed': True,
+                })
 
         # 便宜清單（AA/A1/A2/A 才列入）
         if cur_level and cur_level in CHEAP_GRADES:
