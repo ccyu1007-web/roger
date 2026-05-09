@@ -2894,7 +2894,41 @@ def _calc_growth_indicators(_json, _dt):
         valid = [(r['year'], r['net_income'], r['eps'], r.get('revenue')) for r in rows
                  if r.get('eps') and r['eps'] > 0]
 
+        # 營收 CAGR（不受 EPS 虧損影響，在 EPS 判斷前計算）
+        _all_revs = [(r['year'], r['revenue']) for r in rows if r.get('revenue') and r['revenue'] > 0]
+        _all_revs.sort(key=lambda x: x[0])
+        _rev_cagr_3y = None
+        _rev_cagr_5y = None
+        if len(_all_revs) >= 6:
+            _rv_s, _rv_e = _all_revs[-6][1], _all_revs[-1][1]
+            if _rv_s > 0 and _rv_e > 0:
+                _rev_cagr_5y = ((_rv_e / _rv_s) ** (1.0 / 5) - 1) * 100
+        elif len(_all_revs) >= 5:
+            _rv_s, _rv_e = _all_revs[-5][1], _all_revs[-1][1]
+            _n = _all_revs[-1][0] - _all_revs[-5][0]
+            if _rv_s > 0 and _rv_e > 0 and _n >= 4:
+                _rev_cagr_5y = ((_rv_e / _rv_s) ** (1.0 / _n) - 1) * 100
+        if len(_all_revs) >= 4:
+            _rv_s3, _rv_e3 = _all_revs[-4][1], _all_revs[-1][1]
+            if _rv_s3 > 0 and _rv_e3 > 0:
+                _rev_cagr_3y = ((_rv_e3 / _rv_s3) ** (1.0 / 3) - 1) * 100
+        elif len(_all_revs) >= 3:
+            _rv_s3, _rv_e3 = _all_revs[-3][1], _all_revs[-1][1]
+            _n3 = _all_revs[-1][0] - _all_revs[-3][0]
+            if _rv_s3 > 0 and _rv_e3 > 0 and _n3 >= 2:
+                _rev_cagr_3y = ((_rv_e3 / _rv_s3) ** (1.0 / _n3) - 1) * 100
+
         if len(valid) < 4:
+            # EPS 有效年份不足，但營收 CAGR 仍輸出
+            result[code] = {
+                'neff_a': None, 'neff_b': None, 'neff_3a': None, 'neff_3b': None,
+                'neff_c': None, 'neff_d': None, 'intrinsic_growth': None,
+                'lynch_a': None, 'lynch_b': None, 'lynch_c': None, 'lynch_d': None,
+                'rev_cagr_3y': round(_rev_cagr_3y, 2) if _rev_cagr_3y is not None else None,
+                'rev_cagr_5y': round(_rev_cagr_5y, 2) if _rev_cagr_5y is not None else None,
+                'shares_change': None, 'yield': 0, 'pe': 0,
+                'gray': True, 'neff_gray': True, 'lynch_gray': True, 'warnings': [],
+            }
             continue
 
         years = [v[0] for v in valid]
@@ -2956,9 +2990,23 @@ def _calc_growth_indicators(_json, _dt):
             elif far2_avg > 0 and near2_avg <= 0:
                 cagr_3y_smooth = -1.0
 
+        # 使用前面已計算好的營收 CAGR
+        rev_cagr_3y = _rev_cagr_3y
+        rev_cagr_5y = _rev_cagr_5y
+
         # ══ 保守成長率 = min(四種方法中有值的) ══
         all_cagrs = [c for c in [cagr_5y_endpoint, cagr_5y_smooth, cagr_3y_endpoint, cagr_3y_smooth] if c is not None]
         if not all_cagrs:
+            # EPS CAGR 全空，但營收 CAGR 可能有值，仍輸出
+            result[code] = {
+                'neff_a': None, 'neff_b': None, 'neff_3a': None, 'neff_3b': None,
+                'neff_c': None, 'neff_d': None, 'intrinsic_growth': None,
+                'lynch_a': None, 'lynch_b': None, 'lynch_c': None, 'lynch_d': None,
+                'rev_cagr_3y': round(rev_cagr_3y, 2) if rev_cagr_3y is not None else None,
+                'rev_cagr_5y': round(rev_cagr_5y, 2) if rev_cagr_5y is not None else None,
+                'shares_change': None, 'yield': 0, 'pe': 0,
+                'gray': True, 'neff_gray': True, 'lynch_gray': True, 'warnings': [],
+            }
             continue
 
         neff_a = cagr_5y_endpoint   # 5年端點
@@ -2995,35 +3043,6 @@ def _calc_growth_indicators(_json, _dt):
         gap_years = len(all_years) - len(valid)
         if gap_years > 0:
             warnings.append(f'有{gap_years}年虧損被排除')
-
-        # ── 營收 CAGR 驗證（EPS 成長是否有營收支撐）
-        rev_cagr_5y = None
-        valid_revs = [(y, rv) for y, _, _, rv in valid if rv and rv > 0]
-        if len(valid_revs) >= 6:
-            rv_start = valid_revs[-6][1]
-            rv_end = valid_revs[-1][1]
-            if rv_start > 0 and rv_end > 0:
-                rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / 5) - 1) * 100
-        elif len(valid_revs) >= 5:
-            rv_start = valid_revs[-5][1]
-            rv_end = valid_revs[-1][1]
-            n_rv = valid_revs[-1][0] - valid_revs[-5][0]
-            if rv_start > 0 and rv_end > 0 and n_rv >= 4:
-                rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / n_rv) - 1) * 100
-
-        # 3 年營收 CAGR
-        rev_cagr_3y = None
-        if len(valid_revs) >= 4:
-            rv_start3 = valid_revs[-4][1]
-            rv_end3 = valid_revs[-1][1]
-            if rv_start3 > 0 and rv_end3 > 0:
-                rev_cagr_3y = ((rv_end3 / rv_start3) ** (1.0 / 3) - 1) * 100
-        elif len(valid_revs) >= 3:
-            rv_start3 = valid_revs[-3][1]
-            rv_end3 = valid_revs[-1][1]
-            n_rv3 = valid_revs[-1][0] - valid_revs[-3][0]
-            if rv_start3 > 0 and rv_end3 > 0 and n_rv3 >= 2:
-                rev_cagr_3y = ((rv_end3 / rv_start3) ** (1.0 / n_rv3) - 1) * 100
 
         if rev_cagr_5y is not None and a_pct is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
             warnings.append('淨利成長遠快於營收，注意利潤率變化')
@@ -3070,6 +3089,20 @@ def _calc_growth_indicators(_json, _dt):
             pe = close / st['sys_ann_eps']
 
         if pe is None or pe <= 0:
+            # PE 無值，但營收 CAGR 和部分指標仍輸出
+            result[code] = {
+                'neff_a': round(a_pct, 2) if a_pct is not None else None,
+                'neff_b': round(b_pct, 2) if b_pct is not None else None,
+                'neff_3a': round(a3_pct, 2) if a3_pct is not None else None,
+                'neff_3b': round(b3_pct, 2) if b3_pct is not None else None,
+                'neff_c': neff_c, 'neff_d': None, 'intrinsic_growth': None,
+                'lynch_a': round(a_pct, 2) if a_pct is not None else None,
+                'lynch_b': None, 'lynch_c': None, 'lynch_d': None,
+                'rev_cagr_3y': round(rev_cagr_3y, 2) if rev_cagr_3y is not None else None,
+                'rev_cagr_5y': round(rev_cagr_5y, 2) if rev_cagr_5y is not None else None,
+                'shares_change': None, 'yield': 0, 'pe': 0,
+                'gray': True, 'neff_gray': True, 'lynch_gray': True, 'warnings': warnings,
+            }
             continue
 
         # ── 林區：算術平均成長率（B）用稅後淨利（複用上面的 yoy_list）
