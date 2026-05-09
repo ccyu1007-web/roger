@@ -624,6 +624,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     close = r.get('close')
     shen_eps = r.get('shen_eps')
     shen_div = r.get('shen_div')
+    blend_eps = r.get('blend_eps')
     blend_div = r.get('blend_div')
     weighted_div = r.get('weighted_div')
 
@@ -665,48 +666,14 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     else:
         shen_grade = None
 
-    # 加權 EPS
-    weighted_eps = None
-    dw = [30, 25, 20, 15, 10]
-    we = ws2 = 0
-    for i in range(1, 6):
-        e = r.get(f'eps_y{i}')
-        w = dw[i - 1]
-        if e is not None and w > 0:
-            we += e * w / 100
-            ws2 += w
-    if ws2 > 0:
-        weighted_eps = round(we, 2)
-    weighted_pe = round(close / weighted_eps, 2) if weighted_eps and weighted_eps > 0 and close else None
-    weighted_yld = round(weighted_div / close * 100, 2) if weighted_div and weighted_div > 0 and close and close > 0 else None
-
-    # 加權等級
-    if weighted_eps is not None and weighted_eps <= 0:
-        weighted_grade = 'X'
-    elif weighted_pe and weighted_yld:
-        weighted_grade = _calc_matrix_grade(weighted_pe, weighted_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
-    else:
-        weighted_grade = None
-
-    # 綜合 EPS
-    bs, bw = 0.5, 0.5
-    blend_eps = None
-    if shen_eps is not None and weighted_eps is not None:
-        blend_eps = round(shen_eps * bs + weighted_eps * bw, 2)
-    elif shen_eps is not None:
-        blend_eps = shen_eps
-    elif weighted_eps is not None:
-        blend_eps = weighted_eps
-    blend_pe = round(close / blend_eps, 2) if blend_eps and blend_eps > 0 and close else None
-    blend_yld = round(blend_div / close * 100, 2) if blend_div and blend_div > 0 and close and close > 0 else None
-
-    # 綜合等級
-    if blend_eps is not None and blend_eps <= 0:
-        blend_grade = 'X'
-    elif blend_pe and blend_yld:
-        blend_grade = _calc_matrix_grade(blend_pe, blend_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
-    else:
-        blend_grade = None
+    # 加權/綜合 EPS/PE/等級：從 _calc_derived_fields 已算好的 r 讀取
+    weighted_eps = r.get('weighted_eps')
+    weighted_pe = r.get('weighted_pe')
+    weighted_yld = r.get('weighted_yld')
+    weighted_grade = r.get('weighted_grade')
+    blend_pe = r.get('blend_pe')
+    blend_yld = r.get('blend_yld')
+    blend_grade = r.get('blend_grade')
 
     # 預估 EPS/股利（預估 > 沈董）
     est_eps = est_eps_user if est_eps_user is not None else None
@@ -720,9 +687,19 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     else:
         est_grade = None
 
-    # 評價門檻（預估 > 沈董）
-    val_eps = est_eps if est_eps is not None else shen_eps
-    val_div = est_div if est_div is not None else shen_div
+    # 評價門檻（預估 > min(沈董, 綜合)）
+    if est_eps is not None:
+        val_eps = est_eps
+    elif shen_eps is not None and blend_eps is not None:
+        val_eps = min(shen_eps, blend_eps)
+    else:
+        val_eps = shen_eps if shen_eps is not None else blend_eps
+    if est_div is not None:
+        val_div = est_div
+    elif shen_div is not None and blend_div is not None:
+        val_div = min(shen_div, blend_div)
+    else:
+        val_div = shen_div if shen_div is not None else blend_div
     def _calc_val(pe_val, yld_val):
         if val_eps is None or val_eps <= 0 or val_div is None or val_div <= 0:
             return None
@@ -1037,10 +1014,12 @@ def calc_all_checklists():
     for r in rows:
         r = dict(r)
         _calc_shen_fields(r, cur_roc, gs)
+        up = ue_map.get(r['code'])
+        _calc_derived_fields(r, gs, up)
         r['_gi'] = gi_map.get(r['code'])
         r['_gm_data'] = gm_map.get(r['code'])
         r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
-        user_params = ue_map.get(r['code'])
+        user_params = up
         result = _calc_checklist_for_stock(r, user_params, gs)
 
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位）
