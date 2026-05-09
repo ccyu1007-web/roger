@@ -538,7 +538,7 @@ def _init_checklist_db():
                  ('gi_intrinsic_growth','REAL'),
                  ('gi_lynch_a','REAL'),('gi_lynch_b','REAL'),
                  ('gi_lynch_c','REAL'),('gi_lynch_d','REAL'),
-                 ('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
+                 ('gi_rev_cagr_3y','REAL'),('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
                  ('gi_yield','REAL'),('gi_pe','REAL'),
                  ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
                  ('gi_warnings','TEXT')]
@@ -906,6 +906,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
         'gi_lynch_b': gi.get('lynch_b'),
         'gi_lynch_c': gi.get('lynch_c'),
         'gi_lynch_d': gi.get('lynch_d'),
+        'gi_rev_cagr_3y': gi.get('rev_cagr_3y'),
         'gi_rev_cagr_5y': gi.get('rev_cagr_5y'),
         'gi_shares_change': gi.get('shares_change'),
         'gi_yield': gi.get('yield'),
@@ -1031,7 +1032,7 @@ def calc_all_checklists():
                        'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
                        'gi_neff_c', 'gi_neff_d', 'gi_intrinsic_growth',
                        'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
-                       'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
+                       'gi_rev_cagr_3y', 'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
                        'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
                        'updated_at']
         result['updated_at'] = now
@@ -1268,7 +1269,7 @@ def get_stocks():
                                 gi_neff_a, gi_neff_b, gi_neff_3a, gi_neff_3b,
                                 gi_neff_c, gi_neff_d, gi_intrinsic_growth,
                                 gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
-                                gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
+                                gi_rev_cagr_3y, gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
                                 gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings
                              FROM stock_checklist""")
         for cr in chk_rows:
@@ -1292,6 +1293,7 @@ def get_stocks():
                 'intrinsic_growth': chk['gi_intrinsic_growth'],
                 'lynch_a': chk['gi_lynch_a'], 'lynch_b': chk['gi_lynch_b'],
                 'lynch_c': chk['gi_lynch_c'], 'lynch_d': chk['gi_lynch_d'],
+                'rev_cagr_3y': chk['gi_rev_cagr_3y'],
                 'rev_cagr_5y': chk['gi_rev_cagr_5y'], 'shares_change': chk['gi_shares_change'],
                 'yield': chk['gi_yield'], 'pe': chk['gi_pe'],
                 'gray': bool(chk['gi_gray']), 'neff_gray': bool(chk['gi_neff_gray']),
@@ -3009,6 +3011,20 @@ def _calc_growth_indicators(_json, _dt):
             if rv_start > 0 and rv_end > 0 and n_rv >= 4:
                 rev_cagr_5y = ((rv_end / rv_start) ** (1.0 / n_rv) - 1) * 100
 
+        # 3 年營收 CAGR
+        rev_cagr_3y = None
+        if len(valid_revs) >= 4:
+            rv_start3 = valid_revs[-4][1]
+            rv_end3 = valid_revs[-1][1]
+            if rv_start3 > 0 and rv_end3 > 0:
+                rev_cagr_3y = ((rv_end3 / rv_start3) ** (1.0 / 3) - 1) * 100
+        elif len(valid_revs) >= 3:
+            rv_start3 = valid_revs[-3][1]
+            rv_end3 = valid_revs[-1][1]
+            n_rv3 = valid_revs[-1][0] - valid_revs[-3][0]
+            if rv_start3 > 0 and rv_end3 > 0 and n_rv3 >= 2:
+                rev_cagr_3y = ((rv_end3 / rv_start3) ** (1.0 / n_rv3) - 1) * 100
+
         if rev_cagr_5y is not None and a_pct is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
             warnings.append('淨利成長遠快於營收，注意利潤率變化')
 
@@ -3123,6 +3139,7 @@ def _calc_growth_indicators(_json, _dt):
             'lynch_b': round(lynch_b, 2) if lynch_b is not None else None,
             'lynch_c': round(lynch_c, 2) if lynch_c is not None else None,
             'lynch_d': round(lynch_d, 2) if lynch_d is not None else None,
+            'rev_cagr_3y': round(rev_cagr_3y, 2) if rev_cagr_3y is not None else None,
             'rev_cagr_5y': round(rev_cagr_5y, 2) if rev_cagr_5y is not None else None,
             'shares_change': round(shares_change, 2) if shares_change is not None else None,
             'yield': round(yld, 2),
