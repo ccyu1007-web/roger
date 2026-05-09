@@ -3450,9 +3450,10 @@ def _save_daily_price():
         print(f"[每日價量] 存入失敗: {e}")
 
 
-def fetch_historical_daily_prices(start_date=None, end_date=None):
-    """
-    抓取歷史逐日收盤價（所有上市+上櫃），存入 daily_price 表。
+def fetch_historical_daily_prices(start_date=None, end_date=None):  # noqa - 已停用
+    """(已停用) 抓取歷史逐日收盤價。"""
+    return
+    """抓取歷史逐日收盤價（所有上市+上櫃），存入 daily_price 表。
     TWSE: MI_INDEX API（一天一次取所有上市）
     TPEX: stk_wn1430（一天一次取所有上櫃）
     每天抓完存入 DB，已有的日期會跳過。
@@ -3564,6 +3565,7 @@ def fetch_historical_daily_prices(start_date=None, end_date=None):
         _time.sleep(2)  # 避免太頻繁
 
     print(f"[歷史股價] 完成：{saved_count} 筆，失敗/假日 {len(failed_dates)} 天")
+    """
 
 
 def refresh_prices():

@@ -4161,11 +4161,10 @@ def refresh_checklist():
     count = calc_all_checklists()
     return jsonify({"status": "ok", "count": count})
 
-@app.route("/api/stocks/<code>/valuation-history")
-def get_valuation_history(code):
+def _valuation_history_removed():  # noqa
+    """(已停用) 估值回測。"""
+    return  # 以下為停用的程式碼
     """
-    估值回測：用歷史股價 + 各時間點的滾動四季 EPS 計算歷史評價等級。
-    回傳：每日股價、門檻線、各等級統計（出現次數/天數/後續報酬）。
     """
     import json as _json_vh
     from datetime import datetime as _dt_vh, timedelta
@@ -4386,6 +4385,7 @@ def get_valuation_history(code):
             'days': len(daily_rows),
         },
     })
+    """
 
 
 @app.route("/api/user-estimates-all")

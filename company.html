@@ -562,7 +562,6 @@
     <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
     <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
     <button class="tab" id="tabIndustry" onclick="switchTab('industry')">同業比較</button>
-    <button class="tab" id="tabValHistory" onclick="switchTab('valHistory')">估值歷史</button>
   </div>
   <div class="panel" id="panel">
     <div class="loading"><div class="spinner"></div><div>載入資料中...</div></div>
@@ -583,7 +582,6 @@ function switchTab(tab) {
   document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
   document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
-  document.getElementById('tabValHistory').classList.toggle('active', tab === 'valHistory');
   ['tabISA','tabISQ','tabBSA','tabBSQ'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
@@ -592,7 +590,6 @@ function switchTab(tab) {
   else if (tab === 'financial') loadFinancial();
   else if (tab === 'quarterly') loadQuarterly();
   else if (tab === 'revenue') loadRevenue();
-  else if (tab === 'valHistory') loadValHistory();
   else loadIndustry();
 }
 
@@ -3068,197 +3065,6 @@ function sortInd(key) {
 
 function filterIndTable() { renderIndRows(); }
 
-// ── 估值歷史 ──
-async function loadValHistory() {
-  const panel = document.getElementById('panel');
-  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入估值歷史...</div></div>';
-  try {
-    const res = await fetch(`/api/stocks/${CODE}/valuation-history`);
-    const data = await res.json();
-    if (data.error) {
-      panel.innerHTML = `<div style="padding:40px;text-align:center;color:#94a3b8">${data.message || '無資料'}</div>`;
-      return;
-    }
-
-    const stats = data.stats || {};
-    const daily = data.daily || [];
-    const range = data.data_range || {};
-
-    // 統計表
-    const LEVELS = ['AA','A1','A2','A'];
-    const LV_COLORS = {AA:'#dc2626',A1:'#d97706',A2:'#2563eb',A:'#16a34a'};
-    const LV_BG = {AA:'#fee2e2',A1:'#fef3c7',A2:'#dbeafe',A:'#dcfce7'};
-
-    let html = `<div style="padding:20px">
-      <h3 style="margin-bottom:16px;color:#1e3a5f">估值歷史分析</h3>
-      <p style="font-size:.85rem;color:#64748b;margin-bottom:20px">
-        資料範圍：${range.start || '—'} ~ ${range.end || '—'}（${range.days || 0} 個交易日）
-      </p>
-
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">`;
-
-    LEVELS.forEach(lv => {
-      const s = stats[lv] || {count:0, total_days:0, avg_days:0};
-      html += `<div style="background:${LV_BG[lv]};padding:16px;border-radius:10px;text-align:center">
-        <div style="font-weight:700;color:${LV_COLORS[lv]};font-size:1.1rem;margin-bottom:4px">${lv}</div>
-        <div style="font-size:1.8rem;font-weight:800;color:${LV_COLORS[lv]}">${s.count}</div>
-        <div style="font-size:.78rem;color:#64748b;margin-top:4px">出現 ${s.count} 次</div>
-        <div style="font-size:.78rem;color:#64748b">${s.count > 0 ? '平均 '+s.avg_days+' 天' : '—'}</div>
-      </div>`;
-    });
-    html += `</div>`;
-
-    // 詳細統計表
-    html += `<table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:24px">
-      <thead><tr style="background:#f8fafc">
-        <th style="padding:10px 14px;text-align:left;border-bottom:2px solid #e2e8f0">等級</th>
-        <th style="padding:10px 14px;text-align:center;border-bottom:2px solid #e2e8f0">出現次數</th>
-        <th style="padding:10px 14px;text-align:center;border-bottom:2px solid #e2e8f0">累計天數</th>
-        <th style="padding:10px 14px;text-align:center;border-bottom:2px solid #e2e8f0">平均停留</th>
-        <th style="padding:10px 14px;text-align:center;border-bottom:2px solid #e2e8f0">90天後報酬</th>
-        <th style="padding:10px 14px;text-align:center;border-bottom:2px solid #e2e8f0">180天後報酬</th>
-      </tr></thead><tbody>`;
-
-    LEVELS.forEach(lv => {
-      const s = stats[lv] || {};
-      const r90 = s.avg_return_90d != null ? (s.avg_return_90d > 0 ? '+' : '') + s.avg_return_90d + '%' : '—';
-      const r180 = s.avg_return_180d != null ? (s.avg_return_180d > 0 ? '+' : '') + s.avg_return_180d + '%' : '—';
-      const r90c = s.avg_return_90d != null ? (s.avg_return_90d >= 0 ? '#dc2626' : '#16a34a') : '#94a3b8';
-      const r180c = s.avg_return_180d != null ? (s.avg_return_180d >= 0 ? '#dc2626' : '#16a34a') : '#94a3b8';
-      html += `<tr style="border-bottom:1px solid #f1f5f9">
-        <td style="padding:10px 14px;font-weight:700;color:${LV_COLORS[lv]}">${lv}</td>
-        <td style="padding:10px 14px;text-align:center;font-weight:600">${s.count || 0}</td>
-        <td style="padding:10px 14px;text-align:center">${s.total_days || 0} 天</td>
-        <td style="padding:10px 14px;text-align:center">${s.avg_days || '—'} 天</td>
-        <td style="padding:10px 14px;text-align:center;font-weight:600;color:${r90c}">${r90}</td>
-        <td style="padding:10px 14px;text-align:center;font-weight:600;color:${r180c}">${r180}</td>
-      </tr>`;
-    });
-    html += `</tbody></table>`;
-
-    // 股價走勢圖（用 Canvas）
-    if (daily.length > 0) {
-      html += `<h4 style="margin-bottom:12px;color:#1e3a5f">股價與評價門檻走勢</h4>
-        <div style="overflow-x:auto"><canvas id="valChart" width="${Math.max(800, daily.length)}" height="400" style="max-width:100%"></canvas></div>`;
-    }
-
-    html += `</div>`;
-    panel.innerHTML = html;
-
-    // 畫圖
-    if (daily.length > 0) {
-      const canvas = document.getElementById('valChart');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const W = canvas.width, H = canvas.height;
-      const pad = {top:20, right:20, bottom:40, left:60};
-      const cw = W - pad.left - pad.right;
-      const ch = H - pad.top - pad.bottom;
-
-      // 找價格範圍
-      let minP = Infinity, maxP = -Infinity;
-      daily.forEach(d => {
-        [d.p, d.aa, d.a1, d.a2, d.a].forEach(v => {
-          if (v != null) {
-            minP = Math.min(minP, v);
-            maxP = Math.max(maxP, v);
-          }
-        });
-      });
-      const priceRange = maxP - minP || 1;
-      minP -= priceRange * 0.05;
-      maxP += priceRange * 0.05;
-
-      const x = i => pad.left + (i / (daily.length - 1)) * cw;
-      const y = v => pad.top + (1 - (v - minP) / (maxP - minP)) * ch;
-
-      // 背景
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, W, H);
-
-      // 門檻線
-      const lines = [
-        {key:'aa', color:'rgba(220,38,38,0.3)', label:'AA'},
-        {key:'a1', color:'rgba(217,119,6,0.3)', label:'A1'},
-        {key:'a2', color:'rgba(37,99,235,0.3)', label:'A2'},
-        {key:'a',  color:'rgba(22,163,74,0.3)', label:'A'},
-      ];
-      lines.forEach(line => {
-        ctx.beginPath();
-        ctx.strokeStyle = line.color;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4,4]);
-        let started = false;
-        daily.forEach((d, i) => {
-          const v = d[line.key];
-          if (v != null) {
-            if (!started) { ctx.moveTo(x(i), y(v)); started = true; }
-            else ctx.lineTo(x(i), y(v));
-          }
-        });
-        ctx.stroke();
-        ctx.setLineDash([]);
-      });
-
-      // 股價線
-      ctx.beginPath();
-      ctx.strokeStyle = '#1e3a5f';
-      ctx.lineWidth = 1.5;
-      daily.forEach((d, i) => {
-        if (i === 0) ctx.moveTo(x(i), y(d.p));
-        else ctx.lineTo(x(i), y(d.p));
-      });
-      ctx.stroke();
-
-      // 便宜區間填色
-      daily.forEach((d, i) => {
-        if (d.lv) {
-          const bgColors = {AA:'rgba(220,38,38,0.15)', A1:'rgba(217,119,6,0.12)', A2:'rgba(37,99,235,0.1)', A:'rgba(22,163,74,0.08)'};
-          ctx.fillStyle = bgColors[d.lv] || 'rgba(0,0,0,0.05)';
-          const bw = Math.max(cw / daily.length, 1);
-          ctx.fillRect(x(i) - bw/2, pad.top, bw, ch);
-        }
-      });
-
-      // Y軸刻度
-      ctx.fillStyle = '#64748b';
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'right';
-      for (let i = 0; i <= 5; i++) {
-        const v = minP + (maxP - minP) * i / 5;
-        ctx.fillText(v.toFixed(0), pad.left - 8, y(v) + 4);
-        ctx.beginPath();
-        ctx.strokeStyle = '#f1f5f9';
-        ctx.moveTo(pad.left, y(v));
-        ctx.lineTo(W - pad.right, y(v));
-        ctx.stroke();
-      }
-
-      // X軸日期標籤
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#94a3b8';
-      const step = Math.max(Math.floor(daily.length / 8), 1);
-      for (let i = 0; i < daily.length; i += step) {
-        ctx.fillText(daily[i].d.slice(5), x(i), H - pad.bottom + 16);
-      }
-
-      // 圖例
-      ctx.textAlign = 'left';
-      let lx = pad.left + 10;
-      [{c:'#1e3a5f',l:'股價'}, ...lines.map(l=>({c:l.color.replace(',0.3)',',1)'),l:l.label}))].forEach(item => {
-        ctx.fillStyle = item.c;
-        ctx.fillRect(lx, 6, 16, 3);
-        ctx.fillStyle = '#475569';
-        ctx.fillText(item.l, lx + 20, 12);
-        lx += 60;
-      });
-    }
-
-  } catch(e) {
-    panel.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444">載入失敗：${e.message}</div>`;
-  }
-}
-
 // ── 啟動 ──
 if (CODE) {
   const _initTab = new URLSearchParams(location.search).get('tab');
@@ -3266,8 +3072,6 @@ if (CODE) {
     switchTab('decision');
   } else if (_initTab === 'revenue') {
     switchTab('revenue');
-  } else if (_initTab === 'valHistory') {
-    switchTab('valHistory');
   } else {
     loadFinancial();
   }
