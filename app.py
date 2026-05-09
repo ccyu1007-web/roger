@@ -2195,17 +2195,14 @@ def get_financials(code):
         # 每股自由現金流
         shares = cs / 10 if cs and cs > 0 else None
         d['fcf_per_share'] = round(d['fcf'] / shares, 2) if d.get('fcf') is not None and shares else None
-        # 每股盈餘-本業 = 營業利益 / 稅前淨利 × EPS
-        if oi is not None and pti and pti != 0 and eps_val is not None:
+        # 每股盈餘-本業 / 業外：從 DB 讀取（由 _recalc_quarterly_derived 計算存入）
+        # DB 為 NULL 時 fallback 即時算（新資料尚未跑過重算）
+        if d.get('eps_core') is None and oi is not None and pti and pti != 0 and eps_val is not None:
             d['eps_core'] = round(oi / pti * eps_val, 2)
-        else:
-            d['eps_core'] = None
-        # 每股盈餘-業外 = 業外收支 / 稅前淨利 × EPS
-        nop = d.get('non_operating')
-        if nop is not None and pti and pti != 0 and eps_val is not None:
-            d['eps_nonop'] = round(nop / pti * eps_val, 2)
-        else:
-            d['eps_nonop'] = None
+        if d.get('eps_nonop') is None:
+            nop = d.get('non_operating')
+            if nop is not None and pti and pti != 0 and eps_val is not None:
+                d['eps_nonop'] = round(nop / pti * eps_val, 2)
         # 配息率（EPS <= 0 但有配息 → 100%）
         total_div = ((cd or 0) + (sd or 0))
         if total_div > 0 and eps_val is not None and eps_val > 0:
@@ -2366,17 +2363,13 @@ def get_quarterly(code):
         else:
             d['parent_weight'] = None
 
-        # 每股盈餘-本業 = 營業利益 / 稅前淨利 × EPS
-        if oi is not None and pti and pti != 0 and eps_val is not None:
+        # 每股盈餘-本業 / 業外：從 DB 讀取，NULL 時 fallback 即時算
+        if d.get('eps_core') is None and oi is not None and pti and pti != 0 and eps_val is not None:
             d['eps_core'] = round(oi / pti * eps_val, 2)
-        else:
-            d['eps_core'] = None
-        # 每股盈餘-業外 = 業外收支 / 稅前淨利 × EPS
-        nop = d.get('non_operating')
-        if nop is not None and pti and pti != 0 and eps_val is not None:
-            d['eps_nonop'] = round(nop / pti * eps_val, 2)
-        else:
-            d['eps_nonop'] = None
+        if d.get('eps_nonop') is None:
+            nop = d.get('non_operating')
+            if nop is not None and pti and pti != 0 and eps_val is not None:
+                d['eps_nonop'] = round(nop / pti * eps_val, 2)
 
         data.append(d)
 
