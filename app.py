@@ -2195,15 +2195,15 @@ def get_financials(code):
         # 每股自由現金流
         shares = cs / 10 if cs and cs > 0 else None
         d['fcf_per_share'] = round(d['fcf'] / shares, 2) if d.get('fcf') is not None and shares else None
-        # 每股盈餘-本業
-        eff_tax = tax_val / pti if pti and pti != 0 and tax_val is not None else None
-        if oi is not None and shares_raw and eff_tax is not None:
-            d['eps_core'] = round(oi * (1 - eff_tax) / shares_raw, 2)
+        # 每股盈餘-本業 = 營業利益 / 稅前淨利 × EPS
+        if oi is not None and pti and pti != 0 and eps_val is not None:
+            d['eps_core'] = round(oi / pti * eps_val, 2)
         else:
             d['eps_core'] = None
-        # 每股盈餘-業外
-        if d.get('eps_core') is not None and eps_val is not None:
-            d['eps_nonop'] = round(eps_val - d['eps_core'], 2)
+        # 每股盈餘-業外 = 業外收支 / 稅前淨利 × EPS
+        nop = d.get('non_operating')
+        if nop is not None and pti and pti != 0 and eps_val is not None:
+            d['eps_nonop'] = round(nop / pti * eps_val, 2)
         else:
             d['eps_nonop'] = None
         # 配息率（EPS <= 0 但有配息 → 100%）
@@ -2366,15 +2366,15 @@ def get_quarterly(code):
         else:
             d['parent_weight'] = None
 
-        # 每股盈餘-本業
-        eff_tax = tax / pti if pti and pti != 0 and tax is not None else None
-        if oi is not None and shares_raw and eff_tax is not None:
-            d['eps_core'] = round(oi * (1 - eff_tax) / shares_raw, 2)
+        # 每股盈餘-本業 = 營業利益 / 稅前淨利 × EPS
+        if oi is not None and pti and pti != 0 and eps_val is not None:
+            d['eps_core'] = round(oi / pti * eps_val, 2)
         else:
             d['eps_core'] = None
-        # 每股盈餘-業外
-        if d.get('eps_core') is not None and eps_val is not None:
-            d['eps_nonop'] = round(eps_val - d['eps_core'], 2)
+        # 每股盈餘-業外 = 業外收支 / 稅前淨利 × EPS
+        nop = d.get('non_operating')
+        if nop is not None and pti and pti != 0 and eps_val is not None:
+            d['eps_nonop'] = round(nop / pti * eps_val, 2)
         else:
             d['eps_nonop'] = None
 
