@@ -569,13 +569,15 @@ def _push_quarterly_to_render():
         with sqlite3.get_conn() as conn:
             rows = conn.execute("""SELECT code, quarter, revenue, cost, gross_profit, operating_expense,
                                   operating_income, non_operating, pretax_income, tax, continuing_income,
-                                  net_income_parent, eps, contract_liability, updated_at
+                                  net_income_parent, eps, contract_liability, updated_at,
+                                  inventory, weighted_shares, eps_core, eps_nonop
                                   FROM quarterly_financial
                                   ORDER BY code, quarter""").fetchall()
 
         cols = ['code','quarter','revenue','cost','gross_profit','operating_expense',
                 'operating_income','non_operating','pretax_income','tax','continuing_income',
-                'net_income_parent','eps','contract_liability','updated_at']
+                'net_income_parent','eps','contract_liability','updated_at',
+                'inventory','weighted_shares','eps_core','eps_nonop']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
 
         if not data:

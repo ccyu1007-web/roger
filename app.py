@@ -1653,7 +1653,8 @@ def sync_quarterly():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     # 確保欄位存在（Render PostgreSQL 可能缺少新欄位）
-    for col, typ in [('inventory', 'REAL'), ('continuing_income', 'REAL')]:
+    for col, typ in [('inventory', 'REAL'), ('continuing_income', 'REAL'),
+                     ('weighted_shares', 'REAL'), ('eps_core', 'REAL'), ('eps_nonop', 'REAL')]:
         try: c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} {typ}")
         except Exception: pass
     try: conn.commit()
@@ -1668,7 +1669,8 @@ def sync_quarterly():
         existing_cols = set()
     qf_cols = [col for col in ['revenue','cost','gross_profit','operating_expense','operating_income',
                'non_operating','pretax_income','tax','continuing_income',
-               'net_income_parent','eps','contract_liability','inventory'] if col in existing_cols]
+               'net_income_parent','eps','contract_liability','inventory',
+               'weighted_shares','eps_core','eps_nonop'] if col in existing_cols]
     for r in rows:
         code = r.get('code')
         quarter = r.get('quarter')
