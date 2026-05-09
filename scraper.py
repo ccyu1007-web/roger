@@ -4082,26 +4082,30 @@ def _run_maintenance_inner(scheduled=True):
         _sync_dividends_from_financial(all_codes)
     print(f"[2.股利] {len(div_map)} 支，{time.time()-t1:.1f}s")
 
-    # 3. 年度 EPS 歷史（BWIBBU 反推）
+    # 3. 年度 EPS 歷史（BWIBBU 反推 → financial_annual → stocks）
     t1 = time.time()
     hist = fetch_eps_annual_history()
+    # 先寫入 financial_annual（COALESCE 不覆蓋已有值）
     if hist:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with sqlite3.get_conn() as conn:
             c = conn.cursor()
-            label_cols = ', '.join(f'eps_y{i}_label' for i in range(1, 7))
-            all_labels = {}
-            for r in c.execute(f"SELECT code, {label_cols} FROM stocks WHERE code IN ({','.join('?' * len(hist))})", list(hist.keys())).fetchall():
-                all_labels[r[0]] = [r[j] for j in range(1, 7)]
             for code, years in hist.items():
-                labels = all_labels.get(code, [None] * 6)
                 for yr, eps_val in years.items():
-                    for i in range(6):
-                        if labels[i] == yr: break
-                        if labels[i] is None:
-                            c.execute(f"UPDATE stocks SET eps_y{i+1}=?, eps_y{i+1}_label=? WHERE code=?", (eps_val, yr, code))
-                            labels[i] = yr
-                            break
+                    west_year = int(yr) + 1911
+                    c.execute("""INSERT INTO financial_annual (code, year, eps, updated_at)
+                        VALUES (?,?,?,?)
+                        ON CONFLICT(code, year) DO UPDATE SET
+                        eps = COALESCE(financial_annual.eps, excluded.eps),
+                        updated_at = excluded.updated_at""",
+                        (code, west_year, eps_val, now_str))
             conn.commit()
+    # 從 financial_annual 統一同步到 stocks（確保完整性）
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        all_codes = [r[0] for r in c.execute("SELECT code FROM stocks WHERE close IS NOT NULL").fetchall()]
+    if all_codes:
+        _sync_annual_eps_from_financial(all_codes, None)
     print(f"[3.BWIBBU] {len(hist)} 支，{time.time()-t1:.1f}s")
 
     # 4. 產業別 + 營收官方值
@@ -4295,21 +4299,31 @@ def _fill_all_gaps():
     print(f"  [補缺] 完成 {ok}/{len(codes_list)} 支")
 
 
-def _sync_annual_eps_from_financial(codes, expected_year):
+def _sync_annual_eps_from_financial(codes, expected_year=None):
     """從 financial_annual 同步年度 EPS 到 stocks 表"""
+    from collections import defaultdict
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
+        # 批次查詢所有 codes 的 EPS
+        placeholders = ','.join('?' * len(codes))
+        all_eps = c.execute(f"""SELECT code, year, eps FROM financial_annual
+                               WHERE code IN ({placeholders}) AND eps IS NOT NULL
+                               ORDER BY code, year DESC""", codes).fetchall()
+        eps_by_code = defaultdict(list)
+        for r in all_eps:
+            if len(eps_by_code[r[0]]) < 6:
+                eps_by_code[r[0]].append(r)
         for code in codes:
-            rows = c.execute(
-                "SELECT year, eps FROM financial_annual WHERE code=? AND eps IS NOT NULL ORDER BY year DESC LIMIT 6",
-                (code,)
-            ).fetchall()
+            rows = eps_by_code.get(code, [])
             if not rows:
                 continue
-            for i, (year, eps) in enumerate(rows, 1):
+            for i, (_, year, eps) in enumerate(rows, 1):
                 roc_yr = str(year - 1911)
                 c.execute(f"UPDATE stocks SET eps_y{i}=?, eps_y{i}_label=? WHERE code=?",
                           (eps, roc_yr, code))
+            for i in range(len(rows) + 1, 7):
+                c.execute(f"UPDATE stocks SET eps_y{i}=NULL, eps_y{i}_label=NULL WHERE code=?",
+                          (code,))
         conn.commit()
 
 
