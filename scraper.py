@@ -1160,8 +1160,9 @@ def _post_process_after_save():
     _sync_eps_from_quarterly()
     _sync_contract_from_quarterly()
 
-    # ── 重算季報衍生欄位（eps_core / eps_nonop）──
+    # ── 重算衍生欄位（eps_core / eps_nonop）──
     _recalc_quarterly_derived()
+    _recalc_annual_derived()
 
 def _post_process_after_save_inner(conn):
     c = conn.cursor()
@@ -1707,6 +1708,28 @@ def _recalc_quarterly_derived():
             WHERE pretax_income IS NULL OR pretax_income = 0 OR eps IS NULL""")
         conn.commit()
         print(f"  [季報衍生] eps_core/eps_nonop 重算 {updated} 筆")
+
+
+def _recalc_annual_derived():
+    """重算 financial_annual 的衍生欄位（eps_core / eps_nonop）"""
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        for col in ('eps_core', 'eps_nonop'):
+            try:
+                c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} REAL")
+            except Exception:
+                pass
+        c.execute("""UPDATE financial_annual
+            SET eps_core = ROUND(CAST(operating_income AS REAL) / pretax_income * eps, 2),
+                eps_nonop = ROUND(CAST(non_operating AS REAL) / pretax_income * eps, 2)
+            WHERE pretax_income IS NOT NULL AND pretax_income != 0
+              AND eps IS NOT NULL AND operating_income IS NOT NULL AND non_operating IS NOT NULL""")
+        updated = c.rowcount
+        c.execute("""UPDATE financial_annual
+            SET eps_core = NULL, eps_nonop = NULL
+            WHERE pretax_income IS NULL OR pretax_income = 0 OR eps IS NULL""")
+        conn.commit()
+        print(f"  [年報衍生] eps_core/eps_nonop 重算 {updated} 筆")
 
 
 def _fill_dividends_from_bwibbu():
