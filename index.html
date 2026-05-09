@@ -1298,36 +1298,33 @@ const DEFAULT_W_SETTINGS = {
 };
 let _wSettings = JSON.parse(localStorage.getItem('watch_settings') || 'null') || {...DEFAULT_W_SETTINGS};
 
-// 遷移：將舊的固定條件轉為自訂條件（只執行一次）
-(function migrateOldSettings() {
-  if (localStorage.getItem('watch_settings_migrated')) return;
-  const old = JSON.parse(localStorage.getItem('watch_settings') || '{}');
-  const conds = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
-  let changed = false;
-  if (old.peMin != null && old.peMax != null && !conds.some(c => c.field === 'shen_pe')) {
-    conds.push({field:'shen_pe', op:'>', value: String(old.peMin || 0)});
-    conds.push({field:'shen_pe', op:'<=', value: String(old.peMax || 14)});
-    changed = true;
-  }
-  if (old.revCum != null && !conds.some(c => c.field === 'revenue_cum_yoy')) {
-    conds.push({field:'revenue_cum_yoy', op:'>=', value: String(old.revCum ?? -10)});
-    changed = true;
-  }
-  if (old.yld != null && !conds.some(c => c.field === 'shen_yld')) {
-    conds.push({field:'shen_yld', op:'>=', value: String(old.yld || 5)});
-    changed = true;
-  }
-  if (changed) {
-    localStorage.setItem('watch_custom_conds', JSON.stringify(conds));
-    _customConditions = conds;
-  }
-  // 保留 checkbox 設定
-  _wSettings = { requireQuality: old.requireQuality ?? true, positiveEps: old.positiveEps ?? true };
-  localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
-  localStorage.setItem('watch_settings_migrated', '1');
-})();
-
 function initWatchSettings() {
+  // 遷移：將舊的固定條件轉為自訂條件（只執行一次）
+  if (!localStorage.getItem('watch_settings_migrated')) {
+    const old = JSON.parse(localStorage.getItem('watch_settings') || '{}');
+    const conds = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
+    let changed = false;
+    if (old.peMin != null && old.peMax != null && !conds.some(c => c.field === 'shen_pe')) {
+      conds.push({field:'shen_pe', op:'>', value: String(old.peMin || 0)});
+      conds.push({field:'shen_pe', op:'<=', value: String(old.peMax || 14)});
+      changed = true;
+    }
+    if (old.revCum != null && !conds.some(c => c.field === 'revenue_cum_yoy')) {
+      conds.push({field:'revenue_cum_yoy', op:'>=', value: String(old.revCum ?? -10)});
+      changed = true;
+    }
+    if (old.yld != null && !conds.some(c => c.field === 'shen_yld')) {
+      conds.push({field:'shen_yld', op:'>=', value: String(old.yld || 5)});
+      changed = true;
+    }
+    if (changed) {
+      localStorage.setItem('watch_custom_conds', JSON.stringify(conds));
+      _customConditions = conds;
+    }
+    _wSettings = { requireQuality: old.requireQuality ?? true, positiveEps: old.positiveEps ?? true };
+    localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
+    localStorage.setItem('watch_settings_migrated', '1');
+  }
   document.getElementById('wsRequireQuality').checked = _wSettings.requireQuality;
   document.getElementById('wsPositiveEps').checked = _wSettings.positiveEps;
   if (!localStorage.getItem('watch_settings')) {
