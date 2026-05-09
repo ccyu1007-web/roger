@@ -2332,6 +2332,20 @@ def get_daily_briefing():
     except Exception as e:
         print(f"[每日報告] stocks 補充資料查詢失敗: {e}")
 
+    # 取 stock_checklist 的通過數 + 成長燈號
+    checklist_map = {}
+    try:
+        with sqlite3.get_conn(row_factory=True) as conn_chk:
+            c_chk = conn_chk.cursor()
+            try:
+                c_chk.execute("SELECT code, pass_count, total_count, growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk FROM stock_checklist")
+            except Exception:
+                c_chk.execute("SELECT code, pass_count, total_count FROM stock_checklist")
+            for r in c_chk.fetchall():
+                checklist_map[r['code']] = dict(r)
+    except Exception as e:
+        print(f"[每日報告] checklist 查詢失敗: {e}")
+
     val_level_changes = []  # 閃電機會
     val_cheap_list = []     # 便宜清單
     # 門檻清單：每個門檻各自一份 below 清單 + 穿越標記
@@ -2431,6 +2445,7 @@ def get_daily_briefing():
                 cross = None
                 if prev_price and assigned != prev_assigned:
                     cross = 'below'
+                chk_th = checklist_map.get(sid, {})
                 val_by_threshold[assigned].append({
                     'code': sid, 'name': name,
                     'price': cur_price, 'threshold_val': th_val,
@@ -2439,11 +2454,15 @@ def get_daily_briefing():
                     'from_th': prev_assigned or 'above' if cross else None,
                     'to_th': assigned if cross else None,
                     '_removed': False,
+                    'chk_pass': chk_th.get('pass_count'),
+                    'chk_total': chk_th.get('total_count'),
+                    'growth_signal': chk_th.get('growth_signal'),
                 })
 
             # 昨天在某門檻，今天離開了 → 加到昨天那個門檻當「突破」
             if prev_assigned and prev_assigned != assigned:
                 th_val = th_vals.get(prev_assigned) or 0
+                chk_rm = checklist_map.get(sid, {})
                 val_by_threshold[prev_assigned].append({
                     'code': sid, 'name': name,
                     'price': cur_price, 'threshold_val': th_val,
@@ -2452,6 +2471,9 @@ def get_daily_briefing():
                     'from_th': prev_assigned,
                     'to_th': assigned or 'above',
                     '_removed': True,
+                    'chk_pass': chk_rm.get('pass_count'),
+                    'chk_total': chk_rm.get('total_count'),
+                    'growth_signal': chk_rm.get('growth_signal'),
                 })
 
         # 便宜清單（AA/A1/A2/A 才列入）
@@ -2467,6 +2489,7 @@ def get_daily_briefing():
             # 是否從深處回升
             recovering = (deepest and LEVEL_DEPTH.get(deepest, 0) > LEVEL_DEPTH.get(cur_level, 0))
 
+            chk = checklist_map.get(sid, {})
             val_cheap_list.append({
                 'code': sid, 'name': name,
                 'level': cur_level,
@@ -2480,6 +2503,12 @@ def get_daily_briefing():
                 'shen_yld': latest.get('shen_yld'),
                 'val_aa': latest.get('val_aa'),
                 'val_a': latest.get('val_a'),
+                'chk_pass': chk.get('pass_count'),
+                'chk_total': chk.get('total_count'),
+                'growth_signal': chk.get('growth_signal'),
+                'growth_rev': chk.get('growth_rev_momentum'),
+                'growth_eps': chk.get('growth_eps_trend'),
+                'growth_inv': chk.get('growth_inv_risk'),
             })
 
     # 排序

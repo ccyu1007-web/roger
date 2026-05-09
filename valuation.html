@@ -116,6 +116,19 @@ const GRADE_CLS = g => {
   return 'grade-c';
 };
 
+function _growthBadge(signal, rev, eps, inv) {
+  if (!signal) return '<span style="color:#cbd5e1">—</span>';
+  const colors = {green:'#16a34a', yellow:'#d97706', red:'#dc2626'};
+  const labels = {green:'成長', yellow:'持平', red:'衰退'};
+  const bgs = {green:'#dcfce7', yellow:'#fef3c7', red:'#fee2e2'};
+  const parts = [];
+  if (rev != null) parts.push(`營收動能:${rev>0?'+':''}${rev.toFixed(1)}%`);
+  if (eps != null) parts.push(`EPS同比:${eps>0?'+':''}${eps.toFixed(1)}%`);
+  if (inv) parts.push('存貨警訊');
+  const tip = parts.length ? parts.join(' / ') : '';
+  return `<span style="font-size:.72rem;padding:1px 6px;border-radius:4px;background:${bgs[signal]};color:${colors[signal]};font-weight:700;cursor:default" title="${tip}">${labels[signal]}</span>`;
+}
+
 async function load() {
   try {
     const [briefRes, listRes] = await Promise.all([
@@ -257,6 +270,8 @@ function renderList(mode) {
     html += `<table class="val-table"><thead><tr>
         <th style="width:36px;text-align:center">追蹤</th>
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+        <th style="width:50px;text-align:center">檢核</th>
+        <th style="width:50px;text-align:center">趨勢</th>
         <th style="width:70px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
         <th style="width:70px;text-align:center">新增</th>
@@ -278,10 +293,16 @@ function renderList(mode) {
       const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
       const isFocused = _focusTrackSet.has(c.code);
+      const chkHtml = c.chk_pass != null
+        ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${c.chk_pass}/${c.chk_total||12}</a>`
+        : '—';
+      const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, c.growth_eps, c.growth_inv);
       html += `<tr${rowStyle}>
         <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
         <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
         <td>${c.name}</td>
+        <td style="text-align:center">${chkHtml}</td>
+        <td style="text-align:center">${growthHtml}</td>
         <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
         <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
         <td style="text-align:center">${addHtml}</td>
@@ -325,6 +346,8 @@ function renderCrosses(thNames) {
       html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
         <th style="width:36px;text-align:center">追蹤</th>
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+        <th style="width:50px;text-align:center">檢核</th>
+        <th style="width:50px;text-align:center">趨勢</th>
         <th style="width:80px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">門檻價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
@@ -345,10 +368,16 @@ function renderCrosses(thNames) {
         }
 
         const isFocused = _focusTrackSet.has(c.code);
+        const chkHtml2 = c.chk_pass != null
+          ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${c.chk_pass}/${c.chk_total||12}</a>`
+          : '—';
+        const growthHtml2 = _growthBadge(c.growth_signal, null, null, null);
         html += `<tr${rowStyle}>
           <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
           <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
           <td>${c.name}</td>
+          <td style="text-align:center">${chkHtml2}</td>
+          <td style="text-align:center">${growthHtml2}</td>
           <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
           <td style="text-align:right;color:${st.color}">${c.threshold_val.toFixed(2)}</td>
           <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>

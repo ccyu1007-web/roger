@@ -541,7 +541,10 @@ def _init_checklist_db():
                  ('gi_rev_cagr_3y','REAL'),('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
                  ('gi_yield','REAL'),('gi_pe','REAL'),
                  ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
-                 ('gi_warnings','TEXT')]
+                 ('gi_warnings','TEXT'),
+                 ('growth_signal','TEXT'),('growth_rev_momentum','REAL'),
+                 ('growth_eps_trend','REAL'),('growth_inv_risk','INTEGER'),
+                 ('growth_detail','TEXT')]
     for col, typ in add_cols:
         try: conn.execute(f"ALTER TABLE stock_checklist ADD COLUMN {col} {typ}")
         except Exception: pass
@@ -943,6 +946,167 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
         **gi_fields,
     }
 
+def _calc_growth_signals():
+    """
+    計算成長燈號：營收動能 + 獲利趨勢 + 存貨風險 → 綠/黃/紅
+    回傳 dict: code → {growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk, growth_detail}
+    """
+    import json
+    from collections import defaultdict
+    from datetime import datetime
+
+    result = {}
+    now = datetime.now()
+    cur_year = now.year
+    cur_roc = cur_year - 1911
+
+    # 1. 營收動能：近3月YoY均值 vs 前3月YoY均值
+    rev_map = defaultdict(list)  # code → [(year, month, revenue), ...]
+    try:
+        rev_rows = query_db("""SELECT code, year, month, revenue FROM monthly_revenue
+                               WHERE year >= ? AND revenue > 0 ORDER BY year, month""",
+                            [cur_roc - 2])
+        for r in rev_rows:
+            rev_map[r['code']].append((r['year'], r['month'], r['revenue']))
+    except Exception as e:
+        print(f"[成長燈號] 營收查詢失敗: {e}")
+
+    # 2. 季度EPS + 存貨 + 營收
+    qf_map = defaultdict(list)  # code → [(year, quarter, eps, revenue, inventory), ...]
+    try:
+        qf_rows = query_db("""SELECT code, quarter, eps, revenue, inventory FROM quarterly_financial
+                               WHERE eps IS NOT NULL""")
+        for r in qf_rows:
+            parts = r['quarter'].split('Q')
+            if len(parts) == 2:
+                y, q = int(parts[0]), int(parts[1])
+                qf_map[r['code']].append((y, q, r['eps'], r['revenue'], r.get('inventory')))
+    except Exception as e:
+        print(f"[成長燈號] 季報查詢失敗: {e}")
+
+    # 計算每支股票
+    for code in set(list(rev_map.keys()) + list(qf_map.keys())):
+        detail = {}
+        rev_signal = 0   # 1=加速, 0=持平, -1=衰退
+        eps_signal = 0    # 1=成長, 0=持平, -1=衰退
+        inv_risk = 0      # 0=正常, 1=警訊
+
+        # ── 營收動能 ──
+        revs = sorted(rev_map.get(code, []), key=lambda x: (x[0], x[1]))
+        if len(revs) >= 6:
+            # 建立 YoY map
+            rev_by_ym = {(r[0], r[1]): r[2] for r in revs}
+            # 找最近有資料的6個月
+            recent_months = revs[-6:]
+            yoy_list = []
+            for y, m, rev in recent_months:
+                prev_rev = rev_by_ym.get((y - 1, m))
+                if prev_rev and prev_rev > 0:
+                    yoy_list.append(((y, m), (rev - prev_rev) / prev_rev * 100))
+
+            if len(yoy_list) >= 6:
+                recent_3 = [v for _, v in yoy_list[-3:]]
+                prev_3 = [v for _, v in yoy_list[-6:-3]]
+                avg_recent = sum(recent_3) / len(recent_3)
+                avg_prev = sum(prev_3) / len(prev_3)
+                momentum = avg_recent - avg_prev
+                detail['rev_recent_3_yoy'] = round(avg_recent, 1)
+                detail['rev_prev_3_yoy'] = round(avg_prev, 1)
+                detail['rev_momentum'] = round(momentum, 1)
+
+                if avg_recent > 0 and momentum > 3:
+                    rev_signal = 1   # 營收正成長且加速
+                elif avg_recent < -5:
+                    rev_signal = -1  # 營收衰退
+                # 其他 = 0 持平
+            elif len(yoy_list) >= 3:
+                recent_3 = [v for _, v in yoy_list[-3:]]
+                avg_recent = sum(recent_3) / len(recent_3)
+                detail['rev_recent_3_yoy'] = round(avg_recent, 1)
+                detail['rev_momentum'] = None
+                if avg_recent > 5:
+                    rev_signal = 1
+                elif avg_recent < -5:
+                    rev_signal = -1
+
+        # ── 獲利趨勢（最新季EPS vs 去年同季）──
+        quarters = sorted(qf_map.get(code, []), key=lambda x: (x[0], x[1]))
+        if quarters:
+            latest_q = quarters[-1]
+            ly, lq = latest_q[0], latest_q[1]
+            # 找去年同季
+            same_q_ly = [q for q in quarters if q[0] == ly - 1 and q[1] == lq]
+            if same_q_ly:
+                eps_now = latest_q[2] or 0
+                eps_prev = same_q_ly[0][2] or 0
+                if eps_prev > 0:
+                    eps_growth = (eps_now - eps_prev) / abs(eps_prev) * 100
+                    detail['eps_yoy'] = round(eps_growth, 1)
+                    detail['eps_now_q'] = f"{ly}Q{lq}"
+                    if eps_growth > 5:
+                        eps_signal = 1
+                    elif eps_growth < -10:
+                        eps_signal = -1
+                elif eps_prev <= 0 and eps_now > 0:
+                    eps_signal = 1  # 虧轉盈
+                    detail['eps_yoy'] = None
+                    detail['eps_turnaround'] = True
+                elif eps_prev <= 0 and eps_now <= 0:
+                    eps_signal = -1  # 持續虧損
+                    detail['eps_yoy'] = None
+
+        # ── 存貨風險 ──
+        if len(quarters) >= 5:
+            latest_q = quarters[-1]
+            same_q_ly = [q for q in quarters if q[0] == latest_q[0] - 1 and q[1] == latest_q[1]]
+            if same_q_ly and latest_q[4] is not None and same_q_ly[0][4] is not None:
+                inv_now = latest_q[4]
+                inv_prev = same_q_ly[0][4]
+                rev_now = latest_q[3] or 0
+                rev_prev = same_q_ly[0][3] or 0
+                if inv_prev > 0 and rev_prev > 0:
+                    inv_growth = (inv_now - inv_prev) / inv_prev * 100
+                    rev_growth = (rev_now - rev_prev) / rev_prev * 100 if rev_prev > 0 else 0
+                    detail['inv_growth'] = round(inv_growth, 1)
+                    detail['rev_vs_inv'] = round(rev_growth - inv_growth, 1)
+                    # 存貨增速超過營收增速 20% 以上 → 警訊
+                    if inv_growth > 20 and inv_growth > rev_growth + 20:
+                        inv_risk = 1
+
+        # ── 綜合燈號 ──
+        # 綠燈：營收加速 且 EPS成長（或至少一個強且另一個不差）
+        # 紅燈：營收衰退 或 (EPS衰退 + 存貨警訊)
+        # 黃燈：其餘
+        total_score = rev_signal + eps_signal
+        if total_score >= 2:
+            signal = 'green'
+        elif total_score >= 1 and inv_risk == 0:
+            signal = 'green'
+        elif rev_signal == -1 and eps_signal == -1:
+            signal = 'red'
+        elif eps_signal == -1 and inv_risk == 1:
+            signal = 'red'
+        elif rev_signal == -1 and eps_signal <= 0:
+            signal = 'red'
+        else:
+            signal = 'yellow'
+
+        rev_momentum_val = detail.get('rev_momentum') if detail.get('rev_momentum') is not None else detail.get('rev_recent_3_yoy')
+
+        result[code] = {
+            'growth_signal': signal,
+            'growth_rev_momentum': rev_momentum_val,
+            'growth_eps_trend': detail.get('eps_yoy'),
+            'growth_inv_risk': inv_risk,
+            'growth_detail': json.dumps(detail, ensure_ascii=False),
+        }
+
+    print(f"[成長燈號] 已計算 {len(result)} 支: 綠={sum(1 for v in result.values() if v['growth_signal']=='green')}, "
+          f"黃={sum(1 for v in result.values() if v['growth_signal']=='yellow')}, "
+          f"紅={sum(1 for v in result.values() if v['growth_signal']=='red')}")
+    return result
+
+
 def calc_all_checklists():
     """批次計算所有股票的檢核表並存入 DB"""
     global _stocks_cache_time
@@ -982,6 +1146,13 @@ def calc_all_checklists():
             gi_map = json.loads(gi_resp.data)
     except Exception as e:
         print(f"[Checklist] 成長率指標計算失敗: {e}")
+
+    # 批次計算成長燈號
+    growth_map = {}
+    try:
+        growth_map = _calc_growth_signals()
+    except Exception as e:
+        print(f"[Checklist] 成長燈號計算失敗: {e}")
 
     # 批次查季報毛利率（一次查完，建 map）
     gm_map = {}
@@ -1023,7 +1194,11 @@ def calc_all_checklists():
         user_params = up
         result = _calc_checklist_for_stock(r, user_params, gs)
 
-        # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位）
+        # 合併成長燈號
+        gs_data = growth_map.get(r['code'], {})
+        result.update(gs_data)
+
+        # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
         all_fields = ['code'] + chk_fields + [
                        'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
@@ -1034,6 +1209,8 @@ def calc_all_checklists():
                        'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
                        'gi_rev_cagr_3y', 'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
                        'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
+                       'growth_signal', 'growth_rev_momentum', 'growth_eps_trend',
+                       'growth_inv_risk', 'growth_detail',
                        'updated_at']
         result['updated_at'] = now
         placeholders = ','.join(['?'] * len(all_fields))
@@ -1270,7 +1447,8 @@ def get_stocks():
                                 gi_neff_c, gi_neff_d, gi_intrinsic_growth,
                                 gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
                                 gi_rev_cagr_3y, gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
-                                gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings
+                                gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings,
+                                growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk
                              FROM stock_checklist""")
         for cr in chk_rows:
             chk_map[cr['code']] = cr
@@ -1283,6 +1461,10 @@ def get_stocks():
         chk = chk_map.get(row["code"])
         row["_chk_pass"] = chk['pass_count'] if chk else None
         row["_chk_total"] = chk['total_count'] if chk else None
+        row["_growth_signal"] = chk.get('growth_signal') if chk else None
+        row["_growth_rev"] = chk.get('growth_rev_momentum') if chk else None
+        row["_growth_eps"] = chk.get('growth_eps_trend') if chk else None
+        row["_growth_inv"] = chk.get('growth_inv_risk') if chk else None
         # 成長率指標（從 stock_checklist 讀取，不再前端獨立計算）
         if chk:
             import json as _json_mod
@@ -3978,6 +4160,233 @@ def refresh_checklist():
     """手動觸發重算所有檢核表"""
     count = calc_all_checklists()
     return jsonify({"status": "ok", "count": count})
+
+@app.route("/api/stocks/<code>/valuation-history")
+def get_valuation_history(code):
+    """
+    估值回測：用歷史股價 + 各時間點的滾動四季 EPS 計算歷史評價等級。
+    回傳：每日股價、門檻線、各等級統計（出現次數/天數/後續報酬）。
+    """
+    import json as _json_vh
+    from datetime import datetime as _dt_vh, timedelta
+
+    # 1. 讀取歷史股價
+    daily_rows = query_db(
+        "SELECT date, close_price FROM daily_price WHERE code=? ORDER BY date",
+        (code,))
+    if not daily_rows:
+        return jsonify({'error': 'no_daily_price', 'message': '無歷史股價資料'})
+
+    # 2. 讀取季度 EPS（按年季排序）
+    qf_rows = query_db(
+        "SELECT quarter, eps FROM quarterly_financial WHERE code=? AND eps IS NOT NULL",
+        (code,))
+    # 解析並排序
+    qf_list = []
+    for r in qf_rows:
+        parts = r['quarter'].split('Q')
+        if len(parts) == 2:
+            y, q = int(parts[0]), int(parts[1])
+            qf_list.append((y, q, r['eps']))
+    qf_list.sort(key=lambda x: (x[0], x[1]))
+
+    # 3. 建立「每個時間點的滾動四季 EPS」查找表
+    #    每季公告後 EPS 才更新，估算各季公告截止日期：
+    #    Q1 → 5/15, Q2 → 8/14, Q3 → 11/14, Q4 → 3/31（隔年）
+    eps_timeline = []  # [(available_date, rolling_4q_eps), ...]
+    for i in range(3, len(qf_list)):
+        y, q, _ = qf_list[i]
+        rolling_eps = sum(qf_list[j][2] for j in range(i-3, i+1))
+        # 估算此季報何時公告
+        if q == 1:
+            avail = f"{y + 1911}-05-15"
+        elif q == 2:
+            avail = f"{y + 1911}-08-14"
+        elif q == 3:
+            avail = f"{y + 1911}-11-14"
+        else:  # Q4
+            avail = f"{y + 1912}-03-31"
+        eps_timeline.append((avail, round(rolling_eps, 2)))
+
+    if not eps_timeline:
+        return jsonify({'error': 'insufficient_data', 'message': '季報資料不足'})
+
+    # 4. 讀取個股估值參數（PE/殖利率）
+    gs = _get_global_settings()
+    user_params = None
+    try:
+        ue_rows = query_db("SELECT params FROM user_estimates WHERE code=?", (code,))
+        if ue_rows and ue_rows[0]['params']:
+            user_params = _json_vh.loads(ue_rows[0]['params'])
+    except Exception:
+        pass
+    pe_hi, pe_lo, y_high, y_max = _get_stock_params(user_params, gs)
+
+    # 5. 讀取股利歷史（用來算殖利率門檻）
+    div_rows = query_db(
+        "SELECT year, cash_dividend FROM financial_annual WHERE code=? AND cash_dividend IS NOT NULL AND cash_dividend > 0 ORDER BY year",
+        (code,))
+    div_map = {r['year']: r['cash_dividend'] for r in div_rows}
+
+    # 6. 對每個交易日計算評價等級
+    daily_data = []   # 前端畫圖用
+    level_periods = [] # 統計用：各便宜區間
+
+    def _get_eps_at_date(d_str):
+        """取得某日期時已知的滾動四季 EPS"""
+        eps = None
+        for avail, e in eps_timeline:
+            if avail <= d_str:
+                eps = e
+        return eps
+
+    def _get_div_at_date(d_str):
+        """取得某日期時最近的股利"""
+        year = int(d_str[:4])
+        roc = year - 1911
+        for y in range(roc, roc - 3, -1):
+            if y in div_map:
+                return div_map[y]
+        return None
+
+    def _calc_levels(eps, div):
+        """計算 AA/A1/A2/A 門檻"""
+        if not eps or eps <= 0:
+            return None, None, None, None
+        vals = []
+        # AA = min(EPS×pe_lo, div/y_max)
+        v_pe_aa = eps * pe_lo
+        v_pe_a = eps * ((pe_lo + pe_hi) / 2 - (pe_hi - pe_lo) / 4)  # 偏低PE=12
+        pe_mid_low = pe_lo + (pe_hi - pe_lo) / 3  # ~12.67
+        parts = [v_pe_aa]
+        if div and div > 0:
+            parts.append(div / (y_max / 100))
+        val_aa = min(parts)
+
+        parts_a1 = [v_pe_aa]
+        if div and div > 0:
+            parts_a1.append(div / (y_high / 100))
+        val_a1 = min(parts_a1)
+
+        pe_low_mid = (pe_lo + (pe_hi + pe_lo) / 2) / 2  # 偏低PE
+        parts_a2 = [eps * pe_low_mid]
+        if div and div > 0:
+            parts_a2.append(div / (y_max / 100))
+        val_a2 = min(parts_a2)
+
+        parts_a = [eps * pe_low_mid]
+        if div and div > 0:
+            parts_a.append(div / (y_high / 100))
+        val_a = min(parts_a)
+
+        return round(val_aa, 2), round(val_a1, 2), round(val_a2, 2), round(val_a, 2)
+
+    LEVELS = ['AA', 'A1', 'A2', 'A']
+    prev_level = None
+    current_period_start = None
+    price_map = {}  # date → close
+
+    for row in daily_rows:
+        d = row['date']
+        price = row['close_price']
+        price_map[d] = price
+        eps = _get_eps_at_date(d)
+        div = _get_div_at_date(d)
+        val_aa, val_a1, val_a2, val_a = _calc_levels(eps, div)
+
+        level = None
+        tol = 0.005
+        if val_aa and price <= val_aa + tol:
+            level = 'AA'
+        elif val_a1 and price <= val_a1 + tol:
+            level = 'A1'
+        elif val_a2 and price <= val_a2 + tol:
+            level = 'A2'
+        elif val_a and price <= val_a + tol:
+            level = 'A'
+
+        daily_data.append({
+            'd': d, 'p': price,
+            'aa': val_aa, 'a1': val_a1, 'a2': val_a2, 'a': val_a,
+            'lv': level, 'eps': eps,
+        })
+
+        # 追蹤便宜區間
+        if level and level != prev_level:
+            if current_period_start and prev_level:
+                level_periods.append({
+                    'level': prev_level,
+                    'start': current_period_start,
+                    'end': d,
+                })
+            current_period_start = d
+        elif not level and prev_level:
+            if current_period_start:
+                level_periods.append({
+                    'level': prev_level,
+                    'start': current_period_start,
+                    'end': d,
+                })
+            current_period_start = None
+        prev_level = level
+
+    # 收尾
+    if prev_level and current_period_start:
+        level_periods.append({
+            'level': prev_level,
+            'start': current_period_start,
+            'end': daily_rows[-1]['date'],
+        })
+
+    # 7. 統計各等級
+    stats = {}
+    for lv in LEVELS:
+        periods = [p for p in level_periods if p['level'] == lv]
+        total_days = 0
+        returns_90d = []
+        returns_180d = []
+        for p in periods:
+            # 計算天數
+            start_dt = _dt_vh.strptime(p['start'], '%Y-%m-%d')
+            end_dt = _dt_vh.strptime(p['end'], '%Y-%m-%d')
+            days = (end_dt - start_dt).days
+            total_days += max(days, 1)
+
+            # 計算進入後 90/180 天報酬
+            entry_price = price_map.get(p['start'])
+            if entry_price:
+                d90 = (start_dt + timedelta(days=90)).strftime('%Y-%m-%d')
+                d180 = (start_dt + timedelta(days=180)).strftime('%Y-%m-%d')
+                # 找最近的交易日
+                for dd, pp in price_map.items():
+                    if dd >= d90:
+                        returns_90d.append(round((pp - entry_price) / entry_price * 100, 1))
+                        break
+                for dd, pp in price_map.items():
+                    if dd >= d180:
+                        returns_180d.append(round((pp - entry_price) / entry_price * 100, 1))
+                        break
+
+        stats[lv] = {
+            'count': len(periods),
+            'total_days': total_days,
+            'avg_days': round(total_days / len(periods)) if periods else 0,
+            'avg_return_90d': round(sum(returns_90d) / len(returns_90d), 1) if returns_90d else None,
+            'avg_return_180d': round(sum(returns_180d) / len(returns_180d), 1) if returns_180d else None,
+        }
+
+    return jsonify({
+        'code': code,
+        'daily': daily_data,
+        'stats': stats,
+        'pe_params': {'pe_hi': pe_hi, 'pe_lo': pe_lo, 'y_high': y_high, 'y_max': y_max},
+        'data_range': {
+            'start': daily_rows[0]['date'] if daily_rows else None,
+            'end': daily_rows[-1]['date'] if daily_rows else None,
+            'days': len(daily_rows),
+        },
+    })
+
 
 @app.route("/api/user-estimates-all")
 def get_all_user_estimates():

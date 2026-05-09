@@ -3450,6 +3450,122 @@ def _save_daily_price():
         print(f"[每日價量] 存入失敗: {e}")
 
 
+def fetch_historical_daily_prices(start_date=None, end_date=None):
+    """
+    抓取歷史逐日收盤價（所有上市+上櫃），存入 daily_price 表。
+    TWSE: MI_INDEX API（一天一次取所有上市）
+    TPEX: stk_wn1430（一天一次取所有上櫃）
+    每天抓完存入 DB，已有的日期會跳過。
+    """
+    import time as _time
+    if end_date is None:
+        end_date = date.today() - timedelta(days=1)
+    if start_date is None:
+        start_date = end_date - timedelta(days=365 * 3)
+
+    # 先看 DB 已有哪些日期
+    existing_dates = set()
+    try:
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute("CREATE TABLE IF NOT EXISTS daily_price (code TEXT NOT NULL, date TEXT NOT NULL, close_price REAL, volume INTEGER, PRIMARY KEY (code, date))")
+            c.execute("SELECT DISTINCT date FROM daily_price")
+            existing_dates = {r[0] for r in c.fetchall()}
+    except Exception:
+        pass
+
+    # 產生需要抓的交易日清單（跳過週末和已有日期）
+    all_dates = []
+    d = start_date
+    while d <= end_date:
+        if d.weekday() < 5:  # 只要平日
+            ds = d.strftime('%Y-%m-%d')
+            if ds not in existing_dates:
+                all_dates.append(d)
+        d += timedelta(days=1)
+
+    print(f"[歷史股價] 需抓取 {len(all_dates)} 個交易日（{start_date} ~ {end_date}，已排除 {len(existing_dates)} 個已有日期）")
+    if not all_dates:
+        print("[歷史股價] 全部已抓取完畢")
+        return
+
+    saved_count = 0
+    failed_dates = []
+
+    for i, d in enumerate(all_dates):
+        ds = d.strftime('%Y-%m-%d')
+        ds_fmt = d.strftime('%Y%m%d')
+        roc_y = d.year - 1911
+        roc_date = f'{roc_y}/{d.month:02d}/{d.day:02d}'
+
+        prices = {}
+
+        # TWSE（上市）
+        try:
+            url_twse = f"https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&date={ds_fmt}&type=ALL"
+            data = fetch_json(url_twse)
+            if data:
+                tables = data.get('tables', [])
+                if len(tables) >= 9 and tables[8].get('data'):
+                    for row in tables[8]['data']:
+                        code = str(row[0]).strip()
+                        close_str = str(row[8]).replace(',', '').strip()
+                        vol_str = str(row[2]).replace(',', '').strip()
+                        try:
+                            prices[code] = (float(close_str), int(vol_str) if vol_str.isdigit() else None)
+                        except Exception:
+                            pass
+        except Exception as e:
+            print(f"[歷史股價] TWSE {ds} 失敗: {e}")
+
+        _time.sleep(1)
+
+        # TPEX（上櫃）
+        try:
+            url_tpex = (f"https://www.tpex.org.tw/web/stock/aftertrading/"
+                        f"otc_quotes_no1430/stk_wn1430_result.php"
+                        f"?l=zh-tw&d={roc_date}&se=EW")
+            data = fetch_json(url_tpex)
+            if data:
+                tables = data.get('tables', [])
+                if tables and tables[0].get('data'):
+                    for row in tables[0]['data']:
+                        code = str(row[0]).strip()
+                        close_str = str(row[2]).replace(',', '').strip()
+                        vol_str = str(row[8]).replace(',', '').strip() if len(row) > 8 else ''
+                        try:
+                            prices[code] = (float(close_str), int(vol_str) if vol_str.isdigit() else None)
+                        except Exception:
+                            pass
+        except Exception as e:
+            print(f"[歷史股價] TPEX {ds} 失敗: {e}")
+
+        if not prices:
+            # 可能是國定假日
+            failed_dates.append(ds)
+            if len(failed_dates) <= 5:
+                print(f"[歷史股價] {ds} 無資料（可能為假日）")
+        else:
+            # 存入 DB
+            try:
+                with sqlite3.get_conn() as conn:
+                    c = conn.cursor()
+                    for code, (close, vol) in prices.items():
+                        c.execute("INSERT OR IGNORE INTO daily_price (code, date, close_price, volume) VALUES (?,?,?,?)",
+                                  (code, ds, close, vol))
+                    conn.commit()
+                saved_count += len(prices)
+            except Exception as e:
+                print(f"[歷史股價] {ds} 存入失敗: {e}")
+
+        if (i + 1) % 10 == 0 or i == len(all_dates) - 1:
+            print(f"[歷史股價] 進度 {i+1}/{len(all_dates)}，累計存入 {saved_count} 筆")
+
+        _time.sleep(2)  # 避免太頻繁
+
+    print(f"[歷史股價] 完成：{saved_count} 筆，失敗/假日 {len(failed_dates)} 天")
+
+
 def refresh_prices():
     """
     只更新股價。
