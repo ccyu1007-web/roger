@@ -358,6 +358,8 @@ def _push_all_to_render():
                         'gi_lynch_a','gi_lynch_b','gi_lynch_c','gi_lynch_d',
                         'gi_rev_cagr_3y','gi_rev_cagr_5y','gi_shares_change','gi_yield','gi_pe',
                         'gi_gray','gi_neff_gray','gi_lynch_gray','gi_warnings',
+                        'growth_signal','growth_rev_momentum','growth_eps_trend',
+                        'growth_inv_risk','growth_detail',
                         'updated_at'],
             'pk': ['code'],
             'clear_first': True,
@@ -382,6 +384,8 @@ def _push_all_to_render():
                 gi_rev_cagr_3y REAL, gi_rev_cagr_5y REAL, gi_shares_change REAL, gi_yield REAL, gi_pe REAL,
                 gi_gray INTEGER, gi_neff_gray INTEGER, gi_lynch_gray INTEGER,
                 gi_warnings TEXT,
+                growth_signal TEXT, growth_rev_momentum REAL, growth_eps_trend REAL,
+                growth_inv_risk INTEGER, growth_detail TEXT,
                 updated_at TEXT)""",
         },
         {
