@@ -411,10 +411,6 @@
     </div>
     <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #f59e0b">
       <span class="wb-label" style="color:#f59e0b">觀察挑選：</span>
-      <div class="wb-item"><label>沈董PE</label><input id="wsPeMin" type="text" style="width:36px" onchange="saveWatchSettings()">~<input id="wsPeMax" type="text" style="width:36px" onchange="saveWatchSettings()"></div>
-      <div class="wb-item"><label>累積營收 >=</label><input id="wsRevCum" type="text" style="width:42px" onchange="saveWatchSettings()">%</div>
-      <div class="wb-item"><label>沈董殖利率 >=</label><input id="wsYld" type="text" style="width:42px" onchange="saveWatchSettings()">%</div>
-      <span style="color:#cbd5e1">|</span>
       <div class="wb-item"><label><input type="checkbox" id="wsRequireQuality" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> 須體質佳</label></div>
       <div class="wb-item"><label><input type="checkbox" id="wsPositiveEps" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> EPS正數</label></div>
       <span style="color:#cbd5e1">|</span>
@@ -1298,19 +1294,42 @@ function removeFocus(code) {
 
 // ── 觀察清單自動挑選 ──────────────────────────────────────
 const DEFAULT_W_SETTINGS = {
-  peMax: 14, peMin: 0, revCum: -10, yld: 5,
   requireQuality: true, positiveEps: true,
 };
 let _wSettings = JSON.parse(localStorage.getItem('watch_settings') || 'null') || {...DEFAULT_W_SETTINGS};
 
+// 遷移：將舊的固定條件轉為自訂條件（只執行一次）
+(function migrateOldSettings() {
+  if (localStorage.getItem('watch_settings_migrated')) return;
+  const old = JSON.parse(localStorage.getItem('watch_settings') || '{}');
+  const conds = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
+  let changed = false;
+  if (old.peMin != null && old.peMax != null && !conds.some(c => c.field === 'shen_pe')) {
+    conds.push({field:'shen_pe', op:'>', value: String(old.peMin || 0)});
+    conds.push({field:'shen_pe', op:'<=', value: String(old.peMax || 14)});
+    changed = true;
+  }
+  if (old.revCum != null && !conds.some(c => c.field === 'revenue_cum_yoy')) {
+    conds.push({field:'revenue_cum_yoy', op:'>=', value: String(old.revCum ?? -10)});
+    changed = true;
+  }
+  if (old.yld != null && !conds.some(c => c.field === 'shen_yld')) {
+    conds.push({field:'shen_yld', op:'>=', value: String(old.yld || 5)});
+    changed = true;
+  }
+  if (changed) {
+    localStorage.setItem('watch_custom_conds', JSON.stringify(conds));
+    _customConditions = conds;
+  }
+  // 保留 checkbox 設定
+  _wSettings = { requireQuality: old.requireQuality ?? true, positiveEps: old.positiveEps ?? true };
+  localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
+  localStorage.setItem('watch_settings_migrated', '1');
+})();
+
 function initWatchSettings() {
-  document.getElementById('wsPeMax').value = _wSettings.peMax;
-  document.getElementById('wsPeMin').value = _wSettings.peMin;
-  document.getElementById('wsRevCum').value = _wSettings.revCum;
-  document.getElementById('wsYld').value = _wSettings.yld;
   document.getElementById('wsRequireQuality').checked = _wSettings.requireQuality;
   document.getElementById('wsPositiveEps').checked = _wSettings.positiveEps;
-  // 確保預設值寫入 localStorage（不然 syncUserSettings 抓不到）
   if (!localStorage.getItem('watch_settings')) {
     localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
     syncUserSettings();
@@ -1318,11 +1337,6 @@ function initWatchSettings() {
 }
 
 function saveWatchSettings() {
-  _wSettings.peMax = parseFloat(document.getElementById('wsPeMax').value) || 14;
-  _wSettings.peMin = parseFloat(document.getElementById('wsPeMin').value) || 0;
-  _wSettings.revCum = parseFloat(document.getElementById('wsRevCum').value);
-  if (isNaN(_wSettings.revCum)) _wSettings.revCum = -10;
-  _wSettings.yld = parseFloat(document.getElementById('wsYld').value) || 5;
   _wSettings.requireQuality = document.getElementById('wsRequireQuality').checked;
   _wSettings.positiveEps = document.getElementById('wsPositiveEps').checked;
   localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
@@ -1351,25 +1365,6 @@ function autoWatchCheck() {
     // EPS 為正
     if (s.positiveEps && (r.shen_eps == null || r.shen_eps <= 0)) {
       excluded[r.code] = `EPS非正數(${r.shen_eps})`;
-      return;
-    }
-    // 沈董本益比範圍
-    if (r.shen_pe == null) {
-      excluded[r.code] = 'PE無值';
-      return;
-    }
-    if (r.shen_pe > s.peMax || r.shen_pe <= s.peMin) {
-      excluded[r.code] = `PE=${r.shen_pe} 不在${s.peMin}~${s.peMax}`;
-      return;
-    }
-    // 累積營收年增率
-    if (r.revenue_cum_yoy == null || r.revenue_cum_yoy < s.revCum) {
-      excluded[r.code] = `累積營收=${r.revenue_cum_yoy} < ${s.revCum}`;
-      return;
-    }
-    // 沈董殖利率
-    if (r.shen_yld == null || r.shen_yld < s.yld) {
-      excluded[r.code] = `殖利率=${r.shen_yld} < ${s.yld}%`;
       return;
     }
     // 自訂條件
@@ -1413,9 +1408,6 @@ function autoWatchCheck() {
 
   // 組條件摘要
   const condText = [
-    `沈董PE：${s.peMin} ~ ${s.peMax}`,
-    `累積營收年增率 >= ${s.revCum}%`,
-    `沈董殖利率 >= ${s.yld}%`,
     s.requireQuality ? '須通過體質篩選' : '',
     s.positiveEps ? 'EPS 須為正' : '',
     ..._customConditions.map(c => {
@@ -1429,15 +1421,10 @@ function autoWatchCheck() {
   ].filter(Boolean).map((c, i) => `  ${i+1}. ${c}`).join('\n');
 
   // debug: 排除原因按步驟統計
-  const stepCounts = {'未通過體質':0,'EPS非正數':0,'PE無值':0,'PE不在範圍':0,
-    '累積營收':0,'殖利率':0,'自訂條件不符':0,'等級篩選不符':0};
+  const stepCounts = {'未通過體質':0,'EPS非正數':0,'自訂條件不符':0,'等級篩選不符':0};
   Object.values(excluded).forEach(r => {
     if (r.includes('體質')) stepCounts['未通過體質']++;
     else if (r.includes('EPS')) stepCounts['EPS非正數']++;
-    else if (r === 'PE無值') stepCounts['PE無值']++;
-    else if (r.includes('PE=')) stepCounts['PE不在範圍']++;
-    else if (r.includes('累積營收')) stepCounts['累積營收']++;
-    else if (r.includes('殖利率')) stepCounts['殖利率']++;
     else if (r.includes('自訂條件')) stepCounts['自訂條件不符']++;
     else if (r.includes('等級篩選')) stepCounts['等級篩選不符']++;
   });
