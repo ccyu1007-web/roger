@@ -9,7 +9,7 @@
   body { font-family: 'Microsoft JhengHei', -apple-system, sans-serif; background: #f0f4f8; color: #1a202c; font-size: 14px; }
   header { background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
   header h1 { font-size: 1.2rem; }
-  header a { color: rgba(255,255,255,.9); text-decoration: none; font-size: .85rem; }
+  header a { color: rgba(255,255,255,.9); text-decoration: none; font-size: .85rem; margin-left: 16px; }
   .container { max-width: 900px; margin: 20px auto; padding: 0 16px; }
   .section { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.08); margin-bottom: 20px; overflow: hidden; }
   .section-title { background: #1e3a5f; color: #fff; padding: 10px 16px; font-weight: 700; font-size: .95rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
@@ -27,6 +27,7 @@
   .source { font-size: .78rem; color: #64748b; }
   .src-capital { color: #059669; font-weight: 600; }
   .src-gov { color: #2563eb; font-weight: 600; }
+  .src-mops { color: #0891b2; font-weight: 600; }
   .src-calc { color: #d97706; font-weight: 600; }
   .src-user { color: #dc2626; font-weight: 600; }
   .note { font-size: .78rem; color: #94a3b8; margin-top: 2px; }
@@ -40,8 +41,8 @@
 <body>
 
 <header>
-  <h1>欄位說明</h1>
-  <div><a href="/">回總表</a></div>
+  <h1>總表欄位說明</h1>
+  <div><a href="/">回總表</a><a href="/company_guide.html">個股頁說明</a></div>
 </header>
 
 <div class="container">
@@ -49,10 +50,14 @@
 <div class="section">
   <div class="section-body">
     <div class="legend">
-      <span><span class="src-capital">群益</span> 群益證券（最高優先）</span>
+      <span><span class="src-mops">MOPS</span> 公開資訊觀測站（最高優先）</span>
+      <span><span class="src-capital">群益</span> 群益證券</span>
       <span><span class="src-gov">政府</span> 證交所/櫃買中心 API</span>
-      <span><span class="src-calc">計算</span> 系統衍生計算</span>
+      <span><span class="src-calc">計算</span> 後端衍生計算（存DB）</span>
       <span><span class="src-user">使用者</span> 手動設定</span>
+    </div>
+    <div style="padding:8px 16px;font-size:.82rem;color:#64748b;border-top:1px solid #e2e8f0">
+      所有衍生欄位由後端 recalc_all_derived() 統一計算存入 stocks 表，前端直接讀取，不重算。
     </div>
     <div class="toc" id="toc"></div>
   </div>
@@ -63,7 +68,7 @@
   <div class="section-title" onclick="toggleSection(this)">基本資料 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
       <tr><td class="field">股票代碼</td><td>4碼數字</td><td><span class="src-gov">政府</span> TWSE t187ap03 + TPEX peratio_analysis</td></tr>
       <tr><td class="field">公司名稱</td><td>公司簡稱</td><td><span class="src-gov">政府</span> 同上</td></tr>
       <tr><td class="field">市場</td><td>上市 / 上櫃</td><td><span class="src-gov">政府</span> 同上</td></tr>
@@ -77,10 +82,10 @@
   <div class="section-title" onclick="toggleSection(this)">股價 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">收盤價</td><td>當日收盤價</td><td><span class="src-gov">政府</span> TWSE STOCK_DAY_ALL / TPEX quotes<div class="note">盤中用即時API，盤後用批次API，需日期驗證</div></td></tr>
-      <tr><td class="field">漲跌</td><td>與前一交易日收盤差</td><td><span class="src-gov">政府</span> 同上</td></tr>
-      <tr><td class="field">240日漲跌幅</td><td>與240交易日前收盤比較</td><td><span class="src-calc">計算</span> (今日收盤 - 240日前收盤) / 240日前收盤 × 100%</td></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">收盤價</td><td>當日收盤價</td><td><span class="src-gov">政府</span> TWSE/TPEX 批次+即時API<div class="note">三段時間邏輯+日期驗證，詳見 CLAUDE.md</div></td></tr>
+      <tr><td class="field">漲跌</td><td>與前一交易日收盤差</td><td><span class="src-gov">政府</span></td></tr>
+      <tr><td class="field">240日漲跌幅</td><td>與240交易日前比較</td><td><span class="src-calc">計算</span></td></tr>
     </table>
   </div>
 </div>
@@ -90,84 +95,56 @@
   <div class="section-title" onclick="toggleSection(this)">評價門檻（AA ~ 長期6%）<span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
       <tr><td class="field">評價AA</td><td>最便宜門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fee2e2"></span>紅底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">min(EPS×10, 股利/6%, 綜合股利/6%+股利)</span>
-        <div class="note">EPS/股利優先順序：預估值 → 系統估算 → 沈董值</div></td></tr>
-      <tr><td class="field">評價A1</td><td>偏便宜門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
+        <div class="note">EPS/股利優先順序：預估 > 系統估算 > 沈董</div></td></tr>
+      <tr><td class="field">評價A1</td><td>偏便宜<div class="note"><span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">min(EPS×10, 股利/5.5%, 綜合股利/6%+股利)</span></td></tr>
-      <tr><td class="field">評價A2</td><td>合理偏低門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
+      <tr><td class="field">評價A2</td><td>合理偏低<div class="note"><span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">min(EPS×12, 股利/6%, 綜合股利/6%+股利)</span></td></tr>
-      <tr><td class="field">評價A</td><td>合理門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#dbeafe"></span>藍底</div></td>
+      <tr><td class="field">評價A</td><td>合理<div class="note"><span class="color-sample" style="background:#dbeafe"></span>藍底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">min(EPS×12, 股利/5.5%, 綜合股利/6%+股利)</span></td></tr>
-      <tr><td class="field">長期6%</td><td>長期殖利率門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#dcfce7"></span>綠底</div></td>
+      <tr><td class="field">長期6%</td><td>長期殖利率<div class="note"><span class="color-sample" style="background:#dcfce7"></span>綠底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">綜合股利 / 6%</span></td></tr>
     </table>
     <div class="legend">
-      <span>預設參數：最低PE=10, 偏低PE=12, 最高PE=18, 偏高殖利率=5.5%, 最高殖利率=6%</span>
+      <span>預設：最低PE=10, 偏低PE=12, 合理PE=14, 最高PE=18, 偏高殖利率=5.5%, 最高殖利率=6%</span>
     </div>
   </div>
 </div>
 
-<!-- 預估明細 -->
+<!-- 沈董/加權/綜合/近四季 -->
+<div class="section" id="sec-derived">
+  <div class="section-title" onclick="toggleSection(this)">沈董 / 加權 / 綜合 / 近四季 <span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="120">系列</th><th width="280">EPS 計算</th><th>PE / 殖利率 / 等級</th></tr>
+      <tr><td class="field">沈董</td><td>當年度已公佈季度年化推算<div class="note">4季：直接加總；1~3季：加總/季數×4；無：fallback近四季</div></td>
+        <td>PE=股價/沈董EPS，殖利率=沈董股利/股價，等級=矩陣查表</td></tr>
+      <tr><td class="field">加權</td><td>五年加權平均<div class="note">權重 30/30/20/10/10（近→遠）</div></td>
+        <td>同上公式</td></tr>
+      <tr><td class="field">綜合</td><td>沈董×30% + 加權×70%<div class="note">預設 30/70，可自訂</div></td>
+        <td>同上公式</td></tr>
+      <tr><td class="field">近四季</td><td>eps_1 + eps_2 + eps_3 + eps_4</td>
+        <td>同上公式</td></tr>
+    </table>
+    <div class="legend">
+      <span>全部由後端 recalc_all_derived() 計算存 DB，前端直接讀取</span>
+    </div>
+  </div>
+</div>
+
+<!-- 預估/系統估算 -->
 <div class="section" id="sec-est">
-  <div class="section-title" onclick="toggleSection(this)">預估明細 <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">預估 / 系統估算 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">預估等級</td><td>矩陣等級（AA~X）</td><td><span class="src-calc">計算</span> 用預估PE和預估殖利率查矩陣表<div class="note">沒有使用者預估時 fallback 到系統估算</div></td></tr>
-      <tr><td class="field">預估PE</td><td>預估本益比</td><td><span class="src-user">使用者</span> 個股頁手動輸入 / <span class="src-calc">計算</span> 股價 / 預估EPS</td></tr>
-      <tr><td class="field">預估殖利率</td><td>預估殖利率%</td><td><span class="src-calc">計算</span> 預估股利 / 股價 × 100</td></tr>
-      <tr><td class="field">預估EPS</td><td>使用者預估年度EPS</td><td><span class="src-user">使用者</span> 個股頁手動輸入 / <span class="src-calc">計算</span> 系統年度估算 fallback</td></tr>
-      <tr><td class="field">預估股利</td><td>使用者預估年度股利</td><td><span class="src-user">使用者</span> 個股頁手動輸入 / <span class="src-calc">計算</span> 系統年度估算 fallback</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 系統估算 -->
-<div class="section" id="sec-sys">
-  <div class="section-title" onclick="toggleSection(this)">系統估算 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">系統等級</td><td>矩陣等級（AA~X）</td><td><span class="src-calc">計算</span> 用系統PE和系統殖利率查矩陣表</td></tr>
-      <tr><td class="field">系統PE</td><td>系統推算本益比</td><td><span class="src-calc">計算</span> 股價 / 系統EPS</td></tr>
-      <tr><td class="field">系統殖利率</td><td>系統推算殖利率%</td><td><span class="src-calc">計算</span> 系統股利 / 股價 × 100</td></tr>
-      <tr><td class="field">系統EPS</td><td>系統推算年度EPS</td><td><span class="src-calc">計算</span> 根據已公佈季度月營收推算全年EPS</td></tr>
-      <tr><td class="field">系統股利</td><td>系統推算年度股利</td><td><span class="src-calc">計算</span> 系統EPS × 配息率（近年平均）</td></tr>
-      <tr><td class="field">信心度</td><td>估算可信度 A/B/C</td><td><span class="src-calc">計算</span> A=有3季以上 B=有1-2季 C=純推估</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 沈董明細 -->
-<div class="section" id="sec-shen">
-  <div class="section-title" onclick="toggleSection(this)">沈董明細 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">沈董等級</td><td>矩陣等級（AA~X）</td><td><span class="src-calc">計算</span> 用沈董PE和沈董殖利率查矩陣表</td></tr>
-      <tr><td class="field">沈董PE</td><td>沈董本益比</td><td><span class="src-calc">計算</span> 股價 / 沈董EPS</td></tr>
-      <tr><td class="field">沈董殖利率</td><td>沈董殖利率%</td><td><span class="src-calc">計算</span> 沈董股利 / 股價 × 100</td></tr>
-      <tr><td class="field">沈董EPS</td><td>當年度已公佈季度年化推算</td>
-        <td><span class="src-calc">計算</span> 已公佈季度EPS加總 × (4/已公佈季數)<div class="note">例：Q1=2.5 → 沈董EPS=2.5×4=10</div></td></tr>
-      <tr><td class="field">沈董股利</td><td>沈董推算股利</td><td><span class="src-calc">計算</span> 沈董EPS × 配息率（最近一年 股利/EPS）</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 綜合/加權/近四季 -->
-<div class="section" id="sec-blend">
-  <div class="section-title" onclick="toggleSection(this)">綜合 / 加權 / 近四季明細 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">綜合EPS</td><td>沈董+加權混合</td>
-        <td><span class="src-calc">計算</span> <span class="formula">沈董EPS × 沈董權重% + 加權EPS × 加權權重%</span><div class="note">預設各 50%，可自訂</div></td></tr>
-      <tr><td class="field">加權EPS</td><td>五年加權平均</td>
-        <td><span class="src-calc">計算</span> <span class="formula">Σ(年度EPS × 權重)</span><div class="note">預設權重 30/25/20/15/10</div></td></tr>
-      <tr><td class="field">近四季EPS</td><td>最近四季EPS加總</td>
-        <td><span class="src-calc">計算</span> eps_1 + eps_2 + eps_3 + eps_4</td></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">預估EPS/股利</td><td>使用者手動輸入</td><td><span class="src-user">使用者</span> 個股頁設定，存 DB user_estimates</td></tr>
+      <tr><td class="field">預估等級</td><td>矩陣等級</td><td><span class="src-calc">計算</span> 預估PE × 預估殖利率</td></tr>
+      <tr><td class="field">系統EPS/股利</td><td>系統根據月營收推算</td><td><span class="src-calc">計算</span> estimation.py</td></tr>
+      <tr><td class="field">系統等級</td><td>矩陣等級</td><td><span class="src-calc">計算</span> 系統PE × 系統殖利率</td></tr>
     </table>
   </div>
 </div>
@@ -177,50 +154,25 @@
   <div class="section-title" onclick="toggleSection(this)">營收 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">營收更新</td><td>最新營收公佈日<div class="note">當天公佈 → 紅色</div></td><td><span class="src-gov">政府</span> t187ap05 新月份時設定</td></tr>
-      <tr><td class="field">累積營收年增</td><td>當年累計營收 vs 去年同期</td><td><span class="src-gov">政府</span> t187ap05 累計營業收入-前期比較增減(%)</td></tr>
-      <tr><td class="field">營收年增率</td><td>單月營收 vs 去年同月</td><td><span class="src-gov">政府</span> t187ap05 營業收入-去年同月增減(%)</td></tr>
-      <tr><td class="field">營收月增率</td><td>單月營收 vs 上月</td><td><span class="src-gov">政府</span> t187ap05 營業收入-上月比較增減(%)</td></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">營收更新</td><td>最新營收公佈日<div class="note">當天公佈 → 紅色</div></td><td><span class="src-mops">MOPS</span> t21sc03 > <span class="src-gov">政府</span> t187ap05</td></tr>
+      <tr><td class="field">累積營收年增</td><td>當年累計 vs 去年同期</td><td><span class="src-gov">政府</span> t187ap05</td></tr>
+      <tr><td class="field">營收年增率</td><td>單月 vs 去年同月</td><td><span class="src-gov">政府</span></td></tr>
+      <tr><td class="field">營收月增率</td><td>單月 vs 上月</td><td><span class="src-gov">政府</span></td></tr>
     </table>
   </div>
 </div>
 
-<!-- 季度EPS -->
-<div class="section" id="sec-qeps">
-  <div class="section-title" onclick="toggleSection(this)">季度EPS <span class="arrow">▼</span></div>
+<!-- 季度EPS / 年度EPS / 股利 / 配息率 -->
+<div class="section" id="sec-eps-div">
+  <div class="section-title" onclick="toggleSection(this)">季度EPS / 年度EPS / 股利 / 配息率 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">EPS更新</td><td>新季度EPS公佈日<div class="note">當天公佈 → 紅色</div></td><td><span class="src-gov">政府</span> t187ap14 出表日期</td></tr>
-      <tr><td class="field">eps_1 ~ eps_5</td><td>最近5季單季EPS</td>
-        <td><span class="src-capital">群益</span> zce 損益表（優先）<br><span class="src-gov">政府</span> t187ap14（去重，新季度才寫入）<div class="note">數值排序（非字串排序），避免 99Q4 > 114Q4</div></td></tr>
-      <tr><td class="field">當年累計EPS</td><td>當年度已公佈季度加總</td><td><span class="src-calc">計算</span> 當年度各季 EPS 合計</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 年度EPS -->
-<div class="section" id="sec-yeps">
-  <div class="section-title" onclick="toggleSection(this)">年度EPS <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">eps_y1 ~ eps_y6</td><td>最近6年完整年度EPS</td>
-        <td><span class="src-capital">群益</span> zcqa 年度損益表（最優先）<br><span class="src-gov">政府</span> t187ap14 Q4累計（驗證）<br>BWIBBU 本益比反推（補齊）<div class="note">群益直接覆蓋，其他不可覆蓋群益值</div></td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 股利 -->
-<div class="section" id="sec-div">
-  <div class="section-title" onclick="toggleSection(this)">股利 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">現金股利</td><td>歷年現金股利（最近6年）</td><td><span class="src-capital">群益</span> zcc（小計＝盈餘+公積）<br><span class="src-gov">政府</span> t187ap39/t187ap45（補齊）</td></tr>
-      <tr><td class="field">股票股利</td><td>歷年股票股利（最近6年）</td><td><span class="src-capital">群益</span> zcc（小計＝盈餘+公積配股）</td></tr>
-      <tr><td class="field">配息率</td><td>股利 / EPS × 100</td><td><span class="src-calc">計算</span> EPS ≤ 0 但有配息 → 100%</td></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">eps_1~5</td><td>最近5季單季EPS</td><td><span class="src-mops">MOPS</span> > <span class="src-capital">群益</span> zce > <span class="src-gov">政府</span> t187ap14<div class="note">數值排序（非字串排序）</div></td></tr>
+      <tr><td class="field">eps_y1~y6</td><td>最近6年年度EPS</td><td><span class="src-capital">群益</span> zcqa > BWIBBU反推</td></tr>
+      <tr><td class="field">現金/股票股利</td><td>最近6年</td><td><span class="src-capital">群益</span> zcc > <span class="src-gov">政府</span> t187ap45</td></tr>
+      <tr><td class="field">配息率 1~6</td><td>歷年配息率</td><td><span class="src-calc">計算</span> (現金+股票股利)/EPS。EPS<=0但有配息→100%<div class="note">後端計算存 stocks 表 payout_1~6</div></td></tr>
     </table>
   </div>
 </div>
@@ -230,225 +182,125 @@
   <div class="section-title" onclick="toggleSection(this)">法人買賣超 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">外資</td><td>外資買賣超（張）</td><td><span class="src-capital">群益</span> zcl（每天17:10後）</td></tr>
-      <tr><td class="field">投信</td><td>投信買賣超（張）</td><td><span class="src-capital">群益</span> zcl</td></tr>
-      <tr><td class="field">自營商</td><td>自營商買賣超（張）</td><td><span class="src-capital">群益</span> zcl</td></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">外資/投信/自營</td><td>買賣超（張）</td><td><span class="src-capital">群益</span> zcl（每天17:10後）</td></tr>
     </table>
   </div>
 </div>
 
 <!-- 財務等級 -->
 <div class="section" id="sec-grade">
-  <div class="section-title" onclick="toggleSection(this)">財務等級 <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">財務等級（ROIC版矩陣）<span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">財務等級</td><td>歷年體質評分（最近5年）</td>
-        <td><span class="src-calc">計算</span> 綜合 ROIC + 營業利益率 + 自由現金流 + 營收規模<div class="note">
-        ROIC = 營業利益×(1-稅率) / (股東權益+有息負債-現金)，門檻 7%/10%/15%<br>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">財務等級</td><td>近5年體質評分</td>
+        <td><span class="src-calc">計算</span> ROIC × FCF/營收 矩陣 + 營益率加減號
+        <div class="note">
+        縱軸 ROIC：≥15%/≥10%/≥7%/<7%<br>
+        橫軸 FCF/營收：<0%/0~5%/≥5%<br>
+        後綴：營益率≥10%加「+」，<5%加「-」<br><br>
         <span style="color:#dc2626">A級</span>（AA/A1/A2/B1A/B2A）紅色<br>
-        <span style="color:#d97706">B級</span>（B1/B2/BA1/BA2）橘色<br>
-        <span style="color:#94a3b8">C以下</span>（C/D/X）灰色</div></td></tr>
+        <span style="color:#d97706">B級</span>（B1/B2/BA1/BA2/A）橘色<br>
+        <span style="color:#94a3b8">C以下</span>（C/D/X）灰色
+        </div></td></tr>
     </table>
+    <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
+      <table style="text-align:center; max-width:500px;">
+        <tr><th>ROIC \ FCF/營收</th><th>< 0%</th><th>0~5%</th><th>≥ 5%</th></tr>
+        <tr><td style="font-weight:700">≥ 15%</td><td>B1A</td><td>A1</td><td style="color:#dc2626;font-weight:700">AA</td></tr>
+        <tr><td style="font-weight:700">≥ 10%</td><td>B1</td><td>A</td><td>A2</td></tr>
+        <tr><td style="font-weight:700">≥ 7%</td><td>C</td><td>B2</td><td>B2A</td></tr>
+        <tr><td style="font-weight:700">< 7%</td><td>D</td><td>C</td><td>C</td></tr>
+      </table>
+    </div>
   </div>
 </div>
 
-<!-- 合約負債 -->
-<div class="section" id="sec-contract">
-  <div class="section-title" onclick="toggleSection(this)">合約負債 <span class="arrow">▼</span></div>
+<!-- 席勒PE警示 -->
+<div class="section" id="sec-shiller">
+  <div class="section-title" onclick="toggleSection(this)">席勒PE警示 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr><td class="field">合約負債</td><td>最近3季的合約負債-流動</td><td><span class="src-capital">群益</span> zcpa 季度資產負債表</td></tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">10年均EPS</td><td>最近10~11年EPS簡單平均</td><td><span class="src-calc">計算</span> financial_annual 歷史EPS<div class="note">最少7年才計算</div></td></tr>
+      <tr><td class="field">席勒PE</td><td>股價 / 10年均EPS</td><td><span class="src-calc">計算</span></td></tr>
+      <tr><td class="field">席勒警示</td><td>綜合PE / 席勒PE</td>
+        <td><span class="src-calc">計算</span>
+        <div class="note">
+        <span style="color:#dc2626;font-weight:700">< 0.5</span>：紅色警示 — 近幾年EPS可能處於循環高峰，綜合PE是「假便宜」<br>
+        <span style="color:#16a34a">0.5 ~ 1.5</span>：綠色正常 — 估值判斷可信<br>
+        > 2.0：可能在循環低點，反而是機會
+        </div></td></tr>
     </table>
+    <div class="legend">
+      <span>定位：異常偵測器，不是估值工具。只在異常時跳警示，不干擾綜合PE判斷</span>
+    </div>
   </div>
 </div>
 
 <!-- 聶夫總報酬率法 -->
 <div class="section" id="sec-neff">
-  <div class="section-title" onclick="toggleSection(this)">聶夫總報酬率法 (John Neff) <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">聶夫總報酬率法 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr>
-        <td class="field">端點CAGR</td>
-        <td>EPS 頭尾複合年成長率（方法一）</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(最新EPS / 最早EPS)^(1/n) - 1</span><br>
-        <span class="note">n = 實際年份差（成長段數）。簡單直接，但起點或終點若為異常年份會被扭曲。</span></td>
-      </tr>
-      <tr>
-        <td class="field">平滑CAGR</td>
-        <td>3年平均對3年平均的 CAGR（方法二）</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(近3年EPS平均 / 遠3年EPS平均)^(1/中點差) - 1</span><br>
-        <span class="note">用3年平均抑制景氣循環雜訊，適合EPS波動大的公司。需要7~9年資料。兩種方法差距大代表成長不穩定。</span></td>
-      </tr>
-      <tr>
-        <td class="field">保守成長率</td>
-        <td>兩種方法取較低者</td>
-        <td><span class="src-calc">計算</span> <span class="formula">min(端點CAGR, 平滑CAGR)</span><br>
-        <span class="note">
-          取 min 本身就是保守動作（在兩個合理數字中選較不樂觀的）。<br>
-          不需要額外乘折扣係數，保守由低本益比提供安全邊際。
-        </span></td>
-      </tr>
-      <tr>
-        <td class="field">Neff比率</td>
-        <td>總報酬率與本益比的比值，越高越具投資價值</td>
-        <td><span class="src-calc">計算</span> <span class="formula">(保守成長率 + 殖利率) / PE</span><br>
-        判斷標準：<br>
-        <span class="note">
-          <span style="color:#dc2626;font-weight:700">≥ 1.3</span>：顯著低估（紅色）<br>
-          <span style="color:#ea580c;font-weight:600">0.9 ~ 1.3</span>：合理偏低（橘色）<br>
-          <span style="color:#d97706">0.7 ~ 0.9</span>：中性<br>
-          <span style="color:#94a3b8">< 0.7</span>：偏貴（灰色）
-        </span></td>
-      </tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">5年端點CAGR</td><td>(最新EPS/5年前EPS)^(1/5)-1</td><td><span class="src-calc">計算</span> <div class="note">只用EPS>0的年份，虧損年跳過</div></td></tr>
+      <tr><td class="field">5年平滑CAGR</td><td>(近3年均值/遠3年均值)^(1/5)-1</td><td><span class="src-calc">計算</span> <div class="note">含虧損年，用平均抑制雜訊</div></td></tr>
+      <tr><td class="field">3年端點CAGR</td><td>(最新EPS/3年前EPS)^(1/3)-1</td><td><span class="src-calc">計算</span></td></tr>
+      <tr><td class="field">3年平滑CAGR</td><td>(近2年均值/遠2年均值)^(1/3)-1</td><td><span class="src-calc">計算</span></td></tr>
+      <tr><td class="field">保守成長率</td><td>四種方法取最小值</td><td><span class="src-calc">計算</span> <span class="formula">min(5年端點, 5年平滑, 3年端點, 3年平滑)</span><div class="note">封頂20%，需至少4年有效EPS</div></td></tr>
+      <tr><td class="field">Neff比率</td><td>總報酬率 / PE</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(保守成長率 + 殖利率) / PE</span>
+        <div class="note">
+        <span style="color:#dc2626;font-weight:700">≥ 1.0</span> 紅色粗體（好訊號）<br>
+        <span style="color:#94a3b8">< 1.0</span> 灰色
+        </div></td></tr>
     </table>
-    <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
-      <div style="font-weight:700;margin-bottom:8px;color:#1e3a5f">聶夫的取捨原則</div>
-      <table style="max-width:500px">
-        <tr><th>成長率範圍</th><th>聶夫的態度</th><th>原因</th></tr>
-        <tr><td style="color:#94a3b8">< 7%</td><td style="color:#94a3b8">成長太弱，不適用此法</td><td style="color:#94a3b8">被通膨吃掉，成長無意義（灰色標記）</td></tr>
-        <tr><td style="color:#059669;font-weight:600">7% ~ 12%</td><td style="color:#059669;font-weight:600">甜蜜點（主力投資區）</td><td style="color:#059669">可預測、可持續，聶夫最愛</td></tr>
-        <tr><td>12% ~ 20%</td><td>可投資但需警惕</td><td>成長可能不持續，要求更便宜的價格</td></tr>
-        <tr><td style="color:#dc2626;font-weight:600">> 20%</td><td style="color:#dc2626;font-weight:600">不可預測，放棄</td><td style="color:#dc2626">無法可靠預測，直接灰色標記</td></tr>
-      </table>
-      <div style="margin-top:12px;font-weight:700;color:#1e3a5f">五層內建保守機制</div>
-      <table style="max-width:600px;margin-top:6px">
-        <tr><th width="50">#</th><th>機制</th><th>說明</th></tr>
-        <tr><td>1</td><td>取 min</td><td>在兩個合理的歷史數字中選較不樂觀的</td></tr>
-        <tr><td>2</td><td>20% 硬上限</td><td>超過 20% 直接灰色標記，不評估</td></tr>
-        <tr><td>3</td><td>營收驗證</td><td>EPS 成長 > 營收成長 ×1.5 → 警示（利潤率變化）</td></tr>
-        <tr><td>4</td><td>低本益比</td><td>用低 PE 買進本身就是最大的安全邊際</td></tr>
-        <tr><td>5</td><td>總報酬門檻</td><td>Neff 比率 >= 0.7 才值得關注</td></tr>
-      </table>
-      <div class="note" style="margin-top:8px">
-        殖利率來源：預估股利 / 股價（優先用個股自訂，無則用沈董股利）<br>
-        PE來源：股價 / 預估EPS（優先用個股自訂，無則用沈董EPS）<br>
-        品質判斷請搭配「財務等級」和「體質檢查表」，不在聶夫公式內重複做
-      </div>
-    </div>
   </div>
 </div>
 
 <!-- 林區PEG法 -->
 <div class="section" id="sec-lynch">
-  <div class="section-title" onclick="toggleSection(this)">林區PEG法 (Peter Lynch) <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">林區PEG法 <span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">欄位</th><th width="280">說明</th><th>計算方式 / 來源</th></tr>
-      <tr>
-        <td class="field">端點CAGR</td>
-        <td>同聶夫的端點 EPS CAGR</td>
-        <td><span class="src-calc">計算</span> 同聶夫的端點CAGR<br>
-        <span class="note">林區與聶夫共用同一個端點CAGR數據</span></td>
-      </tr>
-      <tr>
-        <td class="field">算術平均</td>
-        <td>過去5年EPS逐年成長率的簡單平均（林區用）</td>
-        <td><span class="src-calc">計算</span> <span class="formula">Σ(各年EPS YoY成長率) / 年數</span><br>
-        <span class="note">例：5年個別成長率為 10%, 15%, 8%, 12%, 20%，算術平均 = 13%</span></td>
-      </tr>
-      <tr>
-        <td class="field">一致性</td>
-        <td>成長品質指標：算術平均與CAGR的吻合度</td>
-        <td><span class="src-calc">計算</span> <span class="formula">1 - |算術平均 - CAGR| / CAGR</span><br>
-        判斷標準：<br>
-        <span class="note">
-          <span style="color:#16a34a;font-weight:600">≥ 0.9</span>：極穩定成長，PEG可信度高（綠色）<br>
-          0.5 ~ 0.9：穩定，正常使用<br>
-          <span style="color:#94a3b8">< 0.5</span>：景氣循環股，不適用PEG（灰色標記）
-        </span><br>
-        <span class="note">林區的洞見：算術平均 >> CAGR 時，代表 EPS 波動劇烈，是景氣循環股而非成長股</span></td>
-      </tr>
-      <tr>
-        <td class="field">PEG</td>
-        <td>本益比成長比，越低代表成長性相對股價越便宜</td>
-        <td><span class="src-calc">計算</span> <span class="formula">PE / (保守成長率 + 殖利率)</span><br>
-        判斷標準：<br>
-        <span class="note">
-          <span style="color:#dc2626;font-weight:700">≤ 1.0</span>：低估，值得關注（紅色）<br>
-          <span style="color:#ea580c;font-weight:600">1.0 ~ 1.5</span>：合理偏貴（橘色）<br>
-          <span style="color:#94a3b8">> 1.5</span>：偏貴（灰色）
-        </span><br>
-        <span class="note">林區修正版：將殖利率加入分母，對高配息公司更公平（傳統PEG = PE / 成長率）</span></td>
-      </tr>
+      <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
+      <tr><td class="field">一致性</td><td>成長穩定度（月營收60筆+季EPS 20筆）</td>
+        <td><span class="src-calc">計算</span> <span class="formula">0.30×正成長月比例 + 0.25×波動度 + 0.25×連續衰退 + 0.20×季EPS正成長</span>
+        <div class="note">
+        ≥ 0.5：非循環股，PEG可信<br>
+        < 0.5：循環股警示，PEG僅供參考
+        </div></td></tr>
+      <tr><td class="field">PEG</td><td>Neff比率的倒數</td>
+        <td><span class="src-calc">計算</span> <span class="formula">PE / (保守成長率 + 殖利率)</span>
+        <div class="note">
+        <span style="color:#dc2626;font-weight:700">≤ 1.0</span> 紅色粗體（好訊號）<br>
+        <span style="color:#94a3b8">> 1.0</span> 灰色
+        </div></td></tr>
     </table>
-    <div style="padding:12px 16px;border-top:1px solid #e2e8f0">
-      <div style="font-weight:700;margin-bottom:8px;color:#1e3a5f">聶夫 vs 林區 的關係</div>
-      <div class="note">
-        Neff比率 = (保守成長率 + 殖利率) / PE<br>
-        PEG = PE / (保守成長率 + 殖利率)<br>
-        <strong>兩者互為倒數</strong>：Neff比率 = 1 / PEG<br><br>
-        差異在於輔助判斷：<br>
-        聶夫用「5年CAGR vs 3年CAGR」判斷成長是否減速<br>
-        林區用「算術平均 vs CAGR」判斷成長是否穩定（排除景氣循環股）
-      </div>
-    </div>
   </div>
 </div>
 
-<!-- 聶夫/林區灰色標記說明 -->
-<div class="section" id="sec-neff-lynch-gray">
-  <div class="section-title" onclick="toggleSection(this)">聶夫/林區 灰色標記說明 <span class="arrow">▼</span></div>
+<!-- 灰色標記 -->
+<div class="section" id="sec-gray">
+  <div class="section-title" onclick="toggleSection(this)">聶夫/林區 灰色標記 <span class="arrow">▼</span></div>
   <div class="section-body" style="padding:16px">
-    <div style="font-weight:700;margin-bottom:10px;color:#1e3a5f">什麼是灰色標記？</div>
     <div style="margin-bottom:12px;line-height:1.6">
-      灰色標記代表<strong>「數字算得出來，但方法論本身認為不適用這支股票」</strong>。<br>
-      即使 Neff 比率或 PEG 的數字看起來符合標準，灰色標記提醒你這個結果要打問號。
+      灰色標記 = 「數字算得出來，但方法論認為不適用這支股票」
     </div>
     <table>
-      <tr><th width="160">灰色條件</th><th width="200">原因</th><th>來自誰的規則</th></tr>
-      <tr>
-        <td class="field" style="color:#94a3b8">保守成長率 < 7%</td>
-        <td>成長太弱，被通膨吃掉就沒意義了，聶夫法不適用</td>
-        <td>聶夫（John Neff）<br><span class="note">聶夫主力投資區是 7%~12%，低於 7% 不值得用總報酬率法分析</span></td>
-      </tr>
-      <tr>
-        <td class="field" style="color:#94a3b8">5年CAGR > 20%</td>
-        <td>成長率不可持續、無法可靠預測，直接放棄不評估</td>
-        <td>聶夫（John Neff）<br><span class="note">「成長率超過 20%，無法可靠預測，直接放棄。」</span></td>
-      </tr>
-      <tr>
-        <td class="field" style="color:#94a3b8">成長一致性 < 0.5</td>
-        <td>算術平均和 CAGR 差距太大，代表 EPS 波動劇烈，是<strong>景氣循環股</strong>而非成長股，PEG 估值無意義</td>
-        <td>林區（Peter Lynch）<br><span class="note">「算術平均看起來像高成長，但 CAGR 很低——這是景氣循環股，不是成長股！」</span></td>
-      </tr>
+      <tr><th width="160">條件</th><th>原因</th></tr>
+      <tr><td style="color:#94a3b8;font-weight:700">保守成長率 < 7%</td><td>成長太弱，聶夫法不適用</td></tr>
+      <tr><td style="color:#94a3b8;font-weight:700">5年CAGR > 20%</td><td>不可預測，直接放棄</td></tr>
+      <tr><td style="color:#94a3b8;font-weight:700">一致性 < 0.5</td><td>景氣循環股，PEG無意義</td></tr>
     </table>
-    <div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
-      <div style="font-weight:700;margin-bottom:6px;color:#1e3a5f">範例</div>
-      <table style="max-width:700px">
-        <tr><th>股票</th><th>情境</th><th>數字</th><th>結果</th></tr>
-        <tr>
-          <td>A公司</td>
-          <td>5年CAGR = 8%，一致性 = 0.95</td>
-          <td>Neff = 1.2，PEG = 0.83</td>
-          <td style="color:#059669;font-weight:600">正常顯示，可照數字判斷</td>
-        </tr>
-        <tr>
-          <td>B公司</td>
-          <td>5年CAGR = 27%，一致性 = 0.86</td>
-          <td>Neff = 0.53，PEG = 1.88</td>
-          <td style="color:#94a3b8">灰色標記（CAGR > 20% 不可信）</td>
-        </tr>
-        <tr>
-          <td>C公司</td>
-          <td>5年CAGR = 15%，一致性 = 0.35</td>
-          <td>Neff = 0.9，PEG = 1.1</td>
-          <td style="color:#94a3b8">灰色標記（景氣循環股，PEG 無意義）</td>
-        </tr>
-      </table>
-    </div>
-    <div class="note" style="margin-top:12px">
-      簡單記法：<strong>白色 = 可以照數字判斷，灰色 = 方法論本身說不適用這支股票</strong>
-    </div>
   </div>
 </div>
 
 <!-- 矩陣等級 -->
 <div class="section" id="sec-matrix">
-  <div class="section-title" onclick="toggleSection(this)">矩陣等級對照表 <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">PE×殖利率矩陣等級 <span class="arrow">▼</span></div>
   <div class="section-body" style="padding: 16px;">
     <table style="text-align:center; max-width:600px;">
       <tr><th></th><th>PE≤10</th><th>10~12</th><th>12~14</th><th>14~16</th><th>16~18</th><th>PE>18</th></tr>
@@ -458,8 +310,7 @@
       <tr><td style="font-weight:700">殖利率<5%</td><td style="color:#94a3b8">觀察</td><td style="color:#94a3b8">臨界點</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td><td style="color:#94a3b8">X</td></tr>
     </table>
     <div class="note" style="margin-top:12px">
-      等級優先順序：預估等級（使用者輸入的 vmEps/vmDiv）→ 沈董等級 → X<br>
-      每日評價報告也使用此優先順序判斷
+      用於沈董/加權/綜合/近四季/預估/系統等級的判定
     </div>
   </div>
 </div>
@@ -468,16 +319,11 @@
 <div class="section" id="sec-daily">
   <div class="section-title" onclick="toggleSection(this)">每日評價報告 <span class="arrow">▼</span></div>
   <div class="section-body">
-    <p style="margin-bottom:12px">列出所有矩陣等級落在 AA/A1/A2/A 的股票，分兩個 Tab 瀏覽。</p>
     <table>
       <tr><th width="120">項目</th><th>說明</th></tr>
-      <tr><td class="field">Tab 分頁</td><td>AA 獨立一頁；A1/A2/A 合併一頁，按等級分組顯示</td></tr>
-      <tr><td class="field">等級計算</td><td>用當前股價即時算 PE/殖利率，套入矩陣判斷等級<div class="note">優先順序：預估 EPS/股利（使用者輸入）→ 沈董 EPS/股利 → X</div></td></tr>
-      <tr><td class="field">折價幅度</td><td>統一用評價 AA 門檻計算：(AA門檻 - 股價) / AA門檻</td></tr>
-      <tr><td class="field">排序</td><td>同等級內按折價%由大到小排序（越便宜越前面）</td></tr>
-      <tr><td class="field">新增/刪除</td><td>與前一交易日比較，標示等級變動方向（如 above→AA、A1→A2）</td></tr>
-      <tr><td class="field">篩選</td><td>「僅體質佳」開關，只顯示體質清單中的股票</td></tr>
-      <tr><td class="field">追蹤</td><td>勾選追蹤個股，存入 focus_tracking 表（跨裝置同步）</td></tr>
+      <tr><td class="field">閃電機會區</td><td>今日跨級變動（變便宜展開、變貴摺疊）</td></tr>
+      <tr><td class="field">市場體感區</td><td>≤AA / ≤A1 / ≤A2 / ≤A 累積分布統計</td></tr>
+      <tr><td class="field">深度挖寶區</td><td>按 AA>A1>A2>A 分組，同組按折價%排序<div class="note">折價%統一用 AA 門檻：(val_aa-股價)/val_aa</div></td></tr>
     </table>
   </div>
 </div>
@@ -489,8 +335,6 @@ function toggleSection(el) {
   el.classList.toggle('collapsed');
   el.nextElementSibling.classList.toggle('hidden');
 }
-
-// 自動生成目錄
 const sections = document.querySelectorAll('.section[id]');
 const toc = document.getElementById('toc');
 sections.forEach(s => {

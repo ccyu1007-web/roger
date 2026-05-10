@@ -25,6 +25,7 @@
   .formula { font-family: 'SF Mono', Menlo, monospace; font-size: .8rem; color: #7c3aed; background: #f5f3ff; padding: 2px 6px; border-radius: 3px; }
   .src-capital { color: #059669; font-weight: 600; }
   .src-gov { color: #2563eb; font-weight: 600; }
+  .src-mops { color: #0891b2; font-weight: 600; }
   .src-calc { color: #d97706; font-weight: 600; }
   .src-user { color: #dc2626; font-weight: 600; }
   .src-yahoo { color: #7c3aed; font-weight: 600; }
@@ -43,7 +44,7 @@
 
 <header>
   <h1>個股頁欄位說明</h1>
-  <div><a href="/">回總表</a></div>
+  <div><a href="/">回總表</a><a href="/field_guide.html">總表欄位說明</a></div>
 </header>
 
 <div class="container">
@@ -51,114 +52,104 @@
 <div class="section">
   <div class="section-body">
     <div class="legend">
+      <span><span class="src-mops">MOPS</span> 公開資訊觀測站（最高優先）</span>
       <span><span class="src-capital">群益</span> 群益證券</span>
       <span><span class="src-gov">政府</span> 證交所/櫃買</span>
       <span><span class="src-yahoo">Yahoo</span> Yahoo Finance</span>
-      <span><span class="src-calc">計算</span> 衍生計算</span>
+      <span><span class="src-calc">計算</span> 後端衍生計算（存DB）</span>
       <span><span class="src-user">使用者</span> 手動輸入</span>
-      <span><span class="input-tag editable">可輸入</span> 使用者可填寫的欄位</span>
-      <span><span class="input-tag system">系統值</span> 系統自動估算的參考值</span>
     </div>
     <div class="toc" id="toc"></div>
   </div>
 </div>
 
-<!-- 檢核清單 - 檢核清單 -->
-<div class="section" id="sec-decision">
-  <div class="section-title" onclick="toggleSection(this)">檢核清單 — 檢核清單 <span class="arrow">▼</span></div>
+<!-- 檢核清單 -->
+<div class="section" id="sec-checklist">
+  <div class="section-title" onclick="toggleSection(this)">檢核清單（18項）<span class="arrow">▼</span></div>
   <div class="section-body">
-    <div style="font-weight:700;padding:8px 12px;color:#1e3a5f">基本門檻（6 項）</div>
-    <table>
-      <tr><th width="40">#</th><th width="240">條件</th><th>判定邏輯</th></tr>
-      <tr><td>1</td><td class="field">近五年財務等級 B 級以上 >= 3 年，且近兩年都 B 級以上</td><td>B 級以上 = AA/A1/A2/A/B2A/B1A/B1/B2/BA1/BA2（含 +）<div class="note">帶 - 的（如 B1-）算 B 級以下；C/D/X 也算不過</div></td></tr>
-      <tr><td>2</td><td class="field">累積營收年增率 >= 0%</td><td>stocks 表 revenue_cum_yoy 欄位</td></tr>
-      <tr><td>3</td><td class="field">最佳等級 AA 級</td><td>依優先順序取第一個有值的：預估 > 系統 > 沈董 > 綜合 > 加權 > 近四季<div class="note">只要其中一個達到 AA 就通過</div></td></tr>
-      <tr><td>4</td><td class="field">股價低於總表評價 AA</td><td><span class="formula">收盤價 <= val_aa + 0.005</span></td></tr>
-      <tr><td>5</td><td class="field">綜合殖利率 >= 6%</td><td><span class="formula">綜合殖利率 = 綜合股利 / 收盤價 × 100</span></td></tr>
-      <tr><td>6</td><td class="field">股利折現模式現價潛在年報酬 >= 10%</td><td>EPS：預估EPS > 沈董EPS、PE：預設14、股利：綜合股利（三年同值）<div class="note">年報酬 = ((賣出價+三年股利) / 現價) ^ (1/3) - 1</div></td></tr>
-    </table>
-    <div style="font-weight:700;padding:8px 12px;color:#059669;margin-top:12px">成長加分（4 項）</div>
-    <table>
-      <tr><th width="40">#</th><th width="240">條件</th><th>判定邏輯</th></tr>
-      <tr><td>7</td><td class="field">聶夫保守成長率 >= 7%</td><td><span class="formula">min(5年CAGR, 3年CAGR) × 折扣係數</span><div class="note">聶夫主力投資區為 7~12%；灰色標記的股票不計入</div></td></tr>
-      <tr><td>8</td><td class="field">聶夫 Neff 比率 >= 0.7</td><td><span class="formula">(保守成長率 + 殖利率) / PE</span><div class="note">>= 1.0 極佳、>= 0.7 合格；灰色標記的股票不計入</div></td></tr>
-      <tr><td>9</td><td class="field">林區 PEG <= 1.0</td><td><span class="formula">PE / (保守成長率 + 殖利率)</span><div class="note">林區修正版，將殖利率納入分母；灰色標記的股票不計入</div></td></tr>
-      <tr><td>10</td><td class="field">林區成長一致性 >= 0.5</td><td><span class="formula">1 - |算術平均 - CAGR| / CAGR</span><div class="note">< 0.5 視為景氣循環股，不適用 PEG 估值</div></td></tr>
-    </table>
-    <div class="legend">
-      <span>頂部顯示「基本 X/6 + 加分 Y/4」：基本 >= 5 綠色、>= 3 黃色、< 3 紅色</span>
+    <div style="padding:10px 12px;font-size:.82rem;color:#64748b;border-bottom:1px solid #e2e8f0">
+      所有檢核項從 DB 讀取已算好的值判定，不前端重算。顯示「通過 X/18（基本 Y/10 + 加分 Z/8）」，整體檢視不分級計分。
     </div>
+    <div style="font-weight:700;padding:8px 12px;color:#1e3a5f">基本門檻（10 項）</div>
+    <table>
+      <tr><th width="40">#</th><th width="260">條件</th><th>判定邏輯</th></tr>
+      <tr><td>1</td><td class="field">財務等級 A級 >= 3年</td><td>近5年有3年以上 A級（AA/A1/A2/B1A/B2A），且近2年都 A級以上<div class="note">從 stocks 表 fin_grade_1~5 讀取，後端 _refresh_fin_grades() 用 ROIC 矩陣計算</div></td></tr>
+      <tr><td>2</td><td class="field">營益率 >= 10% 達3年</td><td>近5年有3年營益率>=10%，且近2年>=10%<div class="note">從 financial_annual 讀取 operating_income/revenue 計算</div></td></tr>
+      <tr><td>3</td><td class="field">累積營收年增率 >= 0%</td><td>stocks 表 revenue_cum_yoy 欄位</td></tr>
+      <tr><td>4</td><td class="field">最近一季毛利率變化 > 0</td><td>最新季毛利率 - 前一季毛利率 > 0<div class="note">從 quarterly_financial 讀取 gross_profit/revenue</div></td></tr>
+      <tr><td>5</td><td class="field">最佳等級達 AA</td><td>各種EPS（預估/系統/沈董/綜合/加權/近四季）× 最低PE，至少一個 >= 股價<div class="note">detail 列出每種 EPS 來源名稱和計算值</div></td></tr>
+      <tr><td>6</td><td class="field">股價低於 AA 門檻</td><td><span class="formula">收盤價 <= val_aa + 0.005</span><div class="note">val_aa 由後端 recalc_all_derived() 統一計算存 DB</div></td></tr>
+      <tr><td>7</td><td class="field">綜合本益比 <= 12 倍</td><td>stocks 表 blend_pe 欄位</td></tr>
+      <tr><td>8</td><td class="field">綜合殖利率 >= 6%</td><td>stocks 表 blend_yld 欄位</td></tr>
+      <tr><td>9</td><td class="field">配息率 50%~85%</td><td>stocks 表 weighted_payout 欄位</td></tr>
+      <tr><td>10</td><td class="field">DDM年報酬 >= 10%</td><td>EPS 優先順序：預估 > 系統 > 沈董。PE 預設14，股利=綜合股利×3年<div class="note">年報酬 = ((EPS×PE + 三年股利) / 現價) ^ (1/3) - 1</div></td></tr>
+    </table>
+    <div style="font-weight:700;padding:8px 12px;color:#059669;margin-top:12px">成長加分（8 項）</div>
+    <table>
+      <tr><th width="40">#</th><th width="260">條件</th><th>判定邏輯</th></tr>
+      <tr><td>11</td><td class="field">聶夫保守成長率 >= 7%</td><td><span class="formula">min(5年端點, 5年平滑, 3年端點, 3年平滑) CAGR</span><div class="note">四種方法取最小值，封頂20%</div></td></tr>
+      <tr><td>12</td><td class="field">聶夫 Neff 比率 >= 0.7</td><td><span class="formula">(保守成長率 + 殖利率) / PE</span></td></tr>
+      <tr><td>13</td><td class="field">林區 PEG <= 1.0</td><td><span class="formula">PE / (保守成長率 + 殖利率)</span><div class="note">Neff 比率的倒數</div></td></tr>
+      <tr><td>14</td><td class="field">林區成長一致性 >= 0.5</td><td>月營收60筆 + 季EPS 20筆綜合判斷<div class="note">0.30×正成長月比例 + 0.25×波動度 + 0.25×連續衰退 + 0.20×季EPS正成長</div></td></tr>
+      <tr><td>15</td><td class="field">趨勢燈號為綠色</td><td>3M/12M累計營收年增率 + EPS趨勢 + 存貨風險<div class="note">綠=成長、黃=持平、紅=衰退</div></td></tr>
+      <tr><td>16</td><td class="field">席勒警示 >= 0.5</td><td><span class="formula">綜合PE / 席勒PE</span>，席勒PE = 股價 / 10年均EPS<div class="note">< 0.5 紅色警示（循環高點假便宜）；EPS不足7年預設通過</div></td></tr>
+      <tr><td>17</td><td class="field">ROIC 未連續3年下滑</td><td>近3年 ROIC 是否每年都比前一年低<div class="note">從 financial_annual 讀取歷史 ROIC</div></td></tr>
+      <tr><td>18</td><td class="field">毛利率近3年降幅 < 3pp</td><td>3年前毛利率 - 最新毛利率 < 3個百分點<div class="note">從 financial_annual 讀取歷史毛利率</div></td></tr>
+    </table>
   </div>
 </div>
 
-<!-- 檢核清單 - EPS/股利優先順序 -->
+<!-- EPS/股利優先順序 -->
 <div class="section" id="sec-eps-priority">
-  <div class="section-title" onclick="toggleSection(this)">檢核清單 — EPS / 股利設定優先順序 <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">EPS / 股利取用優先順序（統一規則）<span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="120">用途</th><th width="160">EPS 優先順序</th><th width="160">股利 優先順序</th><th>說明</th></tr>
-      <tr><td class="field">預估等級</td><td>1. 使用者手動輸入<br>2. （無則不顯示）</td><td>1. 使用者手動輸入<br>2. （無則不顯示）</td><td>個股頁 Q1~Q4 EPS 加總 / 預估現金股利<div class="note">沒有手動輸入就不顯示預估等級，不 fallback 到系統估算</div></td></tr>
-      <tr><td class="field">評價門檻<br>(AA/A1/A2/A)</td><td>1. 預估 EPS<br>2. 沈董 EPS</td><td>1. 預估股利<br>2. 沈董股利</td><td><span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">總表和個股頁的評價門檻使用相同優先順序</div></td></tr>
-      <tr><td class="field">沈董等級</td><td>沈董 EPS</td><td>沈董股利</td><td>沈董EPS = 已公佈季度 EPS 加總 × (4/季數)<div class="note">沈董股利 = 沈董EPS × 平均配息率</div></td></tr>
-      <tr><td class="field">綜合等級</td><td>沈董×權重 + 加權×權重</td><td>綜合股利</td><td>權重預設各 50%，可在總表自訂</td></tr>
-      <tr><td class="field">加權等級</td><td>五年加權平均</td><td>加權股利</td><td>權重 30/25/20/15/10</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 逍遙價值投資評價法 EPS/股利設定 -->
-<div class="section" id="sec-valmethod-eps">
-  <div class="section-title" onclick="toggleSection(this)">逍遙價值投資評價法 — EPS / 股利設定邏輯 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="140">欄位</th><th width="120">自動帶入優先順序</th><th>說明</th></tr>
-      <tr><td class="field">EPS設定</td><td>
-        1. 使用者手動儲存值<br>
-        2. Q1~Q4 預估 EPS 加總<br>
-        3. 沈董 EPS
-      </td><td>
-        開啟個股頁時自動帶入，優先順序由高到低<div class="note">
-        手動儲存值 = 之前在「EPS設定」欄位手動改過並儲存的值（存在 localStorage/DB vmEps）<br>
-        Q1~Q4 加總 = 季度估計表的 Q1~Q4 EPS 欄位有值就加總<br>
-        沈董 = 已公佈季度 EPS 年化</div>
-      </td></tr>
-      <tr><td class="field">股利設定</td><td>
-        1. 使用者手動儲存值<br>
-        2. 預估現金股利<br>
-        3. 沈董股利
-      </td><td>
-        同 EPS 邏輯<div class="note">
-        預估現金股利 = 季度估計表「預估現金股利」欄位<br>
-        沈董股利 = 沈董EPS × 平均配息率</div>
-      </td></tr>
-      <tr><td class="field">長期現金股利水準</td><td>
-        1. 使用者手動儲存值<br>
-        2. 綜合股利
-      </td><td>用於計算長期殖利率價格（5%/6%/7%）<div class="note">綜合股利 = 沈董股利×權重 + 加權股利×權重</div></td></tr>
-      <tr><td class="field">偏高殖利率 / 最高殖利率</td><td>自動帶入</td><td>從「參數設定」區的個股自訂值讀取<div class="note">預設：偏高 5.5% / 最高 6%</div></td></tr>
-      <tr><td class="field">長期殖利率設定</td><td><span class="input-tag editable">可輸入</span></td><td>預設 6%，全部公司共用<div class="note">影響長期 5%/6%/7% 價格計算的分母</div></td></tr>
+      <tr><th width="140">用途</th><th width="200">EPS 優先順序</th><th width="200">股利 優先順序</th><th>說明</th></tr>
+      <tr><td class="field">評價門檻<br>(AA/A1/A2/A)</td><td>1. 使用者預估<br>2. 系統估算<br>3. 沈董EPS</td><td>1. 使用者預估<br>2. 系統估算<br>3. 沈董股利</td><td><span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">後端 recalc_all_derived() 統一計算存 DB，前端直接讀取</div></td></tr>
+      <tr><td class="field">檢核表 DDM</td><td>1. 預估 EPS (est_eps)<br>2. min(系統, 沈董)</td><td>綜合股利 > 沈董股利</td><td>與評價門檻相同優先順序</td></tr>
+      <tr><td class="field">沈董系列</td><td>沈董 EPS</td><td>沈董股利</td><td>當年度已公佈季度年化推算</td></tr>
+      <tr><td class="field">綜合系列</td><td>沈董×30% + 加權×70%</td><td>沈董股利×30% + 加權股利×70%</td><td>預設 30/70，可自訂</td></tr>
+      <tr><td class="field">加權系列</td><td>五年加權平均</td><td>五年加權平均</td><td>權重 30/30/20/10/10</td></tr>
     </table>
     <div class="legend">
-      <span>連動機制：季度估計表的 Q1~Q4 EPS 或預估股利變動時，會自動同步更新 EPS設定 和 股利設定</span>
+      <span>所有衍生值由後端計算存入 stocks 表，前端一律從 DB 讀取，不獨立計算</span>
     </div>
   </div>
 </div>
 
-<!-- 檢核清單 - 可輸入欄位 -->
-<div class="section" id="sec-input">
-  <div class="section-title" onclick="toggleSection(this)">檢核清單 — 可輸入欄位（使用者設定）<span class="arrow">▼</span></div>
+<!-- 逍遙價值投資評價法 -->
+<div class="section" id="sec-valmethod">
+  <div class="section-title" onclick="toggleSection(this)">逍遙價值投資評價法（互動工具）<span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
-      <tr><th width="140">欄位</th><th width="100">類型</th><th>說明</th></tr>
-      <tr><td class="field">Q1 ~ Q4 EPS</td><td><span class="input-tag editable">可輸入</span></td><td>手動輸入各季預估 EPS，加總為預估年度 EPS<div class="note">存在 localStorage + DB (user_estimates)</div></td></tr>
-      <tr><td class="field">預估現金股利</td><td><span class="input-tag editable">可輸入</span></td><td>手動輸入預估年度現金股利<div class="note">存在 localStorage + DB (user_estimates)</div></td></tr>
-      <tr><td class="field">最高本益比</td><td><span class="input-tag editable">可輸入</span></td><td>個股最高 PE（預設 18）<div class="note">影響評價門檻和矩陣等級計算</div></td></tr>
-      <tr><td class="field">最低本益比</td><td><span class="input-tag editable">可輸入</span></td><td>個股最低 PE（預設 10）<div class="note">影響評價 AA/A1 門檻</div></td></tr>
-      <tr><td class="field">偏高殖利率%</td><td><span class="input-tag editable">可輸入</span></td><td>偏高殖利率（預設 5.5%）<div class="note">影響評價 A1/A 門檻</div></td></tr>
-      <tr><td class="field">最高殖利率%</td><td><span class="input-tag editable">可輸入</span></td><td>最高殖利率（預設 6%）<div class="note">影響評價 AA/A2 門檻</div></td></tr>
+      <tr><th width="140">欄位</th><th width="120">類型</th><th>說明</th></tr>
+      <tr><td class="field">EPS設定</td><td><span class="input-tag editable">可輸入</span></td><td>自動帶入：手動儲存值 > Q1~Q4加總 > 沈董EPS<div class="note">存 DB user_estimates 表</div></td></tr>
+      <tr><td class="field">股利設定</td><td><span class="input-tag editable">可輸入</span></td><td>自動帶入：手動儲存值 > 預估股利 > 沈董股利</td></tr>
+      <tr><td class="field">長期現金股利</td><td><span class="input-tag editable">可輸入</span></td><td>預設=綜合股利，用於長期殖利率價格</td></tr>
+      <tr><td class="field">PE/殖利率參數</td><td><span class="input-tag editable">可輸入</span></td><td>個股自訂 > 全域預設（最低PE=10, 最高PE=18, 偏高殖利率=5.5%, 最高殖利率=6%）</td></tr>
+      <tr><td class="field">各等級門檻價</td><td><span class="src-calc">即時計算</span></td><td>使用者調參即時看結果（互動工具，不存DB）<div class="note">AA = min(EPS×最低PE, 股利/最高殖利率, 長期股利/6%+股利)</div></td></tr>
     </table>
     <div class="legend">
-      <span>個股自訂參數優先於全域預設值，影響所有等級計算和評價門檻</span>
+      <span>此區為互動式模擬器，使用者調整參數即時顯示結果。總表的評價門檻由後端統一計算存DB</span>
+    </div>
+  </div>
+</div>
+
+<!-- DDM 股利折現模型 -->
+<div class="section" id="sec-ddm">
+  <div class="section-title" onclick="toggleSection(this)">DDM 股利折現模型（互動工具）<span class="arrow">▼</span></div>
+  <div class="section-body">
+    <table>
+      <tr><th width="140">欄位</th><th width="120">類型</th><th>說明</th></tr>
+      <tr><td class="field">賣出PE</td><td><span class="input-tag editable">可輸入</span></td><td>預設14倍</td></tr>
+      <tr><td class="field">折現率</td><td><span class="input-tag editable">可輸入</span></td><td>預設10%</td></tr>
+      <tr><td class="field">安全邊際</td><td><span class="input-tag editable">可輸入</span></td><td>預設80%</td></tr>
+      <tr><td class="field">各年股利</td><td><span class="input-tag editable">可輸入</span></td><td>預設=綜合股利，三年同值</td></tr>
+      <tr><td class="field">內在價值</td><td><span class="src-calc">即時計算</span></td><td>三年現金流折現加總</td></tr>
+      <tr><td class="field">潛在年報酬</td><td><span class="src-calc">即時計算</span></td><td><span class="formula">((EPS×PE + 三年股利) / 現價) ^ (1/3) - 1</span></td></tr>
+    </table>
+    <div class="legend">
+      <span>互動工具，使用者調參即時看結果，不存DB</span>
     </div>
   </div>
 </div>
@@ -169,51 +160,27 @@
   <div class="section-body">
     <table>
       <tr><th width="140">欄位</th><th width="100">來源</th><th>說明</th></tr>
-      <tr><td class="field">營業收入</td><td><span class="src-capital">群益</span> zce</td><td>年度總營收（從季報累計四季）</td></tr>
-      <tr><td class="field">營業成本</td><td><span class="src-capital">群益</span> zce</td><td>直接成本</td></tr>
-      <tr><td class="field">毛利 / 毛利率</td><td><span class="src-capital">群益</span> + <span class="src-calc">計算</span></td><td>營收 - 成本 / 毛利率 = 毛利/營收×100</td></tr>
-      <tr><td class="field">營業費用 / 費用率</td><td><span class="src-calc">計算</span></td><td>反算 = 毛利 - 營業利益</td></tr>
-      <tr><td class="field">營業利益 / 營益率</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">業外損益</td><td><span class="src-capital">群益</span> zce</td><td>營業外收入及支出</td></tr>
-      <tr><td class="field">稅前淨利 / 稅率</td><td><span class="src-capital">群益</span> zce</td><td>稅率 = (稅前-稅後)/稅前，虧損不算，限0~100%</td></tr>
-      <tr><td class="field">稅後淨利 / 淨利率</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">EPS</td><td><span class="src-capital">群益</span> zce</td><td>每股盈餘</td></tr>
-      <tr><td class="field">每股盈餘-本業</td><td><span class="src-calc">計算</span></td><td><span class="formula">營業利益 × (1-稅率) / 股數</span></td></tr>
-      <tr><td class="field">每股盈餘-業外</td><td><span class="src-calc">計算</span></td><td><span class="formula">EPS - 本業EPS</span></td></tr>
-      <tr><td class="field">ROA</td><td><span class="src-calc">計算</span></td><td>稅後淨利 / 總資產 × 100</td></tr>
-      <tr><td class="field">ROE</td><td><span class="src-calc">計算</span></td><td>稅後淨利 / 股東權益 × 100</td></tr>
-      <tr><td class="field">ROIC</td><td><span class="src-calc">計算</span></td><td>營業利益×(1-稅率) / (股東權益+有息負債-現金) × 100<div class="note">財務體質等級的縱軸指標（取代ROE），排除槓桿效果</div></td></tr>
-      <tr><td class="field">盈餘品質率</td><td><span class="src-calc">計算</span></td><td>營業現金流 / 稅後淨利 × 100<div class="note">淨利為負時不計算</div></td></tr>
+      <tr><td class="field">財務體質等級</td><td><span class="src-calc">計算</span></td><td>ROIC版矩陣（後端計算，前端直接讀 fin_grade）<div class="note">ROIC×FCF/營收 矩陣 + 營益率加減號。與總表 fin_grade_1~5 同一套邏輯</div></td></tr>
+      <tr><td class="field">營業收入~EPS</td><td><span class="src-capital">群益</span></td><td>損益表各科目（群益 zce/zcqa）</td></tr>
+      <tr><td class="field">ROIC</td><td><span class="src-calc">計算</span></td><td><span class="formula">營業利益×(1-稅率) / (股東權益+有息負債-現金)</span><div class="note">Dorsey/晨星標準版，排除槓桿效果</div></td></tr>
+      <tr><td class="field">ROE / ROA</td><td><span class="src-calc">計算</span></td><td>稅後淨利 / 股東權益(總資產)</td></tr>
+      <tr><td class="field">盈餘品質率</td><td><span class="src-calc">計算</span></td><td>營業現金流 / 稅後淨利（淨利為負不計算）</td></tr>
       <tr><td class="field">自由現金流</td><td><span class="src-calc">計算</span></td><td>營業現金流 + 資本支出（capex為負值）</td></tr>
-      <tr><td class="field">配息率</td><td><span class="src-calc">計算</span></td><td>股利合計 / EPS × 100<div class="note">EPS ≤ 0 但有配息 → 100%</div></td></tr>
-      <tr><td class="field">總資產</td><td><span class="src-capital">群益</span> zcpb</td><td>資產負債表（年度）</td></tr>
-      <tr><td class="field">股東權益</td><td><span class="src-capital">群益</span> zcpb</td><td></td></tr>
-      <tr><td class="field">營業現金流</td><td><span class="src-capital">群益</span> zc3a</td><td>現金流量表（年度）</td></tr>
-      <tr><td class="field">資本支出</td><td><span class="src-capital">群益</span> zc3a</td><td><div class="note">欄位名含「－CFI」後綴</div></td></tr>
-      <tr><td class="field">現金股利</td><td><span class="src-capital">群益</span> zcc</td><td>小計（盈餘+公積發放）</td></tr>
-      <tr><td class="field">股票股利</td><td><span class="src-capital">群益</span> zcc</td><td>小計（盈餘+公積配股）</td></tr>
+      <tr><td class="field">配息率</td><td><span class="src-calc">計算</span></td><td>股利/EPS。EPS<=0但有配息→100%<div class="note">後端 _calc_derived_fields 計算 payout_1~6 存 DB</div></td></tr>
+      <tr><td class="field">BS/CF欄位</td><td><span class="src-capital">群益</span></td><td>資產負債表(zcpb)、現金流量表(zc3a)</td></tr>
     </table>
   </div>
 </div>
 
 <!-- 季度估計表 -->
 <div class="section" id="sec-quarterly">
-  <div class="section-title" onclick="toggleSection(this)">季度估計表 <span class="arrow">▼</span></div>
+  <div class="section-title" onclick="toggleSection(this)">季度估計表（互動工具）<span class="arrow">▼</span></div>
   <div class="section-body">
     <table>
       <tr><th width="140">欄位</th><th width="100">來源</th><th>說明</th></tr>
-      <tr><td class="field">營業收入</td><td><span class="src-capital">群益</span> zce</td><td>單季營收（百萬×1,000,000）</td></tr>
-      <tr><td class="field">營業成本</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">毛利</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">營業費用</td><td><span class="src-calc">計算</span></td><td>毛利 - 營業利益</td></tr>
-      <tr><td class="field">營業利益</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">業外損益</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">稅前淨利</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">稅後淨利</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">EPS</td><td><span class="src-capital">群益</span> zce</td><td></td></tr>
-      <tr><td class="field">合約負債</td><td><span class="src-capital">群益</span> zcpa</td><td>季度資產負債表的合約負債-流動</td></tr>
-      <tr><td class="field">存貨</td><td><span class="src-capital">群益</span> zcpa</td><td>季度資產負債表</td></tr>
+      <tr><td class="field">已公佈季度</td><td><span class="src-capital">群益</span> / <span class="src-mops">MOPS</span></td><td>損益表各科目（群益 zce，MOPS t163sb04 優先覆蓋）</td></tr>
       <tr><td class="field">系統估算欄</td><td><span class="input-tag system">系統值</span></td><td>根據月營收推算各季 EPS/營收<div class="note">多季估算：依可用月營收數量動態產生</div></td></tr>
+      <tr><td class="field">使用者估算</td><td><span class="input-tag editable">可輸入</span></td><td>手動輸入營收/毛利率/費用等參數，即時試算EPS<div class="note">互動式模擬器，前端即時計算，不存DB</div></td></tr>
     </table>
   </div>
 </div>
@@ -224,28 +191,10 @@
   <div class="section-body">
     <table>
       <tr><th width="140">欄位</th><th width="100">來源</th><th>說明</th></tr>
-      <tr><td class="field">月營收金額</td><td><span class="src-gov">政府</span> t187ap05</td><td>單位：千元<div class="note">第一來源政府API批次，群益zch補歷史</div></td></tr>
-      <tr><td class="field">年增率</td><td><span class="src-gov">政府</span> t187ap05</td><td>與去年同月比較</td></tr>
-      <tr><td class="field">月增率</td><td><span class="src-gov">政府</span> t187ap05</td><td>與上月比較</td></tr>
-      <tr><td class="field">累計年增率</td><td><span class="src-gov">政府</span> t187ap05</td><td>當年累計 vs 去年同期累計</td></tr>
+      <tr><td class="field">月營收金額</td><td><span class="src-mops">MOPS</span> > <span class="src-gov">政府</span></td><td>MOPS t21sc03 最即時，政府API t187ap05 補充<div class="note">單位：千元</div></td></tr>
+      <tr><td class="field">年增率/月增率</td><td><span class="src-calc">計算</span></td><td>與去年同月/上月比較</td></tr>
+      <tr><td class="field">累計年增率</td><td><span class="src-gov">政府</span></td><td>當年累計 vs 去年同期累計</td></tr>
     </table>
-  </div>
-</div>
-
-<!-- 損益表/資產負債表 -->
-<div class="section" id="sec-detail">
-  <div class="section-title" onclick="toggleSection(this)">損益表 / 資產負債表（年度+季度）<span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="140">Tab</th><th width="100">來源</th><th>說明</th></tr>
-      <tr><td class="field">損益表(年)</td><td><span class="src-capital">群益</span> zcqa</td><td>群益年度損益表完整明細</td></tr>
-      <tr><td class="field">損益表(季)</td><td><span class="src-capital">群益</span> zce</td><td>群益季度損益表完整明細</td></tr>
-      <tr><td class="field">資產負債表(年)</td><td><span class="src-capital">群益</span> zcpb</td><td>群益年度資產負債表完整明細</td></tr>
-      <tr><td class="field">資產負債表(季)</td><td><span class="src-capital">群益</span> zcpa</td><td>群益季度資產負債表完整明細</td></tr>
-    </table>
-    <div class="legend">
-      <span>群益數值單位「百萬」，存入 DB 乘 1,000,000</span>
-    </div>
   </div>
 </div>
 
@@ -255,46 +204,7 @@
   <div class="section-body">
     <table>
       <tr><th width="140">欄位</th><th>說明</th></tr>
-      <tr><td class="field">同產業股票</td><td>依 stocks 表的 industry 欄位篩選同產業公司</td></tr>
-      <tr><td class="field">比較指標</td><td>收盤價、沈董PE、沈董殖利率、EPS、股利、ROE、ROIC、營益率、毛利率</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 歷史本益比 -->
-<div class="section" id="sec-pe">
-  <div class="section-title" onclick="toggleSection(this)">歷史本益比 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="140">欄位</th><th width="100">來源</th><th>說明</th></tr>
-      <tr><td class="field">最高PE / 最低PE</td><td><span class="src-capital">群益</span> zca</td><td>近 8 年每年的最高/最低本益比</td></tr>
-      <tr><td class="field">平均</td><td><span class="src-calc">計算</span></td><td>算術平均</td></tr>
-      <tr><td class="field">中位數</td><td><span class="src-calc">計算</span></td><td></td></tr>
-      <tr><td class="field">去極值平均</td><td><span class="src-calc">計算</span></td><td>去掉最高最低各一個再平均（≥5年才算）</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 股利歷史 -->
-<div class="section" id="sec-divhist">
-  <div class="section-title" onclick="toggleSection(this)">股利歷史 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="140">欄位</th><th width="100">來源</th><th>說明</th></tr>
-      <tr><td class="field">現金股利</td><td><span class="src-capital">群益</span> zcc</td><td>近 6 年（小計＝盈餘發放+公積發放）</td></tr>
-      <tr><td class="field">股票股利</td><td><span class="src-capital">群益</span> zcc</td><td>近 6 年（小計＝盈餘配股+公積配股）</td></tr>
-    </table>
-  </div>
-</div>
-
-<!-- 筆記 -->
-<div class="section" id="sec-notes">
-  <div class="section-title" onclick="toggleSection(this)">個股筆記 <span class="arrow">▼</span></div>
-  <div class="section-body">
-    <table>
-      <tr><th width="140">欄位</th><th width="100">類型</th><th>說明</th></tr>
-      <tr><td class="field">質性研究筆記</td><td><span class="input-tag editable">可輸入</span></td><td>手動填寫的投資筆記<div class="note">存在 DB user_notes 表，跨裝置同步</div></td></tr>
-      <tr><td class="field">新聞紀錄</td><td><span class="input-tag readonly">唯讀</span></td><td>從每日新聞報告標記「重要」後自動帶入</td></tr>
+      <tr><td class="field">比較指標</td><td>收盤價、沈董PE、沈董殖利率、EPS、股利、ROE、ROIC、營益率、毛利率<div class="note">依 stocks 表 industry 欄位篩選同產業公司</div></td></tr>
     </table>
   </div>
 </div>
@@ -305,11 +215,27 @@
   <div class="section-body">
     <table>
       <tr><th width="180">觸發條件</th><th>更新內容</th></tr>
-      <tr><td class="field">開啟個股頁（本機）</td><td>快取過期時背景觸發群益全套抓取（損益表+資產負債表+現金流量表+股利+月營收+合約負債+PE歷史）<div class="note">快取：年報24h、季報12h、月營收24h、PE歷史7天</div></td></tr>
-      <tr><td class="field">開啟個股頁（Render）</td><td>不觸發爬蟲，純讀 DB<div class="note">Render 的群益被擋，所有資料靠本機 push</div></td></tr>
-      <tr><td class="field">排程 run()</td><td>批次更新所有股票 + 自動補齊缺漏（_fill_missing_financials）</td></tr>
-      <tr><td class="field">手動按「更新股價」</td><td>refresh_prices() 更新收盤價</td></tr>
+      <tr><td class="field">開啟個股頁（本機）</td><td>快取過期時背景觸發群益更新<div class="note">年報24h、季報12h、月營收24h、PE歷史7天</div></td></tr>
+      <tr><td class="field">開啟個股頁（Render）</td><td>不觸發爬蟲，純讀 DB<div class="note">所有資料靠本機 push</div></td></tr>
+      <tr><td class="field">排程 14:30</td><td>股價 + 衍生欄位重算 + 評價快照 + push Render</td></tr>
+      <tr><td class="field">排程 06:00</td><td>全面維護（補缺/股利/ETF/驗證）+ 全量 push Render</td></tr>
+      <tr><td class="field">排程每30分鐘</td><td>MOPS 營收/季報 + 政府API + 評價快照</td></tr>
     </table>
+  </div>
+</div>
+
+<!-- 架構原則 -->
+<div class="section" id="sec-principle">
+  <div class="section-title" onclick="toggleSection(this)">架構原則 <span class="arrow">▼</span></div>
+  <div class="section-body" style="padding:16px;line-height:1.8">
+    <strong>所有數據先計算存入 DB，前端一律從 DB 讀取，不可前端獨立計算。</strong>
+    <div class="note" style="margin-top:8px">
+      正確模式：資料來源 → 後端計算 → 存入 DB → 前端從 DB 讀取<br>
+      例外：互動式模擬工具（DDM、季度估算、評估法）使用者調參即時看結果，不存DB<br><br>
+      衍生欄位由 recalc_all_derived() 統一計算存入 stocks 表（35個欄位），包含：<br>
+      shen_eps/pe/yld/grade、weighted_*、blend_*、trailing_*、payout_1~6、<br>
+      val_aa/a1/a2/a/lt6、est_eps/div/pe/yld/grade、sys_pe/yld/grade
+    </div>
   </div>
 </div>
 
