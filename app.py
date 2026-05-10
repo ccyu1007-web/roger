@@ -497,6 +497,7 @@ CHECKLIST_ITEMS = [
     {'key': 'neff_growth',    'category': 'bonus', 'label': '聶夫保守成長率 >= 7%'},
     {'key': 'neff_ratio',     'category': 'bonus', 'label': '聶夫 Neff 比率 >= 0.7'},
     {'key': 'lynch_consist',  'category': 'bonus', 'label': '林區成長一致性 >= 0.5'},
+    {'key': 'growth_green',  'category': 'bonus', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
 ]
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
@@ -598,7 +599,7 @@ def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor
         return grades[row][col]
     return None
 
-def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
+def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_map=None):
     """計算單支股票的檢核表（名稱制），r 為 stocks 表的 row dict（已含 shen 欄位）"""
     import json
     checks = {}
@@ -854,6 +855,12 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
         detail['lynch_consist'] = f'一致性={lynch_c}　(月營收正成長比例×0.3 + 波動度×0.25 + 連續衰退×0.25 + 季EPS正成長×0.2)'
     else:
         detail['lynch_consist'] = None
+
+    # growth_green: 趨勢燈號為多頭
+    gs_data = (growth_map or {}).get(r['code'], {})
+    _signal = gs_data.get('growth_signal')
+    checks['growth_green'] = 1 if _signal == 'green' else 0
+    detail['growth_green'] = f'趨勢={_signal}' if _signal else None
 
     base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
     bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
@@ -1221,7 +1228,7 @@ def calc_all_checklists():
         r['_gm_data'] = gm_map.get(r['code'])
         r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
         user_params = up
-        result = _calc_checklist_for_stock(r, user_params, gs)
+        result = _calc_checklist_for_stock(r, user_params, gs, growth_map)
 
         # 合併成長燈號
         gs_data = growth_map.get(r['code'], {})
@@ -1347,7 +1354,14 @@ def _recalc_checklist_single(code):
             user_params = json.loads(ue[0]['params'])
     except Exception: pass
 
-    result = _calc_checklist_for_stock(r, user_params, gs)
+    # 從 DB 讀取已有的 growth_signal（單支重算不重跑成長燈號）
+    _single_growth_map = {}
+    try:
+        _gs_row = query_db("SELECT growth_signal FROM stock_checklist WHERE code=?", (code,))
+        if _gs_row:
+            _single_growth_map[code] = {'growth_signal': _gs_row[0]['growth_signal']}
+    except Exception: pass
+    result = _calc_checklist_for_stock(r, user_params, gs, _single_growth_map)
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     conn = sqlite3.connect(DB_PATH)
