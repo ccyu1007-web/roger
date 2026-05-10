@@ -97,14 +97,22 @@
   </div>
 
   <div style="font-size:.78rem;color:#64748b;margin-bottom:12px;padding:12px 16px;background:#f8fafc;border-radius:8px;line-height:1.8">
+    <b style="color:#334155">評價等級判定</b><br>
+    <b>EPS 取用順序</b>：使用者預估 > 系統估算 > 沈董EPS　｜　<b>股利取用順序</b>：使用者預估 > 系統估算 > 沈董股利<br>
+    <span style="color:#dc2626;font-weight:700">AA</span> = min(EPS×最低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　最嚴格（PE=10, 殖利率=6%）<br>
+    <span style="color:#ea580c;font-weight:700">A1</span> = min(EPS×最低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　PE嚴+殖利率寬（PE=10, 殖利率=5.5%）<br>
+    <span style="color:#2563eb;font-weight:700">A2</span> = min(EPS×偏低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　PE寬+殖利率嚴（PE=12, 殖利率=6%）<br>
+    <span style="color:#16a34a;font-weight:700">A</span> = min(EPS×偏低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　最寬鬆（PE=12, 殖利率=5.5%）<br>
+    <span style="color:#94a3b8">* 個股如有自訂 PE/殖利率參數，會優先套用。股價 <= 門檻值即歸入該等級，取最深等級。</span>
+    <br><br>
     <b style="color:#334155">趨勢燈號判斷邏輯</b><br>
-    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#16a34a;font-weight:700">成長</span>
-    營收近3月YoY均值為正且加速（比前3月均值高3%以上），同時最新季EPS同比成長超過5%<br>
+    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#16a34a;font-weight:700">多頭</span>
+    短期營收(3M) > 長期營收(12M) 且短期為正，或 EPS 同比成長 > 5%（綜合評分 >= 1 且無存貨風險）<br>
     <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#d97706;font-weight:700">持平</span>
-    不符合成長也不符合衰退條件，營收或獲利趨勢不明確<br>
-    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#fee2e2;color:#dc2626;font-weight:700">衰退</span>
-    營收近3月YoY均值低於-5%，或最新季EPS同比衰退超過10%且存貨增速超過營收增速20%以上<br>
-    <span style="color:#94a3b8">* 滑鼠移到各股燈號上可看到該股的營收動能%、EPS同比%、存貨警訊等細項數值</span>
+    不符合多頭也不符合空頭條件<br>
+    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#fee2e2;color:#dc2626;font-weight:700">空頭</span>
+    短期 < 長期且雙負，或 EPS 衰退 + 存貨風險<br>
+    <span style="color:#94a3b8">* 滑鼠移到各股燈號上可看到短期3M、長期12M、EPS同比%、存貨警訊等細項數值</span>
   </div>
 
   <div id="content"><div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div></div>
