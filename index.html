@@ -505,7 +505,7 @@
           <th class="g-val" data-col="val_a" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
           <th class="g-val" data-col="val_lt6" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
           <!-- 成長性（精簡：趨勢+3M/12M+保守成長率+Neff+一致性+PEG） -->
-          <th class="g-growth col-div no-sort" style="width:50px;text-align:center;cursor:help" title="多頭＝短期(3M)>長期(12M)>0&#10;轉強＝短期上穿長期&#10;轉弱＝短期下穿長期&#10;空頭＝短期<長期<0">趨勢</th>
+          <th class="g-growth col-div no-sort" data-col="growth_signal" style="width:50px;text-align:center;cursor:help" title="多頭＝短期(3M)>長期(12M)>0&#10;轉強＝短期上穿長期&#10;轉弱＝短期下穿長期&#10;空頭＝短期<長期<0">趨勢</th>
           <th class="g-growth" data-col="rev_3m" onclick="sortBy('rev_3m')">短期3M<span class="sort-icon" id="si_rev_3m">↕</span></th>
           <th class="g-growth" data-col="rev_12m" onclick="sortBy('rev_12m')">長期12M<span class="sort-icon" id="si_rev_12m">↕</span></th>
           <th class="g-growth" data-col="neff_c" onclick="sortBy('neff_c')">保守成長率<span class="sort-icon" id="si_neff_c">↕</span></th>
@@ -3099,7 +3099,7 @@ function render() {
       <td class="g-val" data-col="val_lt6"${r.val_lt6 != null && r.close != null && r.close <= r.val_lt6 ? ' style="background:#dcfce7;color:#166534;font-weight:700"' : ''}>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
       <!-- 成長率 -->
       <!-- 成長性 -->
-      <td class="g-growth col-div" style="text-align:center">${_growthBadge(r._growth_signal)}</td>
+      <td class="g-growth col-div" data-col="growth_signal" style="text-align:center">${_growthBadge(r._growth_signal)}</td>
       <td class="g-growth" data-col="rev_3m" style="${r._gi?.rev_3m_yoy != null ? (r._gi.rev_3m_yoy > 0 ? 'color:#dc2626' : 'color:#16a34a') : ''}">${r._gi?.rev_3m_yoy != null ? r._gi.rev_3m_yoy.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth" data-col="rev_12m" style="${r._gi?.rev_12m_yoy != null ? (r._gi.rev_12m_yoy > 0 ? 'color:#dc2626' : 'color:#16a34a') : ''}">${r._gi?.rev_12m_yoy != null ? r._gi.rev_12m_yoy.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth${r._gi?.neff_gray ? ' text-muted' : ''}" data-col="neff_c">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(2) + '%' : '－'}</td>
