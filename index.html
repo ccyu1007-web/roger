@@ -483,7 +483,6 @@
           <th class="no-sort" style="width:36px;text-align:center;font-size:.75rem;color:#2563eb">追蹤</th>
           <th class="no-sort" style="width:36px;text-align:center;font-size:.72rem;color:#94a3b8">不追蹤</th>
           <th class="no-sort" style="width:50px;text-align:center">檢核</th>
-          <th class="no-sort" style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
           <th onclick="sortBy('code')">股票代碼<span class="sort-icon" id="si_code">↕</span></th>
           <th onclick="sortBy('name')">公司名稱<span class="sort-icon" id="si_name">↕</span></th>
           <th class="g-mkt no-sort" data-col="market">市場</th>
@@ -499,7 +498,8 @@
           <th class="g-val" data-col="val_a" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
           <th class="g-val" data-col="val_lt6" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
           <!-- 聶夫總報酬率法（可收合） -->
-          <th class="g-growth col-div" data-col="neff_a" onclick="sortBy('neff_a')">5年端點<span class="sort-icon" id="si_neff_a">↕</span></th>
+          <th class="g-growth col-div no-sort" style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
+          <th class="g-growth" data-col="neff_a" onclick="sortBy('neff_a')">5年端點<span class="sort-icon" id="si_neff_a">↕</span></th>
           <th class="g-growth" data-col="neff_b" onclick="sortBy('neff_b')">5年平滑<span class="sort-icon" id="si_neff_b">↕</span></th>
           <th class="g-growth" data-col="neff_3a" onclick="sortBy('neff_3a')">3年端點<span class="sort-icon" id="si_neff_3a">↕</span></th>
           <th class="g-growth" data-col="neff_3b" onclick="sortBy('neff_3b')">3年平滑<span class="sort-icon" id="si_neff_3b">↕</span></th>
@@ -2995,7 +2995,6 @@ function render() {
       <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${trackSet.has(r.code)?'checked':''} onchange="toggleTrack(this)" style="accent-color:#2563eb"></td>
       <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
-      <td style="text-align:center">${_growthBadge(r._growth_signal)}</td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
       <td>${r.name}</td>
       <td class="g-mkt" data-col="market">${mktBadge}</td>
@@ -3011,7 +3010,8 @@ function render() {
       <td class="g-val" data-col="val_a"${r.val_a != null && r.close != null && r.close <= r.val_a ? ' style="background:#dbeafe;color:#1d4ed8;font-weight:700"' : ''}>${r.val_a != null ? r.val_a.toFixed(2) : '－'}</td>
       <td class="g-val" data-col="val_lt6"${r.val_lt6 != null && r.close != null && r.close <= r.val_lt6 ? ' style="background:#dcfce7;color:#166534;font-weight:700"' : ''}>${r.val_lt6 != null ? r.val_lt6.toFixed(2) : '－'}</td>
       <!-- 成長率 -->
-      <td class="g-growth col-div${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_a">${r._gi?.neff_a != null ? r._gi.neff_a.toFixed(2) + '%' : '－'}</td>
+      <td class="g-growth col-div" style="text-align:center">${_growthBadge(r._growth_signal)}</td>
+      <td class="g-growth${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_a">${r._gi?.neff_a != null ? r._gi.neff_a.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_b">${r._gi?.neff_b != null ? r._gi.neff_b.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_3a">${r._gi?.neff_3a != null ? r._gi.neff_3a.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth${r._gi?.gray ? ' text-muted' : ''}" data-col="neff_3b">${r._gi?.neff_3b != null ? r._gi.neff_3b.toFixed(2) + '%' : '－'}</td>
@@ -3174,7 +3174,7 @@ function exportCSV() {
 }
 
 function fixFrozenColumns() {
-  const FC = 8; // 觀察 + 體質 + 追蹤 + 不追蹤 + 檢核 + 趨勢 + 代碼 + 名稱
+  const FC = 7; // 觀察 + 體質 + 追蹤 + 不追蹤 + 檢核 + 代碼 + 名稱
   const ths = [];
   for (let i = 1; i <= FC; i++) ths.push(document.querySelector(`thead th:nth-child(${i})`));
   if (!ths[0]) return;
