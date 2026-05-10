@@ -409,9 +409,6 @@
         </select>
       </div>
       <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" onchange="saveQualitySettings()">年通過</div>
-      <div class="wb-item"><label>營益率 <</label><input id="qOpmThreshold" type="text" style="width:42px" onchange="saveQualitySettings()">%</div>
-      <div class="wb-item"><label>>=</label><input id="qOpmYears" type="text" style="width:36px" onchange="saveQualitySettings()">年排除</div>
-      <span style="color:#cbd5e1">|</span>
       <div class="wb-item"><label><input type="checkbox" id="qRoicEnabled" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> ROIC均值 >=</label><input id="qRoicThreshold" type="text" style="width:36px" onchange="saveQualitySettings()">%</div>
       <span style="color:#cbd5e1">|</span>
       <div class="wb-item"><label><input type="checkbox" id="qExcludeKY" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> KY股</label></div>
@@ -1764,8 +1761,6 @@ const DEFAULT_Q_SETTINGS = {
   gradeYears: 3,           // 幾年以上
   roicEnabled: false,      // ROIC均值篩選
   roicThreshold: 10,       // ROIC門檻 %
-  opmThreshold: 5,        // 營益率門檻 %
-  opmYears: 3,            // 幾年以上
   excludeKY: true,
   excludeConstruction: true,
   excludeIndustry: '',    // 額外排除產業（逗號分隔）
@@ -1775,8 +1770,6 @@ let _qSettings = JSON.parse(localStorage.getItem('quality_settings') || 'null') 
 function initQualitySettings() {
   document.getElementById('qGradeThreshold').value = _qSettings.gradeThreshold;
   document.getElementById('qGradeYears').value = _qSettings.gradeYears;
-  document.getElementById('qOpmThreshold').value = _qSettings.opmThreshold;
-  document.getElementById('qOpmYears').value = _qSettings.opmYears;
   document.getElementById('qRoicEnabled').checked = _qSettings.roicEnabled || false;
   document.getElementById('qRoicThreshold').value = _qSettings.roicThreshold || 10;
   document.getElementById('qExcludeKY').checked = _qSettings.excludeKY;
@@ -1787,8 +1780,6 @@ function initQualitySettings() {
 function saveQualitySettings() {
   _qSettings.gradeThreshold = document.getElementById('qGradeThreshold').value;
   _qSettings.gradeYears = parseInt(document.getElementById('qGradeYears').value) || 3;
-  _qSettings.opmThreshold = parseFloat(document.getElementById('qOpmThreshold').value) || 5;
-  _qSettings.opmYears = parseInt(document.getElementById('qOpmYears').value) || 3;
   _qSettings.roicEnabled = document.getElementById('qRoicEnabled').checked;
   _qSettings.roicThreshold = parseFloat(document.getElementById('qRoicThreshold').value) || 10;
   _qSettings.excludeKY = document.getElementById('qExcludeKY').checked;
@@ -1820,17 +1811,6 @@ function autoQualityCheck() {
     return (gradeOrder[base] || 0) >= (gradeOrder[thr] || 7);
   }
 
-  // 營益率判斷（從等級後綴）
-  // "-" = < 5%, 無後綴 = 5-10%, "+" = > 10%
-  // 但使用者可以自訂門檻，所以需要更靈活
-  // 如果門檻 = 5%: 只看 "-" 後綴
-  // 如果門檻 = 10%: 看 "-" 和無後綴（< 10%）
-  function isLowOpm(g) {
-    if (!g) return false;
-    if (s.opmThreshold <= 5) return g.endsWith('-');
-    if (s.opmThreshold <= 10) return !g.endsWith('+');
-    return false;
-  }
 
   // 排除產業清單
   const excludeIndustries = new Set();
@@ -1862,10 +1842,6 @@ function autoQualityCheck() {
     const goodCount = grades.filter(g => meetsThreshold(g)).length;
     if (goodCount < s.gradeYears) { excluded++; return; }
 
-    // 營益率門檻
-    const lowCount = grades.filter(g => isLowOpm(g)).length;
-    if (lowCount >= s.opmYears) { excluded++; return; }
-
     // ROIC均值門檻
     if (s.roicEnabled) {
       const roicAvg = r._gi?.roic_avg;
@@ -1884,7 +1860,6 @@ function autoQualityCheck() {
 
   const rules = [];
   rules.push(`等級 ${s.gradeThreshold} 以上 >= ${s.gradeYears} 年`);
-  rules.push(`營益率 < ${s.opmThreshold}% >= ${s.opmYears} 年`);
   if (s.roicEnabled) rules.push(`ROIC均值 >= ${s.roicThreshold}%`);
   if (s.excludeKY) rules.push('KY 股');
   if (excludeIndustries.size) rules.push(`產業：${[...excludeIndustries].join('、')}`);
