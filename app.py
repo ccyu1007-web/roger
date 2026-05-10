@@ -977,8 +977,8 @@ def _calc_growth_signals():
                 detail['rev_prev_3_yoy'] = round(avg_prev, 1)
                 detail['rev_momentum'] = round(momentum, 1)
 
-                if avg_recent > 0 and momentum > 3:
-                    rev_signal = 1   # 營收正成長且加速
+                if avg_recent >= 5 and momentum > 3:
+                    rev_signal = 1   # 營收明顯成長且加速
                 elif avg_recent < -5:
                     rev_signal = -1  # 營收衰退
                 # 其他 = 0 持平
