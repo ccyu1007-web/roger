@@ -834,22 +834,23 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     else:
         detail['neff_ratio'] = None
 
-    # lynch_peg: 林區PEG <= 1.0
-    lynch_d = gi.get('lynch_d')
-    checks['lynch_peg'] = 1 if lynch_d is not None and lynch_d <= 1.0 else 0
-    if lynch_d is not None:
-        _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
-        _lynch_gray_note = '（景氣循環股：PEG參考用）' if gi.get('lynch_gray') else ''
-        detail['lynch_peg'] = f'PEG={lynch_d}　PE{_gi_pe} / (保守成長率{neff_c}% + 殖利率{_gi_yld}%) = {_gi_pe}/{_total_ret} = {lynch_d}{_lynch_gray_note}'
+    # shiller_safe: 席勒警示 >= 0.5（非循環高點）
+    _shiller_alert = gi.get('shiller_alert')
+    # 無席勒資料時（EPS年數不足7年）預設通過
+    checks['shiller_safe'] = 1 if _shiller_alert is None or _shiller_alert >= 0.5 else 0
+    if _shiller_alert is not None:
+        _shiller_pe = gi.get('shiller_pe')
+        _shiller_avg = gi.get('shiller_avg_eps')
+        detail['shiller_safe'] = f'席勒警示={_shiller_alert}　綜合PE{blend_pe} / 席勒PE{_shiller_pe}　(10年均EPS={_shiller_avg})'
     else:
-        detail['lynch_peg'] = None
+        detail['shiller_safe'] = 'EPS年數不足7年，無法計算席勒PE'
 
     # lynch_consist: 林區成長一致性 >= 0.5
     lynch_b = gi.get('lynch_b')
     lynch_c = gi.get('lynch_c')
     checks['lynch_consist'] = 1 if lynch_c is not None and lynch_c >= 0.5 else 0
     if lynch_c is not None:
-        detail['lynch_consist'] = f'一致性={lynch_c}　1 - |算術平均{lynch_b}% - 5年淨利CAGR{neff_a}%| / {neff_a}% = {lynch_c}'
+        detail['lynch_consist'] = f'一致性={lynch_c}　(月營收正成長比例×0.3 + 波動度×0.25 + 連續衰退×0.25 + 季EPS正成長×0.2)'
     else:
         detail['lynch_consist'] = None
 
