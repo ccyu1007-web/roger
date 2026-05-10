@@ -574,7 +574,7 @@ CHECKLIST_ITEMS = [
     {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
     {'key': 'payout_ok',      'category': 'base',  'label': '配息率 50%~85%（穩定且可持續）'},
     {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
-    # ── 成長加分（10項）──
+    # ── 成長加分（8項）──
     {'key': 'neff_growth',    'category': 'bonus', 'label': '聶夫保守成長率 >= 7%'},
     {'key': 'neff_ratio',     'category': 'bonus', 'label': '聶夫 Neff 比率 >= 0.7'},
     {'key': 'lynch_peg',      'category': 'bonus', 'label': '林區 PEG <= 1.0'},
@@ -1357,7 +1357,7 @@ def calc_all_checklists():
         # 所有衍生欄位（shen_eps/blend_pe/val_aa等）已在 stocks 表，直接讀取
         r['_gi'] = gi_map.get(r['code']) or {}
         r['_gm_data'] = gm_map.get(r['code'])
-        # 席勒PE注入 _gi（_calc_derived_fields 後才有 blend_pe）
+        # 席勒PE注入 _gi（stocks 表已有 blend_pe）
         _s_eps = _shiller_map.get(r['code'])
         if _s_eps and len(_s_eps) >= 7:
             _avg_eps = sum(_s_eps) / len(_s_eps)
