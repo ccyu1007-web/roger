@@ -840,15 +840,19 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         detail['gm_change'] = None
 
     # best_aa: 各種EPS算的AA門檻至少一個 >= 股價（代表有可能達AA）
+    _aa_labels = ['預估', '系統', '沈董', '綜合', '加權', '近四季']
+    _aa_eps_list = [est_eps, r.get('sys_ann_eps'), shen_eps, blend_eps, weighted_eps, r.get('eps_4q_sum')]
     _aa_candidates = []
-    # 計算各種 EPS 對應的 AA 門檻 = EPS × 最低PE（取 min 三項中只用 EPS 門檻簡化判斷）
-    for _ep_val in [est_eps, r.get('sys_ann_eps'), shen_eps, blend_eps, weighted_eps, r.get('eps_4q_sum')]:
+    _aa_details = []
+    for _lbl, _ep_val in zip(_aa_labels, _aa_eps_list):
         if _ep_val is not None and _ep_val > 0:
-            _aa_price = _ep_val * pe_lo  # 最低PE
-            _aa_candidates.append(round(_aa_price, 2))
+            _aa_price = round(_ep_val * pe_lo, 2)
+            _aa_candidates.append(_aa_price)
+            _hit = '達AA' if close and _aa_price >= close else ''
+            _aa_details.append(f'{_lbl}EPS {_ep_val}×PE{pe_lo}={_aa_price} {_hit}')
     checks['best_aa'] = 1 if close and any(p >= close for p in _aa_candidates) else 0
-    if _aa_candidates:
-        detail['best_aa'] = f'各EPS×PE{pe_lo}倍門檻: {", ".join(str(p) for p in _aa_candidates)} vs 股價{close}'
+    if _aa_details:
+        detail['best_aa'] = f'股價{close} | ' + ' / '.join(_aa_details)
     else:
         detail['best_aa'] = '無EPS資料'
 
@@ -984,20 +988,24 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         detail['roic_trend'] = '無ROIC資料（預設通過）'
 
-    # gm_trend: 毛利率未連續下滑超過3個百分點
+    # gm_trend: 近3年毛利率下滑幅度未超過3個百分點
     _gm_5y = r.get('_gm_5y') or []  # list of (year, gm%) 最近→最遠
     _gm_drop_3pp = False
-    if len(_gm_5y) >= 2:
-        _gm_vals = [v for _, v in _gm_5y if v is not None]
-        if len(_gm_vals) >= 2:
-            # 最高點到最新值的落差
-            _gm_max = max(_gm_vals[1:])  # 排除最新一年，從歷史找最高
-            _gm_latest = _gm_vals[0]
-            if _gm_max - _gm_latest > 3:
+    _gm_drop_val = None
+    if len(_gm_5y) >= 3:
+        # 取近3年（index 0=最新, 2=3年前）
+        _gm_recent3 = [(y, v) for y, v in _gm_5y[:3] if v is not None]
+        if len(_gm_recent3) >= 2:
+            _gm_latest = _gm_recent3[0][1]
+            _gm_3y_ago = _gm_recent3[-1][1]  # 3年前
+            _gm_drop_val = round(_gm_3y_ago - _gm_latest, 2)
+            if _gm_drop_val > 3:
                 _gm_drop_3pp = True
     checks['gm_trend'] = 0 if _gm_drop_3pp else 1
     if _gm_5y:
-        detail['gm_trend'] = '毛利率: ' + ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _gm_5y)
+        _gm_info = ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _gm_5y)
+        _drop_str = f'　近3年降幅={_gm_drop_val}pp' if _gm_drop_val is not None else ''
+        detail['gm_trend'] = f'毛利率: {_gm_info}{_drop_str}'
     else:
         detail['gm_trend'] = '無毛利率資料（預設通過）'
 
