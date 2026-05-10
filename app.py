@@ -802,16 +802,28 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     # ── 基本門檻 ──
 
-    # fin_grade: 近五年財務等級有3年以上B級以上，且近兩年都B級以上
+    # fin_grade: 近五年財務等級有3年以上A級(AA/A1/A2/B1A/B2A)，且近兩年都A級以上
     grades5 = [r.get(f'fin_grade_{i}') for i in range(1, 6)]
     grades5y = [r.get(f'fin_grade_{i}y') for i in range(1, 6)]
-    above_b = sum(1 for g in grades5 if _is_grade_above_b(g))
-    recent2 = _is_grade_above_b(grades5[0]) and _is_grade_above_b(grades5[1]) if len(grades5) >= 2 else False
-    checks['fin_grade'] = 1 if above_b >= 3 and recent2 else 0
+    above_a = sum(1 for g in grades5 if _is_grade_a_level(g))
+    recent2_a = _is_grade_a_level(grades5[0]) and _is_grade_a_level(grades5[1]) if len(grades5) >= 2 else False
+    checks['fin_grade'] = 1 if above_a >= 3 and recent2_a else 0
     detail['fin_grade'] = ' / '.join(
         f'{grades5y[i] or ""}:{grades5[i]}' if grades5[i] else '--'
         for i in range(5)
     )
+
+    # opm_stable: 近五年營益率>=10%達3年以上，且近2年>=10%
+    _opm_5y = r.get('_opm_5y') or []  # list of (year, opm%) 由外部傳入
+    _opm_above = sum(1 for _, v in _opm_5y if v is not None and v >= 10)
+    _opm_recent2 = (len(_opm_5y) >= 2 and
+                    _opm_5y[0][1] is not None and _opm_5y[0][1] >= 10 and
+                    _opm_5y[1][1] is not None and _opm_5y[1][1] >= 10)
+    checks['opm_stable'] = 1 if _opm_above >= 3 and _opm_recent2 else 0
+    if _opm_5y:
+        detail['opm_stable'] = ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _opm_5y)
+    else:
+        detail['opm_stable'] = '無營益率資料'
 
     # cum_yoy: 累積營收年增率 >= 0%
     cum_yoy = r.get('revenue_cum_yoy')
@@ -826,6 +838,23 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         detail['gm_change'] = f'{gm_data["latest_q"]}毛利率{gm_data["latest_gm"]}% - {gm_data["prev_q"]}毛利率{gm_data["prev_gm"]}% = {gm_change:+.2f}%'
     else:
         detail['gm_change'] = None
+
+    # best_aa: 各種EPS算的AA門檻至少一個 >= 股價（代表有可能達AA）
+    _aa_candidates = []
+    # 計算各種 EPS 對應的 AA 門檻 = EPS × 最低PE（取 min 三項中只用 EPS 門檻簡化判斷）
+    for _ep_val in [est_eps, r.get('sys_ann_eps'), shen_eps, blend_eps, weighted_eps, r.get('eps_4q_sum')]:
+        if _ep_val is not None and _ep_val > 0:
+            _aa_price = _ep_val * pe_lo  # 最低PE
+            _aa_candidates.append(round(_aa_price, 2))
+    checks['best_aa'] = 1 if close and any(p >= close for p in _aa_candidates) else 0
+    if _aa_candidates:
+        detail['best_aa'] = f'各EPS×PE{pe_lo}倍門檻: {", ".join(str(p) for p in _aa_candidates)} vs 股價{close}'
+    else:
+        detail['best_aa'] = '無EPS資料'
+
+    # price_below_aa: 股價低於AA門檻
+    checks['price_below_aa'] = 1 if close and val_aa and close < val_aa + 0.005 else 0
+    detail['price_below_aa'] = f'股價{close} vs AA門檻{val_aa}' if val_aa else '無AA門檻'
 
     # blend_pe_12: 綜合本益比 <= 12 倍
     checks['blend_pe_12'] = 1 if blend_pe is not None and blend_pe > 0 and blend_pe <= 12 else 0
@@ -908,16 +937,13 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         detail['neff_ratio'] = None
 
-    # shiller_safe: 席勒警示 >= 0.5（非循環高點）
-    _shiller_alert = gi.get('shiller_alert')
-    # 無席勒資料時（EPS年數不足7年）預設通過
-    checks['shiller_safe'] = 1 if _shiller_alert is None or _shiller_alert >= 0.5 else 0
-    if _shiller_alert is not None:
-        _shiller_pe = gi.get('shiller_pe')
-        _shiller_avg = gi.get('shiller_avg_eps')
-        detail['shiller_safe'] = f'席勒警示={_shiller_alert}　綜合PE{blend_pe} / 席勒PE{_shiller_pe}　(10年均EPS={_shiller_avg})'
+    # lynch_peg: PEG <= 1.0（涅夫比率的倒數）
+    _peg = round(1 / neff_d, 2) if neff_d and neff_d > 0 else None
+    checks['lynch_peg'] = 1 if _peg is not None and _peg <= 1.0 else 0
+    if _peg is not None:
+        detail['lynch_peg'] = f'PEG={_peg}　(PE{_gi_pe} / (成長率{neff_c}%+殖利率{_gi_yld}%))'
     else:
-        detail['shiller_safe'] = 'EPS年數不足7年，無法計算席勒PE'
+        detail['lynch_peg'] = None
 
     # lynch_consist: 林區成長一致性 >= 0.5
     lynch_b = gi.get('lynch_b')
@@ -933,6 +959,70 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _signal = gs_data.get('growth_signal')
     checks['growth_green'] = 1 if _signal == 'green' else 0
     detail['growth_green'] = f'趨勢={_signal}' if _signal else None
+
+    # shiller_safe: 席勒警示 >= 0.5（非循環高點）
+    _shiller_alert = gi.get('shiller_alert')
+    checks['shiller_safe'] = 1 if _shiller_alert is None or _shiller_alert >= 0.5 else 0
+    if _shiller_alert is not None:
+        _shiller_pe = gi.get('shiller_pe')
+        _shiller_avg = gi.get('shiller_avg_eps')
+        detail['shiller_safe'] = f'席勒警示={_shiller_alert}　綜合PE{blend_pe} / 席勒PE{_shiller_pe}　(10年均EPS={_shiller_avg})'
+    else:
+        detail['shiller_safe'] = 'EPS年數不足7年，無法計算席勒PE（預設通過）'
+
+    # roic_trend: ROIC未連續3年下滑
+    _roic_5y = r.get('_roic_5y') or []  # list of (year, roic%) 由外部傳入，最近→最遠
+    _roic_declining_3 = False
+    if len(_roic_5y) >= 3:
+        # 取最近3年，檢查是否遞減
+        _r3 = [v for _, v in _roic_5y[:3] if v is not None]
+        if len(_r3) >= 3 and _r3[0] < _r3[1] < _r3[2]:
+            _roic_declining_3 = True
+    checks['roic_trend'] = 0 if _roic_declining_3 else 1
+    if _roic_5y:
+        detail['roic_trend'] = 'ROIC: ' + ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _roic_5y)
+    else:
+        detail['roic_trend'] = '無ROIC資料（預設通過）'
+
+    # gm_trend: 毛利率未連續下滑超過3個百分點
+    _gm_5y = r.get('_gm_5y') or []  # list of (year, gm%) 最近→最遠
+    _gm_drop_3pp = False
+    if len(_gm_5y) >= 2:
+        _gm_vals = [v for _, v in _gm_5y if v is not None]
+        if len(_gm_vals) >= 2:
+            # 最高點到最新值的落差
+            _gm_max = max(_gm_vals[1:])  # 排除最新一年，從歷史找最高
+            _gm_latest = _gm_vals[0]
+            if _gm_max - _gm_latest > 3:
+                _gm_drop_3pp = True
+    checks['gm_trend'] = 0 if _gm_drop_3pp else 1
+    if _gm_5y:
+        detail['gm_trend'] = '毛利率: ' + ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _gm_5y)
+    else:
+        detail['gm_trend'] = '無毛利率資料（預設通過）'
+
+    # fcf_trend: FCF/營收未連續3年下滑
+    _fcf_rev_5y = r.get('_fcf_rev_5y') or []  # list of (year, fcf/rev%) 最近→最遠
+    _fcf_declining_3 = False
+    if len(_fcf_rev_5y) >= 3:
+        _f3 = [v for _, v in _fcf_rev_5y[:3] if v is not None]
+        if len(_f3) >= 3 and _f3[0] < _f3[1] < _f3[2]:
+            _fcf_declining_3 = True
+    checks['fcf_trend'] = 0 if _fcf_declining_3 else 1
+    if _fcf_rev_5y:
+        detail['fcf_trend'] = 'FCF/營收: ' + ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _fcf_rev_5y)
+    else:
+        detail['fcf_trend'] = '無FCF資料（預設通過）'
+
+    # fcf_cover_div: 自由現金流覆蓋配息
+    _fcf_latest = r.get('_fcf_latest')  # (operating_cf + capex) 最近一年
+    _div_total = r.get('_div_total_latest')  # 最近一年現金股利總額
+    if _fcf_latest is not None and _div_total is not None and _div_total > 0:
+        checks['fcf_cover_div'] = 1 if _fcf_latest >= _div_total else 0
+        detail['fcf_cover_div'] = f'FCF={round(_fcf_latest/1e6, 0)}百萬 vs 現金股利={round(_div_total/1e6, 0)}百萬'
+    else:
+        checks['fcf_cover_div'] = 1  # 無資料預設通過
+        detail['fcf_cover_div'] = '無FCF或股利資料（預設通過）'
 
     base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
     bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
@@ -1230,7 +1320,8 @@ def calc_all_checklists():
                       net_income, revenue, operating_cf, capex,
                       total_equity, total_assets, cash_and_equivalents,
                       short_term_debt, short_term_notes, current_long_term_debt,
-                      long_term_bank_debt, other_long_term_debt, bonds_payable
+                      long_term_bank_debt, other_long_term_debt, bonds_payable,
+                      gross_profit, cash_dividend, weighted_shares
                FROM financial_annual WHERE year >= ?
                ORDER BY code, year""",
             (datetime.now().year - 11,)
@@ -1244,8 +1335,10 @@ def calc_all_checklists():
             _eps_list = [_fr['eps'] for _fr in _frs if _fr.get('eps') is not None]
             if len(_eps_list) >= 7:
                 _shiller_map[_code] = _eps_list
-            # 最近5年各項均值（ROIC/ROE/OPM/FCF_REV）
+            # 最近5年各項均值（ROIC/ROE/OPM/FCF_REV）+ 趨勢用年度序列
             _roic_vals, _roe_vals, _opm_vals, _fcf_rev_vals = [], [], [], []
+            _roic_yearly, _opm_yearly, _fcf_rev_yearly, _gm_yearly = [], [], [], []
+            _fcf_latest_val, _div_total_val = None, None
             for _fr in _frs[-5:]:
                 _oi = _fr.get('operating_income')
                 _te = _fr.get('total_equity')
@@ -1255,7 +1348,9 @@ def calc_all_checklists():
                 _rev = _fr.get('revenue')
                 _ocf = _fr.get('operating_cf')
                 _capex = _fr.get('capex')
+                _yr = _fr.get('year')
                 # ROIC
+                _roic_val = None
                 if _oi is not None and _te and _te > 0:
                     _tr = _tx / _pti if _pti and _pti > 0 and _tx is not None else 0.2
                     _nopat = _oi * (1 - _tr)
@@ -1265,23 +1360,57 @@ def calc_all_checklists():
                     _cash = _fr.get('cash_and_equivalents', 0) or 0
                     _ic = _te + _ibd - _cash
                     if _ic > 0:
-                        _roic_vals.append(round(_nopat / _ic * 100, 2))
+                        _roic_val = round(_nopat / _ic * 100, 2)
+                        _roic_vals.append(_roic_val)
+                _roic_yearly.append((_yr, _roic_val))
                 # ROE
                 if _ni is not None and _te and _te > 0:
                     _roe_vals.append(round(_ni / _te * 100, 2))
                 # 營益率
+                _opm_val = None
                 if _oi is not None and _rev and _rev > 0:
-                    _opm_vals.append(round(_oi / _rev * 100, 2))
+                    _opm_val = round(_oi / _rev * 100, 2)
+                    _opm_vals.append(_opm_val)
+                _opm_yearly.append((_yr, _opm_val))
                 # FCF/營收
+                _fcf_rev_val = None
                 if _ocf is not None and _capex is not None and _rev and _rev > 0:
                     _fcf = _ocf + _capex
-                    _fcf_rev_vals.append(round(_fcf / _rev * 100, 2))
+                    _fcf_rev_val = round(_fcf / _rev * 100, 2)
+                    _fcf_rev_vals.append(_fcf_rev_val)
+                    _fcf_latest_val = _fcf  # 最後一筆即為最新年
+                _fcf_rev_yearly.append((_yr, _fcf_rev_val))
+                # 年度毛利率（用 gross_profit 欄位）
+                _gp = _fr.get('gross_profit')
+                if _gp is not None and _rev and _rev > 0:
+                    _gm_yearly.append((_yr, round(_gp / _rev * 100, 2)))
+                else:
+                    _gm_yearly.append((_yr, None))
+            # 最新年 FCF vs 現金股利（cash_dividend × weighted_shares千股）
+            if _frs:
+                _last_fr = _frs[-1]
+                _cd = _last_fr.get('cash_dividend')
+                _ws = _last_fr.get('weighted_shares')
+                if _cd and _cd > 0 and _ws and _ws > 0:
+                    _div_total_val = _cd * _ws * 1000  # 每股股利 × 加權股數(千股) × 1000
+                # FCF latest（operating_cf + capex, capex 為負數）
+                _ocf_last = _last_fr.get('operating_cf')
+                _capex_last = _last_fr.get('capex')
+                if _ocf_last is not None and _capex_last is not None:
+                    _fcf_latest_val = _ocf_last + _capex_last
             if _roic_vals:
                 _roic_map[_code] = _roic_vals
             # 其他均值存入同一個 map（用 tuple）
             _roic_map[_code + '_roe'] = _roe_vals
             _roic_map[_code + '_opm'] = _opm_vals
             _roic_map[_code + '_fcf_rev'] = _fcf_rev_vals
+            # 趨勢序列（最近→最遠，供 checklist 用）
+            _roic_map[_code + '_roic_5y'] = list(reversed(_roic_yearly))
+            _roic_map[_code + '_opm_5y'] = list(reversed(_opm_yearly))
+            _roic_map[_code + '_fcf_rev_5y'] = list(reversed(_fcf_rev_yearly))
+            _roic_map[_code + '_gm_5y'] = list(reversed(_gm_yearly))
+            _roic_map[_code + '_fcf_latest'] = _fcf_latest_val
+            _roic_map[_code + '_div_total'] = _div_total_val
     except Exception as e:
         print(f"[Checklist] 席勒/ROIC 預載失敗: {e}")
 
@@ -1299,6 +1428,13 @@ def calc_all_checklists():
         r['_gi'] = gi_map.get(r['code'])
         r['_gm_data'] = gm_map.get(r['code'])
         r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
+        # 趨勢資料（新增檢核項用）
+        r['_opm_5y'] = _roic_map.get(r['code'] + '_opm_5y', [])
+        r['_roic_5y'] = _roic_map.get(r['code'] + '_roic_5y', [])
+        r['_gm_5y'] = _roic_map.get(r['code'] + '_gm_5y', [])
+        r['_fcf_rev_5y'] = _roic_map.get(r['code'] + '_fcf_rev_5y', [])
+        r['_fcf_latest'] = _roic_map.get(r['code'] + '_fcf_latest')
+        r['_div_total_latest'] = _roic_map.get(r['code'] + '_div_total')
         user_params = up
         result = _calc_checklist_for_stock(r, user_params, gs, growth_map)
 

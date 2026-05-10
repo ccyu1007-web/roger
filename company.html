@@ -639,14 +639,13 @@ async function loadDecision() {
       bonusCount = 0;
       bonusItems.forEach(it => { if (cl[`chk_${it.key}`] === 1) bonusCount++; });
     }
-    const baseClass = baseCount >= 6 ? 'chk-score-pass' : baseCount >= 4 ? 'chk-score-warn' : 'chk-score-fail';
-    const bonusClass = bonusCount >= 3 ? 'chk-score-pass' : bonusCount >= 1 ? 'chk-score-warn' : 'chk-score-fail';
+    const totalPass = baseCount + bonusCount;
+    const totalItems = baseItems.length + bonusItems.length;
 
     let html = '';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score ${baseClass}">基本 ${baseCount}/${baseItems.length}</span>`;
-    html += `<span class="chk-score ${bonusClass}" style="margin-left:8px">加分 ${bonusCount}/${bonusItems.length}</span>`;
+    html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（基本 ${baseCount}/${baseItems.length} + 加分 ${bonusCount}/${bonusItems.length}）</span>`;
     html += '</div>';
 
     // 基本門檻（動態渲染，順序由後端定義）
