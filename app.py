@@ -1433,9 +1433,21 @@ def calc_all_checklists():
         _calc_shen_fields(r, cur_roc, gs)
         up = ue_map.get(r['code'])
         _calc_derived_fields(r, gs, up)
-        r['_gi'] = gi_map.get(r['code'])
+        r['_gi'] = gi_map.get(r['code']) or {}
         r['_gm_data'] = gm_map.get(r['code'])
         r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
+        # 席勒PE注入 _gi（_calc_derived_fields 後才有 blend_pe）
+        _s_eps = _shiller_map.get(r['code'])
+        if _s_eps and len(_s_eps) >= 7:
+            _avg_eps = sum(_s_eps) / len(_s_eps)
+            r['_gi']['shiller_avg_eps'] = round(_avg_eps, 2)
+            _close_val = r.get('close')
+            if _avg_eps > 0 and _close_val and _close_val > 0:
+                _sh_pe = round(_close_val / _avg_eps, 2)
+                r['_gi']['shiller_pe'] = _sh_pe
+                _bl_pe = r.get('blend_pe')
+                if _bl_pe and _bl_pe > 0:
+                    r['_gi']['shiller_alert'] = round(_bl_pe / _sh_pe, 2)
         # 趨勢資料（新增檢核項用）
         r['_opm_5y'] = _roic_map.get(r['code'] + '_opm_5y', [])
         r['_roic_5y'] = _roic_map.get(r['code'] + '_roic_5y', [])
