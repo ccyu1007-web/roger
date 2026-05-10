@@ -1541,11 +1541,18 @@ let _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') ||
 let _qualityCustomConds = JSON.parse(localStorage.getItem('quality_custom_conds') || '[]');
 
 // ── 體質自訂條件 ──
+const QUALITY_FIELD_OPTIONS = [
+  {label:'ROIC均值', key:'_gi.roic_avg'},
+  {label:'ROE均值', key:'_gi.roe_avg'},
+  {label:'營益率均值', key:'_gi.opm_avg'},
+  {label:'FCF/營收均值', key:'_gi.fcf_rev_avg'},
+  {label:'內生成長率', key:'_gi.intrinsic_growth'},
+];
 function renderQualityConds() {
   const container = document.getElementById('qualityCustomConds');
   if (!container) return;
   container.innerHTML = _qualityCustomConds.map((c, idx) => {
-    const fieldOpts = FIELD_OPTIONS.map(f =>
+    const fieldOpts = QUALITY_FIELD_OPTIONS.map(f =>
       `<option value="${f.key}" ${c.field===f.key?'selected':''}>${f.label}</option>`
     ).join('');
     return `<div style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 6px">
@@ -1564,7 +1571,7 @@ function renderQualityConds() {
   }).join('');
 }
 function addQualityCond() {
-  _qualityCustomConds.push({field:'_gi.roic_avg', op:'>=', value:'10'});
+  _qualityCustomConds.push({field:'_gi.opm_avg', op:'>=', value:'5'});
   saveQualityConds(); renderQualityConds();
 }
 function removeQualityCond(idx) {

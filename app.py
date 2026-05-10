@@ -543,7 +543,7 @@ def _init_checklist_db():
                  ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
                  ('gi_warnings','TEXT'),
                  ('gi_shiller_avg_eps','REAL'),('gi_shiller_pe','REAL'),('gi_shiller_alert','REAL'),
-                 ('gi_roic_avg','REAL'),
+                 ('gi_roic_avg','REAL'),('gi_roe_avg','REAL'),('gi_opm_avg','REAL'),('gi_fcf_rev_avg','REAL'),
                  ('growth_signal','TEXT'),('growth_rev_momentum','REAL'),
                  ('growth_eps_trend','REAL'),('growth_inv_risk','INTEGER'),
                  ('growth_detail','TEXT')]
@@ -1185,6 +1185,7 @@ def calc_all_checklists():
     try:
         _fa_rows = query_db(
             """SELECT code, year, eps, operating_income, pretax_income, tax,
+                      net_income, revenue, operating_cf, capex,
                       total_equity, total_assets, cash_and_equivalents,
                       short_term_debt, short_term_notes, current_long_term_debt,
                       long_term_bank_debt, other_long_term_debt, bonds_payable
@@ -1201,13 +1202,18 @@ def calc_all_checklists():
             _eps_list = [_fr['eps'] for _fr in _frs if _fr.get('eps') is not None]
             if len(_eps_list) >= 7:
                 _shiller_map[_code] = _eps_list
-            # ROIC：收集最近5年
-            _roic_vals = []
+            # 最近5年各項均值（ROIC/ROE/OPM/FCF_REV）
+            _roic_vals, _roe_vals, _opm_vals, _fcf_rev_vals = [], [], [], []
             for _fr in _frs[-5:]:
                 _oi = _fr.get('operating_income')
                 _te = _fr.get('total_equity')
                 _pti = _fr.get('pretax_income')
                 _tx = _fr.get('tax')
+                _ni = _fr.get('net_income')
+                _rev = _fr.get('revenue')
+                _ocf = _fr.get('operating_cf')
+                _capex = _fr.get('capex')
+                # ROIC
                 if _oi is not None and _te and _te > 0:
                     _tr = _tx / _pti if _pti and _pti > 0 and _tx is not None else 0.2
                     _nopat = _oi * (1 - _tr)
@@ -1218,8 +1224,22 @@ def calc_all_checklists():
                     _ic = _te + _ibd - _cash
                     if _ic > 0:
                         _roic_vals.append(round(_nopat / _ic * 100, 2))
+                # ROE
+                if _ni is not None and _te and _te > 0:
+                    _roe_vals.append(round(_ni / _te * 100, 2))
+                # 營益率
+                if _oi is not None and _rev and _rev > 0:
+                    _opm_vals.append(round(_oi / _rev * 100, 2))
+                # FCF/營收
+                if _ocf is not None and _capex is not None and _rev and _rev > 0:
+                    _fcf = _ocf + _capex
+                    _fcf_rev_vals.append(round(_fcf / _rev * 100, 2))
             if _roic_vals:
                 _roic_map[_code] = _roic_vals
+            # 其他均值存入同一個 map（用 tuple）
+            _roic_map[_code + '_roe'] = _roe_vals
+            _roic_map[_code + '_opm'] = _opm_vals
+            _roic_map[_code + '_fcf_rev'] = _fcf_rev_vals
     except Exception as e:
         print(f"[Checklist] 席勒/ROIC 預載失敗: {e}")
 
@@ -1257,10 +1277,19 @@ def calc_all_checklists():
                 if _blend_pe and _blend_pe > 0:
                     result['gi_shiller_alert'] = round(_blend_pe / _shiller_pe, 2)
 
-        # ROIC 5年均值
+        # 體質指標5年均值
         _rv = _roic_map.get(r['code'])
         if _rv:
             result['gi_roic_avg'] = round(sum(_rv) / len(_rv), 2)
+        _roe_v = _roic_map.get(r['code'] + '_roe', [])
+        if _roe_v:
+            result['gi_roe_avg'] = round(sum(_roe_v) / len(_roe_v), 2)
+        _opm_v = _roic_map.get(r['code'] + '_opm', [])
+        if _opm_v:
+            result['gi_opm_avg'] = round(sum(_opm_v) / len(_opm_v), 2)
+        _fcf_v = _roic_map.get(r['code'] + '_fcf_rev', [])
+        if _fcf_v:
+            result['gi_fcf_rev_avg'] = round(sum(_fcf_v) / len(_fcf_v), 2)
 
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
@@ -1273,7 +1302,8 @@ def calc_all_checklists():
                        'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
                        'gi_rev_cagr_3y', 'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
                        'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
-                       'gi_shiller_avg_eps', 'gi_shiller_pe', 'gi_shiller_alert', 'gi_roic_avg',
+                       'gi_shiller_avg_eps', 'gi_shiller_pe', 'gi_shiller_alert',
+                       'gi_roic_avg', 'gi_roe_avg', 'gi_opm_avg', 'gi_fcf_rev_avg',
                        'growth_signal', 'growth_rev_momentum', 'growth_eps_trend',
                        'growth_inv_risk', 'growth_detail',
                        'updated_at']
@@ -1513,7 +1543,8 @@ def get_stocks():
                                 gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
                                 gi_rev_cagr_3y, gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
                                 gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings,
-                                gi_shiller_avg_eps, gi_shiller_pe, gi_shiller_alert, gi_roic_avg,
+                                gi_shiller_avg_eps, gi_shiller_pe, gi_shiller_alert,
+                                gi_roic_avg, gi_roe_avg, gi_opm_avg, gi_fcf_rev_avg,
                                 growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk
                              FROM stock_checklist""")
         for cr in chk_rows:
@@ -1551,6 +1582,9 @@ def get_stocks():
                 'shiller_pe': chk.get('gi_shiller_pe'),
                 'shiller_alert': chk.get('gi_shiller_alert'),
                 'roic_avg': chk.get('gi_roic_avg'),
+                'roe_avg': chk.get('gi_roe_avg'),
+                'opm_avg': chk.get('gi_opm_avg'),
+                'fcf_rev_avg': chk.get('gi_fcf_rev_avg'),
             }
         else:
             row["_gi"] = None
