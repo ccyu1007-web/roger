@@ -583,8 +583,6 @@ CHECKLIST_ITEMS = [
     {'key': 'shiller_safe',   'category': 'bonus', 'label': '席勒警示 >= 0.5（非循環高點）'},
     {'key': 'roic_trend',     'category': 'bonus', 'label': 'ROIC 未連續3年下滑'},
     {'key': 'gm_trend',       'category': 'bonus', 'label': '毛利率未連續下滑超過3個百分點'},
-    {'key': 'fcf_trend',      'category': 'bonus', 'label': 'FCF/營收未連續3年下滑'},
-    {'key': 'fcf_cover_div',  'category': 'bonus', 'label': 'FCF 覆蓋配息（自由現金流>=現金股利）'},
 ]
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
