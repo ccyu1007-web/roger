@@ -1537,6 +1537,7 @@ const FIELD_OPTIONS = [
   {label:'內生成長率', key:'_gi.intrinsic_growth'},
   {label:'3年營收CAGR', key:'_gi.rev_cagr_3y'},
   {label:'5年營收CAGR', key:'_gi.rev_cagr_5y'},
+  {label:'掛牌年數', key:'listed_years'},
 ];
 
 let _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
@@ -1549,6 +1550,7 @@ const QUALITY_FIELD_OPTIONS = [
   {label:'營益率均值', key:'_gi.opm_avg'},
   {label:'FCF/營收均值', key:'_gi.fcf_rev_avg'},
   {label:'內生成長率', key:'_gi.intrinsic_growth'},
+  {label:'掛牌年數', key:'listed_years'},
 ];
 function renderQualityConds() {
   const container = document.getElementById('qualityCustomConds');
@@ -2170,11 +2172,6 @@ function calcDerived(r) {
   if (r.eps_ytd == null && r.eps_y1 != null && r.eps_y1_label) {
     r.eps_ytd = r.eps_y1;
     r.eps_ytd_label = r.eps_y1_label;
-  }
-
-  // 掛牌年數
-  if (r.listed_date && r.listed_date.length >= 4) {
-    r.listed_years = new Date().getFullYear() - parseInt(r.listed_date.substring(0, 4));
   }
 
   // 財務等級映射

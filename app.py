@@ -1512,7 +1512,12 @@ def get_stocks():
             chk_map[cr['code']] = cr
     except Exception: pass
 
+    from datetime import date as _date
+    _cur_year = _date.today().year
     for row in rows:
+        # 掛牌年數
+        ld = row.get('listed_date')
+        row['listed_years'] = _cur_year - int(ld[:4]) if ld and len(ld) >= 4 else None
         row["etf_tags"] = etf_map.get(row["code"], "")
         row["monthly_rev"] = rev_map.get(row["code"], [])
         # 衍生欄位已存 DB，直接從 SELECT 讀取，不再即時計算
