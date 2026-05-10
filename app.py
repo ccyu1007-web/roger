@@ -4283,9 +4283,14 @@ def get_user_settings():
     rows = conn.execute("SELECT key, value, updated_at FROM user_settings").fetchall()
     conn.close()
     result = {}
+    max_time = None
     for r in rows:
         result[r[0]] = r[1]
-        result[r[0] + '_time'] = r[2] or '2000-01-01'
+        t = r[2] or '2000-01-01'
+        result[r[0] + '_time'] = t
+        if max_time is None or t > max_time:
+            max_time = t
+    result['_updated_at'] = max_time
     return jsonify(result)
 
 @app.route("/api/user-settings", methods=["POST"])
