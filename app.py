@@ -302,6 +302,7 @@ DERIVED_COLS = [
     'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
     'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
     'contract_chg',
+    'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
     'val_aa','val_a1','val_a2','val_a','val_lt6',
     'est_eps','est_div','est_pe','est_yld','est_grade',
     'sys_pe','sys_yld','sys_grade'
@@ -417,6 +418,28 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         r['contract_chg'] = round((c1 - c2) / abs(c2) * 100, 2)
     else:
         r['contract_chg'] = None
+
+    # ── 歷年配息率 payout_1~6 ──
+    # 建立年度 EPS 查找表
+    _eps_map = {}
+    for i in range(1, 7):
+        _lbl = r.get(f'eps_y{i}_label')
+        _val = r.get(f'eps_y{i}')
+        if _lbl and _val is not None:
+            _eps_map[_lbl] = _val
+    for i in range(1, 7):
+        _lbl = r.get(f'div_{i}_label')
+        _cash = r.get(f'div_c{i}') or 0
+        _stock = r.get(f'div_s{i}') or 0
+        _total_d = _cash + _stock
+        if _total_d > 0:
+            _ep = _eps_map.get(_lbl)
+            if _ep is not None and _ep > 0:
+                r[f'payout_{i}'] = min(100, round(_total_d / _ep * 100, 2))
+            else:
+                r[f'payout_{i}'] = 100  # EPS <= 0 但有配息 → 100%
+        else:
+            r[f'payout_{i}'] = None
 
     # ── 評價門檻（統一計算，存 DB）──
     # EPS/股利取用順序：使用者預估 > 系統估算 > 沈董
@@ -1608,6 +1631,8 @@ def get_stocks():
                         ('blend_eps','REAL'),('blend_div','REAL'),('blend_pe','REAL'),('blend_yld','REAL'),('blend_grade','TEXT'),
                         ('eps_4q_sum','REAL'),('trailing_div','REAL'),('trailing_pe','REAL'),('trailing_yld','REAL'),('trailing_grade','TEXT'),
                         ('contract_chg','REAL'),
+                        ('payout_1','REAL'),('payout_2','REAL'),('payout_3','REAL'),
+                        ('payout_4','REAL'),('payout_5','REAL'),('payout_6','REAL'),
                         ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
                         ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),
                         ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT')]:
@@ -1647,6 +1672,7 @@ def get_stocks():
                        blend_eps, blend_div, blend_pe, blend_yld, blend_grade,
                        eps_4q_sum, trailing_div, trailing_pe, trailing_yld, trailing_grade,
                        contract_chg, listed_date,
+                       payout_1, payout_2, payout_3, payout_4, payout_5, payout_6,
                        val_aa, val_a1, val_a2, val_a, val_lt6,
                        est_eps, est_div, est_pe, est_yld, est_grade,
                        sys_pe, sys_yld, sys_grade
@@ -2447,6 +2473,7 @@ def sync_annual():
                        'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
                        'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
                        'contract_chg',
+                       'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
                        'val_aa','val_a1','val_a2','val_a','val_lt6',
                        'est_eps','est_div','est_pe','est_yld','est_grade',
                        'sys_pe','sys_yld','sys_grade']:
