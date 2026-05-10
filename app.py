@@ -301,7 +301,8 @@ DERIVED_COLS = [
     'weighted_eps','weighted_div','weighted_pe','weighted_yld','weighted_grade','weighted_payout',
     'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
     'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
-    'contract_chg'
+    'contract_chg',
+    'val_aa','val_a1','val_a2','val_a','val_lt6'
 ]
 
 def _calc_derived_fields(r, global_settings=None, user_params=None):
@@ -415,6 +416,38 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
     else:
         r['contract_chg'] = None
 
+    # ── 評價門檻（統一計算，存 DB）──
+    # EPS/股利取用順序：使用者預估 > 系統估算 > 沈董
+    est_eps = None
+    est_div = None
+    if user_params:
+        est_eps = user_params.get('eps')
+        est_div = user_params.get('div')
+        if est_eps: est_eps = float(est_eps)
+        if est_div: est_div = float(est_div)
+    val_eps = est_eps or r.get('sys_ann_eps') or r.get('shen_eps')
+    val_div = est_div or r.get('sys_ann_div') or r.get('shen_div')
+    val_bdiv = r.get('blend_div')
+
+    pe_mid_v = (pe_hi + pe_lo) / 2
+    pe_lo_bias_v = (pe_mid_v + pe_lo) / 2
+
+    def _calc_val_threshold(pe_val, yld_val):
+        if val_eps is None or val_eps <= 0 or val_div is None or val_div <= 0:
+            return None
+        v1 = val_eps * pe_val
+        v2 = val_div / (yld_val / 100)
+        candidates = [v1, v2]
+        if val_bdiv and val_bdiv > 0:
+            candidates.append(val_bdiv / 0.06 + val_div)
+        return round(min(candidates), 2)
+
+    r['val_aa'] = _calc_val_threshold(pe_lo, y_max)
+    r['val_a1'] = _calc_val_threshold(pe_lo, y_high)
+    r['val_a2'] = _calc_val_threshold(pe_lo_bias_v, y_max)
+    r['val_a']  = _calc_val_threshold(pe_lo_bias_v, y_high)
+    r['val_lt6'] = round(val_bdiv / 0.06, 2) if val_bdiv and val_bdiv > 0 else None
+
 
 def _save_derived_to_db(code, r):
     """將衍生欄位寫回 stocks 表"""
@@ -450,7 +483,8 @@ def recalc_all_derived(codes=None):
         div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
         div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
         div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
-        contract_1, contract_2
+        contract_1, contract_2,
+        sys_ann_eps, sys_ann_div
     FROM stocks{where}""", params).fetchall()
 
     # 讀取 user_estimates
@@ -1418,7 +1452,8 @@ def get_stocks():
                         ('weighted_payout','REAL'),
                         ('blend_eps','REAL'),('blend_div','REAL'),('blend_pe','REAL'),('blend_yld','REAL'),('blend_grade','TEXT'),
                         ('eps_4q_sum','REAL'),('trailing_div','REAL'),('trailing_pe','REAL'),('trailing_yld','REAL'),('trailing_grade','TEXT'),
-                        ('contract_chg','REAL')]:
+                        ('contract_chg','REAL'),
+                        ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except Exception: pass
         try: conn_init.commit()
@@ -1454,7 +1489,8 @@ def get_stocks():
                        weighted_eps, weighted_div, weighted_pe, weighted_yld, weighted_grade, weighted_payout,
                        blend_eps, blend_div, blend_pe, blend_yld, blend_grade,
                        eps_4q_sum, trailing_div, trailing_pe, trailing_yld, trailing_grade,
-                       contract_chg, listed_date
+                       contract_chg, listed_date,
+                       val_aa, val_a1, val_a2, val_a, val_lt6
                 FROM stocks WHERE 1=1"""
     params = []
     exact = request.args.get("exact", "")

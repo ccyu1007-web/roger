@@ -2278,41 +2278,8 @@ function calcDerived(r) {
       r.trailing_grade = 'X';
   }
 
-  // 評價等級計算（必須在 est_eps/est_div 之後）
-  // 個股自訂參數 > 全域預設
-  {
-    const eps = r.est_eps != null ? r.est_eps : r.shen_eps;
-    const div = r.est_div != null ? r.est_div : r.shen_div;
-    const bDiv = r.blend_div;
-    let peLo = _globalVal.peLow || 10;
-    let peHi = _globalVal.peHigh || 18;
-    let yldHigh = _globalVal.yldHigh || 5.5;
-    let yldMax = _globalVal.yldMax || 6;
-    if (r._ue) {
-      if (r._ue.peLow) peLo = parseFloat(r._ue.peLow);
-      if (r._ue.peHigh) peHi = parseFloat(r._ue.peHigh);
-      if (r._ue.yldHigh) yldHigh = parseFloat(r._ue.yldHigh);
-      if (r._ue.yldMax) yldMax = parseFloat(r._ue.yldMax);
-    }
-    const peMid = (peLo + peHi) / 2;
-    const peLoBias = (peMid + peLo) / 2;
-
-    function _calcVal(peVal, yldVal) {
-      if (eps == null || eps <= 0 || div == null || div <= 0) return null;
-      const v1 = eps * peVal;
-      const v2 = div / (yldVal / 100);
-      const v3 = bDiv != null && bDiv > 0 ? bDiv / 0.06 + div : null;
-      const candidates = [v1, v2];
-      if (v3 != null) candidates.push(v3);
-      return Math.round(Math.min(...candidates) * 100) / 100;
-    }
-
-    r.val_aa = _calcVal(peLo, yldMax);
-    r.val_a1 = _calcVal(peLo, yldHigh);
-    r.val_a2 = _calcVal(peLoBias, yldMax);
-    r.val_a  = _calcVal(peLoBias, yldHigh);
-    r.val_lt6 = bDiv != null && bDiv > 0 ? Math.round(bDiv / 0.06 * 100) / 100 : null;
-  }
+  // 評價門檻：直接從 DB 讀取（後端 recalc_all_derived 統一計算）
+  // val_aa, val_a1, val_a2, val_a, val_lt6 已由 API 回傳
 }
 
 // ── 加權股息 ─────────────────────────────────────────────

@@ -1980,10 +1980,11 @@ def snapshot_stock_states():
                                 eps_4, eps_4q, eps_5, eps_5q,
                                 eps_y1, eps_ytd, fin_grade_1,
                                 div_c1, div_s1, deepest_val_level, val_cheap_days,
-                                sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld
+                                sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld,
+                                val_aa, val_a1, val_a2, val_a, val_lt6
                          FROM stocks WHERE close IS NOT NULL""")
         except Exception as e:
-            print(f"[評價快照] 查詢含系統估算欄位失敗，用舊查詢: {e}")
+            print(f"[評價快照] 查詢失敗，用舊查詢: {e}")
             c.execute("""SELECT code, close, volume,
                                 eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q,
                                 eps_4, eps_4q, eps_5, eps_5q,
@@ -2038,22 +2039,41 @@ def snapshot_stock_states():
             # 個股自訂估值參數（優先於預設值）
             uvp = user_val_params.get(code, {})
 
-            vl = _calc_val_levels(close, shen_eps, shen_div, blend_div,
-                                  pe_low=uvp.get('pe_low'), pe_high=uvp.get('pe_high'),
-                                  yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'),
-                                  est_eps=est_eps, est_div=est_div)
+            # 評價門檻：直接從 stocks 表讀取（recalc_all_derived 統一計算）
+            vl = {
+                'val_aa': row.get('val_aa'),
+                'val_a1': row.get('val_a1'),
+                'val_a2': row.get('val_a2'),
+                'val_a': row.get('val_a'),
+                'val_lt6': row.get('val_lt6'),
+            }
+            # 判定門檻等級（股價 vs 門檻值）
+            tol = 0.005
+            if vl['val_aa'] and close <= vl['val_aa'] + tol:
+                vl['val_level'] = 'AA'
+            elif vl['val_a1'] and close <= vl['val_a1'] + tol:
+                vl['val_level'] = 'A1'
+            elif vl['val_a2'] and close <= vl['val_a2'] + tol:
+                vl['val_level'] = 'A2'
+            elif vl['val_a'] and close <= vl['val_a'] + tol:
+                vl['val_level'] = 'A'
+            elif vl['val_lt6'] and close <= vl['val_lt6'] + tol:
+                vl['val_level'] = '長期6%'
+            else:
+                vl['val_level'] = 'above'
 
-            # 矩陣等級（優先順序：預估 → 沈董 → X），存入但不覆蓋 val_level
-            # val_level 由門檻等級（股價 vs val_aa/a1/a2/a）決定
-            matrix_grade, grade_source = _calc_priority_grade(
-                row, close, uvp,
-                est_eps=ue.get('eps'), est_div=ue.get('div'))
-
-            # 折價%：統一用 val_aa 門檻算（只看相對於AA級的折價幅度）
+            # 折價%：統一用 val_aa 門檻算
             if vl['val_aa'] and vl['val_aa'] > 0 and close:
                 vl['discount_pct'] = round((vl['val_aa'] - close) / vl['val_aa'] * 100, 2)
             else:
                 vl['discount_pct'] = None
+
+            # 矩陣等級（寫入 priority_grade，不覆蓋 val_level）
+            ue = user_est_values.get(code, {})
+            uvp = user_val_params.get(code, {})
+            matrix_grade, grade_source = _calc_priority_grade(
+                row, close, uvp,
+                est_eps=ue.get('eps'), est_div=ue.get('div'))
 
             c.execute("""INSERT INTO stock_state
                          (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
