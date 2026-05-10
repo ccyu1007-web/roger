@@ -563,20 +563,28 @@ def recalc_all_derived(codes=None):
 
 # 檢核項目定義（順序即顯示順序，插入/調序只改這裡）
 CHECKLIST_ITEMS = [
-    # ── 基本門檻（8項）──
-    {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A1/A2 以上 >= 3 年'},
+    # ── 基本門檻（10項）──
+    {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
+    {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
     {'key': 'cum_yoy',        'category': 'base',  'label': '累積營收年增率 >= 0%'},
     {'key': 'gm_change',      'category': 'base',  'label': '最近一季毛利率變化 > 0'},
+    {'key': 'best_aa',        'category': 'base',  'label': '最佳等級達 AA（各種EPS至少一個達AA）'},
+    {'key': 'price_below_aa', 'category': 'base',  'label': '股價低於 AA 門檻'},
     {'key': 'blend_pe_12',    'category': 'base',  'label': '綜合本益比 <= 12 倍'},
     {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
     {'key': 'payout_ok',      'category': 'base',  'label': '配息率 50%~85%（穩定且可持續）'},
     {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
-    {'key': 'shiller_safe',   'category': 'base',  'label': '席勒警示 >= 0.5（非循環高點）'},
-    # ── 成長加分（3項）──
+    # ── 成長加分（10項）──
     {'key': 'neff_growth',    'category': 'bonus', 'label': '聶夫保守成長率 >= 7%'},
     {'key': 'neff_ratio',     'category': 'bonus', 'label': '聶夫 Neff 比率 >= 0.7'},
+    {'key': 'lynch_peg',      'category': 'bonus', 'label': '林區 PEG <= 1.0'},
     {'key': 'lynch_consist',  'category': 'bonus', 'label': '林區成長一致性 >= 0.5'},
-    {'key': 'growth_green',  'category': 'bonus', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
+    {'key': 'growth_green',   'category': 'bonus', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
+    {'key': 'shiller_safe',   'category': 'bonus', 'label': '席勒警示 >= 0.5（非循環高點）'},
+    {'key': 'roic_trend',     'category': 'bonus', 'label': 'ROIC 未連續3年下滑'},
+    {'key': 'gm_trend',       'category': 'bonus', 'label': '毛利率未連續下滑超過3個百分點'},
+    {'key': 'fcf_trend',      'category': 'bonus', 'label': 'FCF/營收未連續3年下滑'},
+    {'key': 'fcf_cover_div',  'category': 'bonus', 'label': 'FCF 覆蓋配息（自由現金流>=現金股利）'},
 ]
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
@@ -641,6 +649,13 @@ def _is_grade_above_b(g):
         return False
     base = g.replace('+', '').replace('-', '')
     return base in ('AA','A1','A2','A','B2A','B1A','B1','B2','BA1','BA2')
+
+def _is_grade_a_level(g):
+    """財務等級是否 A級（AA/A1/A2/B1A/B2A），即值得深入研究的等級"""
+    if not g or g in ('-', 'X'):
+        return False
+    base = g.replace('+', '').replace('-', '')
+    return base in ('AA', 'A1', 'A2', 'B1A', 'B2A')
 
 def _is_grade_a(g):
     """等級是否 A 級以上（AA/A1/A2/A，含 +）"""
