@@ -694,104 +694,39 @@ def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor
     return None
 
 def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_map=None):
-    """計算單支股票的檢核表（名稱制），r 為 stocks 表的 row dict（已含 shen 欄位）"""
+    """計算單支股票的檢核表（名稱制），r 為 stocks 表的 row dict（含所有衍生欄位）
+    所有 EPS/PE/殖利率/等級/評價門檻均直接讀取 stocks 表已存值，不重算。
+    """
     import json
     checks = {}
     detail = {}
 
-    # 讀取參數（個股覆蓋 > 全域預設）
+    # 讀取 PE/殖利率參數（個股覆蓋 > 全域預設，用於 DDM）
     if global_settings is None:
         global_settings = _get_global_settings()
     pe_hi, pe_lo, y_high, y_max = _get_stock_params(user_params, global_settings)
-    y_floor = global_settings.get('yld_floor', 5)
-    est_eps_user, est_div_user = None, None
-    if user_params:
-        qs = [user_params.get(f'q{i}') for i in range(1, 5)]
-        qs = [float(v) for v in qs if v]
-        if qs:
-            est_eps_user = round(sum(qs), 2)
-        # fallback: 估值模型的預估EPS（vmEps）
-        if est_eps_user is None and user_params.get('vmEps') and str(user_params['vmEps']).strip():
-            try: est_eps_user = float(user_params['vmEps'])
-            except Exception: pass
-        if user_params.get('div') and str(user_params['div']).strip():
-            est_div_user = float(user_params['div'])
-        # fallback: 估值模型的預估股利（vmDiv）
-        if est_div_user is None and user_params.get('vmDiv') and str(user_params['vmDiv']).strip():
-            try: est_div_user = float(user_params['vmDiv'])
-            except Exception: pass
 
+    # ── 直接從 stocks 表讀取已算好的值（recalc_all_derived 統一計算）──
     close = r.get('close')
     shen_eps = r.get('shen_eps')
     shen_div = r.get('shen_div')
+    shen_pe = r.get('shen_pe')
+    shen_yld = r.get('shen_yld')
     blend_eps = r.get('blend_eps')
     blend_div = r.get('blend_div')
-    weighted_div = r.get('weighted_div')
-
-    # 沈董EPS 計算過程（用於 chk_4 detail）
-    from datetime import date as _date
-    _cur_roc = _date.today().year - 1911
-    _all_eps = []
-    for i in range(1, 6):
-        q = r.get(f'eps_{i}q')
-        v = r.get(f'eps_{i}')
-        if q and v is not None:
-            _all_eps.append((q, v))
-    _cur_year = [(q, v) for q, v in _all_eps if q and int(q.split('Q')[0]) == _cur_roc]
-    _n = len(_cur_year)
-    if _n >= 4:
-        _eps_parts = ' + '.join(f'{q}:{v}' for q, v in _cur_year)
-        _shen_formula = f'({_eps_parts}) = {shen_eps}'
-    elif _n > 0:
-        _eps_parts = ' + '.join(f'{q}:{v}' for q, v in _cur_year)
-        _s = round(sum(v for _, v in _cur_year), 2)
-        _shen_formula = f'({_eps_parts}) / {_n} × 4 = {_s}/{_n}×4 = {shen_eps}'
-    else:
-        _eps4 = [(f'Q{i}', r.get(f'eps_{i}')) for i in range(1, 5) if r.get(f'eps_{i}') is not None]
-        if len(_eps4) == 4:
-            _eps_parts = ' + '.join(f'{q}:{v}' for q, v in _eps4)
-            _shen_formula = f'近四季({_eps_parts}) = {shen_eps}'
-        else:
-            _shen_formula = f'年度EPS = {shen_eps}'
-
-    # 沈董 PE / 殖利率
-    shen_pe = round(close / shen_eps, 2) if shen_eps and shen_eps > 0 and close else None
-    shen_yld = round(shen_div / close * 100, 2) if shen_div and shen_div > 0 and close and close > 0 else None
-
-    # 沈董等級
-    if shen_eps is not None and shen_eps <= 0:
-        shen_grade = 'X'
-    elif shen_pe and shen_yld:
-        shen_grade = _calc_matrix_grade(shen_pe, shen_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
-    else:
-        shen_grade = None
-
-    # 加權/綜合 EPS/PE/等級：從 _calc_derived_fields 已算好的 r 讀取
-    weighted_eps = r.get('weighted_eps')
-    weighted_pe = r.get('weighted_pe')
-    weighted_yld = r.get('weighted_yld')
-    weighted_grade = r.get('weighted_grade')
     blend_pe = r.get('blend_pe')
     blend_yld = r.get('blend_yld')
-    blend_grade = r.get('blend_grade')
-
-    # 預估 EPS/股利（預估 > 沈董）
-    est_eps = est_eps_user if est_eps_user is not None else None
-    est_div = est_div_user if est_div_user is not None else None
-    est_pe = round(close / est_eps, 2) if est_eps and est_eps > 0 and close else None
-    est_yld = round(est_div / close * 100, 2) if est_div and est_div > 0 and close and close > 0 else None
-    if est_eps is not None and est_eps <= 0:
-        est_grade = 'X'
-    elif est_pe and est_yld:
-        est_grade = _calc_matrix_grade(est_pe, est_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
-    else:
-        est_grade = None
-
-    # 評價門檻：直接從 stocks 表讀取（recalc_all_derived 統一計算）
+    weighted_eps = r.get('weighted_eps')
+    weighted_div = r.get('weighted_div')
+    weighted_pe = r.get('weighted_pe')
+    weighted_yld = r.get('weighted_yld')
+    est_eps = r.get('est_eps')
+    est_div = r.get('est_div')
     val_aa = r.get('val_aa')
     val_a1 = r.get('val_a1')
     val_a2 = r.get('val_a2')
     val_a = r.get('val_a')
+    val_lt6 = r.get('val_lt6')
     lt_div = blend_div
     lt_yld = 6
     lt5 = round(lt_div / 0.05, 2) if lt_div and lt_div > 0 else None
@@ -841,7 +776,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     # best_aa: 各種EPS算的AA門檻至少一個 >= 股價（代表有可能達AA）
     _aa_labels = ['預估', '系統', '沈董', '綜合', '加權', '近四季']
-    _aa_eps_list = [est_eps, r.get('sys_ann_eps'), shen_eps, blend_eps, weighted_eps, r.get('eps_4q_sum')]
+    eps_4q_sum = r.get('eps_4q_sum')
+    _aa_eps_list = [est_eps, r.get('sys_ann_eps'), shen_eps, blend_eps, weighted_eps, eps_4q_sum]
     _aa_candidates = []
     _aa_details = []
     for _lbl, _ep_val in zip(_aa_labels, _aa_eps_list):
@@ -885,10 +821,9 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     # ddm_return: 股利折現模式現價潛在年報酬 >= 10%
     ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
     ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
-    ddm_eps = None
-    if est_eps_user is not None:
-        ddm_eps = est_eps_user
-    else:
+    # EPS 取用順序：預估 > 系統 > 沈董（與 recalc_all_derived 一致）
+    ddm_eps = est_eps
+    if ddm_eps is None:
         sys_eps_val = r.get('sys_ann_eps')
         if sys_eps_val is not None and shen_eps is not None:
             ddm_eps = min(sys_eps_val, shen_eps)
@@ -1257,18 +1192,8 @@ def calc_all_checklists():
     _init_checklist_db()
 
     cur_roc = datetime.now().year - 1911
-    rows = query_db("""SELECT code, name, close, change, revenue_cum_yoy,
-                       eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
-                       eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
-                       eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
-                       eps_ytd, eps_ytd_label,
-                       div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
-                       div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
-                       div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
-                       fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
-                       fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y, fin_grade_5, fin_grade_5y,
-                       sys_ann_eps, sys_ann_div
-                    FROM stocks""")
+    # 直接 SELECT 所有欄位（含衍生欄位），不再重算
+    rows = query_db("SELECT * FROM stocks")
 
     # 批次讀取 user_estimates
     ue_map = {}
@@ -1430,12 +1355,10 @@ def calc_all_checklists():
     gs = _get_global_settings()
     for r in rows:
         r = dict(r)
-        _calc_shen_fields(r, cur_roc, gs)
         up = ue_map.get(r['code'])
-        _calc_derived_fields(r, gs, up)
+        # 所有衍生欄位（shen_eps/blend_pe/val_aa等）已在 stocks 表，直接讀取
         r['_gi'] = gi_map.get(r['code']) or {}
         r['_gm_data'] = gm_map.get(r['code'])
-        r['eps_4q_sum'] = sum(r.get(f'eps_{i}') or 0 for i in range(1, 5)) if r.get('eps_1') is not None else None
         # 席勒PE注入 _gi（_calc_derived_fields 後才有 blend_pe）
         _s_eps = _shiller_map.get(r['code'])
         if _s_eps and len(_s_eps) >= 7:
@@ -1530,25 +1453,12 @@ def _recalc_checklist_single(code):
     from datetime import datetime
     _init_checklist_db()
 
-    cur_roc = datetime.now().year - 1911
-    rows = query_db("""SELECT code, name, close, change, revenue_cum_yoy,
-                       eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
-                       eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
-                       eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
-                       eps_ytd, eps_ytd_label,
-                       div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
-                       div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
-                       div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
-                       fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
-                       fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y, fin_grade_5, fin_grade_5y,
-                       sys_ann_eps, sys_ann_div
-                    FROM stocks WHERE code=?""", (code,))
+    rows = query_db("SELECT * FROM stocks WHERE code=?", (code,))
     if not rows:
         return
 
     r = dict(rows[0])
     gs = _get_global_settings()
-    _calc_shen_fields(r, cur_roc, gs)
 
     # 成長率指標（聶夫/林區）
     try:
@@ -1580,6 +1490,61 @@ def _recalc_checklist_single(code):
         ue = query_db("SELECT params FROM user_estimates WHERE code=?", (code,))
         if ue and ue[0]['params']:
             user_params = json.loads(ue[0]['params'])
+    except Exception: pass
+
+    # 席勒PE注入 _gi
+    try:
+        _fa_eps = query_db("SELECT eps FROM financial_annual WHERE code=? AND year>=? AND eps IS NOT NULL ORDER BY year",
+                           (code, datetime.now().year - 11))
+        _eps_list = [row['eps'] for row in _fa_eps]
+        if len(_eps_list) >= 7 and r.get('_gi') is not None:
+            _avg = sum(_eps_list) / len(_eps_list)
+            r['_gi']['shiller_avg_eps'] = round(_avg, 2)
+            if _avg > 0 and r.get('close') and r['close'] > 0:
+                _sp = round(r['close'] / _avg, 2)
+                r['_gi']['shiller_pe'] = _sp
+                if r.get('blend_pe') and r['blend_pe'] > 0:
+                    r['_gi']['shiller_alert'] = round(r['blend_pe'] / _sp, 2)
+    except Exception: pass
+
+    # 趨勢資料（ROIC/OPM/毛利率/FCF 5年序列）
+    try:
+        _fa5 = query_db("""SELECT year, operating_income, revenue, operating_cf, capex,
+                                  total_equity, pretax_income, tax, gross_profit, cash_dividend, weighted_shares,
+                                  short_term_debt, short_term_notes, current_long_term_debt,
+                                  long_term_bank_debt, other_long_term_debt, bonds_payable, cash_and_equivalents
+                           FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 5""", (code,))
+        _opm_5y, _roic_5y, _gm_5y, _fcf_rev_5y = [], [], [], []
+        _fcf_latest, _div_total = None, None
+        for _fr in _fa5:
+            _oi = _fr.get('operating_income'); _rev = _fr.get('revenue'); _te = _fr.get('total_equity')
+            _pti = _fr.get('pretax_income'); _tx = _fr.get('tax')
+            _ocf = _fr.get('operating_cf'); _capex = _fr.get('capex'); _gp = _fr.get('gross_profit')
+            _yr = _fr.get('year')
+            _opm_val = round(_oi / _rev * 100, 2) if _oi is not None and _rev and _rev > 0 else None
+            _opm_5y.append((_yr, _opm_val))
+            _roic_val = None
+            if _oi is not None and _te and _te > 0:
+                _tr = _tx / _pti if _pti and _pti > 0 and _tx is not None else 0.2
+                _nopat = _oi * (1 - _tr)
+                _ibd = sum(_fr.get(f, 0) or 0 for f in ['short_term_debt','short_term_notes','current_long_term_debt','long_term_bank_debt','other_long_term_debt','bonds_payable'])
+                _cash = _fr.get('cash_and_equivalents', 0) or 0
+                _ic = _te + _ibd - _cash
+                if _ic > 0: _roic_val = round(_nopat / _ic * 100, 2)
+            _roic_5y.append((_yr, _roic_val))
+            _gm_5y.append((_yr, round(_gp / _rev * 100, 2) if _gp is not None and _rev and _rev > 0 else None))
+            _fcf_val = None
+            if _ocf is not None and _capex is not None and _rev and _rev > 0:
+                _fcf = _ocf + _capex
+                _fcf_val = round(_fcf / _rev * 100, 2)
+                if _fcf_latest is None: _fcf_latest = _fcf
+            _fcf_rev_5y.append((_yr, _fcf_val))
+            if _div_total is None:
+                _cd = _fr.get('cash_dividend'); _ws = _fr.get('weighted_shares')
+                if _cd and _cd > 0 and _ws and _ws > 0: _div_total = _cd * _ws * 1000
+        r['_opm_5y'] = _opm_5y; r['_roic_5y'] = _roic_5y
+        r['_gm_5y'] = _gm_5y; r['_fcf_rev_5y'] = _fcf_rev_5y
+        r['_fcf_latest'] = _fcf_latest; r['_div_total_latest'] = _div_total
     except Exception: pass
 
     # 從 DB 讀取已有的 growth_signal（單支重算不重跑成長燈號）
