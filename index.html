@@ -2187,65 +2187,8 @@ function calcDerived(r) {
       : null;
   }
 
-  // 預估 EPS + 等級（優先 DB，fallback localStorage）
-  r.est_eps = null;
-  r.est_pe = null;
-  r.est_grade = null;
-  try {
-    // 優先用 DB 的 user_estimates，沒有才 fallback localStorage
-    let d = r._ue;
-    if (!d) {
-      const saved = localStorage.getItem('estimate_' + r.code);
-      if (saved) d = JSON.parse(saved);
-    }
-    if (d) {
-      // 同步 DB 值到 localStorage（確保一致）
-      if (r._ue) localStorage.setItem('estimate_' + r.code, JSON.stringify(r._ue));
-
-      // EPS：優先 vmEps > q1~q4 加總
-      if (d.vmEps && parseFloat(d.vmEps)) {
-        r.est_eps = Math.round(parseFloat(d.vmEps) * 100) / 100;
-      } else {
-        const qs = [d.q1, d.q2, d.q3, d.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
-        if (qs.length > 0) {
-          r.est_eps = Math.round(qs.reduce((a, b) => a + b, 0) * 100) / 100;
-        }
-      }
-      r.est_pe = (r.est_eps && r.est_eps > 0 && r.close != null)
-        ? Math.round(r.close / r.est_eps * 100) / 100 : null;
-
-      // 預估股利：優先 vmDiv > div
-      const estDiv = (d.vmDiv && parseFloat(d.vmDiv)) ? parseFloat(d.vmDiv)
-        : (d.div ? parseFloat(d.div) : null);
-      r.est_div = estDiv;
-      r.est_yld = (estDiv && r.close && r.close > 0) ? Math.round(estDiv / r.close * 10000) / 100 : null;
-
-      // 計算預估評估等級
-      if (r.est_eps != null && r.est_eps <= 0) {
-        r.est_grade = 'X';
-      } else {
-        if (r.est_pe && r.close && estDiv) {
-          const curYld = estDiv / r.close * 100;
-          r.est_grade = _calcMatrixGrade(r.est_pe, curYld, r.code, r._ue);
-        }
-      }
-    }
-  } catch(e) {}
-
-  // 預估等級 fallback：使用者沒存檔 → 用沈董（不用系統估算）
-  // est_eps/est_div 維持 null，讓評價門檻計算時 fallback 到 shen_eps/shen_div
-
-  // 系統預估等級：優先用後端算好的 priority_grade，沒有才前端自算
-  if (r.priority_grade) {
-    r.sys_grade = r.priority_grade;
-  } else {
-    r.sys_grade = null;
-    if (r.sys_ann_eps != null && r.sys_ann_eps <= 0) {
-      r.sys_grade = 'X';
-    } else if (r.sys_ann_pe != null && r.sys_ann_yld != null && r.sys_ann_pe > 0 && r.sys_ann_yld > 0) {
-      r.sys_grade = _calcMatrixGrade(r.sys_ann_pe, r.sys_ann_yld, r.code, r._ue);
-    }
-  }
+  // 預估 EPS/股利/PE/殖利率/等級、系統等級：全部從 DB 讀取（recalc_all_derived 統一計算）
+  // est_eps, est_div, est_pe, est_yld, est_grade, sys_pe, sys_yld, sys_grade 已由 API 回傳
 
   // 近四季股利/殖利率/評等（DB 無值時 fallback）
   if (!_hasDB && r.eps_4q_sum != null && r.eps_4q_sum > 0) {

@@ -302,7 +302,9 @@ DERIVED_COLS = [
     'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
     'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
     'contract_chg',
-    'val_aa','val_a1','val_a2','val_a','val_lt6'
+    'val_aa','val_a1','val_a2','val_a','val_lt6',
+    'est_eps','est_div','est_pe','est_yld','est_grade',
+    'sys_pe','sys_yld','sys_grade'
 ]
 
 def _calc_derived_fields(r, global_settings=None, user_params=None):
@@ -447,6 +449,49 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
     r['val_a2'] = _calc_val_threshold(pe_lo_bias_v, y_max)
     r['val_a']  = _calc_val_threshold(pe_lo_bias_v, y_high)
     r['val_lt6'] = round(val_bdiv / 0.06, 2) if val_bdiv and val_bdiv > 0 else None
+
+    # ── 預估 EPS/股利/PE/殖利率/等級 ──
+    import json as _json_est
+    _est_eps = None
+    _est_div = None
+    if user_params:
+        # vmEps 優先 > q1~q4 加總
+        if user_params.get('vmEps') and float(user_params.get('vmEps', 0) or 0):
+            _est_eps = round(float(user_params['vmEps']), 2)
+        else:
+            qs = [user_params.get(f'q{i}') for i in range(1, 5)]
+            qs_vals = [float(v) for v in qs if v]
+            if qs_vals:
+                _est_eps = round(sum(qs_vals), 2)
+        # vmDiv 優先 > div
+        if user_params.get('vmDiv') and float(user_params.get('vmDiv', 0) or 0):
+            _est_div = round(float(user_params['vmDiv']), 2)
+        elif user_params.get('div'):
+            _est_div = round(float(user_params['div']), 2)
+    r['est_eps'] = _est_eps
+    r['est_div'] = _est_div
+    r['est_pe'] = round(close / _est_eps, 2) if _est_eps and _est_eps > 0 and close else None
+    r['est_yld'] = round(_est_div / close * 100, 2) if _est_div and _est_div > 0 and close and close > 0 else None
+    if _est_eps is not None and _est_eps <= 0:
+        r['est_grade'] = 'X'
+    elif r['est_pe'] and r['est_yld']:
+        r['est_grade'] = _calc_matrix_grade(r['est_pe'], r['est_yld'], pe_hi, pe_lo, y_max, y_high, y_floor)
+    else:
+        r['est_grade'] = None
+
+    # ── 系統估算等級 ──
+    _sys_eps = r.get('sys_ann_eps')
+    _sys_div = r.get('sys_ann_div')
+    _sys_pe = round(close / _sys_eps, 2) if _sys_eps and _sys_eps > 0 and close else None
+    _sys_yld = round(_sys_div / close * 100, 2) if _sys_div and _sys_div > 0 and close and close > 0 else None
+    r['sys_pe'] = _sys_pe
+    r['sys_yld'] = _sys_yld
+    if _sys_eps is not None and _sys_eps <= 0:
+        r['sys_grade'] = 'X'
+    elif _sys_pe and _sys_yld:
+        r['sys_grade'] = _calc_matrix_grade(_sys_pe, _sys_yld, pe_hi, pe_lo, y_max, y_high, y_floor)
+    else:
+        r['sys_grade'] = None
 
 
 def _save_derived_to_db(code, r):
@@ -1429,7 +1474,9 @@ def get_stocks():
                         ('blend_eps','REAL'),('blend_div','REAL'),('blend_pe','REAL'),('blend_yld','REAL'),('blend_grade','TEXT'),
                         ('eps_4q_sum','REAL'),('trailing_div','REAL'),('trailing_pe','REAL'),('trailing_yld','REAL'),('trailing_grade','TEXT'),
                         ('contract_chg','REAL'),
-                        ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL')]:
+                        ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
+                        ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),
+                        ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except Exception: pass
         try: conn_init.commit()
@@ -1466,7 +1513,9 @@ def get_stocks():
                        blend_eps, blend_div, blend_pe, blend_yld, blend_grade,
                        eps_4q_sum, trailing_div, trailing_pe, trailing_yld, trailing_grade,
                        contract_chg, listed_date,
-                       val_aa, val_a1, val_a2, val_a, val_lt6
+                       val_aa, val_a1, val_a2, val_a, val_lt6,
+                       est_eps, est_div, est_pe, est_yld, est_grade,
+                       sys_pe, sys_yld, sys_grade
                 FROM stocks WHERE 1=1"""
     params = []
     exact = request.args.get("exact", "")
