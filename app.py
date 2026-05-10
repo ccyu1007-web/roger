@@ -545,7 +545,8 @@ def _init_checklist_db():
                  ('gi_roic_avg','REAL'),('gi_roe_avg','REAL'),('gi_opm_avg','REAL'),('gi_fcf_rev_avg','REAL'),
                  ('growth_signal','TEXT'),('growth_rev_momentum','REAL'),
                  ('growth_eps_trend','REAL'),('growth_inv_risk','INTEGER'),
-                 ('growth_detail','TEXT')]
+                 ('growth_detail','TEXT'),
+                 ('gi_rev_3m_yoy','REAL'),('gi_rev_12m_yoy','REAL')]
     for col, typ in add_cols:
         try: conn.execute(f"ALTER TABLE stock_checklist ADD COLUMN {col} {typ}")
         except Exception: pass
@@ -923,12 +924,12 @@ def _calc_growth_signals():
     cur_year = now.year
     cur_roc = cur_year - 1911
 
-    # 1. 營收動能：近3月YoY均值 vs 前3月YoY均值
+    # 1. 營收動能：財報狗 3M/12M 累計營收年增率
     rev_map = defaultdict(list)  # code → [(year, month, revenue), ...]
     try:
         rev_rows = query_db("""SELECT code, year, month, revenue FROM monthly_revenue
                                WHERE year >= ? AND revenue > 0 ORDER BY year, month""",
-                            [cur_roc - 2])
+                            [cur_roc - 3])
         for r in rev_rows:
             rev_map[r['code']].append((r['year'], r['month'], r['revenue']))
     except Exception as e:
@@ -954,43 +955,44 @@ def _calc_growth_signals():
         eps_signal = 0    # 1=成長, 0=持平, -1=衰退
         inv_risk = 0      # 0=正常, 1=警訊
 
-        # ── 營收動能 ──
+        # ── 營收動能（財報狗：3M/12M 累計營收年增率）──
         revs = sorted(rev_map.get(code, []), key=lambda x: (x[0], x[1]))
-        if len(revs) >= 6:
-            # 建立 YoY map
-            rev_by_ym = {(r[0], r[1]): r[2] for r in revs}
-            # 找最近有資料的6個月
-            recent_months = revs[-6:]
-            yoy_list = []
-            for y, m, rev in recent_months:
-                prev_rev = rev_by_ym.get((y - 1, m))
-                if prev_rev and prev_rev > 0:
-                    yoy_list.append(((y, m), (rev - prev_rev) / prev_rev * 100))
+        rev_by_ym = {(r[0], r[1]): r[2] for r in revs}
+        rev_3m = None
+        rev_12m = None
+        if len(revs) >= 3:
+            # 近 3 月累計營收年增率
+            recent_3 = revs[-3:]
+            sum_cur_3 = sum(r[2] for r in recent_3)
+            sum_prev_3 = sum(rev_by_ym.get((r[0] - 1, r[1]), 0) for r in recent_3)
+            if sum_prev_3 > 0:
+                rev_3m = round((sum_cur_3 / sum_prev_3 - 1) * 100, 2)
+                detail['rev_3m'] = rev_3m
+        if len(revs) >= 12:
+            # 近 12 月累計營收年增率
+            recent_12 = revs[-12:]
+            sum_cur_12 = sum(r[2] for r in recent_12)
+            sum_prev_12 = sum(rev_by_ym.get((r[0] - 1, r[1]), 0) for r in recent_12)
+            if sum_prev_12 > 0:
+                rev_12m = round((sum_cur_12 / sum_prev_12 - 1) * 100, 2)
+                detail['rev_12m'] = rev_12m
 
-            if len(yoy_list) >= 6:
-                recent_3 = [v for _, v in yoy_list[-3:]]
-                prev_3 = [v for _, v in yoy_list[-6:-3]]
-                avg_recent = sum(recent_3) / len(recent_3)
-                avg_prev = sum(prev_3) / len(prev_3)
-                momentum = avg_recent - avg_prev
-                detail['rev_recent_3_yoy'] = round(avg_recent, 1)
-                detail['rev_prev_3_yoy'] = round(avg_prev, 1)
-                detail['rev_momentum'] = round(momentum, 1)
-
-                if avg_recent >= 5 and momentum > 3:
-                    rev_signal = 1   # 營收明顯成長且加速
-                elif avg_recent < -5:
-                    rev_signal = -1  # 營收衰退
-                # 其他 = 0 持平
-            elif len(yoy_list) >= 3:
-                recent_3 = [v for _, v in yoy_list[-3:]]
-                avg_recent = sum(recent_3) / len(recent_3)
-                detail['rev_recent_3_yoy'] = round(avg_recent, 1)
-                detail['rev_momentum'] = None
-                if avg_recent > 5:
-                    rev_signal = 1
-                elif avg_recent < -5:
-                    rev_signal = -1
+        # 趨勢判定：短期(3M) vs 長期(12M)
+        if rev_3m is not None and rev_12m is not None:
+            detail['rev_cross'] = 'above' if rev_3m > rev_12m else 'below'
+            if rev_3m > rev_12m and rev_3m > 0:
+                rev_signal = 1   # 短>長且短正成長 = 多頭/轉強
+            elif rev_3m < rev_12m and rev_12m < 0:
+                rev_signal = -1  # 短<長且長為負 = 空頭
+            elif rev_3m < 0 and rev_12m < 0:
+                rev_signal = -1  # 雙負 = 衰退
+            # 其他 = 0 持平
+        elif rev_3m is not None:
+            # 只有短期，用短期判斷
+            if rev_3m >= 5:
+                rev_signal = 1
+            elif rev_3m < -5:
+                rev_signal = -1
 
         # ── 獲利趨勢（最新季EPS vs 去年同季）──
         quarters = sorted(qf_map.get(code, []), key=lambda x: (x[0], x[1]))
@@ -1054,14 +1056,14 @@ def _calc_growth_signals():
         else:
             signal = 'yellow'
 
-        rev_momentum_val = detail.get('rev_momentum') if detail.get('rev_momentum') is not None else detail.get('rev_recent_3_yoy')
-
         result[code] = {
             'growth_signal': signal,
-            'growth_rev_momentum': rev_momentum_val,
+            'growth_rev_momentum': rev_3m,
             'growth_eps_trend': detail.get('eps_yoy'),
             'growth_inv_risk': inv_risk,
             'growth_detail': json.dumps(detail, ensure_ascii=False),
+            'gi_rev_3m_yoy': rev_3m,
+            'gi_rev_12m_yoy': rev_12m,
         }
 
     print(f"[成長燈號] 已計算 {len(result)} 支: 綠={sum(1 for v in result.values() if v['growth_signal']=='green')}, "
@@ -1267,6 +1269,7 @@ def calc_all_checklists():
                        'gi_roic_avg', 'gi_roe_avg', 'gi_opm_avg', 'gi_fcf_rev_avg',
                        'growth_signal', 'growth_rev_momentum', 'growth_eps_trend',
                        'growth_inv_risk', 'growth_detail',
+                       'gi_rev_3m_yoy', 'gi_rev_12m_yoy',
                        'updated_at']
         result['updated_at'] = now
         placeholders = ','.join(['?'] * len(all_fields))
@@ -1506,7 +1509,8 @@ def get_stocks():
                                 gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings,
                                 gi_shiller_avg_eps, gi_shiller_pe, gi_shiller_alert,
                                 gi_roic_avg, gi_roe_avg, gi_opm_avg, gi_fcf_rev_avg,
-                                growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk
+                                growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk,
+                                gi_rev_3m_yoy, gi_rev_12m_yoy
                              FROM stock_checklist""")
         for cr in chk_rows:
             chk_map[cr['code']] = cr
@@ -1551,6 +1555,8 @@ def get_stocks():
                 'roe_avg': chk.get('gi_roe_avg'),
                 'opm_avg': chk.get('gi_opm_avg'),
                 'fcf_rev_avg': chk.get('gi_fcf_rev_avg'),
+                'rev_3m_yoy': chk.get('gi_rev_3m_yoy'),
+                'rev_12m_yoy': chk.get('gi_rev_12m_yoy'),
             }
         else:
             row["_gi"] = None

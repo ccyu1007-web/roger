@@ -362,6 +362,7 @@ def _push_all_to_render():
                         'gi_roic_avg','gi_roe_avg','gi_opm_avg','gi_fcf_rev_avg',
                         'growth_signal','growth_rev_momentum','growth_eps_trend',
                         'growth_inv_risk','growth_detail',
+                        'gi_rev_3m_yoy','gi_rev_12m_yoy',
                         'updated_at'],
             'pk': ['code'],
             'clear_first': True,
@@ -390,6 +391,7 @@ def _push_all_to_render():
                 gi_roic_avg REAL, gi_roe_avg REAL, gi_opm_avg REAL, gi_fcf_rev_avg REAL,
                 growth_signal TEXT, growth_rev_momentum REAL, growth_eps_trend REAL,
                 growth_inv_risk INTEGER, growth_detail TEXT,
+                gi_rev_3m_yoy REAL, gi_rev_12m_yoy REAL,
                 updated_at TEXT)""",
         },
         {
