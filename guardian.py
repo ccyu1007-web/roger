@@ -2043,11 +2043,11 @@ def snapshot_stock_states():
                                   yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'),
                                   est_eps=est_eps, est_div=est_div)
 
-            # 矩陣等級（優先順序：預估 → 沈董 → X）
+            # 矩陣等級（優先順序：預估 → 沈董 → X），存入但不覆蓋 val_level
+            # val_level 由門檻等級（股價 vs val_aa/a1/a2/a）決定
             matrix_grade, grade_source = _calc_priority_grade(
                 row, close, uvp,
                 est_eps=ue.get('eps'), est_div=ue.get('div'))
-            vl['val_level'] = matrix_grade  # 覆蓋原本的 above/AA/A1 等級
 
             # 折價%：統一用 val_aa 門檻算（只看相對於AA級的折價幅度）
             if vl['val_aa'] and vl['val_aa'] > 0 and close:
