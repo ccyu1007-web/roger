@@ -1123,12 +1123,13 @@ def _run_inner(scheduled=True):
     except Exception as e:
         print(f"[交叉校驗] 失敗: {e}")
 
-    # 計算檢核表
-    try:
-        from app import calc_all_checklists
-        calc_all_checklists()
-    except Exception as e:
-        print(f"[Checklist] 計算失敗: {e}")
+    # 計算檢核表（Render 由本機同步，不獨立計算）
+    if not IS_CLOUD:
+        try:
+            from app import calc_all_checklists
+            calc_all_checklists()
+        except Exception as e:
+            print(f"[Checklist] 計算失敗: {e}")
 
     # 重算衍生欄位（沈董/加權/綜合/近四季 PE/殖利率/等級等）
     try:
@@ -4174,11 +4175,12 @@ def _run_prices_inner(scheduled=True):
     except Exception as e: print(f"[重點追蹤] 失敗: {e}")
     print(f"[4.評價快照] {time.time()-t1:.1f}s")
 
-    # 5. Checklist + 衍生欄位
+    # 5. Checklist + 衍生欄位（Checklist 由本機同步，Render 不獨立計算）
     t1 = time.time()
     try:
         from app import calc_all_checklists, recalc_all_derived
-        calc_all_checklists()
+        if not IS_CLOUD:
+            calc_all_checklists()
         recalc_all_derived()
     except Exception as e:
         print(f"[Checklist/Derived] 失敗: {e}")
@@ -4361,11 +4363,12 @@ def _run_maintenance_inner(scheduled=True):
         print(f"[交叉校驗] 失敗: {e}")
     print(f"[11.校驗] {time.time()-t1:.1f}s")
 
-    # 12. Checklist + 衍生欄位
+    # 12. Checklist + 衍生欄位（Checklist 由本機同步，Render 不獨立計算）
     t1 = time.time()
     try:
         from app import calc_all_checklists, recalc_all_derived
-        calc_all_checklists()
+        if not IS_CLOUD:
+            calc_all_checklists()
         recalc_all_derived()
     except Exception as e:
         print(f"[Checklist] 失敗: {e}")

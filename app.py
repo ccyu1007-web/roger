@@ -1732,8 +1732,9 @@ def refresh():
                 except Exception: pass
                 try: fetch_moneydj_news()
                 except Exception: pass
-                try: calc_all_checklists()
-                except Exception: pass
+                if not is_cloud:
+                    try: calc_all_checklists()
+                    except Exception: pass
                 try: recalc_all_derived()
                 except Exception: pass
                 # 本機才 push 到 Render
