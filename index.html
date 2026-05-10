@@ -1792,7 +1792,7 @@ function clearQuality() {
   render();
 }
 
-function autoQualityCheck() {
+function autoQualityCheck(silent) {
   const s = _qSettings;
 
   // 等級排序（用於比較門檻）— 正向：達到門檻以上才算通過
@@ -1803,7 +1803,6 @@ function autoQualityCheck() {
     const thr = s.gradeThreshold;
     return (gradeOrder[base] || 0) >= (gradeOrder[thr] || 7);
   }
-
 
   // 排除產業清單
   const excludeIndustries = new Set();
@@ -1816,32 +1815,24 @@ function autoQualityCheck() {
   let passed = 0, excluded = 0;
 
   allData.forEach(r => {
-    // KY 股
     if (s.excludeKY && r.name && /[-*]?KY$/i.test(r.name.trim())) { excluded++; return; }
-    // 排除產業
     if (r.industry && excludeIndustries.has(r.industry)) { excluded++; return; }
 
-    // 收集五年等級
     const grades = [];
     for (const y of _fixedY) {
       const g = r._fg ? r._fg[y] : null;
       if (g) grades.push(g);
     }
-
-    // 沒有足夠等級資料 → 無法判斷 → 不通過
     if (grades.length < 3) { excluded++; return; }
 
-    // 等級門檻（正向：通過年數不足 → 排除）
     const goodCount = grades.filter(g => meetsThreshold(g)).length;
     if (goodCount < s.gradeYears) { excluded++; return; }
 
-    // ROIC均值門檻
     if (s.roicEnabled) {
       const roicAvg = r._gi?.roic_avg;
       if (roicAvg == null || roicAvg < (s.roicThreshold || 10)) { excluded++; return; }
     }
 
-    // 自訂條件
     if (_qualityCustomConds.length > 0 && !evalCustomConditions(r, _qualityCustomConds)) { excluded++; return; }
 
     qualitySet.add(r.code);
@@ -1849,22 +1840,26 @@ function autoQualityCheck() {
   });
 
   saveQuality();
-  render();
 
-  const includeRules = [];
-  includeRules.push(`等級 ${s.gradeThreshold} 以上 >= ${s.gradeYears} 年`);
-  if (s.roicEnabled) includeRules.push(`ROIC均值 >= ${s.roicThreshold}%`);
-  _qualityCustomConds.forEach(c => {
-    const label = QUALITY_FIELD_OPTIONS.find(f => f.key === c.field)?.label || c.field;
-    includeRules.push(`${label} ${c.op} ${c.value}`);
-  });
-  const excludeRules = [];
-  if (s.excludeKY) excludeRules.push('KY 股');
-  if (excludeIndustries.size) excludeRules.push(`產業：${[...excludeIndustries].join('、')}`);
-  let msg = `自動判斷完成\n通過：${passed} 支\n排除：${excluded} 支\n`;
-  msg += `\n選入條件：\n${includeRules.map((r,i) => `(${i+1}) ${r}`).join('\n')}`;
-  if (excludeRules.length) msg += `\n\n排除條件：\n${excludeRules.map((r,i) => `(${i+1}) ${r}`).join('\n')}`;
-  alert(msg);
+  if (!silent) {
+    render();
+    const includeRules = [];
+    includeRules.push(`等級 ${s.gradeThreshold} 以上 >= ${s.gradeYears} 年`);
+    if (s.roicEnabled) includeRules.push(`ROIC均值 >= ${s.roicThreshold}%`);
+    _qualityCustomConds.forEach(c => {
+      const label = QUALITY_FIELD_OPTIONS.find(f => f.key === c.field)?.label || c.field;
+      includeRules.push(`${label} ${c.op} ${c.value}`);
+    });
+    const excludeRules = [];
+    if (s.excludeKY) excludeRules.push('KY 股');
+    if (excludeIndustries.size) excludeRules.push(`產業：${[...excludeIndustries].join('、')}`);
+    let msg = `自動判斷完成\n通過：${passed} 支\n排除：${excluded} 支\n`;
+    msg += `\n選入條件：\n${includeRules.map((r,i) => `(${i+1}) ${r}`).join('\n')}`;
+    if (excludeRules.length) msg += `\n\n排除條件：\n${excludeRules.map((r,i) => `(${i+1}) ${r}`).join('\n')}`;
+    alert(msg);
+  } else {
+    updateQualityCount();
+  }
 }
 let watchOnly = false;
 
@@ -2187,6 +2182,8 @@ async function loadData() {
     initWeights();
     initBlend();
     initGlobalVal();
+    // 載入時自動用當前設定重算體質判斷（確保設定變更立即生效）
+    autoQualityCheck(true);  // true = 靜默模式，不觸發 render 和 alert
     applySort();
     render();
 
