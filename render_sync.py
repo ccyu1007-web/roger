@@ -185,6 +185,44 @@ def _pull_user_estimates_from_render():
         print(f"[拉回] user_estimates 同步 {updated} 支到本機")
 
 
+def _pull_user_settings_from_render():
+    """從 Render 拉回 user_settings，時間戳較新的覆蓋較舊的"""
+    if _is_cloud():
+        return
+    resp = requests.get(f'{RENDER_URL}/api/user-settings', timeout=30)
+    if resp.status_code != 200:
+        print(f"[拉回] user_settings API 失敗: HTTP {resp.status_code}")
+        return
+    render_data = resp.json()
+    if not render_data:
+        return
+
+    # SYNC_KEYS 對應前端的同步鍵
+    sync_keys = ['watch_settings', 'watch_custom_conds', 'quality_settings', 'quality_custom_conds',
+                 'col_visible', 'global_div_weights', 'blend_ratio', 'global_val_params',
+                 'sort_col', 'sort_asc', 'grade_filters', 'custom_col_preset']
+
+    from datetime import datetime
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    updated = 0
+    with sqlite3.get_conn() as conn:
+        for key in sync_keys:
+            render_val = render_data.get(key)
+            render_time = render_data.get(key + '_time', '2000-01-01')
+            if not render_val:
+                continue
+            local = conn.execute('SELECT value, updated_at FROM user_settings WHERE key=?', (key,)).fetchone()
+            local_time = local[1] if local and local[1] else '2000-01-01'
+            # Render 較新 → 拉回本機
+            if render_time > local_time:
+                conn.execute('INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)',
+                           (key, render_val, render_time))
+                updated += 1
+        conn.commit()
+    if updated:
+        print(f"[拉回] user_settings 同步 {updated} 筆到本機")
+
+
 _LAST_SYNC_TIME_FILE = os.path.join(os.path.dirname(__file__), 'logs', '.last_sync_time')
 
 def _get_last_sync_time():
@@ -210,7 +248,11 @@ def _push_all_to_render():
     if _is_cloud():
         return
 
-    # 先從 Render 拉回 user_estimates（前台設定的預估參數）
+    # 先從 Render 拉回使用者設定（前台操作的參數，Render 較新的覆蓋本機）
+    try:
+        _pull_user_settings_from_render()
+    except Exception as e:
+        print(f"[拉回] user_settings 失敗: {e}")
     try:
         _pull_user_estimates_from_render()
     except Exception as e:
