@@ -874,21 +874,22 @@ function updateTitle(json) {
 
 // ── 年度財報渲染 ──
 function calcFinGrade(d) {
-  const roe = d.roe;
+  // 縱軸改用 ROIC（有值時用 ROIC，無值時 fallback ROE）
+  const roic = d.roic != null ? d.roic : d.roe;
   const opm = d.operating_margin;
   const rev = d.revenue;
   const fcf = d.fcf;
-  if (roe == null || rev == null || rev === 0 || fcf == null) return null;
+  if (roic == null || rev == null || rev === 0 || fcf == null) return null;
 
   const fcfRatio = fcf / rev * 100;  // FCF/營收 (%)
 
-  // 基礎等級：ROE (Y軸) × FCF/營收 (X軸)
+  // 基礎等級：ROIC (Y軸) × FCF/營收 (X軸)，門檻 7%/10%/15% 不變
   let base;
-  if (roe >= 15) {
+  if (roic >= 15) {
     base = fcfRatio < 0 ? 'B1A' : fcfRatio < 5 ? 'A1' : 'AA';
-  } else if (roe >= 10) {
+  } else if (roic >= 10) {
     base = fcfRatio < 0 ? 'B1' : fcfRatio < 5 ? 'A' : 'A2';
-  } else if (roe >= 7) {
+  } else if (roic >= 7) {
     base = fcfRatio < 0 ? 'C' : fcfRatio < 5 ? 'B2' : 'B2A';
   } else {
     base = fcfRatio < 0 ? 'D' : 'C';
@@ -936,7 +937,7 @@ function renderFinTable(data) {
 
   const highlightRows = new Set([
     '毛利', '營業利益', '繼續營業單位損益', '歸屬母公司業主淨利',
-    'ROE', '每股盈餘 (EPS)', '自由現金流（百萬元）',
+    'ROE', 'ROIC', '每股盈餘 (EPS)', '自由現金流（百萬元）',
   ]);
 
   const fmtShares = v => {
@@ -995,6 +996,7 @@ function renderFinTable(data) {
       ['稅後淨利率', d => d.net_margin,       fmtP],
       ['ROA',        d => d.roa,              fmtP],
       ['ROE',        d => d.roe,              fmtP],
+      ['ROIC',       d => d.roic,             fmtP],
       ['盈餘品質率', d => d.earnings_quality, fmtP],
     ]},
   ];

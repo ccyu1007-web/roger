@@ -2960,6 +2960,7 @@ def _quick_update_inner(t0, today_str):
                          'gi_lynch_a','gi_lynch_b','gi_lynch_c','gi_lynch_d',
                          'gi_rev_cagr_5y','gi_shares_change','gi_yield','gi_pe',
                          'gi_gray','gi_neff_gray','gi_lynch_gray','gi_warnings',
+                         'gi_shiller_avg_eps','gi_shiller_pe','gi_shiller_alert','gi_roic_avg',
                          'updated_at'],
                 pk=['code'],
                 since=_today_start,
@@ -2990,20 +2991,20 @@ def _quick_update_inner(t0, today_str):
 
 
 
-def _calc_fin_grade(roe, operating_margin, fcf, revenue):
-    """計算財務體質等級"""
-    if roe is None:
+def _calc_fin_grade(roic, operating_margin, fcf, revenue):
+    """計算財務體質等級（縱軸改用 ROIC，門檻 7%/10%/15% 不變）"""
+    if roic is None:
         return None
     # FCF 無資料時預設中間值（0-5% 區間）
     if fcf is None or revenue is None or revenue == 0:
         fcf_r = 2.5
     else:
         fcf_r = fcf / revenue * 100
-    if roe >= 15:
+    if roic >= 15:
         base = 'B1A' if fcf_r < 0 else ('A1' if fcf_r < 5 else 'AA')
-    elif roe >= 10:
+    elif roic >= 10:
         base = 'B1' if fcf_r < 0 else ('A' if fcf_r < 5 else 'A2')
-    elif roe >= 7:
+    elif roic >= 7:
         base = 'C' if fcf_r < 0 else ('B2' if fcf_r < 5 else 'B2A')
     else:
         base = 'D' if fcf_r < 0 else 'C'
@@ -3043,8 +3044,11 @@ def _refresh_fin_grades():
 
         updated = 0
         for code in codes:
-            c.execute("""SELECT year, revenue, operating_income, net_income,
-                                total_equity, operating_cf, capex
+            c.execute("""SELECT year, revenue, operating_income, pretax_income, tax, net_income,
+                                total_equity, total_assets, operating_cf, capex,
+                                cash_and_equivalents, short_term_debt, short_term_notes,
+                                current_long_term_debt, long_term_bank_debt,
+                                other_long_term_debt, bonds_payable
                          FROM financial_annual WHERE code = ? AND year <= ?
                          ORDER BY year DESC LIMIT 5""", (code, max_year))
             rows = c.fetchall()
@@ -3055,16 +3059,38 @@ def _refresh_fin_grades():
             for i, row in enumerate(rows, 1):
                 rev = row['revenue']
                 oi = row['operating_income']
+                pti = row['pretax_income']
+                tx = row['tax']
                 ni = row['net_income']
                 te = row['total_equity']
+                ta = row['total_assets']
                 ocf = row['operating_cf']
-                capex = row['capex']
+                capex_val = row['capex']
 
-                roe = round(ni / te * 100, 2) if te and ni is not None else None
                 opm = round(oi / rev * 100, 2) if rev and oi is not None else None
-                fcf = round(ocf + capex, 2) if ocf is not None and capex is not None else None
+                fcf = round(ocf + capex_val, 2) if ocf is not None and capex_val is not None else None
 
-                grade = _calc_fin_grade(roe, opm, fcf, rev)
+                # ROIC 計算（Dorsey/晨星標準版）
+                roic = None
+                if oi is not None and te:
+                    tax_rate = tx / pti if pti and pti > 0 and tx is not None else 0.2
+                    nopat = oi * (1 - tax_rate)
+                    # 有息負債
+                    ibd = sum(row[f] or 0 for f in ['short_term_debt', 'short_term_notes',
+                              'current_long_term_debt', 'long_term_bank_debt',
+                              'other_long_term_debt', 'bonds_payable'])
+                    cash = row['cash_and_equivalents'] or 0
+                    invested_capital = te + ibd - cash
+                    if invested_capital > 0:
+                        roic = round(nopat / invested_capital * 100, 2)
+                    elif ta and ta > 0:
+                        # fallback：NOPAT / 總資產
+                        roic = round(nopat / ta * 100, 2)
+                # 無 ROIC 資料時 fallback 為 ROE
+                if roic is None and te and ni is not None:
+                    roic = round(ni / te * 100, 2)
+
+                grade = _calc_fin_grade(roic, opm, fcf, rev)
                 updates[f'fin_grade_{i}'] = grade
                 updates[f'fin_grade_{i}y'] = str(row['year'] - 1911)
 
@@ -3565,7 +3591,6 @@ def fetch_historical_daily_prices(start_date=None, end_date=None):  # noqa - 已
         _time.sleep(2)  # 避免太頻繁
 
     print(f"[歷史股價] 完成：{saved_count} 筆，失敗/假日 {len(failed_dates)} 天")
-    """
 
 
 def refresh_prices():

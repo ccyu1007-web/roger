@@ -191,6 +191,7 @@
   body.hide-g-revmon .g-revmon,
   body.hide-g-val .g-val,
   body.hide-g-blend .g-blend,
+  body.hide-g-shiller .g-shiller,
   body.hide-g-inst .g-inst,
   body.hide-g-wt .g-wt,
   body.hide-g-cl .g-cl,
@@ -544,6 +545,10 @@
           <th class="g-blend" data-col="blend_yld" onclick="sortBy('blend_yld')">綜合殖利率<span class="sort-icon" id="si_blend_yld">↕</span></th>
           <th class="g-blend" data-col="blend_eps" onclick="sortBy('blend_eps')">綜合EPS<span class="sort-icon" id="si_blend_eps">↕</span></th>
           <th class="g-blend" data-col="blend_div" onclick="sortBy('blend_div')">綜合股利<span class="sort-icon" id="si_blend_div">↕</span></th>
+          <!-- 席勒警示 -->
+          <th class="g-shiller col-div" data-col="shiller_avg_eps" onclick="sortBy('shiller_avg_eps')">10年均EPS<span class="sort-icon" id="si_shiller_avg_eps">↕</span></th>
+          <th class="g-shiller" data-col="shiller_pe" onclick="sortBy('shiller_pe')">席勒PE<span class="sort-icon" id="si_shiller_pe">↕</span></th>
+          <th class="g-shiller" data-col="shiller_alert" onclick="sortBy('shiller_alert')">席勒警示<span class="sort-icon" id="si_shiller_alert">↕</span></th>
           <!-- 近四季 -->
           <th class="g-trail col-div" data-col="trail_ytd" onclick="sortBy('eps_ytd')">當年累計<span class="sort-icon" id="si_eps_ytd">↕</span></th>
           <th class="g-trail" data-col="trail_grade" onclick="sortBy('trailing_grade')">近四季評等<span class="sort-icon" id="si_trailing_grade">↕</span></th>
@@ -617,6 +622,7 @@ const COL_GROUPS = [
   { key: 'g-sys',  label: '系統估算', default: false },
   { key: 'g-shen', label: '沈董明細', default: false },
   { key: 'g-blend', label: '綜合明細', default: false },
+  { key: 'g-shiller', label: '席勒警示', default: false },
   { key: 'g-wt',   label: '加權明細', default: false },
   { key: 'g-trail', label: '近四季明細', default: false },
   { key: 'g-fg',   label: '財務等級', default: true },
@@ -759,6 +765,10 @@ const CUSTOM_COLS = [
   { group: '綜合明細', cols: [
     { id: 'blend_grade', label: '等級' }, { id: 'blend_pe', label: 'PE' }, { id: 'blend_yld', label: '殖利率' },
     { id: 'blend_eps', label: 'EPS' }, { id: 'blend_div', label: '股利' }
+  ]},
+  { group: '席勒警示', cols: [
+    { id: 'shiller_avg_eps', label: '10年均EPS' }, { id: 'shiller_pe', label: '席勒PE' },
+    { id: 'shiller_alert', label: '席勒警示' }
   ]},
   { group: '加權明細', cols: [
     { id: 'wt_grade', label: '等級' }, { id: 'wt_pe', label: 'PE' }, { id: 'wt_yld', label: '殖利率' },
@@ -2722,6 +2732,7 @@ function sortBy(col) {
    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
    'contract_1','contract_2','contract_3','contract_chg',
    'neff_a','neff_b','neff_3a','neff_3b','neff_c','rev_cagr_3y','rev_cagr_5y','neff_d','neff_ig','lynch_a','lynch_b','lynch_c','lynch_d',
+   'shiller_avg_eps','shiller_pe','shiller_alert',
    'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'].forEach(c => {
     const el = document.getElementById(`si_${c}`);
     if (el) el.textContent = '↕';
@@ -2747,6 +2758,7 @@ function applySort() {
                    'weighted_div','weighted_eps','weighted_payout','weighted_pe','weighted_yld','weighted_grade',
                    'contract_1','contract_2','contract_3','contract_chg',
                    'neff_a','neff_b','neff_3a','neff_3b','neff_c','rev_cagr_3y','rev_cagr_5y','neff_d','neff_ig','lynch_a','lynch_b','lynch_c','lynch_d',
+                   'shiller_avg_eps','shiller_pe','shiller_alert',
                    'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'];
   filtered.sort((a, b) => {
     let av, bv;
@@ -2760,7 +2772,7 @@ function applySort() {
     else if (sortCol === 'neff_ig') { av = a._gi?.intrinsic_growth; bv = b._gi?.intrinsic_growth; }
     else if (sortCol === 'rev_cagr_3y') { av = a._gi?.rev_cagr_3y; bv = b._gi?.rev_cagr_3y; }
     else if (sortCol === 'rev_cagr_5y') { av = a._gi?.rev_cagr_5y; bv = b._gi?.rev_cagr_5y; }
-    else if (sortCol.startsWith('neff_') || sortCol.startsWith('lynch_')) { av = a._gi?.[sortCol]; bv = b._gi?.[sortCol]; }
+    else if (sortCol.startsWith('neff_') || sortCol.startsWith('lynch_') || sortCol.startsWith('shiller_')) { av = a._gi?.[sortCol]; bv = b._gi?.[sortCol]; }
     else { av = a[sortCol]; bv = b[sortCol]; }
     const isNum = numCols.includes(sortCol) || sortCol.startsWith('_');
     if (isNum) { av = av ?? -Infinity; bv = bv ?? -Infinity; }
@@ -3050,6 +3062,10 @@ function render() {
       <td class="g-blend" data-col="blend_yld">${r.blend_yld != null ? r.blend_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-blend" data-col="blend_eps">${r.blend_eps != null ? r.blend_eps.toFixed(2) : '－'}</td>
       <td class="g-blend" data-col="blend_div">${r.blend_div != null ? r.blend_div.toFixed(2) : '－'}</td>
+      <!-- 席勒警示 -->
+      <td class="g-shiller col-div" data-col="shiller_avg_eps">${r._gi && r._gi.shiller_avg_eps != null ? r._gi.shiller_avg_eps.toFixed(2) : '－'}</td>
+      <td class="g-shiller" data-col="shiller_pe">${r._gi && r._gi.shiller_pe != null ? r._gi.shiller_pe.toFixed(2) : '－'}</td>
+      <td class="g-shiller" data-col="shiller_alert" style="font-weight:700;${r._gi && r._gi.shiller_alert != null ? (r._gi.shiller_alert < 0.5 ? 'background:#fecaca;color:#dc2626' : 'background:#dcfce7;color:#16a34a') : ''}">${r._gi && r._gi.shiller_alert != null ? r._gi.shiller_alert.toFixed(2) : '－'}</td>
       <!-- 近四季 -->
       <td class="g-trail col-div" data-col="trail_ytd">${r.eps_ytd != null ? r.eps_ytd.toFixed(2) : '－'}</td>
       <td class="g-trail" data-col="trail_grade">${gradeHtml(r.trailing_grade)}</td>

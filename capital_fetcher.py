@@ -643,7 +643,9 @@ def fetch_capital_financials(code):
 # ── 資產負債表（年表）────────────────────────────────────
 
 def fetch_capital_balance_sheet(code):
-    """從群益抓取年度資產負債表，補寫 total_assets / total_equity / common_stock / inventory / contract_liability"""
+    """從群益抓取年度資產負債表，補寫 total_assets / total_equity / common_stock / inventory / contract_liability
+       + ROIC 所需欄位：cash_and_equivalents / short_term_debt / short_term_notes /
+         current_long_term_debt / long_term_bank_debt / other_long_term_debt / bonds_payable"""
     url = f"https://stock.capital.com.tw/z/zc/zcp/zcpb/zcpb.djhtm?a={code}"
     texts = _fetch_page(url)
     if not texts:
@@ -658,60 +660,60 @@ def fetch_capital_balance_sheet(code):
         '股本': 'common_stock',
         '存貨': 'inventory',
         '合約負債－流動': 'contract_liability',
+        # ROIC 所需欄位
+        '現金及約當現金': 'cash_and_equivalents',
+        '短期借款': 'short_term_debt',
+        '應付商業本票／承兌匯票': 'short_term_notes',
+        '一年內到期長期負債': 'current_long_term_debt',
+        '銀行借款－非流動': 'long_term_bank_debt',
+        '其他長期借款－非流動': 'other_long_term_debt',
+        '應付公司債－非流動': 'bonds_payable',
     }
     data = _extract_yearly_data(texts, row_labels)
     if not data:
         return 0
 
+    # ROIC 新增欄位清單
+    roic_cols = ['cash_and_equivalents', 'short_term_debt', 'short_term_notes',
+                 'current_long_term_debt', 'long_term_bank_debt', 'other_long_term_debt', 'bonds_payable']
+    all_extra_cols = ['inventory', 'contract_liability'] + roic_cols
+
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
         # 確保欄位存在
-        for col in ['inventory', 'contract_liability']:
+        for col in all_extra_cols:
             try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} REAL")
             except Exception: pass
         mul = 1000000  # 百萬 → 元
 
+        # 所有需要寫入的欄位（含基本 + ROIC）
+        all_fields = ['total_assets', 'total_equity', 'common_stock',
+                      'inventory', 'contract_liability'] + roic_cols
+
         saved = 0
         for year_str, fields in data.items():
             yr = int(float(year_str))
-            ta = fields.get('total_assets')
-            te = fields.get('total_equity')
-            cs = fields.get('common_stock')
-            inv = fields.get('inventory')
-            cl = fields.get('contract_liability')
+            vals = {}
+            for f in all_fields:
+                v = fields.get(f)
+                vals[f] = v * mul if v is not None else None
 
-            for v_name in ['ta', 'te', 'cs', 'inv', 'cl']:
-                v = locals()[v_name]
-                if v is not None:
-                    locals()[v_name] = v * mul
-
-            ta = fields.get('total_assets')
-            te = fields.get('total_equity')
-            cs = fields.get('common_stock')
-            inv = fields.get('inventory')
-            cl = fields.get('contract_liability')
-            if ta is not None: ta *= mul
-            if te is not None: te *= mul
-            if cs is not None: cs *= mul
-            if inv is not None: inv *= mul
-            if cl is not None: cl *= mul
-
-            if ta is None and te is None:
+            if vals['total_assets'] is None and vals['total_equity'] is None:
                 continue
 
+            # 動態組 SQL
+            col_names = ', '.join(all_fields)
+            placeholders = ', '.join(['?'] * len(all_fields))
+            coalesce_parts = ', '.join(f'{f}=COALESCE(excluded.{f}, {f})' for f in all_fields)
+
             try:
-                c.execute("""INSERT INTO financial_annual (code, year, total_assets, total_equity, common_stock,
-                             inventory, contract_liability, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?)
+                c.execute(f"""INSERT INTO financial_annual (code, year, {col_names}, updated_at)
+                    VALUES (?,?,{placeholders},?)
                     ON CONFLICT(code, year) DO UPDATE SET
-                    total_assets=COALESCE(excluded.total_assets, total_assets),
-                    total_equity=COALESCE(excluded.total_equity, total_equity),
-                    common_stock=COALESCE(excluded.common_stock, common_stock),
-                    inventory=COALESCE(excluded.inventory, inventory),
-                    contract_liability=COALESCE(excluded.contract_liability, contract_liability),
+                    {coalesce_parts},
                     updated_at=excluded.updated_at""",
-                    (code, yr, ta, te, cs, inv, cl, now_str))
+                    [code, yr] + [vals[f] for f in all_fields] + [now_str])
                 saved += 1
             except Exception as e: logger.debug(f"[群益BS] {code} {yr} 寫入失敗: {e}")
 

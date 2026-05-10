@@ -542,6 +542,8 @@ def _init_checklist_db():
                  ('gi_yield','REAL'),('gi_pe','REAL'),
                  ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
                  ('gi_warnings','TEXT'),
+                 ('gi_shiller_avg_eps','REAL'),('gi_shiller_pe','REAL'),('gi_shiller_alert','REAL'),
+                 ('gi_roic_avg','REAL'),
                  ('growth_signal','TEXT'),('growth_rev_momentum','REAL'),
                  ('growth_eps_trend','REAL'),('growth_inv_risk','INTEGER'),
                  ('growth_detail','TEXT')]
@@ -1177,6 +1179,50 @@ def calc_all_checklists():
     except Exception as e:
         print(f"[Checklist] 毛利率查詢失敗: {e}")
 
+    # 預載10年EPS（席勒PE用）和5年ROIC
+    _shiller_map = {}  # {code: [eps_list]}
+    _roic_map = {}     # {code: [roic_list]}
+    try:
+        _fa_rows = query_db(
+            """SELECT code, year, eps, operating_income, pretax_income, tax,
+                      total_equity, total_assets, cash_and_equivalents,
+                      short_term_debt, short_term_notes, current_long_term_debt,
+                      long_term_bank_debt, other_long_term_debt, bonds_payable
+               FROM financial_annual WHERE year >= ?
+               ORDER BY code, year""",
+            (datetime.now().year - 11,)
+        )
+        from collections import defaultdict
+        _fa_by_code = defaultdict(list)
+        for _fr in _fa_rows:
+            _fa_by_code[_fr['code']].append(_fr)
+        for _code, _frs in _fa_by_code.items():
+            # 席勒：收集10年EPS
+            _eps_list = [_fr['eps'] for _fr in _frs if _fr.get('eps') is not None]
+            if len(_eps_list) >= 7:
+                _shiller_map[_code] = _eps_list
+            # ROIC：收集最近5年
+            _roic_vals = []
+            for _fr in _frs[-5:]:
+                _oi = _fr.get('operating_income')
+                _te = _fr.get('total_equity')
+                _pti = _fr.get('pretax_income')
+                _tx = _fr.get('tax')
+                if _oi is not None and _te and _te > 0:
+                    _tr = _tx / _pti if _pti and _pti > 0 and _tx is not None else 0.2
+                    _nopat = _oi * (1 - _tr)
+                    _ibd = sum(_fr.get(f, 0) or 0 for f in ['short_term_debt', 'short_term_notes',
+                                'current_long_term_debt', 'long_term_bank_debt',
+                                'other_long_term_debt', 'bonds_payable'])
+                    _cash = _fr.get('cash_and_equivalents', 0) or 0
+                    _ic = _te + _ibd - _cash
+                    if _ic > 0:
+                        _roic_vals.append(round(_nopat / _ic * 100, 2))
+            if _roic_vals:
+                _roic_map[_code] = _roic_vals
+    except Exception as e:
+        print(f"[Checklist] 席勒/ROIC 預載失敗: {e}")
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -1198,6 +1244,24 @@ def calc_all_checklists():
         gs_data = growth_map.get(r['code'], {})
         result.update(gs_data)
 
+        # 席勒PE警示計算
+        _s_eps = _shiller_map.get(r['code'])
+        if _s_eps and len(_s_eps) >= 7:
+            _avg_eps = sum(_s_eps) / len(_s_eps)
+            result['gi_shiller_avg_eps'] = round(_avg_eps, 2)
+            _close = r.get('close')
+            if _avg_eps > 0 and _close and _close > 0:
+                _shiller_pe = _close / _avg_eps
+                result['gi_shiller_pe'] = round(_shiller_pe, 2)
+                _blend_pe = r.get('blend_pe')
+                if _blend_pe and _blend_pe > 0:
+                    result['gi_shiller_alert'] = round(_blend_pe / _shiller_pe, 2)
+
+        # ROIC 5年均值
+        _rv = _roic_map.get(r['code'])
+        if _rv:
+            result['gi_roic_avg'] = round(sum(_rv) / len(_rv), 2)
+
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
         all_fields = ['code'] + chk_fields + [
@@ -1209,6 +1273,7 @@ def calc_all_checklists():
                        'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
                        'gi_rev_cagr_3y', 'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
                        'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
+                       'gi_shiller_avg_eps', 'gi_shiller_pe', 'gi_shiller_alert', 'gi_roic_avg',
                        'growth_signal', 'growth_rev_momentum', 'growth_eps_trend',
                        'growth_inv_risk', 'growth_detail',
                        'updated_at']
@@ -1448,6 +1513,7 @@ def get_stocks():
                                 gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
                                 gi_rev_cagr_3y, gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
                                 gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings,
+                                gi_shiller_avg_eps, gi_shiller_pe, gi_shiller_alert, gi_roic_avg,
                                 growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk
                              FROM stock_checklist""")
         for cr in chk_rows:
@@ -1481,6 +1547,10 @@ def get_stocks():
                 'gray': bool(chk['gi_gray']), 'neff_gray': bool(chk['gi_neff_gray']),
                 'lynch_gray': bool(chk['gi_lynch_gray']),
                 'warnings': _json_mod.loads(chk['gi_warnings']) if chk['gi_warnings'] else [],
+                'shiller_avg_eps': chk.get('gi_shiller_avg_eps'),
+                'shiller_pe': chk.get('gi_shiller_pe'),
+                'shiller_alert': chk.get('gi_shiller_alert'),
+                'roic_avg': chk.get('gi_roic_avg'),
             }
         else:
             row["_gi"] = None
@@ -2357,6 +2427,20 @@ def get_financials(code):
         d['roa'] = round(ni / ta * 100, 2) if ta and ni is not None else None
         # ROE
         d['roe'] = round(ni / te * 100, 2) if te and ni is not None else None
+        # ROIC（Dorsey/晨星標準版：NOPAT / 投入資本）
+        d['roic'] = None
+        if oi is not None and te:
+            _tr = (d.get('tax') or 0) / pti if pti and pti > 0 else 0.2
+            _nopat = oi * (1 - _tr)
+            _ibd = sum(d.get(f, 0) or 0 for f in ['short_term_debt', 'short_term_notes',
+                        'current_long_term_debt', 'long_term_bank_debt',
+                        'other_long_term_debt', 'bonds_payable'])
+            _cash = d.get('cash_and_equivalents', 0) or 0
+            _ic = te + _ibd - _cash
+            if _ic > 0:
+                d['roic'] = round(_nopat / _ic * 100, 2)
+            elif ta and ta > 0:
+                d['roic'] = round(_nopat / ta * 100, 2)
         # 盈餘品質率
         # 稅後淨利為負時不計算盈餘品質率（無意義）
         d['earnings_quality'] = round(ocf / ni * 100, 2) if ni and ni > 0 and ocf is not None else None
@@ -2393,14 +2477,34 @@ def get_financials(code):
 
         data.append(d)
 
-    # 計算財務體質等級並寫入 stocks 表
+    # 計算財務體質等級並寫入 stocks 表（使用 ROIC，無資料時 fallback ROE）
     if data:
         try:
             with sqlite3.get_conn() as conn2:
                 c2 = conn2.cursor()
                 updates = {}
                 for i, d in enumerate(data[:5], 1):
-                    grade = _calc_fin_grade(d.get('roe'), d.get('operating_margin'), d.get('fcf'), d.get('revenue'))
+                    # ROIC 計算
+                    roic_val = None
+                    oi_v = d.get('operating_income')
+                    te_v = d.get('total_equity')
+                    pti_v = d.get('pretax_income')
+                    tx_v = d.get('tax')
+                    if oi_v is not None and te_v:
+                        tr = tx_v / pti_v if pti_v and pti_v > 0 and tx_v is not None else 0.2
+                        nopat_v = oi_v * (1 - tr)
+                        ibd_v = sum(d.get(f, 0) or 0 for f in ['short_term_debt', 'short_term_notes',
+                                    'current_long_term_debt', 'long_term_bank_debt',
+                                    'other_long_term_debt', 'bonds_payable'])
+                        cash_v = d.get('cash_and_equivalents', 0) or 0
+                        ic_v = te_v + ibd_v - cash_v
+                        if ic_v > 0:
+                            roic_val = round(nopat_v / ic_v * 100, 2)
+                        elif d.get('total_assets') and d['total_assets'] > 0:
+                            roic_val = round(nopat_v / d['total_assets'] * 100, 2)
+                    if roic_val is None:
+                        roic_val = d.get('roe')  # fallback ROE
+                    grade = _calc_fin_grade(roic_val, d.get('operating_margin'), d.get('fcf'), d.get('revenue'))
                     updates[f'fin_grade_{i}'] = grade
                     updates[f'fin_grade_{i}y'] = d.get('year_label')
                 for i in range(len(data[:5]) + 1, 6):
@@ -3068,7 +3172,26 @@ def _calc_growth_indicators(_json, _dt):
         except Exception:
             pass
 
-    # ── 4. 逐支計算
+    # ── 4a. 預載月營收（林區一致性用，60個月 YoY）
+    _mr_min_year = current_year - 1911 - 6  # 民國年，多抓1年供 YoY 計算
+    mr_rows = query_db(
+        "SELECT code, year, month, revenue FROM monthly_revenue WHERE year >= ?",
+        (_mr_min_year,)
+    )
+    mr_map = {}  # {code: {(year, month): revenue}}
+    for r in mr_rows:
+        mr_map.setdefault(r['code'], {})[(r['year'], r['month'])] = r['revenue']
+
+    # ── 4b. 預載季EPS（林區一致性用，20季 YoY）
+    _q_min_year = current_year - 6
+    qf_rows = query_db(
+        "SELECT code, quarter, eps FROM quarterly_financial WHERE quarter IS NOT NULL"
+    )
+    qf_map = {}  # {code: {quarter_str: eps}}
+    for r in qf_rows:
+        qf_map.setdefault(r['code'], {})[r['quarter']] = r.get('eps')
+
+    # ── 5. 逐支計算
     result = {}
     for code, rows in fa_map.items():
         # 按年份排序
@@ -3304,9 +3427,64 @@ def _calc_growth_indicators(_json, _dt):
         recent_yoy = yoy_pct_list[-5:] if len(yoy_pct_list) >= 5 else yoy_pct_list
         lynch_b = sum(recent_yoy) / len(recent_yoy) if recent_yoy else None
 
-        # ── 林區：成長一致性（C）
+        # ── 林區：成長一致性（C）— 新版：用月營收60筆 + 季EPS 20筆
         lynch_c = None
-        if lynch_b is not None and a_pct is not None and a_pct > 0:
+        _mr = mr_map.get(code, {})
+        _qf = qf_map.get(code, {})
+
+        # 月營收 YoY（最近60個月 vs 去年同月）
+        _m_yoys = []
+        _cur_roc = current_year - 1911  # 民國年
+        for _dy in range(5):  # 往回5年
+            for _dm in range(1, 13):
+                _y = _cur_roc - _dy
+                _rev_cur = _mr.get((_y, _dm))
+                _rev_prev = _mr.get((_y - 1, _dm))
+                if _rev_cur and _rev_prev and _rev_prev > 0:
+                    _m_yoys.append((_rev_cur - _rev_prev) / _rev_prev * 100)
+
+        # 季EPS YoY（最近20季 vs 去年同季）
+        import re as _re_mod
+        _q_yoys = []
+        _all_qtrs = sorted(_qf.keys(),
+                           key=lambda q: (int(q[:q.index('Q')]) if 'Q' in q else 0,
+                                          int(q[q.index('Q')+1:]) if 'Q' in q else 0))
+        for _qstr in _all_qtrs[-20:]:
+            _m = _re_mod.match(r'(\d+)Q(\d+)', _qstr)
+            if not _m:
+                continue
+            _qy, _qq = int(_m.group(1)), int(_m.group(2))
+            _prev_qstr = f'{_qy - 1}Q{_qq}'
+            _eps_cur = _qf.get(_qstr)
+            _eps_prev = _qf.get(_prev_qstr)
+            if _eps_cur is not None and _eps_prev is not None and _eps_prev > 0:
+                _q_yoys.append((_eps_cur - _eps_prev) / _eps_prev * 100)
+
+        # 計算一致性分數（0~1）
+        if len(_m_yoys) >= 24:  # 至少2年月營收才有統計意義
+            _pos_ratio = sum(1 for y in _m_yoys if y > 0) / len(_m_yoys)
+            _std = (sum((y - sum(_m_yoys)/len(_m_yoys))**2 for y in _m_yoys) / len(_m_yoys)) ** 0.5
+            # 最長連續負成長月數
+            _max_neg = 0
+            _cur_neg = 0
+            for y in _m_yoys:
+                if y <= 0:
+                    _cur_neg += 1
+                    _max_neg = max(_max_neg, _cur_neg)
+                else:
+                    _cur_neg = 0
+            # 季EPS正成長比例
+            _q_pos = sum(1 for y in _q_yoys if y > 0) / len(_q_yoys) if _q_yoys else 0.5
+
+            lynch_c = (
+                0.30 * _pos_ratio +
+                0.25 * max(0, 1 - _std / 30) +
+                0.25 * max(0, 1 - _max_neg / 12) +
+                0.20 * _q_pos
+            )
+            lynch_c = round(lynch_c, 4)
+        elif lynch_b is not None and a_pct is not None and a_pct > 0:
+            # fallback：資料不足時用舊算法
             lynch_c = 1 - abs(lynch_b - a_pct) / a_pct
             if lynch_c < 0:
                 lynch_c = 0
@@ -4385,7 +4563,6 @@ def _valuation_history_removed():  # noqa
             'days': len(daily_rows),
         },
     })
-    """
 
 
 @app.route("/api/user-estimates-all")
