@@ -415,6 +415,9 @@
       <div class="wb-item"><label><input type="checkbox" id="qExcludeKY" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> KY股</label></div>
       <div class="wb-item"><label><input type="checkbox" id="qExcludeConstruction" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> 營建股</label></div>
       <div class="wb-item"><label>其他排除</label><input id="qExcludeIndustry" type="text" placeholder="逗號分隔產業" style="width:120px" onchange="saveQualitySettings()"></div>
+      <span style="color:#cbd5e1">|</span>
+      <div id="qualityCustomConds" style="display:inline"></div>
+      <button onclick="addQualityCond()" style="padding:2px 8px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">+ 自訂</button>
     </div>
     <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #f59e0b">
       <span class="wb-label" style="color:#f59e0b">觀察挑選：</span>
@@ -903,7 +906,7 @@ let skipSet  = new Set(JSON.parse(localStorage.getItem('skipList') || '[]'));
 let trackSet = new Set(JSON.parse(localStorage.getItem('trackList') || '[]'));
 
 // ── 使用者設定同步（DB ↔ localStorage）──────────────────
-const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings',
+const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings','quality_custom_conds',
   'col_visible','global_div_weights','blend_ratio','global_val_params',
   'sort_col','sort_asc','grade_filters','custom_col_preset'];
 
@@ -944,6 +947,7 @@ async function loadUserSettings() {
     COL_GROUPS.forEach(g => { if (_colVisible[g.key] === undefined) _colVisible[g.key] = g.default; });
     _wSettings = JSON.parse(localStorage.getItem('watch_settings') || 'null') || {...DEFAULT_W_SETTINGS};
     _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
+    _qualityCustomConds = JSON.parse(localStorage.getItem('quality_custom_conds') || '[]');
     _qSettings = JSON.parse(localStorage.getItem('quality_settings') || 'null') || {...DEFAULT_Q_SETTINGS};
     _divWeights = JSON.parse(localStorage.getItem('global_div_weights') || 'null') || [...DEFAULT_WEIGHTS];
     const br = JSON.parse(localStorage.getItem('blend_ratio') || 'null');
@@ -1491,9 +1495,57 @@ const FIELD_OPTIONS = [
   {label:'林區算術平均', key:'_gi.lynch_b'},
   {label:'林區一致性', key:'_gi.lynch_c'},
   {label:'林區PEG', key:'_gi.lynch_d'},
+  {label:'席勒警示', key:'_gi.shiller_alert'},
+  {label:'席勒PE', key:'_gi.shiller_pe'},
+  {label:'10年均EPS', key:'_gi.shiller_avg_eps'},
+  {label:'ROIC均值', key:'_gi.roic_avg'},
+  {label:'內生成長率', key:'_gi.intrinsic_growth'},
+  {label:'3年營收CAGR', key:'_gi.rev_cagr_3y'},
+  {label:'5年營收CAGR', key:'_gi.rev_cagr_5y'},
 ];
 
 let _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
+let _qualityCustomConds = JSON.parse(localStorage.getItem('quality_custom_conds') || '[]');
+
+// ── 體質自訂條件 ──
+function renderQualityConds() {
+  const container = document.getElementById('qualityCustomConds');
+  if (!container) return;
+  container.innerHTML = _qualityCustomConds.map((c, idx) => {
+    const fieldOpts = FIELD_OPTIONS.map(f =>
+      `<option value="${f.key}" ${c.field===f.key?'selected':''}>${f.label}</option>`
+    ).join('');
+    return `<div style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 6px">
+      <select onchange="updateQualityCond(${idx},'field',this.value)" style="border:none;background:none;font-size:.82rem;outline:none;max-width:120px">${fieldOpts}</select>
+      <select onchange="updateQualityCond(${idx},'op',this.value)" style="border:none;background:none;font-size:.82rem;outline:none;width:40px">
+        <option value=">=" ${c.op==='>='?'selected':''}>>=</option>
+        <option value="<=" ${c.op==='<='?'selected':''}><=</option>
+        <option value=">" ${c.op==='>'?'selected':''}>&gt;</option>
+        <option value="<" ${c.op==='<'?'selected':''}>&lt;</option>
+        <option value="=" ${c.op==='='?'selected':''}>=</option>
+      </select>
+      <input type="text" value="${c.value}" onchange="updateQualityCond(${idx},'value',this.value)"
+        style="width:50px;border:1px solid #a7f3d0;border-radius:4px;padding:2px 6px;font-size:.82rem;text-align:right">
+      <button onclick="removeQualityCond(${idx})" style="border:none;background:none;cursor:pointer;color:#ef4444;font-weight:700;font-size:.9rem">x</button>
+    </div>`;
+  }).join('');
+}
+function addQualityCond() {
+  _qualityCustomConds.push({field:'_gi.roic_avg', op:'>=', value:'10'});
+  saveQualityConds(); renderQualityConds();
+}
+function removeQualityCond(idx) {
+  _qualityCustomConds.splice(idx, 1);
+  saveQualityConds(); renderQualityConds();
+}
+function updateQualityCond(idx, prop, val) {
+  _qualityCustomConds[idx][prop] = val;
+  saveQualityConds();
+}
+function saveQualityConds() {
+  localStorage.setItem('quality_custom_conds', JSON.stringify(_qualityCustomConds));
+  syncUserSettings();
+}
 
 function renderConditions() {
   const container = document.getElementById('customConditions');
@@ -1539,8 +1591,9 @@ function saveCustomConditions() {
   syncUserSettings();
 }
 
-function evalCustomConditions(r) {
-  for (const c of _customConditions) {
+function evalCustomConditions(r, conds) {
+  if (!conds) conds = _customConditions;
+  for (const c of conds) {
     let raw = c.field.includes('.') ? c.field.split('.').reduce((o, k) => o?.[k], r) : r[c.field];
     const v = parseFloat(raw);
     const target = parseFloat(c.value);
@@ -1771,6 +1824,9 @@ function autoQualityCheck() {
     const lowCount = grades.filter(g => isLowOpm(g)).length;
     if (lowCount >= s.opmYears) { excluded++; return; }
 
+    // 自訂條件
+    if (_qualityCustomConds.length > 0 && !evalCustomConditions(r, _qualityCustomConds)) { excluded++; return; }
+
     qualitySet.add(r.code);
     passed++;
   });
@@ -1783,6 +1839,10 @@ function autoQualityCheck() {
   rules.push(`營益率 < ${s.opmThreshold}% >= ${s.opmYears} 年`);
   if (s.excludeKY) rules.push('KY 股');
   if (excludeIndustries.size) rules.push(`產業：${[...excludeIndustries].join('、')}`);
+  _qualityCustomConds.forEach(c => {
+    const label = FIELD_OPTIONS.find(f => f.key === c.field)?.label || c.field;
+    rules.push(`${label} ${c.op} ${c.value}`);
+  });
   alert(`自動判斷完成\n通過：${passed} 支\n排除：${excluded} 支\n\n排除條件：\n${rules.map((r,i) => `(${i+1}) ${r}`).join('\n')}`);
 }
 let watchOnly = false;
@@ -2464,6 +2524,7 @@ async function loadData() {
     initWatchSettings();
     initQualitySettings();
     renderConditions();
+    renderQualityConds();
     renderGradeFilters();
     initWeights();
     initBlend();
