@@ -484,19 +484,18 @@ def recalc_all_derived(codes=None):
 
 # 檢核項目定義（順序即顯示順序，插入/調序只改這裡）
 CHECKLIST_ITEMS = [
-    # ── 基本門檻 ──
-    {'key': 'fin_grade',      'category': 'base',  'label': '近五年有 3 年以上財務等級 B 級以上，且近兩年都 B 級以上'},
+    # ── 基本門檻（8項）──
+    {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A1/A2 以上 >= 3 年'},
     {'key': 'cum_yoy',        'category': 'base',  'label': '累積營收年增率 >= 0%'},
     {'key': 'gm_change',      'category': 'base',  'label': '最近一季毛利率變化 > 0'},
-    {'key': 'best_grade_aa',  'category': 'base',  'label': '最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）'},
-    {'key': 'price_below_aa', 'category': 'base',  'label': '目前股價低於總表評價 AA'},
     {'key': 'blend_pe_12',    'category': 'base',  'label': '綜合本益比 <= 12 倍'},
     {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
+    {'key': 'payout_ok',      'category': 'base',  'label': '配息率 < 85%（配息可持續）'},
     {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
-    # ── 成長加分 ──
+    {'key': 'shiller_safe',   'category': 'base',  'label': '席勒警示 >= 0.5（非循環高點）'},
+    # ── 成長加分（3項）──
     {'key': 'neff_growth',    'category': 'bonus', 'label': '聶夫保守成長率 >= 7%'},
     {'key': 'neff_ratio',     'category': 'bonus', 'label': '聶夫 Neff 比率 >= 0.7'},
-    {'key': 'lynch_peg',      'category': 'bonus', 'label': '林區 PEG <= 1.0'},
     {'key': 'lynch_consist',  'category': 'bonus', 'label': '林區成長一致性 >= 0.5'},
 ]
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
@@ -756,53 +755,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
     else:
         detail['gm_change'] = None
 
-    # best_grade_aa: 最佳等級 AA 級（預估>系統>沈董>綜合>加權>近四季）
-    sys_grade = None
-    sys_eps = r.get('sys_ann_eps')
-    sys_div = r.get('sys_ann_div')
-    if sys_eps is not None and sys_eps > 0 and close and close > 0 and sys_div is not None and sys_div > 0:
-        sys_pe = round(close / sys_eps, 2)
-        sys_yld = round(sys_div / close * 100, 2)
-        sys_grade = _calc_matrix_grade(sys_pe, sys_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
-    elif sys_eps is not None and sys_eps <= 0:
-        sys_grade = 'X'
-
-    trail_eps = r.get('eps_4q_sum')
-    trail_div = shen_div
-    trail_grade = None
-    if trail_eps and trail_eps > 0 and close and close > 0 and trail_div and trail_div > 0:
-        trail_pe = round(close / trail_eps, 2)
-        trail_yld = round(trail_div / close * 100, 2)
-        trail_grade = _calc_matrix_grade(trail_pe, trail_yld, pe_hi, pe_lo, y_high, y_max, y_floor)
-    elif trail_eps is not None and trail_eps <= 0:
-        trail_grade = 'X'
-
-    best_grade_order = [
-        ('預估', est_grade),
-        ('系統', sys_grade),
-        ('沈董', shen_grade),
-        ('綜合', blend_grade),
-        ('加權', weighted_grade),
-        ('近四季', trail_grade),
-    ]
-    best_grade = None
-    best_grade_src = ''
-    for src, g in best_grade_order:
-        if g and g not in ('-', 'X', None):
-            best_grade = g
-            best_grade_src = src
-            break
-    checks['best_grade_aa'] = 1 if _is_grade_aa(best_grade) else 0
-    grade_summary = ' / '.join(f'{src}:{g or "-"}' for src, g in best_grade_order)
-    detail['best_grade_aa'] = f'最佳={best_grade_src}:{best_grade}　({grade_summary})'
-
-    # price_below_aa: 目前股價低於總表評價 AA
-    _eps_src = '預估EPS' if est_eps is not None else '沈董EPS'
-    _div_src = '預估股利' if est_div is not None else '沈董股利'
-    _val_param = f'EPS={val_eps}({_eps_src}) 股利={val_div}({_div_src})'
-    checks['price_below_aa'] = 1 if close is not None and val_aa is not None and close <= val_aa + 0.005 else 0
-    detail['price_below_aa'] = f'股價:{close} 評價AA:{val_aa}　{_val_param}' if val_aa is not None else None
-
     # blend_pe_12: 綜合本益比 <= 12 倍
     checks['blend_pe_12'] = 1 if blend_pe is not None and blend_pe > 0 and blend_pe <= 12 else 0
     detail['blend_pe_12'] = f'綜合PE={blend_pe}' if blend_pe is not None else None
@@ -814,6 +766,14 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None):
         detail['blend_yield'] = f'殖利率={blend_yld}%　綜合股利{blend_div} / 股價{close} × 100　股利算法：{_blend_formula}'
     else:
         detail['blend_yield'] = None
+
+    # payout_ok: 配息率 < 85%（配息可持續）
+    _payout = r.get('weighted_payout')
+    checks['payout_ok'] = 1 if _payout is not None and _payout < 85 else (1 if _payout is None else 0)
+    if _payout is not None:
+        detail['payout_ok'] = f'加權配息率={_payout}%'
+    else:
+        detail['payout_ok'] = '無配息率資料'
 
     # ddm_return: 股利折現模式現價潛在年報酬 >= 10%
     ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
