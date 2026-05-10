@@ -398,14 +398,20 @@
   <div id="allSettingsPanel" style="display:none">
     <div class="weight-bar" style="margin-bottom:4px;border-left:4px solid #059669">
       <span class="wb-label" style="color:#059669">體質判斷：</span>
-      <div class="wb-item"><label>等級門檻</label>
+      <div class="wb-item"><label>等級要求</label>
         <select id="qGradeThreshold" onchange="saveQualitySettings()" style="border:1px solid #cbd5e1;border-radius:5px;padding:3px 6px;font-size:.82rem">
-          <option value="C">C 以下</option>
-          <option value="B">B 以下</option>
-          <option value="D">D 以下</option>
+          <option value="AA">AA 以上</option>
+          <option value="A2">A2 以上</option>
+          <option value="A1">A1 以上</option>
+          <option value="A">A 以上</option>
+          <option value="B2A">B2A 以上</option>
+          <option value="B1A">B1A 以上</option>
+          <option value="B2">B2 以上</option>
+          <option value="B1">B1 以上</option>
+          <option value="C">C 以上</option>
         </select>
       </div>
-      <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" onchange="saveQualitySettings()">年排除</div>
+      <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" onchange="saveQualitySettings()">年通過</div>
       <div class="wb-item"><label>營益率 <</label><input id="qOpmThreshold" type="text" style="width:42px" onchange="saveQualitySettings()">%</div>
       <div class="wb-item"><label>>=</label><input id="qOpmYears" type="text" style="width:36px" onchange="saveQualitySettings()">年排除</div>
       <span style="color:#cbd5e1">|</span>
@@ -1668,8 +1674,8 @@ function applyEtfFilter() { page = 1; applyFilter(); }
 
 // ── 體質篩選條件設定 ──
 const DEFAULT_Q_SETTINGS = {
-  gradeThreshold: 'C',   // 等級門檻（C以下排除）
-  gradeYears: 3,          // 幾年以上
+  gradeThreshold: 'A2',   // 等級門檻（A2以上才算通過）
+  gradeYears: 3,           // 幾年以上
   opmThreshold: 5,        // 營益率門檻 %
   opmYears: 3,            // 幾年以上
   excludeKY: true,
@@ -1713,13 +1719,13 @@ function clearQuality() {
 function autoQualityCheck() {
   const s = _qSettings;
 
-  // 等級排序（用於比較門檻）
-  const gradeOrder = {'AA':8,'A1':7,'A2':7,'A':6,'B1A':5,'B2A':5,'B1':4,'B2':4,'C':3,'D':2};
+  // 等級排序（用於比較門檻）— 正向：達到門檻以上才算通過
+  const gradeOrder = {'AA':9,'A1':8,'A2':7,'B1A':6,'B2A':5,'A':4,'B1':3,'B2':3,'C':2,'D':1};
   function gradeBase(g) { return g ? g.replace(/[+-]$/, '') : ''; }
-  function isBelowThreshold(g) {
+  function meetsThreshold(g) {
     const base = gradeBase(g);
     const thr = s.gradeThreshold;
-    return (gradeOrder[base] || 0) <= (gradeOrder[thr] || 3);
+    return (gradeOrder[base] || 0) >= (gradeOrder[thr] || 7);
   }
 
   // 營益率判斷（從等級後綴）
@@ -1760,9 +1766,9 @@ function autoQualityCheck() {
     // 沒有足夠等級資料 → 無法判斷 → 不通過
     if (grades.length < 3) { excluded++; return; }
 
-    // 等級門檻
-    const badCount = grades.filter(g => isBelowThreshold(g)).length;
-    if (badCount >= s.gradeYears) { excluded++; return; }
+    // 等級門檻（正向：通過年數不足 → 排除）
+    const goodCount = grades.filter(g => meetsThreshold(g)).length;
+    if (goodCount < s.gradeYears) { excluded++; return; }
 
     // 營益率門檻
     const lowCount = grades.filter(g => isLowOpm(g)).length;
@@ -1776,7 +1782,7 @@ function autoQualityCheck() {
   render();
 
   const rules = [];
-  rules.push(`等級 ${s.gradeThreshold} 以下 >= ${s.gradeYears} 年`);
+  rules.push(`等級 ${s.gradeThreshold} 以上 >= ${s.gradeYears} 年`);
   rules.push(`營益率 < ${s.opmThreshold}% >= ${s.opmYears} 年`);
   if (s.excludeKY) rules.push('KY 股');
   if (excludeIndustries.size) rules.push(`產業：${[...excludeIndustries].join('、')}`);
