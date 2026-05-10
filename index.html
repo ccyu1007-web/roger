@@ -401,13 +401,10 @@
       <div class="wb-item"><label>等級要求</label>
         <select id="qGradeThreshold" onchange="saveQualitySettings()" style="border:1px solid #cbd5e1;border-radius:5px;padding:3px 6px;font-size:.82rem">
           <option value="AA">AA 以上</option>
-          <option value="A2">A2 以上</option>
-          <option value="A1">A1 以上</option>
+          <option value="A2">A1/A2 以上</option>
           <option value="A">A 以上</option>
-          <option value="B2A">B2A 以上</option>
-          <option value="B1A">B1A 以上</option>
-          <option value="B2">B2 以上</option>
-          <option value="B1">B1 以上</option>
+          <option value="B2A">B1A/B2A 以上</option>
+          <option value="B2">B1/B2 以上</option>
           <option value="C">C 以上</option>
         </select>
       </div>
@@ -1720,7 +1717,7 @@ function autoQualityCheck() {
   const s = _qSettings;
 
   // 等級排序（用於比較門檻）— 正向：達到門檻以上才算通過
-  const gradeOrder = {'AA':9,'A1':8,'A2':7,'B1A':6,'B2A':5,'A':4,'B1':3,'B2':3,'C':2,'D':1};
+  const gradeOrder = {'AA':9,'A1':8,'A2':8,'B1A':6,'B2A':6,'A':5,'B1':4,'B2':4,'C':3,'D':2};
   function gradeBase(g) { return g ? g.replace(/[+-]$/, '') : ''; }
   function meetsThreshold(g) {
     const base = gradeBase(g);
