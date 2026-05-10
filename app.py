@@ -727,35 +727,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         est_grade = None
 
-    # 評價門檻（預估 > min(沈董, 綜合)）
-    if est_eps is not None:
-        val_eps = est_eps
-    elif shen_eps is not None and blend_eps is not None:
-        val_eps = min(shen_eps, blend_eps)
-    else:
-        val_eps = shen_eps if shen_eps is not None else blend_eps
-    if est_div is not None:
-        val_div = est_div
-    elif shen_div is not None and blend_div is not None:
-        val_div = min(shen_div, blend_div)
-    else:
-        val_div = shen_div if shen_div is not None else blend_div
-    def _calc_val(pe_val, yld_val):
-        if val_eps is None or val_eps <= 0 or val_div is None or val_div <= 0:
-            return None
-        v1 = val_eps * pe_val
-        v2 = val_div / (yld_val / 100)
-        candidates = [v1, v2]
-        if blend_div and blend_div > 0:
-            candidates.append(blend_div / 0.06 + val_div)
-        return round(min(candidates), 2)
-
-    pe_mid = (pe_hi + pe_lo) / 2
-    pe_lo_bias = (pe_mid + pe_lo) / 2
-    val_aa = _calc_val(pe_lo, y_max)
-    val_a1 = _calc_val(pe_lo, y_high)
-    val_a2 = _calc_val(pe_lo_bias, y_max)
-    val_a = _calc_val(pe_lo_bias, y_high)
+    # 評價門檻：直接從 stocks 表讀取（recalc_all_derived 統一計算）
+    val_aa = r.get('val_aa')
+    val_a1 = r.get('val_a1')
+    val_a2 = r.get('val_a2')
+    val_a = r.get('val_a')
     lt_div = blend_div
     lt_yld = 6
     lt5 = round(lt_div / 0.05, 2) if lt_div and lt_div > 0 else None
@@ -935,8 +911,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
-        'eps_setting': val_eps,
-        'div_setting': val_div,
+        'eps_setting': r.get('sys_ann_eps') or r.get('shen_eps'),
+        'div_setting': r.get('sys_ann_div') or r.get('shen_div'),
         'yld_high': y_high,
         'yld_max': y_max,
         'pe_high': pe_hi,
