@@ -1435,7 +1435,7 @@ def get_stocks():
                        weighted_eps, weighted_div, weighted_pe, weighted_yld, weighted_grade, weighted_payout,
                        blend_eps, blend_div, blend_pe, blend_yld, blend_grade,
                        eps_4q_sum, trailing_div, trailing_pe, trailing_yld, trailing_grade,
-                       contract_chg
+                       contract_chg, listed_date
                 FROM stocks WHERE 1=1"""
     params = []
     exact = request.args.get("exact", "")
