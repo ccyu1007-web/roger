@@ -2090,7 +2090,7 @@ def snapshot_stock_states():
                 new_cheap_days = 0
 
             # 歷史最深等級
-            LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 3, 'A': 2, 'above': 0, None: 0}
+            LEVEL_DEPTH = {'AA': 5, 'A1': 4, 'A2': 4, 'A': 2, 'above': 0, None: 0}
             cur_depth = LEVEL_DEPTH.get(cur_level, 0)
             old_depth = LEVEL_DEPTH.get(old_deepest, 0)
             new_deepest = cur_level if cur_depth > old_depth else old_deepest
@@ -2214,7 +2214,7 @@ def get_daily_briefing():
 
     # 矩陣等級深度
     LEVEL_DEPTH = {
-        'AA': 10, 'A1': 9, 'A2': 8, 'A': 7,
+        'AA': 10, 'A1': 9, 'A2': 9, 'A': 7,
         'BA1': 6, 'BA2': 5, 'B1': 4, 'B2': 3,
         '觀察': 2, '臨界點': 1, 'X': 0,
         'above': 0, None: 0,
@@ -2263,7 +2263,7 @@ def get_daily_briefing():
         # 矩陣等級變化
         if cur_level != prev_level:
             if cur_depth > prev_depth:
-                # 變便宜
+                # 突破（等級往上，變便宜）
                 summary['to_cheap'] += 1
                 opportunities.append({
                     'code': sid, 'name': name,
@@ -2273,9 +2273,10 @@ def get_daily_briefing():
                     'change': f"{prev_level or '—'} → {cur_level}",
                 })
             elif cur_depth < prev_depth:
-                # 變貴
+                # 跌破（等級往下，變貴）
                 summary['to_expensive'] += 1
             else:
+                # 平移（同等級移動，如 A1↔A2）
                 summary['no_change'] += 1
         else:
             summary['no_change'] += 1
@@ -2387,17 +2388,22 @@ def get_daily_briefing():
                         threshold_changed = True
                         break
 
-                if cur_d != prev_d:
-                    val_level_changes.append({
-                        'code': sid, 'name': name,
-                        'from': prev_level, 'to': cur_level,
-                        'direction': 'cheaper' if cur_d > prev_d else 'expensive',
-                        'price': latest.get('price'),
-                        'discount_pct': latest.get('discount_pct'),
-                        'threshold_changed': threshold_changed,
-                        'val_aa': latest.get('val_aa'),
-                        'val_a1': latest.get('val_a1'),
-                            })
+                if cur_d > prev_d:
+                    direction = 'cheaper'   # 突破（等級往上）
+                elif cur_d < prev_d:
+                    direction = 'expensive' # 跌破（等級往下）
+                else:
+                    direction = 'lateral'   # 平移（A1↔A2 同等級）
+                val_level_changes.append({
+                    'code': sid, 'name': name,
+                    'from': prev_level, 'to': cur_level,
+                    'direction': direction,
+                    'price': latest.get('price'),
+                    'discount_pct': latest.get('discount_pct'),
+                    'threshold_changed': threshold_changed,
+                    'val_aa': latest.get('val_aa'),
+                    'val_a1': latest.get('val_a1'),
+                })
 
         # 門檻清單：每支股票只歸入最深的門檻，不重複
         cur_price = latest.get('price')

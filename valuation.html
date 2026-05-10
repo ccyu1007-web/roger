@@ -303,12 +303,14 @@ function renderList(mode) {
       const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
       const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
 
-      // 新增：變便宜進入此等級
+      // 新增：突破（等級往上，變便宜）
       const addHtml = (c._chg_direction === 'cheaper' && c._chg_from)
-        ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c._chg_from || 'above'}→${c._chg_to}</span>` : '';
-      // 刪除：變貴離開此等級
+        ? `<span style="color:#059669;font-weight:600;font-size:.75rem">突破 ${c._chg_from || 'above'}→${c._chg_to}</span>`
+        : (c._chg_direction === 'lateral' && c._chg_from)
+        ? `<span style="color:#2563eb;font-weight:600;font-size:.75rem">平移 ${c._chg_from}→${c._chg_to}</span>` : '';
+      // 刪除：跌破（等級往下，變貴）
       const rmHtml = isRemoved
-        ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c._chg_from}→${c._chg_to || 'above'}</span>` : '';
+        ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">跌破 ${c._chg_from}→${c._chg_to || 'above'}</span>` : '';
       const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
       const isFocused = _focusTrackSet.has(c.code);
@@ -381,9 +383,9 @@ function renderCrosses(thNames) {
         const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
         let statusHtml = '';
         if (c.cross === 'below') {
-          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${c.from_th || 'above'}→${c.to_th}</span>`;
+          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${c.from_th || 'above'}→${c.to_th}</span>`;
         } else if (c.cross === 'above') {
-          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${c.from_th}→${c.to_th || 'above'}</span>`;
+          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${c.from_th}→${c.to_th || 'above'}</span>`;
         }
 
         const isFocused = _focusTrackSet.has(c.code);
