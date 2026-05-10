@@ -490,7 +490,7 @@ CHECKLIST_ITEMS = [
     {'key': 'gm_change',      'category': 'base',  'label': '最近一季毛利率變化 > 0'},
     {'key': 'blend_pe_12',    'category': 'base',  'label': '綜合本益比 <= 12 倍'},
     {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
-    {'key': 'payout_ok',      'category': 'base',  'label': '配息率 < 85%（配息可持續）'},
+    {'key': 'payout_ok',      'category': 'base',  'label': '配息率 50%~85%（穩定且可持續）'},
     {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
     {'key': 'shiller_safe',   'category': 'base',  'label': '席勒警示 >= 0.5（非循環高點）'},
     # ── 成長加分（3項）──
@@ -759,21 +759,23 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     # blend_pe_12: 綜合本益比 <= 12 倍
     checks['blend_pe_12'] = 1 if blend_pe is not None and blend_pe > 0 and blend_pe <= 12 else 0
-    detail['blend_pe_12'] = f'綜合PE={blend_pe}' if blend_pe is not None else None
+    if blend_pe is not None:
+        detail['blend_pe_12'] = f'綜合PE={round(blend_pe, 2)}倍　(綜合EPS={blend_eps} / 股價={close})'
+    else:
+        detail['blend_pe_12'] = None
 
     # blend_yield: 綜合殖利率 >= 6%
     checks['blend_yield'] = 1 if blend_yld is not None and blend_yld >= 6 else 0
     if blend_yld is not None:
-        _blend_formula = r.get('_blend_div_formula') or ''
-        detail['blend_yield'] = f'殖利率={blend_yld}%　綜合股利{blend_div} / 股價{close} × 100　股利算法：{_blend_formula}'
+        detail['blend_yield'] = f'殖利率={round(blend_yld, 2)}%　(綜合股利={blend_div} / 股價={close} × 100)'
     else:
         detail['blend_yield'] = None
 
-    # payout_ok: 配息率 < 85%（配息可持續）
+    # payout_ok: 配息率 50%~85%（穩定且可持續）
     _payout = r.get('weighted_payout')
-    checks['payout_ok'] = 1 if _payout is not None and _payout < 85 else (1 if _payout is None else 0)
+    checks['payout_ok'] = 1 if _payout is not None and 50 <= _payout < 85 else (1 if _payout is None else 0)
     if _payout is not None:
-        detail['payout_ok'] = f'加權配息率={_payout}%'
+        detail['payout_ok'] = f'加權配息率={round(_payout, 2)}%　(50%~85%為合格區間)'
     else:
         detail['payout_ok'] = '無配息率資料'
 
