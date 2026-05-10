@@ -726,7 +726,7 @@ const CUSTOM_COLS = [
     { id: 'close', label: '收盤價' }, { id: 'change', label: '漲跌' }
   ]},
   { group: '市場產業', cols: [
-    { id: 'market', label: '市場' }, { id: 'industry', label: '產業別' }
+    { id: 'market', label: '市場' }, { id: 'industry', label: '產業別' }, { id: 'listed_years', label: '掛牌' }
   ]},
   { group: '240日漲跌', cols: [
     { id: 'change_240d', label: '240日漲跌幅' }
@@ -2172,6 +2172,11 @@ function calcDerived(r) {
     r.eps_ytd_label = r.eps_y1_label;
   }
 
+  // 掛牌年數
+  if (r.listed_date && r.listed_date.length >= 4) {
+    r.listed_years = new Date().getFullYear() - parseInt(r.listed_date.substring(0, 4));
+  }
+
   // 財務等級映射
   r._fg = {};
   for (let i = 1; i <= 6; i++) {
@@ -3100,6 +3105,7 @@ function render() {
       <td>${r.name}</td>
       <td class="g-mkt" data-col="market">${mktBadge}</td>
       <td class="g-mkt" data-col="industry" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
+      <td class="g-mkt" data-col="listed_years" style="font-size:.8rem;color:#475569;text-align:center">${r.listed_years != null ? r.listed_years : '－'}</td>
       <!-- 股價 -->
       <td class="col-div" data-col="close"><strong>${fmt(r.close)}</strong></td>
       <td class="${chgClass}" data-col="change">${chgStr}</td>
