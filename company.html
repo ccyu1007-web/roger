@@ -1004,10 +1004,10 @@ function renderFinTable(data) {
   years.forEach(y => html += `<th>${y}</th>`);
   html += '</tr></thead><tbody>';
 
-  // 財務等級列
+  // 財務等級列（直接讀 API 回傳的 fin_grade，不前端自己算）
   html += '<tr class="fin-grade-row"><td>財務體質等級</td>';
   for (const d of data) {
-    const grade = calcFinGrade(d);
+    const grade = d.fin_grade;
     if (grade) {
       const base = grade.replace(/[+-]$/, '');
       const cls = base.startsWith('AA') ? 'fg-aa'

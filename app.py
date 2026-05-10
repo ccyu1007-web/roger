@@ -2662,6 +2662,26 @@ def get_financials(code):
                 d['roic'] = round(_nopat / _ic * 100, 2)
             elif ta and ta > 0:
                 d['roic'] = round(_nopat / ta * 100, 2)
+        # 財務體質等級（ROIC版矩陣，後端統一計算，前端不自己算）
+        _fin_grade = None
+        if d['roic'] is not None and rev and rev > 0 and ocf is not None and capex is not None:
+            _fcf = ocf + capex
+            _fcf_ratio = _fcf / rev * 100
+            _roic = d['roic']
+            if _roic >= 15:
+                _fin_grade = 'B1A' if _fcf_ratio < 0 else ('A1' if _fcf_ratio < 5 else 'AA')
+            elif _roic >= 10:
+                _fin_grade = 'B1' if _fcf_ratio < 0 else ('A' if _fcf_ratio < 5 else 'A2')
+            elif _roic >= 7:
+                _fin_grade = 'C' if _fcf_ratio < 0 else ('B2' if _fcf_ratio < 5 else 'B2A')
+            else:
+                _fin_grade = 'D' if _fcf_ratio < 0 else 'C'
+            # 營益率加減號
+            _opm = d.get('operating_margin')
+            if _opm is not None:
+                if _opm >= 10: _fin_grade += '+'
+                elif _opm < 5: _fin_grade += '-'
+        d['fin_grade'] = _fin_grade
         # 盈餘品質率
         # 稅後淨利為負時不計算盈餘品質率（無意義）
         d['earnings_quality'] = round(ocf / ni * 100, 2) if ni and ni > 0 and ocf is not None else None
