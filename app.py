@@ -2312,7 +2312,10 @@ def sync_annual():
                        'weighted_eps','weighted_div','weighted_pe','weighted_yld','weighted_grade','weighted_payout',
                        'blend_eps','blend_div','blend_pe','blend_yld','blend_grade',
                        'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
-                       'contract_chg']:
+                       'contract_chg',
+                       'val_aa','val_a1','val_a2','val_a','val_lt6',
+                       'est_eps','est_div','est_pe','est_yld','est_grade',
+                       'sys_pe','sys_yld','sys_grade']:
             if extra in r:
                 fields.append(f'{extra}=?')
                 vals.append(r[extra])
