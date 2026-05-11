@@ -1958,7 +1958,7 @@ def refresh():
             _bg_done_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     threading.Thread(target=do_refresh, daemon=True).start()
-    msg = "開始更新資料" if not is_cloud else "開始更新（股價由本機排程推送）"
+    msg = "開始更新資料"
     return jsonify({"status": "started", "msg": msg})
 
 # ── 更新進度查詢 ────────────────────────────────────────────
