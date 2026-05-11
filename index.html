@@ -2192,6 +2192,13 @@ async function loadData() {
     // 盤中自動抓即時報價（覆蓋觀察清單的收盤價）
     fetchRealtimePrices();
 
+    // 頁面載入後自動背景更新股價（不阻塞畫面）
+    if (!status.is_refreshing) {
+      fetch('/api/refresh', { method: 'POST' }).then(r => r.json()).then(data => {
+        if (data.status === 'started') { setRefreshingUI(true); pollRefresh(); }
+      }).catch(() => {});
+    }
+
   } catch(e) {
     document.getElementById('loading').innerHTML =
       '<p style="color:#ef4444">⚠️ 無法連接伺服器，請確認 app.py 已啟動</p>';
