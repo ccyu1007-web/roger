@@ -1919,13 +1919,11 @@ def refresh():
         with _refresh_lock:
             _is_refreshing = True
             try:
-                if not is_cloud:
-                    # 本機：呼叫 TWSE/TPEX API 更新股價
-                    refresh_prices()
-                    from scraper import _save_daily_price
-                    try: _save_daily_price()
-                    except Exception: pass
-                # Render（雲端）：不自己抓股價，由本機 push 過來
+                # TWSE/TPEX 政府 API，本機和 Render 都能跑
+                refresh_prices()
+                from scraper import _save_daily_price
+                try: _save_daily_price()
+                except Exception: pass
             finally:
                 _is_refreshing = False
 
