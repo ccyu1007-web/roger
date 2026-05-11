@@ -4899,9 +4899,10 @@ def save_user_estimate(code):
 def test_twse():
     import requests as _req
     results = {}
+    import urllib3; urllib3.disable_warnings()
     # 測試即時 API
     try:
-        r = _req.get("https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw&json=1&delay=0", timeout=10)
+        r = _req.get("https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw&json=1&delay=0", timeout=10, verify=False)
         d = r.json()
         arr = d.get('msgArray', [])
         if arr:
@@ -4913,7 +4914,7 @@ def test_twse():
         results['realtime'] = {'status': 'error', 'msg': str(e)}
     # 測試 afterTrading API
     try:
-        r = _req.get("https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=json&date=20260511", timeout=10)
+        r = _req.get("https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=json&date=20260511", timeout=10, verify=False)
         d = r.json()
         data = d.get('data', [])
         for row in data:
@@ -4924,6 +4925,13 @@ def test_twse():
             results['afterTrading'] = {'status': 'no_2330', 'count': len(data)}
     except Exception as e:
         results['afterTrading'] = {'status': 'error', 'msg': str(e)}
+    # 測試 openapi（目前用的）
+    try:
+        r = _req.get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL", timeout=10, verify=False)
+        d = r.json()
+        results['openapi'] = {'status': 'ok', 'date': d[0].get('Date',''), 'count': len(d)}
+    except Exception as e:
+        results['openapi'] = {'status': 'error', 'msg': str(e)}
     return jsonify(results)
 
 # ── 啟動 ────────────────────────────────────────────────────
