@@ -17,6 +17,9 @@ import logging
 import requests
 import db as sqlite3
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
+
+_TW = ZoneInfo("Asia/Taipei")
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import random
@@ -3604,7 +3607,7 @@ def refresh_prices():
     t0 = time.time()
     init_db()
 
-    now = datetime.now()
+    now = datetime.now(_TW)
     h, m, wd = now.hour, now.minute, now.weekday()
     in_market = wd < 5 and ((h > 9 or (h == 9 and m >= 0)) and (h < 13 or (h == 13 and m <= 35)))
     # 盤後同日：收盤後到 16:00，即時 API 仍有當天收盤價
@@ -3668,7 +3671,7 @@ def _refresh_realtime():
         c.execute("SELECT code, market FROM stocks WHERE close IS NOT NULL")
         all_stocks = [(r[0], r[1]) for r in c.fetchall()]
 
-        updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updated_at = datetime.now(_TW).strftime("%Y-%m-%d %H:%M:%S")
         count = 0
 
         # 每批 50 檔，5 並發
