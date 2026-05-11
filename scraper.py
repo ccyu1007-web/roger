@@ -59,6 +59,10 @@ from estimation import (
 )
 
 _session = create_session(ua="Mozilla/5.0 (compatible; StockBot/1.0)")
+# Render 環境 SSL 憑證無法驗證 twse/tpex → 關閉驗證
+if os.environ.get('DATABASE_URL'):
+    _session.verify = False
+    import urllib3; urllib3.disable_warnings()
 
 # 批次 API 回傳的資料日期（ROC 格式，如 "1150421"）
 _twse_batch_date = None

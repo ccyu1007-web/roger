@@ -4894,46 +4894,6 @@ def save_user_estimate(code):
         threading.Thread(target=_push_single, daemon=True).start()
     return jsonify({"status": "ok"})
 
-# ── 臨時測試（測完移除）────────────────────────────────────
-@app.route("/api/test-twse")
-def test_twse():
-    import requests as _req
-    results = {}
-    import urllib3; urllib3.disable_warnings()
-    # 測試即時 API
-    try:
-        r = _req.get("https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_2330.tw&json=1&delay=0", timeout=10, verify=False)
-        d = r.json()
-        arr = d.get('msgArray', [])
-        if arr:
-            m = arr[0]
-            results['realtime'] = {'status': 'ok', 'price': m.get('z'), 'date': m.get('d')}
-        else:
-            results['realtime'] = {'status': 'no_data', 'raw': d.get('rtmessage', '')}
-    except Exception as e:
-        results['realtime'] = {'status': 'error', 'msg': str(e)}
-    # 測試 afterTrading API
-    try:
-        r = _req.get("https://www.twse.com.tw/rwd/zh/afterTrading/STOCK_DAY_ALL?response=json&date=20260511", timeout=10, verify=False)
-        d = r.json()
-        data = d.get('data', [])
-        for row in data:
-            if '2330' in str(row):
-                results['afterTrading'] = {'status': 'ok', 'count': len(data), 'sample_2330': row[:8]}
-                break
-        else:
-            results['afterTrading'] = {'status': 'no_2330', 'count': len(data)}
-    except Exception as e:
-        results['afterTrading'] = {'status': 'error', 'msg': str(e)}
-    # 測試 openapi（目前用的）
-    try:
-        r = _req.get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL", timeout=10, verify=False)
-        d = r.json()
-        results['openapi'] = {'status': 'ok', 'date': d[0].get('Date',''), 'count': len(d)}
-    except Exception as e:
-        results['openapi'] = {'status': 'error', 'msg': str(e)}
-    return jsonify(results)
-
 # ── 啟動 ────────────────────────────────────────────────────
 if __name__ == "__main__":
     is_local = not os.environ.get('DATABASE_URL')
