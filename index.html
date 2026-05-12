@@ -2308,6 +2308,8 @@ async function refreshPricesOnly() {
     }
     const _savedPage = page;
     filtered = [...allData];
+    autoQualityCheck(true);   // 重新判斷體質
+    renderConditions();       // 重新套用挑選條件
     applyFilter();
     page = _savedPage;
     render();
