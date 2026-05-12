@@ -303,7 +303,7 @@ DERIVED_COLS = [
     'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
     'contract_chg',
     'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
-    'val_aa','val_a1','val_a2','val_a','val_lt6',
+    'val_aa','val_a1','val_a2','val_a','val_lt6','val_eps_used','val_div_used',
     'est_eps','est_div','est_pe','est_yld','est_grade',
     'sys_pe','sys_yld','sys_grade'
 ]
@@ -442,7 +442,7 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
             r[f'payout_{i}'] = None
 
     # ── 評價門檻（統一計算，存 DB）──
-    # EPS/股利取用順序：使用者預估 > 系統估算 > 沈董
+    # EPS/股利取用順序：使用者預估 > min(綜合EPS, 沈董EPS)，股利跟隨EPS來源
     est_eps = None
     est_div = None
     if user_params:
@@ -450,9 +450,33 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         est_div = user_params.get('div')
         if est_eps: est_eps = float(est_eps)
         if est_div: est_div = float(est_div)
-    val_eps = est_eps or r.get('sys_ann_eps') or r.get('shen_eps')
-    val_div = est_div or r.get('sys_ann_div') or r.get('shen_div')
+
+    val_eps = None
+    val_div = None
+    if est_eps and est_eps > 0:
+        val_eps = est_eps
+        val_div = est_div
+    else:
+        _blend_eps = r.get('blend_eps')
+        _shen_eps = r.get('shen_eps')
+        _blend_pos = _blend_eps if _blend_eps and _blend_eps > 0 else None
+        _shen_pos = _shen_eps if _shen_eps and _shen_eps > 0 else None
+        if _blend_pos is not None and _shen_pos is not None:
+            if _blend_pos <= _shen_pos:
+                val_eps = _blend_pos
+                val_div = r.get('blend_div')
+            else:
+                val_eps = _shen_pos
+                val_div = r.get('shen_div')
+        elif _blend_pos is not None:
+            val_eps = _blend_pos
+            val_div = r.get('blend_div')
+        elif _shen_pos is not None:
+            val_eps = _shen_pos
+            val_div = r.get('shen_div')
     val_bdiv = r.get('blend_div')
+    r['val_eps_used'] = val_eps
+    r['val_div_used'] = val_div
 
     pe_mid_v = (pe_hi + pe_lo) / 2
     pe_lo_bias_v = (pe_mid_v + pe_lo) / 2
@@ -1025,8 +1049,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
-        'eps_setting': r.get('sys_ann_eps') or r.get('shen_eps'),
-        'div_setting': r.get('sys_ann_div') or r.get('shen_div'),
+        'eps_setting': r.get('val_eps_used') or r.get('shen_eps'),
+        'div_setting': r.get('val_div_used') or r.get('shen_div'),
         'yld_high': y_high,
         'yld_max': y_max,
         'pe_high': pe_hi,
@@ -1634,6 +1658,7 @@ def get_stocks():
                         ('payout_1','REAL'),('payout_2','REAL'),('payout_3','REAL'),
                         ('payout_4','REAL'),('payout_5','REAL'),('payout_6','REAL'),
                         ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
+                        ('val_eps_used','REAL'),('val_div_used','REAL'),
                         ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),
                         ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT')]:
             try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
@@ -1674,6 +1699,7 @@ def get_stocks():
                        contract_chg, listed_date,
                        payout_1, payout_2, payout_3, payout_4, payout_5, payout_6,
                        val_aa, val_a1, val_a2, val_a, val_lt6,
+                       val_eps_used, val_div_used,
                        est_eps, est_div, est_pe, est_yld, est_grade,
                        sys_pe, sys_yld, sys_grade
                 FROM stocks WHERE 1=1"""
@@ -2473,6 +2499,7 @@ def sync_annual():
                        'contract_chg',
                        'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
                        'val_aa','val_a1','val_a2','val_a','val_lt6',
+                       'val_eps_used','val_div_used',
                        'est_eps','est_div','est_pe','est_yld','est_grade',
                        'sys_pe','sys_yld','sys_grade']:
             if extra in r:
