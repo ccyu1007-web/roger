@@ -1372,7 +1372,7 @@ function toggleAllSettings() {
   document.getElementById('btnSettings').classList.toggle('active', show);
 }
 
-function autoWatchCheck() {
+function autoWatchCheck(silent) {
   const s = _wSettings;
   watchSet.clear();
   let passed = 0;
@@ -1472,7 +1472,9 @@ function autoWatchCheck() {
     .map(([r, n]) => `  ${r}：${n} 支`).join('\n');
   const totalExcluded = Object.values(stepCounts).reduce((a,b)=>a+b,0);
 
-  alert(`自動挑選完成：${passed} 支（排除 ${totalExcluded} 支）\n總股票數：${allData.length}\n\n篩選條件：\n${condText}\n\n排除統計（逐步）：\n${stepText}\n\n自訂條件內容：${JSON.stringify(_customConditions)}`);
+  if (!silent) {
+    alert(`自動挑選完成：${passed} 支（排除 ${totalExcluded} 支）\n總股票數：${allData.length}\n\n篩選條件：\n${condText}\n\n排除統計（逐步）：\n${stepText}\n\n自訂條件內容：${JSON.stringify(_customConditions)}`);
+  }
 }
 
 // ── 自訂條件 ─────────────────────────────────────────────
@@ -2182,8 +2184,9 @@ async function loadData() {
     initWeights();
     initBlend();
     initGlobalVal();
-    // 載入時自動用當前設定重算體質判斷（確保設定變更立即生效）
+    // 載入時自動用當前設定重算體質判斷和觀察挑選（確保設定變更立即生效）
     autoQualityCheck(true);  // true = 靜默模式，不觸發 render 和 alert
+    autoWatchCheck(true);    // true = 靜默模式，不彈 alert
     applySort();
     render();
 
