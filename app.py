@@ -4317,45 +4317,9 @@ def _init_all_db():
 
 _init_all_db()
 
-# ── 雲端排程（APScheduler，取代 LaunchAgent）────────────────
-# 只在主 worker 啟動（避免 gunicorn 多 worker 重複執行）
-if os.environ.get('DATABASE_URL') and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-        scheduler = BackgroundScheduler(timezone='Asia/Taipei')
-        # 每 30 分鐘快速更新（股價 + 最新營收 + EPS）
-        def _run_and_cleanup(func, name):
-            """排程包裝：執行完畢後清快取 + 回收記憶體"""
-            def wrapper():
-                import gc
-                global _stocks_cache, _stocks_cache_time, _gi_cache, _gi_cache_time
-                try:
-                    func()
-                finally:
-                    with _cache_lock:
-                        _stocks_cache = None
-                        _stocks_cache_time = 0
-                        _gi_cache = None
-                        _gi_cache_time = 0
-                    gc.collect()
-                    print(f"[排程] {name} 完成，已清快取+回收記憶體")
-            return wrapper
-
-        scheduler.add_job(_run_and_cleanup(quick_update, 'quick_update'), 'interval', minutes=30,
-                          id='quick_update', replace_existing=True)
-        # 每天 07:00 完整爬蟲（本機 06:00 跑 28~41 分鐘，錯開 1 小時避免撞車）
-        scheduler.add_job(_run_and_cleanup(run_maintenance, 'daily_scrape'), 'cron', hour=7, minute=0,
-                          id='daily_scrape', replace_existing=True)
-        # 週一到週五 15:30 盤後更新（本機 14:30 跑完+push 約需 40 分鐘）
-        scheduler.add_job(_run_and_cleanup(run_prices, 'afternoon_prices'), 'cron', day_of_week='mon-fri',
-                          hour=15, minute=30,
-                          id='afternoon_scrape', replace_existing=True)
-        # 三大法人：Render 上群益會被擋，不排程
-        # 法人資料由本機 17:10 抓完後 push 到 Render（/api/refresh/institutional POST with data）
-        scheduler.start()
-        print("[排程] APScheduler 已啟動")
-    except Exception as e:
-        print(f"[排程] APScheduler 啟動失敗: {e}")
+# ── 雲端排程已移除 ────────────────
+# Render 不跑任何排程，所有資料由本機排程抓取後 push 到 Render
+# （Render 記憶體有限，且本機已全量 push，排程多此一舉）
 
 # ── 使用者清單（觀察/持股/重點/體質）─────────────────────
 def _init_user_lists():
