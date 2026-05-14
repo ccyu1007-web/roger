@@ -38,6 +38,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__, static_folder=".", static_url_path="")
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # static file 不快取
 app.config['COMPRESS_MIMETYPES'] = ['application/json']
 DB_PATH = "stocks.db"
 
