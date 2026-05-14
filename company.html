@@ -1937,23 +1937,24 @@ async function initEstimator(sharesMillion) {
       let autoEps = null;
       if (userEstEps) {
         autoEps = userEstEps;
-        _vmEpsSrc = '預估EPS（Q1~Q4加總）';
+        _vmEpsSrc = `預估EPS（Q1~Q4加總）= ${parseFloat(autoEps).toFixed(2)}`;
       } else if (_shenEps != null && _blendEps != null) {
         autoEps = Math.min(_shenEps, _blendEps);
-        _vmEpsSrc = `min(沈董EPS,綜合EPS)`;
+        const _picked = autoEps === _shenEps ? '沈董' : '綜合';
+        _vmEpsSrc = `min(沈董${_shenEps.toFixed(2)}, 綜合${_blendEps.toFixed(2)}) = ${autoEps.toFixed(2)}（取${_picked}）`;
       } else if (_shenEps != null) {
         autoEps = _shenEps;
-        _vmEpsSrc = '沈董EPS';
+        _vmEpsSrc = `沈董EPS = ${autoEps.toFixed(2)}（無綜合EPS）`;
       } else if (_blendEps != null) {
         autoEps = _blendEps;
-        _vmEpsSrc = '綜合EPS';
+        _vmEpsSrc = `綜合EPS = ${autoEps.toFixed(2)}（無沈董EPS）`;
       } else {
         _vmEpsSrc = '無資料';
       }
       if (autoEps != null) document.getElementById('vmEps').value = parseFloat(autoEps).toFixed(2);
     } else {
       _vmManual = true;
-      _vmEpsSrc = '手動設定';
+      _vmEpsSrc = `手動設定 = ${savedObj.vmEps}`;
     }
     if (!_isVmManual || !savedObj.vmDiv) {
       const userEstDiv = savedObj.div ? parseFloat(savedObj.div) : null;
@@ -1961,40 +1962,41 @@ async function initEstimator(sharesMillion) {
       let autoDiv = null;
       if (userEstDiv) {
         autoDiv = userEstDiv;
-        _vmDivSrc = '預估股利';
+        _vmDivSrc = `預估股利 = ${parseFloat(autoDiv).toFixed(2)}`;
       } else if (_shenDiv != null && _blendDiv != null) {
         autoDiv = Math.min(_shenDiv, _blendDiv);
-        _vmDivSrc = `min(沈董股利,綜合股利)`;
+        const _picked = autoDiv === _shenDiv ? '沈董' : '綜合';
+        _vmDivSrc = `min(沈董${_shenDiv.toFixed(2)}, 綜合${_blendDiv.toFixed(2)}) = ${autoDiv.toFixed(2)}（取${_picked}）`;
       } else if (_shenDiv != null) {
         autoDiv = _shenDiv;
-        _vmDivSrc = '沈董股利';
+        _vmDivSrc = `沈董股利 = ${autoDiv.toFixed(2)}（無綜合股利）`;
       } else if (_blendDiv != null) {
         autoDiv = _blendDiv;
-        _vmDivSrc = '綜合股利';
+        _vmDivSrc = `綜合股利 = ${autoDiv.toFixed(2)}（無沈董股利）`;
       } else {
         _vmDivSrc = '無資料';
       }
       if (autoDiv != null) document.getElementById('vmDiv').value = parseFloat(autoDiv).toFixed(2);
     } else {
       _vmManual = true;
-      _vmDivSrc = '手動設定';
+      _vmDivSrc = `手動設定 = ${savedObj.vmDiv}`;
     }
     const _ltDivDefault = _blendDiv;
     if (!_isVmManual || !savedObj.vmLtDiv) {
       if (_ltDivDefault != null) {
         document.getElementById('vmLtDiv').value = _ltDivDefault.toFixed(2);
-        _vmLtDivSrc = '綜合股利';
+        _vmLtDivSrc = `綜合股利 = ${_ltDivDefault.toFixed(2)}`;
       } else {
         _vmLtDivSrc = '無資料';
       }
     } else {
       _vmManual = true;
-      _vmLtDivSrc = '手動設定';
+      _vmLtDivSrc = `手動設定 = ${savedObj.vmLtDiv}`;
     }
     // 顯示來源註記
     const vmNote = document.getElementById('vmSourceNote');
     if (vmNote) {
-      vmNote.innerHTML = `EPS設定來源：${_vmEpsSrc}　|　股利設定來源：${_vmDivSrc}　|　綜合股利來源：${_vmLtDivSrc}`;
+      vmNote.innerHTML = `EPS：${_vmEpsSrc}<br>股利：${_vmDivSrc}<br>綜合股利：${_vmLtDivSrc}<br><span style="color:#94a3b8">與總表評價門檻使用相同的 EPS / 股利來源。手動修改上方欄位後儲存，總表也會同步更新。</span>`;
     }
 
     // DDM 來源註記
