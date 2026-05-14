@@ -3014,6 +3014,17 @@ function calcValMethod() {
   if (vmYH) vmYH.textContent = yHigh + '%';
   if (vmYM) vmYM.textContent = yMax + '%';
 
+  // 手動修改時即時更新來源註記
+  if (_vmManual) {
+    const vmNote = document.getElementById('vmSourceNote');
+    if (vmNote) {
+      const _epsVal = eps != null ? eps.toFixed(2) : '-';
+      const _divVal = div != null ? div.toFixed(2) : '-';
+      const _ltVal = ltDiv != null ? ltDiv.toFixed(2) : '-';
+      vmNote.innerHTML = `EPS：手動設定 = ${_epsVal}<br>股利：手動設定 = ${_divVal}<br>綜合股利：手動設定 = ${_ltVal}<br><span style="color:#94a3b8">與總表評價門檻使用相同的 EPS / 股利來源。手動修改上方欄位後儲存，總表也會同步更新。</span>`;
+    }
+  }
+
   if (!eps || !div) {
     el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入所有參數</div>';
     return;
