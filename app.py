@@ -442,12 +442,20 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
             r[f'payout_{i}'] = None
 
     # ── 評價門檻（統一計算，存 DB）──
-    # EPS/股利取用順序：使用者預估 > min(綜合EPS, 沈董EPS)，股利跟隨EPS來源
+    # EPS/股利取用順序：使用者手動設定 > min(綜合EPS, 沈董EPS)，股利跟隨EPS來源
+    # 與季估計表的逍遙評價法一致
     est_eps = None
     est_div = None
     if user_params:
-        est_eps = user_params.get('eps')
-        est_div = user_params.get('div')
+        # 手動設定的 vmEps（有 _vmManual flag）優先
+        if user_params.get('_vmManual'):
+            est_eps = user_params.get('vmEps')
+            est_div = user_params.get('vmDiv')
+        # 再看舊格式的 eps/div key
+        if not est_eps:
+            est_eps = user_params.get('eps')
+        if not est_div:
+            est_div = user_params.get('div')
         if est_eps: est_eps = float(est_eps)
         if est_div: est_div = float(est_div)
 

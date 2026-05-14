@@ -1599,13 +1599,13 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="val-method">
       <div class="val-method-title">逍遙價值投資評價法</div>
       <div class="val-inputs">
-        <div class="val-inp-group"><label>EPS設定</label><input id="vmEps" type="text" oninput="calcValMethod()"></div>
-        <div class="val-inp-group"><label>股利設定</label><input id="vmDiv" type="text" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>EPS設定</label><input id="vmEps" type="text" oninput="_vmManual=true; calcValMethod()"></div>
+        <div class="val-inp-group"><label>股利設定</label><input id="vmDiv" type="text" oninput="_vmManual=true; calcValMethod()"></div>
         <div class="val-inp-group"><label>偏高殖利率</label><span class="auto-val" id="vmYldHigh">-</span></div>
         <div class="val-inp-group"><label>最高殖利率</label><span class="auto-val" id="vmYldMax">-</span></div>
       </div>
       <div class="val-inputs">
-        <div class="val-inp-group"><label>綜合股利</label><input id="vmLtDiv" type="text" placeholder="綜合股利" oninput="calcValMethod()"></div>
+        <div class="val-inp-group"><label>綜合股利</label><input id="vmLtDiv" type="text" placeholder="綜合股利" oninput="_vmManual=true; calcValMethod()"></div>
         <div class="val-inp-group">
           <label>長期殖利率設定</label><input id="vmLtYld" type="text" value="${_ltYld}" oninput="onLtYldChange()" style="width:60px">
           <span class="val-global-note">%（全部公司）</span>
@@ -1724,6 +1724,8 @@ const _estYear = new Date().getFullYear() - 1911;  // 115
 let _yldFloor = parseFloat(localStorage.getItem('global_yld_floor') || '5');
 let _ltYld = parseFloat(localStorage.getItem('global_lt_yld') || '6');
 
+// vmEps/vmDiv/vmLtDiv 是否由使用者手動編輯（區分自動帶入 vs 手動設定）
+let _vmManual = false;
 // 全域估值參數（預設值，個股自訂會覆蓋）— 先用 localStorage，initEstimator 時從 DB 覆蓋
 let _gvGlobal = JSON.parse(localStorage.getItem('global_val_params') || 'null') || { peHigh: 18, peLow: 10, yldFloor: 5, yldHigh: 5.5, yldMax: 6 };
 let _peHi = _gvGlobal.peHigh, _peLo = _gvGlobal.peLow, _yHigh = _gvGlobal.yldHigh, _yMax = _gvGlobal.yldMax;
@@ -1924,8 +1926,10 @@ async function initEstimator(sharesMillion) {
     }
 
     // === 逍遙評價法預設值（預估 > 沈董，與總表評價一致）===
+    // _vmManual flag：只有使用者真正手動編輯過 vmEps/vmDiv 才算，自動帶入的不算
     let _vmEpsSrc = '', _vmDivSrc = '', _vmLtDivSrc = '';
-    if (!savedObj.vmEps) {
+    const _isVmManual = !!savedObj._vmManual;  // DB 有 _vmManual flag 才算手動
+    if (!_isVmManual || !savedObj.vmEps) {
       const userEstEps = savedObj.q1 || savedObj.q2 || savedObj.q3 || savedObj.q4
         ? [savedObj.q1, savedObj.q2, savedObj.q3, savedObj.q4].filter(v => v).reduce((a, b) => parseFloat(a || 0) + parseFloat(b || 0), 0)
         : null;
@@ -1948,9 +1952,10 @@ async function initEstimator(sharesMillion) {
       }
       if (autoEps != null) document.getElementById('vmEps').value = parseFloat(autoEps).toFixed(2);
     } else {
+      _vmManual = true;
       _vmEpsSrc = '手動設定';
     }
-    if (!savedObj.vmDiv) {
+    if (!_isVmManual || !savedObj.vmDiv) {
       const userEstDiv = savedObj.div ? parseFloat(savedObj.div) : null;
       // 預估 > min(沈董, 綜合)
       let autoDiv = null;
@@ -1971,16 +1976,20 @@ async function initEstimator(sharesMillion) {
       }
       if (autoDiv != null) document.getElementById('vmDiv').value = parseFloat(autoDiv).toFixed(2);
     } else {
+      _vmManual = true;
       _vmDivSrc = '手動設定';
     }
     const _ltDivDefault = _blendDiv;
-    if (!savedObj.vmLtDiv && _ltDivDefault != null) {
-      document.getElementById('vmLtDiv').value = _ltDivDefault.toFixed(2);
-      _vmLtDivSrc = '綜合股利';
-    } else if (savedObj.vmLtDiv) {
-      _vmLtDivSrc = '手動設定';
+    if (!_isVmManual || !savedObj.vmLtDiv) {
+      if (_ltDivDefault != null) {
+        document.getElementById('vmLtDiv').value = _ltDivDefault.toFixed(2);
+        _vmLtDivSrc = '綜合股利';
+      } else {
+        _vmLtDivSrc = '無資料';
+      }
     } else {
-      _vmLtDivSrc = '無資料';
+      _vmManual = true;
+      _vmLtDivSrc = '手動設定';
     }
     // 顯示來源註記
     const vmNote = document.getElementById('vmSourceNote');
@@ -3056,13 +3065,24 @@ function saveValParams() {
     peLow: document.getElementById('peLow').value,
     yldHigh: document.getElementById('yldHigh').value,
     yldMax: document.getElementById('yldMax').value,
-    vmEps: document.getElementById('vmEps').value,
-    vmDiv: document.getElementById('vmDiv').value,
-    vmLtDiv: document.getElementById('vmLtDiv').value,
   };
+  // vmEps/vmDiv/vmLtDiv 只在使用者手動編輯過時才存（避免自動帶入的值被當成手動設定）
+  if (_vmManual) {
+    params.vmEps = document.getElementById('vmEps').value;
+    params.vmDiv = document.getElementById('vmDiv').value;
+    params.vmLtDiv = document.getElementById('vmLtDiv').value;
+    params._vmManual = true;
+  }
   // 更新 localStorage
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  // 若非手動，清除舊的自動存值
+  if (!_vmManual) {
+    delete saved.vmEps;
+    delete saved.vmDiv;
+    delete saved.vmLtDiv;
+    delete saved._vmManual;
+  }
   Object.assign(saved, params);
   saved.valParamsDate = now;
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
@@ -3097,9 +3117,10 @@ function clearValParams() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   ['q1','q2','q3','q4','pr','div','peHigh','peLow','yldHigh','yldMax',
-   'vmEps','vmDiv','vmLtDiv','valParamsDate',
+   'vmEps','vmDiv','vmLtDiv','_vmManual','valParamsDate',
    'ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin',
    'dcfFcf','dcfRate','dcfGrowth','dcfGrowthYears','dcfTermGrowth','dcfMargin'].forEach(k => delete saved[k]);
+  _vmManual = false;
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB
   fetch(`/api/user-estimates/${CODE}`, {
