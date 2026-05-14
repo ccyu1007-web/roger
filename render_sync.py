@@ -595,7 +595,10 @@ def _push_financial_annual_to_render():
                                   net_income_parent, total_assets, total_equity, common_stock,
                                   contract_liability, operating_cf, capex, eps,
                                   weighted_shares, cash_dividend, stock_dividend, updated_at,
-                                  eps_core, eps_nonop
+                                  eps_core, eps_nonop,
+                                  cash_and_equivalents, short_term_debt, short_term_notes,
+                                  current_long_term_debt, long_term_bank_debt,
+                                  other_long_term_debt, bonds_payable, inventory
                                   FROM financial_annual
                                   ORDER BY code, year""").fetchall()
 
@@ -604,7 +607,10 @@ def _push_financial_annual_to_render():
                 'net_income_parent','total_assets','total_equity','common_stock',
                 'contract_liability','operating_cf','capex','eps',
                 'weighted_shares','cash_dividend','stock_dividend','updated_at',
-                'eps_core','eps_nonop']
+                'eps_core','eps_nonop',
+                'cash_and_equivalents','short_term_debt','short_term_notes',
+                'current_long_term_debt','long_term_bank_debt',
+                'other_long_term_debt','bonds_payable','inventory']
         data = [{cols[j]: r[j] for j in range(len(cols)) if r[j] is not None} for r in rows]
 
         if not data:
