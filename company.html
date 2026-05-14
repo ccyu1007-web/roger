@@ -386,6 +386,54 @@
   }
   .ddm-table input:focus { border-color: #0369a1; }
 
+  /* ── 現金流量折現模式 (DCF) ── */
+  .dcf-wrap {
+    border-top: 3px solid #7c3aed; background: #fff; padding: 24px 28px;
+    border-radius: 10px; margin-top: 16px;
+  }
+  .dcf-title { font-size: 1.05rem; font-weight: 700; color: #7c3aed; margin-bottom: 14px; }
+  .dcf-inputs {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; align-items: center;
+  }
+  .dcf-inp-group {
+    display: flex; align-items: center; gap: 6px; font-size: .85rem;
+  }
+  .dcf-inp-group label {
+    background: #ede9fe; color: #7c3aed; padding: 4px 10px; border-radius: 5px;
+    font-weight: 600; font-size: .8rem; white-space: nowrap;
+  }
+  .dcf-inp-group input {
+    width: 90px; padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .85rem; text-align: right; outline: none;
+  }
+  .dcf-inp-group input:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,.12); }
+  .dcf-fcf-table { border-collapse: collapse; font-size: .85rem; width: 100%; margin-bottom: 12px; }
+  .dcf-fcf-table th, .dcf-fcf-table td {
+    padding: 8px 14px; border: 1px solid #e2e8f0; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .dcf-fcf-table thead th { background: #7c3aed; color: #fff; font-weight: 600; text-align: center; }
+  .dcf-fcf-table .row-label { text-align: left; font-weight: 600; color: #334155; background: #f8fafc; white-space: nowrap; }
+  .dcf-result-table { border-collapse: collapse; font-size: .85rem; width: 100%; }
+  .dcf-result-table th, .dcf-result-table td {
+    padding: 8px 14px; border: 1px solid #e2e8f0; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .dcf-result-table thead th { background: #7c3aed; color: #fff; font-weight: 600; text-align: center; }
+  .dcf-result-table .row-label { text-align: left; font-weight: 600; color: #334155; background: #f8fafc; white-space: nowrap; }
+  .dcf-result-table .highlight { color: #7c3aed; font-weight: 700; }
+  .dcf-result-table .safe { color: #16a34a; font-weight: 700; }
+  .dcf-result-table .danger { color: #dc2626; font-weight: 700; }
+  .dcf-btn-group { display: flex; gap: 8px; margin-left: auto; }
+  .dcf-btn {
+    padding: 4px 14px; border-radius: 5px; font-size: .78rem; font-weight: 600;
+    cursor: pointer; border: 1px solid;
+  }
+  .dcf-btn-save { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+  .dcf-btn-save:hover { background: #6d28d9; }
+  .dcf-btn-clear { background: #fff; color: #7c3aed; border-color: #7c3aed; }
+  .dcf-btn-clear:hover { background: #f5f3ff; }
+
   /* ── 決策檢核表 ── */
   .chk-summary { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding: 16px 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; flex-wrap: wrap; }
   .chk-price { font-size: 1.3rem; font-weight: 700; color: #1e293b; }
@@ -1627,6 +1675,32 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div id="ddmSourceNote" style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.6"></div>
     </div>
 
+    <!-- 現金流量折現模式 (DCF) -->
+    <div class="dcf-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="dcf-title" style="margin-bottom:0">現金流量折現模式（DCF）</div>
+        <div class="dcf-btn-group">
+          <button class="dcf-btn dcf-btn-save" onclick="saveDCF()">儲存參數</button>
+          <button class="dcf-btn dcf-btn-clear" onclick="clearDCF()">恢復預設</button>
+        </div>
+      </div>
+      <div class="dcf-inputs">
+        <div class="dcf-inp-group"><label>自由現金流(百萬)</label><input id="dcfFcf" type="text" placeholder="近5年中位數" oninput="calcDCF()"></div>
+        <div class="dcf-inp-group"><label>折現率</label><input id="dcfRate" type="text" value="10" oninput="calcDCF()"><span style="font-size:.8rem;color:#94a3b8">%</span></div>
+        <div class="dcf-inp-group"><label>高成長率</label><input id="dcfGrowth" type="text" value="4" oninput="calcDCF()"><span style="font-size:.8rem;color:#94a3b8">%</span></div>
+        <div class="dcf-inp-group"><label>高成長年數</label><input id="dcfGrowthYears" type="text" value="5" oninput="calcDCF()" style="width:60px"><span style="font-size:.8rem;color:#94a3b8">年</span></div>
+        <div class="dcf-inp-group"><label>永續成長率</label><input id="dcfTermGrowth" type="text" value="2" oninput="calcDCF()"><span style="font-size:.8rem;color:#94a3b8">%</span></div>
+        <div class="dcf-inp-group"><label>安全邊際</label><input id="dcfMargin" type="text" value="80" oninput="calcDCF()" style="width:60px"><span style="font-size:.8rem;color:#94a3b8">%</span></div>
+      </div>
+      <div id="dcfFcfHistory"></div>
+      <div id="dcfSharesInfo" style="font-size:.82rem;color:#64748b;margin-bottom:10px"></div>
+      <table class="dcf-result-table" id="dcfResultTable" style="display:none">
+        <thead><tr><th style="width:180px">項目</th><th>數值</th></tr></thead>
+        <tbody id="dcfResultBody"></tbody>
+      </table>
+      <div id="dcfNote" style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.6"></div>
+    </div>
+
     <!-- 質性研究筆記 -->
     <div class="notes-wrap">
       <div class="notes-header">
@@ -1997,6 +2071,7 @@ async function initEstimator(sharesMillion) {
   loadPEHistory();
   calcValMethod();
   calcDDM();
+  initDCF();
   renderMatrix();
 
   // 載入筆記（先 localStorage，再從 DB 覆蓋）
@@ -2588,6 +2663,265 @@ function saveDDM() {
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
 }
 
+// ── 現金流量折現模式 (DCF) ──
+let _dcfFcfData = [];  // 近5年 FCF 資料 [{year, fcf, fcf_per_share}]
+let _dcfSharesMillion = null;  // 股數（百萬股）
+
+async function initDCF() {
+  // 從 financials API 取得近5年 FCF
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/financials`);
+    const json = await res.json();
+    if (json.data && json.data.length) {
+      _dcfFcfData = json.data
+        .filter(d => d.fcf != null)
+        .sort((a, b) => b.year - a.year)
+        .slice(0, 5)
+        .reverse();  // 由舊到新
+      // 取最新一筆的 common_stock 算股數
+      const latest = json.data.find(d => d.common_stock && d.common_stock > 0);
+      if (latest) _dcfSharesMillion = latest.common_stock / 10 / 1000000;  // 股本(元)/10=股數, /1M=百萬股
+    }
+  } catch(e) { console.warn('[DCF] 無法取得財報:', e); }
+
+  // 顯示近5年 FCF 歷史
+  renderDCFFcfHistory();
+
+  // 顯示股數
+  const sharesInfo = document.getElementById('dcfSharesInfo');
+  if (sharesInfo && _dcfSharesMillion) {
+    const totalShares = _dcfSharesMillion * 1000000;
+    const display = totalShares >= 1e8
+      ? (totalShares / 1e8).toFixed(2) + ' 億股'
+      : totalShares.toLocaleString() + ' 股';
+    sharesInfo.textContent = `股數：${display}`;
+  }
+
+  // 計算近5年 FCF 中位數作為預設值
+  if (_dcfFcfData.length > 0) {
+    const fcfValues = _dcfFcfData.map(d => d.fcf).filter(v => v > 0);
+    if (fcfValues.length > 0) {
+      fcfValues.sort((a, b) => a - b);
+      const mid = Math.floor(fcfValues.length / 2);
+      const median = fcfValues.length % 2 === 0
+        ? (fcfValues[mid - 1] + fcfValues[mid]) / 2
+        : fcfValues[mid];
+      const medianM = median / 1000000;  // 轉百萬
+      const fcfInput = document.getElementById('dcfFcf');
+      if (fcfInput && !fcfInput.value) {
+        fcfInput.value = medianM.toFixed(0);
+        fcfInput.placeholder = medianM.toFixed(0);
+      }
+    }
+  }
+
+  // 載入已儲存參數
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  if (saved.dcfFcf) document.getElementById('dcfFcf').value = saved.dcfFcf;
+  if (saved.dcfRate) document.getElementById('dcfRate').value = saved.dcfRate;
+  if (saved.dcfGrowth) document.getElementById('dcfGrowth').value = saved.dcfGrowth;
+  if (saved.dcfGrowthYears) document.getElementById('dcfGrowthYears').value = saved.dcfGrowthYears;
+  if (saved.dcfTermGrowth) document.getElementById('dcfTermGrowth').value = saved.dcfTermGrowth;
+  if (saved.dcfMargin) document.getElementById('dcfMargin').value = saved.dcfMargin;
+
+  calcDCF();
+}
+
+function renderDCFFcfHistory() {
+  const container = document.getElementById('dcfFcfHistory');
+  if (!container || _dcfFcfData.length === 0) return;
+
+  const fmtM = v => v != null ? (v / 1000000).toFixed(0) : '-';
+  const fmtPS = v => v != null ? v.toFixed(2) : '-';
+
+  let html = '<table class="dcf-fcf-table"><thead><tr><th>項目</th>';
+  _dcfFcfData.forEach(d => html += `<th>${d.year - 1911}年</th>`);
+  html += '<th>中位數</th></tr></thead><tbody>';
+
+  // 自由現金流（百萬）
+  const fcfMs = _dcfFcfData.map(d => d.fcf);
+  const positiveFcfs = fcfMs.filter(v => v > 0);
+  let medianFcf = null;
+  if (positiveFcfs.length > 0) {
+    const sorted = [...positiveFcfs].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    medianFcf = sorted.length % 2 === 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid];
+  }
+
+  html += '<tr><td class="row-label">自由現金流(百萬)</td>';
+  fcfMs.forEach(v => {
+    const cls = v < 0 ? ' style="color:#dc2626"' : '';
+    html += `<td${cls}>${fmtM(v)}</td>`;
+  });
+  html += `<td style="font-weight:700;color:#7c3aed">${medianFcf != null ? fmtM(medianFcf) : '-'}</td></tr>`;
+
+  // 每股自由現金流
+  html += '<tr><td class="row-label">每股自由現金流</td>';
+  _dcfFcfData.forEach(d => {
+    const v = d.fcf_per_share;
+    const cls = v != null && v < 0 ? ' style="color:#dc2626"' : '';
+    html += `<td${cls}>${fmtPS(v)}</td>`;
+  });
+  // 每股中位數
+  const fcfPsValues = _dcfFcfData.map(d => d.fcf_per_share).filter(v => v != null && v > 0);
+  let medianPs = null;
+  if (fcfPsValues.length > 0) {
+    const sorted = [...fcfPsValues].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    medianPs = sorted.length % 2 === 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid];
+  }
+  html += `<td style="font-weight:700;color:#7c3aed">${medianPs != null ? fmtPS(medianPs) : '-'}</td></tr>`;
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function calcDCF() {
+  const table = document.getElementById('dcfResultTable');
+  const body = document.getElementById('dcfResultBody');
+  const note = document.getElementById('dcfNote');
+  if (!table || !body) return;
+
+  const fcfM = parseNum('dcfFcf');  // 百萬元
+  const rate = parseNum('dcfRate');  // %
+  const growth = parseNum('dcfGrowth');  // %
+  const growthYears = parseNum('dcfGrowthYears');
+  const termGrowth = parseNum('dcfTermGrowth');  // %
+  const margin = parseNum('dcfMargin');  // %
+
+  if (!fcfM || !rate || rate <= 0 || growthYears == null || growthYears < 1 || margin == null) {
+    table.style.display = 'none';
+    if (note) note.textContent = '';
+    return;
+  }
+
+  if (fcfM <= 0) {
+    table.style.display = 'none';
+    if (note) note.innerHTML = '<span style="color:#dc2626">自由現金流為負，無法進行 DCF 評估</span>';
+    return;
+  }
+
+  const r = rate / 100;
+  const g = (growth || 0) / 100;
+  const tg = (termGrowth || 0) / 100;
+  const mg = (margin || 80) / 100;
+  const n = Math.round(growthYears);
+  const fcf = fcfM * 1000000;  // 轉元
+
+  // === 合理價值（用設定的成長率）===
+  let pvTotal = 0;
+  let cfYear = fcf;
+  for (let i = 1; i <= n; i++) {
+    cfYear = (i === 1) ? fcf * (1 + g) : cfYear * (1 + g);
+    pvTotal += cfYear / Math.pow(1 + r, i);
+  }
+  // 終端價值
+  const terminalCF = cfYear * (1 + tg);
+  const terminalValue = terminalCF / (r - tg);
+  const pvTerminal = terminalValue / Math.pow(1 + r, n);
+  const totalValue = pvTotal + pvTerminal;
+
+  // === 零成長價值（Pabrai 壓力測試）===
+  let pvZero = 0;
+  for (let i = 1; i <= n; i++) {
+    pvZero += fcf / Math.pow(1 + r, i);
+  }
+  const terminalZero = fcf / r;  // 永續零成長
+  const pvTerminalZero = terminalZero / Math.pow(1 + r, n);
+  const totalZero = pvZero + pvTerminalZero;
+
+  // 每股計算
+  const shares = _dcfSharesMillion ? _dcfSharesMillion * 1000000 : null;
+  const perShare = shares ? totalValue / shares : null;
+  const perShareZero = shares ? totalZero / shares : null;
+  const safePrice = perShare ? perShare * mg : null;
+  const curPrice = _estPrice || 0;
+
+  // 折價比
+  const discountVsFair = (perShare && curPrice) ? (curPrice / perShare * 100) : null;
+  const discountVsSafe = (safePrice && curPrice) ? (curPrice / safePrice * 100) : null;
+
+  const f = v => v != null ? v.toFixed(2) : '-';
+  const fM = v => v != null ? (v / 1000000).toLocaleString() + ' 百萬' : '-';
+
+  let rows = '';
+  rows += `<tr><td class="row-label">合理內在價值（總）</td><td>${fM(totalValue)}</td></tr>`;
+  rows += `<tr><td class="row-label">合理內在價值（每股）</td><td class="highlight">${f(perShare)}</td></tr>`;
+  rows += `<tr><td class="row-label">零成長價值（每股）</td><td>${f(perShareZero)}</td></tr>`;
+  rows += `<tr><td class="row-label">安全邊際價（${(mg*100).toFixed(0)}%）</td><td class="highlight">${f(safePrice)}</td></tr>`;
+  rows += `<tr><td class="row-label">現價</td><td>${curPrice ? f(curPrice) : '-'}</td></tr>`;
+
+  if (discountVsFair != null) {
+    const cls = discountVsFair <= 80 ? 'safe' : discountVsFair >= 100 ? 'danger' : '';
+    rows += `<tr><td class="row-label">現價 / 合理價</td><td class="${cls}">${discountVsFair.toFixed(1)}%</td></tr>`;
+  }
+  if (discountVsSafe != null) {
+    const cls = discountVsSafe <= 100 ? 'safe' : 'danger';
+    rows += `<tr><td class="row-label">現價 / 安全邊際價</td><td class="${cls}">${discountVsSafe.toFixed(1)}%</td></tr>`;
+  }
+
+  body.innerHTML = rows;
+  table.style.display = '';
+
+  if (note) {
+    const parts = [];
+    parts.push(`FCF ${fcfM.toLocaleString()} 百萬`);
+    parts.push(`成長 ${g*100}%×${n}年`);
+    parts.push(`永續 ${tg*100}%`);
+    parts.push(`折現 ${r*100}%`);
+    note.textContent = parts.join('　|　');
+  }
+}
+
+function saveDCF() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  saved.dcfFcf = document.getElementById('dcfFcf')?.value || '';
+  saved.dcfRate = document.getElementById('dcfRate')?.value || '';
+  saved.dcfGrowth = document.getElementById('dcfGrowth')?.value || '';
+  saved.dcfGrowthYears = document.getElementById('dcfGrowthYears')?.value || '';
+  saved.dcfTermGrowth = document.getElementById('dcfTermGrowth')?.value || '';
+  saved.dcfMargin = document.getElementById('dcfMargin')?.value || '';
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  // 同步到 DB
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(saved)
+  });
+  const note = document.getElementById('dcfNote');
+  if (note) {
+    const orig = note.textContent;
+    note.textContent = 'DCF 參數已儲存';
+    setTimeout(() => { note.textContent = orig; }, 2000);
+  }
+}
+
+function clearDCF() {
+  // 恢復預設值
+  document.getElementById('dcfRate').value = '10';
+  document.getElementById('dcfGrowth').value = '4';
+  document.getElementById('dcfGrowthYears').value = '5';
+  document.getElementById('dcfTermGrowth').value = '2';
+  document.getElementById('dcfMargin').value = '80';
+  // FCF 恢復中位數預設
+  const fcfInput = document.getElementById('dcfFcf');
+  if (fcfInput) {
+    fcfInput.value = fcfInput.placeholder || '';
+  }
+  // 從 localStorage 移除 DCF 欄位
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  ['dcfFcf','dcfRate','dcfGrowth','dcfGrowthYears','dcfTermGrowth','dcfMargin'].forEach(k => delete saved[k]);
+  localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
+  // 同步到 DB
+  fetch(`/api/user-estimates/${CODE}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(saved)
+  });
+  calcDCF();
+}
+
 function _applyEstimateData(d) {
   // 共用：把 estimate 資料填入表單
   if (d.rev1) document.getElementById('estRev1').value = d.rev1;
@@ -2621,6 +2955,13 @@ function _applyEstimateData(d) {
   if (d.ddmPE) document.getElementById('ddmPE').value = d.ddmPE;
   if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
   if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
+  // DCF 參數
+  if (d.dcfFcf) { const el = document.getElementById('dcfFcf'); if (el) el.value = d.dcfFcf; }
+  if (d.dcfRate) { const el = document.getElementById('dcfRate'); if (el) el.value = d.dcfRate; }
+  if (d.dcfGrowth) { const el = document.getElementById('dcfGrowth'); if (el) el.value = d.dcfGrowth; }
+  if (d.dcfGrowthYears) { const el = document.getElementById('dcfGrowthYears'); if (el) el.value = d.dcfGrowthYears; }
+  if (d.dcfTermGrowth) { const el = document.getElementById('dcfTermGrowth'); if (el) el.value = d.dcfTermGrowth; }
+  if (d.dcfMargin) { const el = document.getElementById('dcfMargin'); if (el) el.value = d.dcfMargin; }
   if (d.date) document.getElementById('estDate').textContent = '上次儲存：' + d.date;
   if (d.valParamsDate) document.getElementById('valParamsDate').textContent = '上次儲存：' + d.valParamsDate;
   calcEstimate();
@@ -2629,6 +2970,7 @@ function _applyEstimateData(d) {
   calcPERange();
   calcYldRange();
   calcValMethod();
+  calcDCF();
 }
 
 function _syncToValMethod() {
@@ -2751,12 +3093,13 @@ function clearValParams() {
   ['ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  // 從 localStorage 移除所有參數欄位
+  // 從 localStorage 移除所有參數欄位（含 DCF）
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   ['q1','q2','q3','q4','pr','div','peHigh','peLow','yldHigh','yldMax',
    'vmEps','vmDiv','vmLtDiv','valParamsDate',
-   'ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin'].forEach(k => delete saved[k]);
+   'ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin',
+   'dcfFcf','dcfRate','dcfGrowth','dcfGrowthYears','dcfTermGrowth','dcfMargin'].forEach(k => delete saved[k]);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB
   fetch(`/api/user-estimates/${CODE}`, {
@@ -2784,11 +3127,17 @@ function clearValParams() {
   document.getElementById('ddmPE').value = '14';
   document.getElementById('ddmRate').value = '0.10';
   document.getElementById('ddmMargin').value = '0.90';
+  // 恢復 DCF 預設值
+  const dcfFcfEl = document.getElementById('dcfFcf');
+  if (dcfFcfEl) { dcfFcfEl.value = dcfFcfEl.placeholder || ''; }
+  const dcfDefaults = { dcfRate: '10', dcfGrowth: '4', dcfGrowthYears: '5', dcfTermGrowth: '2', dcfMargin: '80' };
+  Object.entries(dcfDefaults).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
   calcAnnual();
   calcPERange();
   calcYldRange();
   calcValMethod();
   calcDDM();
+  calcDCF();
   renderMatrix();
 }
 
