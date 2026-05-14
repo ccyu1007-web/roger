@@ -2553,10 +2553,11 @@ def sync_financial_annual():
         c.execute("SELECT * FROM financial_annual LIMIT 0")
         existing_cols = set(desc[0] for desc in c.description)
     except Exception: pass
-    # 確保負債/現金欄位存在（ROIC 計算需要）
+    # 確保負債/現金/存貨等欄位存在（ROIC 計算 + 個股頁顯示需要）
     for col, typ in [('cash_and_equivalents','REAL'),('short_term_debt','REAL'),('short_term_notes','REAL'),
                      ('current_long_term_debt','REAL'),('long_term_bank_debt','REAL'),
-                     ('other_long_term_debt','REAL'),('bonds_payable','REAL')]:
+                     ('other_long_term_debt','REAL'),('bonds_payable','REAL'),
+                     ('inventory','REAL'),('contract_liability','REAL')]:
         try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {typ}")
         except Exception: pass
     try: conn.commit()
