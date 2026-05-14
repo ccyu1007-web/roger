@@ -2609,9 +2609,11 @@ def _bg_update_financials(code):
 def get_financials(code):
     from datetime import datetime, timedelta
 
+    max_annual_year = datetime.now().year - 1  # 年度上限：當年-1（排除未來年度）
+
     rows = query_db(
-        "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 6",
-        (code,)
+        "SELECT * FROM financial_annual WHERE code = ? AND year <= ? ORDER BY year DESC LIMIT 6",
+        (code, max_annual_year)
     )
 
     # 快取過期 → 背景更新，先回傳現有資料
@@ -2635,8 +2637,8 @@ def get_financials(code):
                 fetch_company_financials(code)
             except Exception: pass
             rows = query_db(
-                "SELECT * FROM financial_annual WHERE code = ? ORDER BY year DESC LIMIT 6",
-                (code,)
+                "SELECT * FROM financial_annual WHERE code = ? AND year <= ? ORDER BY year DESC LIMIT 6",
+                (code, max_annual_year)
             )
 
     # 計算衍生指標

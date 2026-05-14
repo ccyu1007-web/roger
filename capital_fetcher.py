@@ -1215,13 +1215,15 @@ def fetch_capital_pe_history(code):
 
 def sync_to_stocks(code):
     """將 financial_annual + quarterly_financial 的資料同步到 stocks 表（原子操作）"""
+    from datetime import date as _date
+    max_year = _date.today().year - 1  # 年度上限：當年-1（排除未來年度）
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
         try:
             # 1. 年度EPS（eps_y1~y6）— 從 financial_annual 取最近6年有EPS的
             rows = c.execute("""SELECT year, eps FROM financial_annual
-                               WHERE code=? AND eps IS NOT NULL
-                               ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+                               WHERE code=? AND eps IS NOT NULL AND year <= ?
+                               ORDER BY year DESC LIMIT 6""", (code, max_year)).fetchall()
             for i, r in enumerate(rows, 1):
                 roc_yr = str(r[0] - 1911)
                 c.execute(f"UPDATE stocks SET eps_y{i}=?, eps_y{i}_label=? WHERE code=?",
@@ -1232,7 +1234,8 @@ def sync_to_stocks(code):
             # 2. 股利（div_c1~c6）— 從 financial_annual 取最近6年有股利的
             rows = c.execute("""SELECT year, cash_dividend, stock_dividend FROM financial_annual
                                WHERE code=? AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
-                               ORDER BY year DESC LIMIT 6""", (code,)).fetchall()
+                               AND year <= ?
+                               ORDER BY year DESC LIMIT 6""", (code, max_year)).fetchall()
             for i, r in enumerate(rows, 1):
                 roc_yr = str(r[0] - 1911)
                 c.execute(f"UPDATE stocks SET div_c{i}=?, div_s{i}=?, div_{i}_label=? WHERE code=?",

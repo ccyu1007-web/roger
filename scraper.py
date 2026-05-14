@@ -1048,8 +1048,9 @@ def _run_inner(scheduled=True):
 
         # eps_date 只在季度 EPS (eps_1q) 真正變更時才更新，年度 EPS 合併不觸發
 
-        # 寫回最近 6 年
-        sorted_yrs = sorted(merged.keys(), key=int, reverse=True)[:6]
+        # 寫回最近 6 年（年度上限：當年-1，如 2026 年最新年報是民國 114）
+        max_roc = date.today().year - 1911 - 1
+        sorted_yrs = sorted([y for y in merged.keys() if int(y) <= max_roc], key=int, reverse=True)[:6]
         for i, yr in enumerate(sorted_yrs, 1):
             r[f'eps_y{i}'] = merged[yr]
             r[f'eps_y{i}_label'] = yr
@@ -3119,17 +3120,20 @@ def _refresh_fin_grades():
 
 def _refresh_stale_financials():
     """偵測哪些公司有新的年度 EPS 但 financial_annual 資料過時，自動刷新"""
+    max_roc = date.today().year - 1911 - 1  # 年度上限：如 2026 年最新年報是民國 114
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
 
         # 找 stocks 表中有 eps_y1_label 但 financial_annual 沒有對應年度的公司
+        # 排除超過上限的年度（不可能有該年度年報）
         c.execute("""SELECT s.code, s.eps_y1_label
                      FROM stocks s
                      WHERE s.eps_y1_label IS NOT NULL
+                     AND CAST(s.eps_y1_label AS INTEGER) <= ?
                      AND s.code NOT IN (
                          SELECT fa.code FROM financial_annual fa
                          WHERE fa.year = (CAST(s.eps_y1_label AS INTEGER) + 1911)
-                     )""")
+                     )""", (max_roc,))
         stale = c.fetchall()
 
     if not stale:
@@ -4506,13 +4510,15 @@ def _fill_all_gaps():
 def _sync_annual_eps_from_financial(codes, expected_year=None):
     """從 financial_annual 同步年度 EPS 到 stocks 表"""
     from collections import defaultdict
+    max_year = date.today().year - 1  # 年度上限：當年-1（如 2026 年最新年報是 2025）
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
-        # 批次查詢所有 codes 的 EPS
+        # 批次查詢所有 codes 的 EPS（排除未來年度）
         placeholders = ','.join('?' * len(codes))
         all_eps = c.execute(f"""SELECT code, year, eps FROM financial_annual
                                WHERE code IN ({placeholders}) AND eps IS NOT NULL
-                               ORDER BY code, year DESC""", codes).fetchall()
+                               AND year <= ?
+                               ORDER BY code, year DESC""", codes + [max_year]).fetchall()
         eps_by_code = defaultdict(list)
         for r in all_eps:
             if len(eps_by_code[r[0]]) < 6:
@@ -4534,12 +4540,14 @@ def _sync_annual_eps_from_financial(codes, expected_year=None):
 def _sync_dividends_from_financial(codes):
     """從 financial_annual 同步股利到 stocks 表"""
     from collections import defaultdict
+    max_year = date.today().year - 1  # 年度上限：當年-1（排除未來年度）
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
         placeholders = ','.join('?' * len(codes))
         all_divs = c.execute(f"""SELECT code, year, cash_dividend, stock_dividend FROM financial_annual
                                WHERE code IN ({placeholders}) AND (cash_dividend IS NOT NULL OR stock_dividend IS NOT NULL)
-                               ORDER BY code, year DESC""", codes).fetchall()
+                               AND year <= ?
+                               ORDER BY code, year DESC""", codes + [max_year]).fetchall()
         div_by_code = defaultdict(list)
         for r in all_divs:
             if len(div_by_code[r[0]]) < 6:
