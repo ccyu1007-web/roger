@@ -1476,7 +1476,7 @@ function autoWatchCheck(silent) {
   const totalExcluded = Object.values(stepCounts).reduce((a,b)=>a+b,0);
 
   if (!silent) {
-    alert(`自動挑選完成：${passed} 支（排除 ${totalExcluded} 支）\n總股票數：${allData.length}\n\n篩選條件：\n${condText}\n\n排除統計（逐步）：\n${stepText}\n\n自訂條件內容：${JSON.stringify(_customConditions)}`);
+    alert(`自動挑選完成：${passed} 支（排除 ${totalExcluded} 支）\n總股票數：${allData.length}\n\n篩選條件：\n${condText}\n\n排除統計（逐步）：\n${stepText}`);
   }
 }
 
