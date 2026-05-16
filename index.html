@@ -2660,13 +2660,16 @@ function render() {
     if (el2 && sampleCL.contract_2q) { const ry = sampleCL.contract_2q.split('Q')[0]; el2.innerHTML = sampleCL.contract_2q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
     if (el3 && sampleCL.contract_3q) { const ry = sampleCL.contract_3q.split('Q')[0]; el3.innerHTML = sampleCL.contract_3q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
   }
-  // 動態生成財務等級表頭（用 _fixedY）
+  // 動態生成財務等級表頭（正常5年，4/15前過渡期6年）
+  const now = new Date();
+  const isTransition = now.getMonth() < 3 || (now.getMonth() === 3 && now.getDate() < 15);
+  const fgYears = isTransition ? _fixedY : _fixedY.slice(0, 5);
   const fgAnchor = document.getElementById('dynFgAnchor');
   if (fgAnchor) {
     const fgTr = fgAnchor.parentElement;
     fgTr.querySelectorAll('.dyn-fg').forEach(el => el.remove());
     const fgFrag = document.createDocumentFragment();
-    _fixedY.forEach((y, i) => {
+    fgYears.forEach((y, i) => {
       const th = document.createElement('th');
       th.className = 'dyn-fg g-fg' + (i === 0 ? ' col-div' : '');
       const west = parseInt(y) + 1911;
@@ -2813,7 +2816,7 @@ function render() {
       <td class="g-wt" data-col="wt_div" style="color:#475569">${r.weighted_div != null ? r.weighted_div.toFixed(2) : '－'}</td>
       <td class="g-wt" data-col="wt_payout" style="color:#475569">${r.weighted_payout != null ? r.weighted_payout.toFixed(2) + '%' : '－'}</td>
       <!-- 財務等級 -->
-      ${_fixedY.map((y, i) => {
+      ${fgYears.map((y, i) => {
         const g = r._fg[y];
         const divCls = i === 0 ? ' col-div' : '';
         if (!g) return `<td class="g-fg${divCls}">－</td>`;
