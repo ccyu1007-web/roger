@@ -941,9 +941,12 @@ def fetch_capital_cashflow(code):
 # ── 年度損益表（群益 zcqa）── 年度 EPS 最優先來源 ─────────
 
 def fetch_capital_annual_eps(code):
-    """從群益年度損益表抓取個股近 8 年每股盈餘+加權股數+歸屬母公司淨利+所得稅，回傳 {民國年: eps}
-    同時將正確的年度 EPS/歸屬母公司淨利/所得稅 覆蓋寫入 financial_annual，
-    避免季度 EPS 直接相加（增資等股數變動時會失真）的問題。"""
+    """從群益年度損益表(zcqa)抓取完整年度損益數據，覆蓋寫入 financial_annual。
+    回傳 {民國年: eps}。
+
+    zcqa 是年度數據的權威來源，直接覆蓋季度加總的值（季度加總的 EPS/營收等
+    在增資或四捨五入時會失真）。提取欄位：
+    營收/成本/毛利/營費/營益/業外/稅前/稅/稅後/母公司淨利/EPS/加權股數"""
     try:
         url = f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}"
         r = _session.get(url, timeout=15)
@@ -971,97 +974,102 @@ def fetch_capital_annual_eps(code):
     if not years:
         return {}
 
-    # 每 (1+len(years)) 個 span 一列，找關鍵欄位
+    # zcqa 欄位 → DB 欄位對照（群益單位：百萬元，需 ×1,000,000；EPS/股數例外）
+    LABEL_MAP = {
+        '營業收入淨額': 'revenue',
+        '營業成本':     'cost',
+        '營業毛利':     'gross_profit',
+        '營業費用':     'operating_expense',
+        '營業利益':     'operating_income',
+        '營業外收入及支出': 'non_operating',
+        '稅前淨利':     'pretax_income',
+        '所得稅費用':   'tax',
+        '繼續營業單位損益': 'net_income',
+        '歸屬母公司淨利（損）': 'net_income_parent',
+        '每股盈餘':     'eps',
+        '加權平均股數': 'weighted_shares',
+    }
+    # 不需乘 1,000,000 的欄位
+    NO_MUL_FIELDS = {'eps', 'weighted_shares'}
+
+    # 解析所有列
     cols = 1 + len(years)
-    result = {}
-    shares_map = {}   # {民國年: 加權股數（千股）}
-    nip_map = {}      # {民國年: 歸屬母公司淨利（百萬）}
-    tax_map = {}      # {民國年: 所得稅費用（百萬）}
-    ni_map = {}       # {民國年: 繼續營業單位損益（百萬）}
+    field_data = {}  # {db_field: {民國年: value}}
     for i in range(0, len(spans), cols):
         row = spans[i:i+cols]
         if len(row) < cols:
             continue
         label = row[0].get_text(strip=True)
-        if label == '每股盈餘':
-            for j, yr in enumerate(years):
-                if yr is None:
-                    continue
-                val = _parse_num(row[j + 1].get_text(strip=True))
-                if val is not None:
-                    result[yr] = val
-        elif label == '加權平均股數':
-            for j, yr in enumerate(years):
-                if yr is None:
-                    continue
-                val = _parse_num(row[j + 1].get_text(strip=True))
-                if val is not None:
-                    shares_map[yr] = val * 1000  # 百萬股→千股
-        elif label == '歸屬母公司淨利（損）':
-            for j, yr in enumerate(years):
-                if yr is None:
-                    continue
-                val = _parse_num(row[j + 1].get_text(strip=True))
-                if val is not None:
-                    nip_map[yr] = val  # 百萬元
-        elif label == '所得稅費用':
-            for j, yr in enumerate(years):
-                if yr is None:
-                    continue
-                val = _parse_num(row[j + 1].get_text(strip=True))
-                if val is not None:
-                    tax_map[yr] = val  # 百萬元
-        elif label == '繼續營業單位損益':
-            for j, yr in enumerate(years):
-                if yr is None:
-                    continue
-                val = _parse_num(row[j + 1].get_text(strip=True))
-                if val is not None:
-                    ni_map[yr] = val  # 百萬元
+        db_field = LABEL_MAP.get(label)
+        if not db_field:
+            continue
+        for j, yr in enumerate(years):
+            if yr is None:
+                continue
+            val = _parse_num(row[j + 1].get_text(strip=True))
+            if val is not None:
+                field_data.setdefault(db_field, {})[yr] = val
 
-    # 寫入 financial_annual：加權股數 + 正確的年度 EPS / 母公司淨利 / 所得稅
-    if shares_map or result or nip_map:
-        try:
-            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with sqlite3.get_conn() as conn:
-                c = conn.cursor()
-                try:
-                    c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
-                    conn.commit()
-                except Exception: pass
+    # EPS 結果（回傳值）
+    result = field_data.get('eps', {})
 
-                all_years = set()
-                for m in (shares_map, result, nip_map, tax_map, ni_map):
-                    all_years.update(m.keys())
+    # 寫入 financial_annual
+    if not field_data:
+        return result
 
-                mul = 1000000  # 百萬→元
-                for yr in all_years:
-                    west_year = int(yr) + 1911
-                    updates = []
-                    params = []
-                    if yr in shares_map:
-                        updates.append("weighted_shares=?")
-                        params.append(shares_map[yr])
-                    if yr in result:
-                        updates.append("eps=?")
-                        params.append(result[yr])
-                    if yr in nip_map:
-                        updates.append("net_income_parent=?")
-                        params.append(nip_map[yr] * mul)
-                    if yr in tax_map:
-                        updates.append("tax=?")
-                        params.append(tax_map[yr] * mul)
-                    if yr in ni_map:
-                        updates.append("net_income=?")
-                        params.append(ni_map[yr] * mul)
-                    if updates:
-                        updates.append("updated_at=?")
-                        params.append(now_str)
-                        params.extend([code, west_year])
-                        c.execute(f"UPDATE financial_annual SET {','.join(updates)} WHERE code=? AND year=?",
-                                  params)
+    try:
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        mul = 1000000  # 百萬→元
+
+        # 收集所有出現過的年度
+        all_years = set()
+        for m in field_data.values():
+            all_years.update(m.keys())
+
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            try:
+                c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
                 conn.commit()
-        except Exception as e: logger.debug(f"[群益年度] {code} 寫入失敗: {e}")
+            except Exception: pass
+
+            for yr in all_years:
+                west_year = int(yr) + 1911
+                updates = []
+                params = []
+                for db_field, yr_map in field_data.items():
+                    if yr not in yr_map:
+                        continue
+                    val = yr_map[yr]
+                    if db_field == 'weighted_shares':
+                        val = val * 1000  # 百萬股→千股
+                    elif db_field not in NO_MUL_FIELDS:
+                        val = val * mul   # 百萬→元
+                    updates.append(f"{db_field}=?")
+                    params.append(val)
+
+                # 衍生欄位：eps_core（本業EPS）、eps_nonop（業外EPS）
+                eps_val = field_data.get('eps', {}).get(yr)
+                oi_val = field_data.get('operating_income', {}).get(yr)
+                nop_val = field_data.get('non_operating', {}).get(yr)
+                pt_val = field_data.get('pretax_income', {}).get(yr)
+                if eps_val is not None and oi_val is not None and pt_val and pt_val != 0:
+                    eps_core = round(oi_val / pt_val * eps_val, 2)
+                    eps_nonop = round(eps_val - eps_core, 2) if nop_val is not None else None
+                    updates.append("eps_core=?")
+                    params.append(eps_core)
+                    if eps_nonop is not None:
+                        updates.append("eps_nonop=?")
+                        params.append(eps_nonop)
+
+                if updates:
+                    updates.append("updated_at=?")
+                    params.append(now_str)
+                    params.extend([code, west_year])
+                    c.execute(f"UPDATE financial_annual SET {','.join(updates)} WHERE code=? AND year=?",
+                              params)
+            conn.commit()
+    except Exception as e: logger.debug(f"[群益年度] {code} 寫入失敗: {e}")
 
     return result
 
