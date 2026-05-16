@@ -584,13 +584,20 @@ def _push_pe_history_to_render():
 
 
 
-def _push_financial_annual_to_render():
-    """本機 financial_annual 整表 push 到 Render（只推當天更新的）"""
+def _push_financial_annual_to_render(full=False):
+    """本機 financial_annual push 到 Render。預設只推當天更新的，full=True 推整表。"""
     if _is_cloud():
         return
     try:
+        today_str = datetime.now().strftime('%Y-%m-%d')
         with sqlite3.get_conn() as conn:
-            rows = conn.execute("""SELECT code, year, revenue, cost, gross_profit, operating_expense,
+            if full:
+                where = ""
+                params = ()
+            else:
+                where = "WHERE updated_at >= ?"
+                params = (today_str,)
+            rows = conn.execute(f"""SELECT code, year, revenue, cost, gross_profit, operating_expense,
                                   operating_income, non_operating, pretax_income, tax, net_income,
                                   net_income_parent, total_assets, total_equity, common_stock,
                                   contract_liability, operating_cf, capex, eps,
@@ -599,8 +606,8 @@ def _push_financial_annual_to_render():
                                   cash_and_equivalents, short_term_debt, short_term_notes,
                                   current_long_term_debt, long_term_bank_debt,
                                   other_long_term_debt, bonds_payable, inventory
-                                  FROM financial_annual
-                                  ORDER BY code, year""").fetchall()
+                                  FROM financial_annual {where}
+                                  ORDER BY code, year""", params).fetchall()
 
         cols = ['code','year','revenue','cost','gross_profit','operating_expense',
                 'operating_income','non_operating','pretax_income','tax','net_income',
@@ -614,14 +621,15 @@ def _push_financial_annual_to_render():
         data = [{cols[j]: r[j] for j in range(len(cols)) if r[j] is not None} for r in rows]
 
         if not data:
-            print("[年報同步] 今天沒有更新的年報")
+            print("[年報同步] 沒有需要更新的年報")
             return
 
         failed = 0
-        for i in range(0, len(data), 200):
-            batch = data[i:i+200]
+        batch_size = 1000
+        for i in range(0, len(data), batch_size):
+            batch = data[i:i+batch_size]
             resp = _post_with_retry(f'{RENDER_URL}/api/sync/financial-annual',
-                                    {'data': batch}, label=f'年報 batch {i//200+1}')
+                                    {'data': batch}, label=f'年報 batch {i//batch_size+1}')
             if not resp:
                 failed += len(batch)
         msg = f"[年報同步] 已 push {len(data)} 筆到 Render"

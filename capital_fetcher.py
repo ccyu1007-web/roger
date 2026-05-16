@@ -894,12 +894,8 @@ def fetch_capital_cashflow(code):
 # ── 年度損益表（群益 zcqa）── 年度 EPS 最優先來源 ─────────
 
 def fetch_capital_annual_eps(code):
-    """從群益年度損益表(zcqa)抓取完整年度損益數據，覆蓋寫入 financial_annual。
-    回傳 {民國年: eps}。
-
-    zcqa 是年度數據的權威來源，直接覆蓋季度加總的值（季度加總的 EPS/營收等
-    在增資或四捨五入時會失真）。提取欄位：
-    營收/成本/毛利/營費/營益/業外/稅前/稅/稅後/母公司淨利/EPS/加權股數"""
+    """從群益年度損益表(zcqa)抓取完整年度損益數據，只寫入 DB 缺的年度。
+    回傳 {民國年: eps}。"""
     try:
         url = f"https://stock.capital.com.tw/z/zc/zcq/zcqa.djhtm?a={code}"
         r = _session.get(url, timeout=15)
@@ -915,19 +911,17 @@ def fetch_capital_annual_eps(code):
 
     # 第一列是「期別, 2025, 2024, ...」，取得年份列表
     years = []
-    for sp in spans[1:9]:  # 最多 8 年
+    for sp in spans[1:9]:
         txt = sp.get_text(strip=True)
         try:
-            west_year = int(txt)
-            roc_year = west_year - 1911
-            years.append(str(roc_year))
+            years.append(str(int(txt) - 1911))
         except Exception:
             years.append(None)
 
     if not years:
         return {}
 
-    # zcqa 欄位 → DB 欄位對照（群益單位：百萬元，需 ×1,000,000；EPS/股數例外）
+    # zcqa 欄位 → DB 欄位對照
     LABEL_MAP = {
         '營業收入淨額': 'revenue',
         '營業成本':     'cost',
@@ -942,12 +936,11 @@ def fetch_capital_annual_eps(code):
         '每股盈餘':     'eps',
         '加權平均股數': 'weighted_shares',
     }
-    # 不需乘 1,000,000 的欄位
     NO_MUL_FIELDS = {'eps', 'weighted_shares'}
 
     # 解析所有列
     cols = 1 + len(years)
-    field_data = {}  # {db_field: {民國年: value}}
+    field_data = {}
     for i in range(0, len(spans), cols):
         row = spans[i:i+cols]
         if len(row) < cols:
@@ -963,66 +956,72 @@ def fetch_capital_annual_eps(code):
             if val is not None:
                 field_data.setdefault(db_field, {})[yr] = val
 
-    # EPS 結果（回傳值）
     result = field_data.get('eps', {})
-
-    # 寫入 financial_annual
     if not field_data:
         return result
 
+    # 查 DB 已有哪些年度的損益表資料（有 eps 就視為已有）
     try:
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        mul = 1000000  # 百萬→元
-
-        # 收集所有出現過的年度
-        all_years = set()
-        for m in field_data.values():
-            all_years.update(m.keys())
-
         with sqlite3.get_conn() as conn:
             c = conn.cursor()
-            try:
-                c.execute("ALTER TABLE financial_annual ADD COLUMN weighted_shares REAL")
-                conn.commit()
-            except Exception: pass
+            existing = set()
+            for r in c.execute(
+                "SELECT year FROM financial_annual WHERE code=? AND eps IS NOT NULL",
+                (code,)
+            ).fetchall():
+                existing.add(str(r[0] - 1911))
 
-            for yr in all_years:
+            # 只寫入 DB 缺的年度
+            all_years = set()
+            for m in field_data.values():
+                all_years.update(m.keys())
+            new_years = all_years - existing
+
+            if not new_years:
+                return result
+
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            mul = 1000000
+
+            for yr in new_years:
                 west_year = int(yr) + 1911
-                updates = []
-                params = []
+                cols_list = ['code', 'year']
+                vals = [code, west_year]
+
                 for db_field, yr_map in field_data.items():
                     if yr not in yr_map:
                         continue
                     val = yr_map[yr]
                     if db_field == 'weighted_shares':
-                        val = val * 1000  # 百萬股→千股
+                        val = val * 1000
                     elif db_field not in NO_MUL_FIELDS:
-                        val = val * mul   # 百萬→元
-                    updates.append(f"{db_field}=?")
-                    params.append(val)
+                        val = val * mul
+                    cols_list.append(db_field)
+                    vals.append(val)
 
-                # 衍生欄位：eps_core（本業EPS）、eps_nonop（業外EPS）
+                # 衍生欄位
                 eps_val = field_data.get('eps', {}).get(yr)
                 oi_val = field_data.get('operating_income', {}).get(yr)
-                nop_val = field_data.get('non_operating', {}).get(yr)
                 pt_val = field_data.get('pretax_income', {}).get(yr)
                 if eps_val is not None and oi_val is not None and pt_val and pt_val != 0:
                     eps_core = round(oi_val / pt_val * eps_val, 2)
-                    eps_nonop = round(eps_val - eps_core, 2) if nop_val is not None else None
-                    updates.append("eps_core=?")
-                    params.append(eps_core)
-                    if eps_nonop is not None:
-                        updates.append("eps_nonop=?")
-                        params.append(eps_nonop)
+                    eps_nonop = round(eps_val - eps_core, 2)
+                    cols_list.extend(['eps_core', 'eps_nonop'])
+                    vals.extend([eps_core, eps_nonop])
 
-                if updates:
-                    updates.append("updated_at=?")
-                    params.append(now_str)
-                    params.extend([code, west_year])
-                    c.execute(f"UPDATE financial_annual SET {','.join(updates)} WHERE code=? AND year=?",
-                              params)
+                cols_list.append('updated_at')
+                vals.append(now_str)
+
+                placeholders = ','.join('?' * len(cols_list))
+                col_names = ','.join(cols_list)
+                # INSERT 新年度，或 UPDATE 已存在但缺損益表的年度
+                update_parts = [f"{c}=excluded.{c}" for c in cols_list if c not in ('code', 'year')]
+                c.execute(f"""INSERT INTO financial_annual ({col_names}) VALUES ({placeholders})
+                    ON CONFLICT(code, year) DO UPDATE SET {','.join(update_parts)}""", vals)
+
             conn.commit()
-    except Exception as e: logger.debug(f"[群益年度] {code} 寫入失敗: {e}")
+    except Exception as e:
+        logger.debug(f"[群益年度] {code} 寫入失敗: {e}")
 
     return result
 
