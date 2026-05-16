@@ -3000,6 +3000,72 @@ def _quick_update_inner(t0, today_str):
 
 
 
+def calc_dorsey_roic(row, prev_row=None):
+    """Dorsey 法計算 ROIC。
+    投入資本 = 總資產 - 不計息流動負債 - 超額現金
+    超額現金 = 現金 - 營收×5%
+    分母取兩年平均（有 prev_row 時）
+    回傳 (roic, nopat, invested_capital) 或 (None, None, None)
+    """
+    oi = row.get('operating_income') if isinstance(row, dict) else row['operating_income']
+    ta = row.get('total_assets') if isinstance(row, dict) else row['total_assets']
+    pti = row.get('pretax_income') if isinstance(row, dict) else row['pretax_income']
+    tx = row.get('tax') if isinstance(row, dict) else row['tax']
+    rev = row.get('revenue') if isinstance(row, dict) else row['revenue']
+    ni = row.get('net_income') if isinstance(row, dict) else row['net_income']
+    te = row.get('total_equity') if isinstance(row, dict) else row['total_equity']
+
+    if oi is None or ta is None or not ta:
+        # fallback ROE
+        if te and ni is not None and te > 0:
+            return round(ni / te * 100, 2), None, None
+        return None, None, None
+
+    tax_rate = tx / pti if pti and pti > 0 and tx is not None else 0.2
+    nopat = oi * (1 - tax_rate)
+
+    def _calc_ic(r):
+        _ta = r.get('total_assets') if isinstance(r, dict) else r['total_assets']
+        _cl = r.get('current_liabilities') if isinstance(r, dict) else (r['current_liabilities'] if 'current_liabilities' in (r.keys() if isinstance(r, dict) else [c for c in r.keys()]) else None)
+        _rev = r.get('revenue') if isinstance(r, dict) else r['revenue']
+        _cash = (r.get('cash_and_equivalents') if isinstance(r, dict) else r['cash_and_equivalents']) or 0
+        _sd = (r.get('short_term_debt') if isinstance(r, dict) else r['short_term_debt']) or 0
+        _sn = (r.get('short_term_notes') if isinstance(r, dict) else r['short_term_notes']) or 0
+        _cld = (r.get('current_long_term_debt') if isinstance(r, dict) else r['current_long_term_debt']) or 0
+        if not _ta or _ta <= 0:
+            return None
+        # 不計息流動負債 = 流動負債 - 計息流動負債
+        ibd_current = _sd + _sn + _cld
+        if _cl is not None and _cl > 0:
+            nibcl = _cl - ibd_current
+        else:
+            # 無流動負債資料時 fallback：用 權益+有息負債 法
+            _te = (r.get('total_equity') if isinstance(r, dict) else r['total_equity']) or 0
+            _ibd_all = ibd_current + sum((r.get(f) if isinstance(r, dict) else r[f]) or 0
+                       for f in ['long_term_bank_debt', 'other_long_term_debt', 'bonds_payable'])
+            op_need = _rev * 0.05 if _rev and _rev > 0 else 0
+            excess = max(_cash - op_need, 0)
+            return _te + _ibd_all - excess
+        op_need = _rev * 0.05 if _rev and _rev > 0 else 0
+        excess_cash = max(_cash - op_need, 0)
+        return _ta - nibcl - excess_cash
+
+    ic = _calc_ic(row)
+    if ic is None or ic <= 0:
+        if te and ni is not None and te > 0:
+            return round(ni / te * 100, 2), None, None
+        return None, None, None
+
+    # 兩年平均
+    if prev_row is not None:
+        prev_ic = _calc_ic(prev_row)
+        if prev_ic and prev_ic > 0:
+            ic = (ic + prev_ic) / 2
+
+    roic = round(nopat / ic * 100, 2)
+    return roic, round(nopat, 2), round(ic, 2)
+
+
 def _calc_fin_grade(roic, operating_margin, fcf, revenue):
     """計算財務體質等級（縱軸改用 ROIC，門檻 7%/10%/15% 不變）"""
     if roic is None:
@@ -3057,7 +3123,7 @@ def _refresh_fin_grades():
                                 total_equity, total_assets, operating_cf, capex,
                                 cash_and_equivalents, short_term_debt, short_term_notes,
                                 current_long_term_debt, long_term_bank_debt,
-                                other_long_term_debt, bonds_payable
+                                other_long_term_debt, bonds_payable, current_liabilities
                          FROM financial_annual WHERE code = ? AND year <= ?
                          ORDER BY year DESC LIMIT 5""", (code, max_year))
             rows = c.fetchall()
@@ -3079,42 +3145,9 @@ def _refresh_fin_grades():
                 opm = round(oi / rev * 100, 2) if rev and oi is not None else None
                 fcf = round(ocf + capex_val, 2) if ocf is not None and capex_val is not None else None
 
-                # ROIC 計算（Dorsey 法：超額現金 + 兩年平均投入資本）
-                roic = None
-                invested_capital = None
-                if oi is not None and te:
-                    tax_rate = tx / pti if pti and pti > 0 and tx is not None else 0.2
-                    nopat = oi * (1 - tax_rate)
-                    # 有息負債
-                    ibd = sum(row[f] or 0 for f in ['short_term_debt', 'short_term_notes',
-                              'current_long_term_debt', 'long_term_bank_debt',
-                              'other_long_term_debt', 'bonds_payable'])
-                    cash = row['cash_and_equivalents'] or 0
-                    # 超額現金 = 現金 - 營收×5%（營運所需現金）
-                    op_cash_need = rev * 0.05 if rev and rev > 0 else 0
-                    excess_cash = max(cash - op_cash_need, 0)
-                    invested_capital = te + ibd - excess_cash
-                    # 兩年平均投入資本
-                    if i < len(rows):
-                        prev_row = rows[i]  # i 從 1 開始，rows[i] 是前一年
-                        prev_te = prev_row['total_equity'] or 0
-                        prev_ibd = sum(prev_row[f] or 0 for f in ['short_term_debt', 'short_term_notes',
-                                      'current_long_term_debt', 'long_term_bank_debt',
-                                      'other_long_term_debt', 'bonds_payable'])
-                        prev_cash = prev_row['cash_and_equivalents'] or 0
-                        prev_rev = prev_row['revenue']
-                        prev_op_need = prev_rev * 0.05 if prev_rev and prev_rev > 0 else 0
-                        prev_excess = max(prev_cash - prev_op_need, 0)
-                        prev_ic = prev_te + prev_ibd - prev_excess
-                        if prev_ic > 0 and invested_capital > 0:
-                            invested_capital = (invested_capital + prev_ic) / 2
-                    if invested_capital > 0:
-                        roic = round(nopat / invested_capital * 100, 2)
-                    elif ta and ta > 0:
-                        roic = round(nopat / ta * 100, 2)
-                # 無 ROIC 資料時 fallback 為 ROE
-                if roic is None and te and ni is not None:
-                    roic = round(ni / te * 100, 2)
+                # ROIC（Dorsey 法）
+                prev_row = rows[i] if i < len(rows) else None
+                roic, _, _ = calc_dorsey_roic(row, prev_row)
 
                 grade = _calc_fin_grade(roic, opm, fcf, rev)
                 updates[f'fin_grade_{i}'] = grade

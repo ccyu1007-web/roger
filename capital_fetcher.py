@@ -613,6 +613,7 @@ def fetch_capital_balance_sheet(code):
         '股本': 'common_stock',
         '存貨': 'inventory',
         '合約負債－流動': 'contract_liability',
+        '流動負債': 'current_liabilities',
         # ROIC 所需欄位
         '現金及約當現金': 'cash_and_equivalents',
         '短期借款': 'short_term_debt',
@@ -628,7 +629,8 @@ def fetch_capital_balance_sheet(code):
 
     # ROIC 新增欄位清單
     roic_cols = ['cash_and_equivalents', 'short_term_debt', 'short_term_notes',
-                 'current_long_term_debt', 'long_term_bank_debt', 'other_long_term_debt', 'bonds_payable']
+                 'current_long_term_debt', 'long_term_bank_debt', 'other_long_term_debt',
+                 'bonds_payable', 'current_liabilities']
     all_extra_cols = ['inventory', 'contract_liability'] + roic_cols
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
