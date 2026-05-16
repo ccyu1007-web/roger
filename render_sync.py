@@ -7,6 +7,7 @@ render_sync.py — 本機資料同步到 Render
 import logging
 import os
 import time
+from datetime import datetime
 import requests
 import db as sqlite3
 
