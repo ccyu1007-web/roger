@@ -960,30 +960,20 @@ def fetch_capital_annual_eps(code):
     if not field_data:
         return result
 
-    # 查 DB 已有哪些年度的損益表資料（有 eps 就視為已有）
+    # 寫入 financial_annual（所有年度都寫，確保資料正確）
+    # 效率控制在 batch 層（只抓缺最新年度的股票），不在這裡跳年度
     try:
         with sqlite3.get_conn() as conn:
             c = conn.cursor()
-            existing = set()
-            for r in c.execute(
-                "SELECT year FROM financial_annual WHERE code=? AND eps IS NOT NULL",
-                (code,)
-            ).fetchall():
-                existing.add(str(r[0] - 1911))
 
-            # 只寫入 DB 缺的年度
             all_years = set()
             for m in field_data.values():
                 all_years.update(m.keys())
-            new_years = all_years - existing
-
-            if not new_years:
-                return result
 
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             mul = 1000000
 
-            for yr in new_years:
+            for yr in all_years:
                 west_year = int(yr) + 1911
                 cols_list = ['code', 'year']
                 vals = [code, west_year]
