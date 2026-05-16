@@ -3079,8 +3079,9 @@ def _refresh_fin_grades():
                 opm = round(oi / rev * 100, 2) if rev and oi is not None else None
                 fcf = round(ocf + capex_val, 2) if ocf is not None and capex_val is not None else None
 
-                # ROIC 計算（Dorsey/晨星標準版）
+                # ROIC 計算（Dorsey 法：超額現金 + 兩年平均投入資本）
                 roic = None
+                invested_capital = None
                 if oi is not None and te:
                     tax_rate = tx / pti if pti and pti > 0 and tx is not None else 0.2
                     nopat = oi * (1 - tax_rate)
@@ -3089,11 +3090,27 @@ def _refresh_fin_grades():
                               'current_long_term_debt', 'long_term_bank_debt',
                               'other_long_term_debt', 'bonds_payable'])
                     cash = row['cash_and_equivalents'] or 0
-                    invested_capital = te + ibd - cash
+                    # 超額現金 = 現金 - 營收×5%（營運所需現金）
+                    op_cash_need = rev * 0.05 if rev and rev > 0 else 0
+                    excess_cash = max(cash - op_cash_need, 0)
+                    invested_capital = te + ibd - excess_cash
+                    # 兩年平均投入資本
+                    if i < len(rows):
+                        prev_row = rows[i]  # i 從 1 開始，rows[i] 是前一年
+                        prev_te = prev_row['total_equity'] or 0
+                        prev_ibd = sum(prev_row[f] or 0 for f in ['short_term_debt', 'short_term_notes',
+                                      'current_long_term_debt', 'long_term_bank_debt',
+                                      'other_long_term_debt', 'bonds_payable'])
+                        prev_cash = prev_row['cash_and_equivalents'] or 0
+                        prev_rev = prev_row['revenue']
+                        prev_op_need = prev_rev * 0.05 if prev_rev and prev_rev > 0 else 0
+                        prev_excess = max(prev_cash - prev_op_need, 0)
+                        prev_ic = prev_te + prev_ibd - prev_excess
+                        if prev_ic > 0 and invested_capital > 0:
+                            invested_capital = (invested_capital + prev_ic) / 2
                     if invested_capital > 0:
                         roic = round(nopat / invested_capital * 100, 2)
                     elif ta and ta > 0:
-                        # fallback：NOPAT / 總資產
                         roic = round(nopat / ta * 100, 2)
                 # 無 ROIC 資料時 fallback 為 ROE
                 if roic is None and te and ni is not None:

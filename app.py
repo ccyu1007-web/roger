@@ -1336,7 +1336,7 @@ def calc_all_checklists():
                 _ocf = _fr.get('operating_cf')
                 _capex = _fr.get('capex')
                 _yr = _fr.get('year')
-                # ROIC
+                # ROIC（Dorsey 法：超額現金 + 兩年平均投入資本）
                 _roic_val = None
                 if _oi is not None and _te and _te > 0:
                     _tr = _tx / _pti if _pti and _pti > 0 and _tx is not None else 0.2
@@ -1345,7 +1345,24 @@ def calc_all_checklists():
                                 'current_long_term_debt', 'long_term_bank_debt',
                                 'other_long_term_debt', 'bonds_payable'])
                     _cash = _fr.get('cash_and_equivalents', 0) or 0
-                    _ic = _te + _ibd - _cash
+                    _op_cash_need = _rev * 0.05 if _rev and _rev > 0 else 0
+                    _excess_cash = max(_cash - _op_cash_need, 0)
+                    _ic = _te + _ibd - _excess_cash
+                    # 兩年平均
+                    _idx = _frs[-5:].index(_fr)
+                    if _idx > 0:
+                        _prev = _frs[-5:][_idx - 1]
+                        _p_te = _prev.get('total_equity') or 0
+                        _p_ibd = sum(_prev.get(f, 0) or 0 for f in ['short_term_debt', 'short_term_notes',
+                                    'current_long_term_debt', 'long_term_bank_debt',
+                                    'other_long_term_debt', 'bonds_payable'])
+                        _p_cash = _prev.get('cash_and_equivalents', 0) or 0
+                        _p_rev = _prev.get('revenue')
+                        _p_op_need = _p_rev * 0.05 if _p_rev and _p_rev > 0 else 0
+                        _p_excess = max(_p_cash - _p_op_need, 0)
+                        _p_ic = _p_te + _p_ibd - _p_excess
+                        if _p_ic > 0 and _ic > 0:
+                            _ic = (_ic + _p_ic) / 2
                     if _ic > 0:
                         _roic_val = round(_nopat / _ic * 100, 2)
                         _roic_vals.append(_roic_val)
@@ -1583,7 +1600,9 @@ def _recalc_checklist_single(code):
                 _nopat = _oi * (1 - _tr)
                 _ibd = sum(_fr.get(f, 0) or 0 for f in ['short_term_debt','short_term_notes','current_long_term_debt','long_term_bank_debt','other_long_term_debt','bonds_payable'])
                 _cash = _fr.get('cash_and_equivalents', 0) or 0
-                _ic = _te + _ibd - _cash
+                _op_need = _rev * 0.05 if _rev and _rev > 0 else 0
+                _excess = max(_cash - _op_need, 0)
+                _ic = _te + _ibd - _excess
                 if _ic > 0: _roic_val = round(_nopat / _ic * 100, 2)
             _roic_5y.append((_yr, _roic_val))
             _gm_5y.append((_yr, round(_gp / _rev * 100, 2) if _gp is not None and _rev and _rev > 0 else None))
@@ -2727,16 +2746,22 @@ def get_financials(code):
         d['roa'] = round(ni / ta * 100, 2) if ta and ni is not None else None
         # ROE
         d['roe'] = round(ni / te * 100, 2) if te and ni is not None else None
-        # ROIC（Dorsey/晨星標準版：NOPAT / 投入資本）
+        # ROIC（Dorsey 法：超額現金 + 兩年平均投入資本）
         d['roic'] = None
+        d['invested_capital'] = None
+        d['nopat'] = None
         if oi is not None and te:
             _tr = (d.get('tax') or 0) / pti if pti and pti > 0 else 0.2
             _nopat = oi * (1 - _tr)
+            d['nopat'] = round(_nopat, 2)
             _ibd = sum(d.get(f, 0) or 0 for f in ['short_term_debt', 'short_term_notes',
                         'current_long_term_debt', 'long_term_bank_debt',
                         'other_long_term_debt', 'bonds_payable'])
             _cash = d.get('cash_and_equivalents', 0) or 0
-            _ic = te + _ibd - _cash
+            _op_cash_need = rev * 0.05 if rev and rev > 0 else 0
+            _excess_cash = max(_cash - _op_cash_need, 0)
+            _ic = te + _ibd - _excess_cash
+            d['invested_capital'] = round(_ic, 2)
             if _ic > 0:
                 d['roic'] = round(_nopat / _ic * 100, 2)
             elif ta and ta > 0:
@@ -2804,12 +2829,13 @@ def get_financials(code):
                 c2 = conn2.cursor()
                 updates = {}
                 for i, d in enumerate(data[:5], 1):
-                    # ROIC 計算
+                    # ROIC（Dorsey 法）
                     roic_val = None
                     oi_v = d.get('operating_income')
                     te_v = d.get('total_equity')
                     pti_v = d.get('pretax_income')
                     tx_v = d.get('tax')
+                    rev_v = d.get('revenue')
                     if oi_v is not None and te_v:
                         tr = tx_v / pti_v if pti_v and pti_v > 0 and tx_v is not None else 0.2
                         nopat_v = oi_v * (1 - tr)
@@ -2817,7 +2843,9 @@ def get_financials(code):
                                     'current_long_term_debt', 'long_term_bank_debt',
                                     'other_long_term_debt', 'bonds_payable'])
                         cash_v = d.get('cash_and_equivalents', 0) or 0
-                        ic_v = te_v + ibd_v - cash_v
+                        op_need_v = rev_v * 0.05 if rev_v and rev_v > 0 else 0
+                        excess_v = max(cash_v - op_need_v, 0)
+                        ic_v = te_v + ibd_v - excess_v
                         if ic_v > 0:
                             roic_val = round(nopat_v / ic_v * 100, 2)
                         elif d.get('total_assets') and d['total_assets'] > 0:
