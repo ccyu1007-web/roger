@@ -3117,6 +3117,11 @@ def _refresh_fin_grades():
         if not codes:
             return
 
+        # 確保 financial_annual 有 ROIC 相關欄位
+        for col in ('roic', 'nopat', 'invested_capital', 'fin_grade'):
+            try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {'REAL' if col != 'fin_grade' else 'TEXT'}")
+            except Exception: pass
+
         updated = 0
         for code in codes:
             c.execute("""SELECT year, revenue, operating_income, pretax_income, tax, net_income,
@@ -3147,11 +3152,16 @@ def _refresh_fin_grades():
 
                 # ROIC（Dorsey 法）
                 prev_row = rows[i] if i < len(rows) else None
-                roic, _, _ = calc_dorsey_roic(row, prev_row)
+                roic, nopat, ic = calc_dorsey_roic(row, prev_row)
 
                 grade = _calc_fin_grade(roic, opm, fcf, rev)
                 updates[f'fin_grade_{i}'] = grade
                 updates[f'fin_grade_{i}y'] = str(row['year'] - 1911)
+
+                # 同時寫入 financial_annual（先存 DB，前端讀取）
+                c.execute("""UPDATE financial_annual SET roic=?, nopat=?, invested_capital=?, fin_grade=?
+                             WHERE code=? AND year=?""",
+                          (roic, nopat, ic, grade, code, row['year']))
 
             # 只保留最近 5 年，第 6 年清空
             for i in range(len(rows) + 1, 7):

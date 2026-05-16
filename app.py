@@ -2748,54 +2748,8 @@ def get_financials(code):
         d['roa'] = round(ni / ta * 100, 2) if ta and ni is not None else None
         # ROE
         d['roe'] = round(ni / te * 100, 2) if te and ni is not None else None
-        # ROIC（Dorsey 法：總資產 - 不計息流動負債 - 超額現金）
-        d['roic'] = None
-        d['invested_capital'] = None
-        d['nopat'] = None
-        if oi is not None and ta:
-            _tr = (d.get('tax') or 0) / pti if pti and pti > 0 else 0.2
-            _nopat = oi * (1 - _tr)
-            d['nopat'] = round(_nopat, 2)
-            _cl = d.get('current_liabilities') or 0
-            _sd = d.get('short_term_debt') or 0
-            _sn = d.get('short_term_notes') or 0
-            _cld = d.get('current_long_term_debt') or 0
-            _cash = d.get('cash_and_equivalents') or 0
-            _op_need = rev * 0.05 if rev and rev > 0 else 0
-            _excess = max(_cash - _op_need, 0)
-            if _cl > 0:
-                _nibcl = _cl - _sd - _sn - _cld
-                _ic = ta - _nibcl - _excess
-            else:
-                # fallback：權益 + 有息負債 - 超額現金
-                _ibd = _sd + _sn + _cld + sum(d.get(f, 0) or 0 for f in
-                       ['long_term_bank_debt', 'other_long_term_debt', 'bonds_payable'])
-                _ic = (te or 0) + _ibd - _excess
-            d['invested_capital'] = round(_ic, 2)
-            if _ic > 0:
-                d['roic'] = round(_nopat / _ic * 100, 2)
-            elif ta > 0:
-                d['roic'] = round(_nopat / ta * 100, 2)
-        # 財務體質等級（ROIC版矩陣，後端統一計算，前端不自己算）
-        _fin_grade = None
-        if d['roic'] is not None and rev and rev > 0 and ocf is not None and capex is not None:
-            _fcf = ocf + capex
-            _fcf_ratio = _fcf / rev * 100
-            _roic = d['roic']
-            if _roic >= 15:
-                _fin_grade = 'B1A' if _fcf_ratio < 0 else ('A1' if _fcf_ratio < 5 else 'AA')
-            elif _roic >= 10:
-                _fin_grade = 'B1' if _fcf_ratio < 0 else ('A' if _fcf_ratio < 5 else 'A2')
-            elif _roic >= 7:
-                _fin_grade = 'C' if _fcf_ratio < 0 else ('B2' if _fcf_ratio < 5 else 'B2A')
-            else:
-                _fin_grade = 'D' if _fcf_ratio < 0 else 'C'
-            # 營益率加減號
-            _opm = d.get('operating_margin')
-            if _opm is not None:
-                if _opm >= 10: _fin_grade += '+'
-                elif _opm < 5: _fin_grade += '-'
-        d['fin_grade'] = _fin_grade
+        # ROIC / NOPAT / 投入資本 / 財務體質等級：從 DB 讀取（由 _refresh_fin_grades 統一計算）
+        # d['roic'], d['nopat'], d['invested_capital'], d['fin_grade'] 已在 SELECT * 中
         # 盈餘品質率
         # 稅後淨利為負時不計算盈餘品質率（無意義）
         d['earnings_quality'] = round(ocf / ni * 100, 2) if ni and ni > 0 and ocf is not None else None
@@ -2833,54 +2787,8 @@ def get_financials(code):
         data.append(d)
 
     # 計算財務體質等級並寫入 stocks 表（使用 ROIC，無資料時 fallback ROE）
-    if data:
-        try:
-            with sqlite3.get_conn() as conn2:
-                c2 = conn2.cursor()
-                updates = {}
-                for i, d in enumerate(data[:5], 1):
-                    # ROIC（Dorsey 法）
-                    roic_val = None
-                    oi_v = d.get('operating_income')
-                    ta_v = d.get('total_assets')
-                    pti_v = d.get('pretax_income')
-                    tx_v = d.get('tax')
-                    rev_v = d.get('revenue')
-                    if oi_v is not None and ta_v:
-                        tr = tx_v / pti_v if pti_v and pti_v > 0 and tx_v is not None else 0.2
-                        nopat_v = oi_v * (1 - tr)
-                        cl_v = d.get('current_liabilities') or 0
-                        cash_v = d.get('cash_and_equivalents', 0) or 0
-                        sd_v = d.get('short_term_debt', 0) or 0
-                        sn_v = d.get('short_term_notes', 0) or 0
-                        cld_v = d.get('current_long_term_debt', 0) or 0
-                        op_need_v = rev_v * 0.05 if rev_v and rev_v > 0 else 0
-                        excess_v = max(cash_v - op_need_v, 0)
-                        if cl_v > 0:
-                            nibcl_v = cl_v - sd_v - sn_v - cld_v
-                            ic_v = ta_v - nibcl_v - excess_v
-                        else:
-                            ibd_v = sd_v + sn_v + cld_v + sum(d.get(f, 0) or 0 for f in
-                                    ['long_term_bank_debt', 'other_long_term_debt', 'bonds_payable'])
-                            ic_v = (d.get('total_equity') or 0) + ibd_v - excess_v
-                        if ic_v > 0:
-                            roic_val = round(nopat_v / ic_v * 100, 2)
-                        elif ta_v > 0:
-                            roic_val = round(nopat_v / ta_v * 100, 2)
-                    if roic_val is None:
-                        roic_val = d.get('roe')  # fallback ROE
-                    grade = _calc_fin_grade(roic_val, d.get('operating_margin'), d.get('fcf'), d.get('revenue'))
-                    updates[f'fin_grade_{i}'] = grade
-                    updates[f'fin_grade_{i}y'] = d.get('year_label')
-                for i in range(len(data[:5]) + 1, 6):
-                    updates[f'fin_grade_{i}'] = None
-                    updates[f'fin_grade_{i}y'] = None
-                set_clause = ', '.join(f'{k}=?' for k in updates.keys())
-                c2.execute(f'UPDATE stocks SET {set_clause} WHERE code=?',
-                           list(updates.values()) + [code])
-                conn2.commit()
-        except Exception:
-            pass  # DB locked 時不影響資料回傳
+    # ROIC / NOPAT / 投入資本 / 等級 已由 _refresh_fin_grades() 統一算好存在 financial_annual
+    # data 裡的 d['roic'], d['nopat'], d['invested_capital'], d['fin_grade'] 直接從 DB 讀取
 
     # 取得公司名稱
     stock_info = query_db("SELECT name, market FROM stocks WHERE code = ?", (code,))
