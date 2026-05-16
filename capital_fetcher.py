@@ -1057,12 +1057,12 @@ def fetch_capital_annual_eps_batch(codes):
     t0 = time.time()
     result = {}
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=16) as pool:
         futures = {}
         for i, code in enumerate(codes):
             futures[pool.submit(fetch_capital_annual_eps, code)] = code
-            if (i + 1) % 8 == 0:
-                time.sleep(0.5)
+            if (i + 1) % 16 == 0:
+                time.sleep(0.3)
         for f in as_completed(futures):
             code = futures[f]
             try:
