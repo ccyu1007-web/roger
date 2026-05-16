@@ -1929,7 +1929,7 @@ function calcDerived(r) {
 
   // 財務等級映射（用於固定欄位顯示）
   r._fg = {};
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 5; i++) {
     const y = r[`fin_grade_${i}y`];
     const g = r[`fin_grade_${i}`];
     if (y && g) r._fg[y] = g;

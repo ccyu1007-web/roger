@@ -2574,11 +2574,13 @@ def sync_financial_annual():
         c.execute("SELECT * FROM financial_annual LIMIT 0")
         existing_cols = set(desc[0] for desc in c.description)
     except Exception: pass
-    # 確保負債/現金/存貨等欄位存在（ROIC 計算 + 個股頁顯示需要）
+    # 確保負債/現金/存貨/ROIC等欄位存在
     for col, typ in [('cash_and_equivalents','REAL'),('short_term_debt','REAL'),('short_term_notes','REAL'),
                      ('current_long_term_debt','REAL'),('long_term_bank_debt','REAL'),
                      ('other_long_term_debt','REAL'),('bonds_payable','REAL'),
-                     ('inventory','REAL'),('contract_liability','REAL')]:
+                     ('inventory','REAL'),('contract_liability','REAL'),
+                     ('current_liabilities','REAL'),('roic','REAL'),('nopat','REAL'),
+                     ('invested_capital','REAL'),('fin_grade','TEXT')]:
         try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {typ}")
         except Exception: pass
     try: conn.commit()
@@ -2594,7 +2596,8 @@ def sync_financial_annual():
                'eps_core','eps_nonop',
                'cash_and_equivalents','short_term_debt','short_term_notes',
                'current_long_term_debt','long_term_bank_debt',
-               'other_long_term_debt','bonds_payable'] if col in existing_cols]
+               'other_long_term_debt','bonds_payable',
+               'current_liabilities','roic','nopat','invested_capital','fin_grade'] if col in existing_cols]
     for r in rows:
         code = r.get('code')
         year = r.get('year')
