@@ -2660,10 +2660,8 @@ function render() {
     if (el2 && sampleCL.contract_2q) { const ry = sampleCL.contract_2q.split('Q')[0]; el2.innerHTML = sampleCL.contract_2q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
     if (el3 && sampleCL.contract_3q) { const ry = sampleCL.contract_3q.split('Q')[0]; el3.innerHTML = sampleCL.contract_3q + '<br><small style="color:#9ca3af">' + r2w(ry) + '</small>'; }
   }
-  // 動態生成財務等級表頭（正常5年，4/15前過渡期6年）
-  const now = new Date();
-  const isTransition = now.getMonth() < 3 || (now.getMonth() === 3 && now.getDate() < 15);
-  const fgYears = isTransition ? _fixedY : _fixedY.slice(0, 5);
+  // 動態生成財務等級表頭（固定6年，與EPS/股利一致）
+  const fgYears = _fixedY;
   const fgAnchor = document.getElementById('dynFgAnchor');
   if (fgAnchor) {
     const fgTr = fgAnchor.parentElement;
