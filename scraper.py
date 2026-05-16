@@ -3129,14 +3129,16 @@ def _refresh_fin_grades():
                                 cash_and_equivalents, short_term_debt, short_term_notes,
                                 current_long_term_debt, long_term_bank_debt,
                                 other_long_term_debt, bonds_payable, current_liabilities
-                         FROM financial_annual WHERE code = ? AND year <= ?
-                         ORDER BY year DESC LIMIT 5""", (code, max_year))
+                         FROM financial_annual WHERE code = ?
+                         ORDER BY year DESC""", (code,))
             rows = c.fetchall()
             if not rows:
                 continue
 
+            # 所有年度都算 ROIC/等級存入 financial_annual
+            grade_idx = 0  # 用於 stocks 表 fin_grade_1~5（只存 max_year 以內的前 5 年）
             updates = {}
-            for i, row in enumerate(rows, 1):
+            for i, row in enumerate(rows):
                 rev = row['revenue']
                 oi = row['operating_income']
                 pti = row['pretax_income']
@@ -3151,22 +3153,26 @@ def _refresh_fin_grades():
                 fcf = round(ocf + capex_val, 2) if ocf is not None and capex_val is not None else None
 
                 # ROIC（Dorsey 法）
-                prev_row = rows[i] if i < len(rows) else None
+                prev_row = rows[i + 1] if i + 1 < len(rows) else None
                 roic, nopat, ic = calc_dorsey_roic(row, prev_row)
 
                 grade = _calc_fin_grade(roic, opm, fcf, rev)
-                updates[f'fin_grade_{i}'] = grade
-                updates[f'fin_grade_{i}y'] = str(row['year'] - 1911)
 
-                # 同時寫入 financial_annual（先存 DB，前端讀取）
+                # 寫入 financial_annual（所有年度）
                 c.execute("""UPDATE financial_annual SET roic=?, nopat=?, invested_capital=?, fin_grade=?
                              WHERE code=? AND year=?""",
                           (roic, nopat, ic, grade, code, row['year']))
 
-            # 只保留最近 5 年，第 6 年清空
-            for i in range(len(rows) + 1, 7):
-                updates[f'fin_grade_{i}'] = None
-                updates[f'fin_grade_{i}y'] = None
+                # stocks 表只存 max_year 以內的前 5 年
+                if row['year'] <= max_year and grade_idx < 5:
+                    grade_idx += 1
+                    updates[f'fin_grade_{grade_idx}'] = grade
+                    updates[f'fin_grade_{grade_idx}y'] = str(row['year'] - 1911)
+
+            # 清空多餘的
+            for j in range(grade_idx + 1, 7):
+                updates[f'fin_grade_{j}'] = None
+                updates[f'fin_grade_{j}y'] = None
 
             set_clause = ', '.join(f'{k}=?' for k in updates.keys())
             c.execute(f'UPDATE stocks SET {set_clause} WHERE code=?',
