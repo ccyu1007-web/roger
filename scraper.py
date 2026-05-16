@@ -3163,8 +3163,8 @@ def _refresh_fin_grades():
                              WHERE code=? AND year=?""",
                           (roic, nopat, ic, grade, code, row['year']))
 
-                # stocks 表只存 max_year 以內的前 5 年
-                if row['year'] <= max_year and grade_idx < 5:
+                # stocks 表存 max_year 以內的前 6 年（正常 5 年，過渡期可能 6 年）
+                if row['year'] <= max_year and grade_idx < 6:
                     grade_idx += 1
                     updates[f'fin_grade_{grade_idx}'] = grade
                     updates[f'fin_grade_{grade_idx}y'] = str(row['year'] - 1911)

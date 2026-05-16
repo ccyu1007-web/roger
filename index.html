@@ -1929,7 +1929,7 @@ function calcDerived(r) {
 
   // 財務等級映射（用於固定欄位顯示）
   r._fg = {};
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     const y = r[`fin_grade_${i}y`];
     const g = r[`fin_grade_${i}`];
     if (y && g) r._fg[y] = g;
@@ -2469,7 +2469,7 @@ function sortBy(col) {
    'contract_1','contract_2','contract_3','contract_chg',
    'neff_a','neff_b','neff_3a','neff_3b','neff_c','rev_cagr_3y','rev_cagr_5y','neff_d','neff_ig','lynch_a','lynch_b','lynch_c','lynch_d',
    'shiller_avg_eps','shiller_pe','shiller_alert',
-   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5'].forEach(c => {
+   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'].forEach(c => {
     const el = document.getElementById(`si_${c}`);
     if (el) el.textContent = '↕';
   });
@@ -2495,7 +2495,7 @@ function applySort() {
                    'contract_1','contract_2','contract_3','contract_chg',
                    'neff_a','neff_b','neff_3a','neff_3b','neff_c','rev_cagr_3y','rev_cagr_5y','neff_d','neff_ig','lynch_a','lynch_b','lynch_c','lynch_d',
                    'shiller_avg_eps','shiller_pe','shiller_alert',
-                   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5'];
+                   'fin_grade_1','fin_grade_2','fin_grade_3','fin_grade_4','fin_grade_5','fin_grade_6'];
   filtered.sort((a, b) => {
     let av, bv;
     // 動態欄位：從映射表取值
@@ -2666,7 +2666,7 @@ function render() {
     const fgTr = fgAnchor.parentElement;
     fgTr.querySelectorAll('.dyn-fg').forEach(el => el.remove());
     const fgFrag = document.createDocumentFragment();
-    _fixedY.slice(0, 5).forEach((y, i) => {
+    _fixedY.forEach((y, i) => {
       const th = document.createElement('th');
       th.className = 'dyn-fg g-fg' + (i === 0 ? ' col-div' : '');
       const west = parseInt(y) + 1911;
@@ -2813,7 +2813,7 @@ function render() {
       <td class="g-wt" data-col="wt_div" style="color:#475569">${r.weighted_div != null ? r.weighted_div.toFixed(2) : '－'}</td>
       <td class="g-wt" data-col="wt_payout" style="color:#475569">${r.weighted_payout != null ? r.weighted_payout.toFixed(2) + '%' : '－'}</td>
       <!-- 財務等級 -->
-      ${_fixedY.slice(0, 5).map((y, i) => {
+      ${_fixedY.map((y, i) => {
         const g = r._fg[y];
         const divCls = i === 0 ? ' col-div' : '';
         if (!g) return `<td class="g-fg${divCls}">－</td>`;
