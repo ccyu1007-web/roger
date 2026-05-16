@@ -419,7 +419,6 @@ def fetch_capital_financials(code):
         c = conn.cursor()
 
         quarterly_saved = 0
-        annual_data = {}
 
         for row in rows:
             cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
@@ -582,62 +581,16 @@ def fetch_capital_financials(code):
             except Exception as e:
                 logger.warning(f"[群益季報] {code} {quarter_label} 寫入失敗: {e}")
 
-            # 累計到年度
-            if west_year not in annual_data:
-                annual_data[west_year] = {'revenue': 0, 'cost': 0, 'gross_profit': 0,
-                                          'operating_income': 0, 'non_operating': 0,
-                                          'pretax_income': 0, 'net_income': 0,
-                                          'eps': 0, 'quarters': 0}
-            ad = annual_data[west_year]
-            if revenue: ad['revenue'] += revenue
-            if cost: ad['cost'] += cost
-            if gross_profit: ad['gross_profit'] += gross_profit
-            if operating_income: ad['operating_income'] += operating_income
-            if non_operating is not None: ad['non_operating'] += non_operating
-            if pretax_income: ad['pretax_income'] += pretax_income
-            if net_income: ad['net_income'] += net_income
-            if eps: ad['eps'] += eps
-            ad['quarters'] += 1
-
-        # 寫入 financial_annual（只寫四季齊全的年度）
-        annual_saved = 0
-        for yr, ad in annual_data.items():
-            if ad['quarters'] != 4:
-                continue
-
-            opex = None
-            if ad['gross_profit'] and ad['operating_income'] is not None:
-                opex = round(ad['gross_profit'] - ad['operating_income'], 4)
-
-            try:
-                c.execute("""INSERT INTO financial_annual
-                    (code, year, revenue, cost, gross_profit, operating_expense,
-                     operating_income, non_operating, pretax_income, net_income, eps, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                    ON CONFLICT(code, year) DO UPDATE SET
-                    revenue=excluded.revenue,
-                    cost=excluded.cost,
-                    gross_profit=excluded.gross_profit,
-                    operating_expense=excluded.operating_expense,
-                    operating_income=excluded.operating_income,
-                    non_operating=excluded.non_operating,
-                    pretax_income=excluded.pretax_income,
-                    net_income=excluded.net_income,
-                    eps=excluded.eps,
-                    updated_at=excluded.updated_at""",
-                    (code, yr, ad['revenue'], ad['cost'], ad['gross_profit'],
-                     opex, ad['operating_income'], ad['non_operating'],
-                     ad['pretax_income'], ad['net_income'], ad['eps'], now_str))
-                annual_saved += 1
-            except Exception as e: logger.debug(f"[群益年報] {code} {yr} 寫入失敗: {e}")
+            # 年度損益表數據由 fetch_capital_annual_eps()（群益 zcqa）直接抓取寫入，
+            # 不再從季度加總（季度加總的 EPS/營收在增資或四捨五入時會失真）
 
         conn.commit()
 
     # 同步到 stocks 表
-    if quarterly_saved > 0 or annual_saved > 0:
+    if quarterly_saved > 0:
         sync_to_stocks(code)
 
-    return annual_saved, quarterly_saved
+    return 0, quarterly_saved
 
 
 # ── 資產負債表（年表）────────────────────────────────────
