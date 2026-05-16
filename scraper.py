@@ -2330,8 +2330,8 @@ def fetch_company_quarterly(code):
         if not has_recent and not IS_CLOUD:
             # 本機才用群益補抓（Render 跳過）
             try:
-                from capital_fetcher import fetch_capital_financials, fetch_capital_contract_liability
-                fetch_capital_financials(code)
+                from capital_fetcher import fetch_capital_quarterly_full, fetch_capital_contract_liability
+                fetch_capital_quarterly_full(code)
                 fetch_capital_contract_liability(code)
             except Exception as e:
                 logger.warning(f"[季報補抓] {code} 群益失敗: {e}")
