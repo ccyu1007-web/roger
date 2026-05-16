@@ -1297,7 +1297,7 @@ def sync_to_stocks(code):
 
 def fetch_all_three(code):
     """一次抓取個股全部資料：損益表+資產負債表+現金流量表+股利+月營收+合約負債+本益比歷史"""
-    a1, q1 = fetch_capital_financials(code)
+    q1 = fetch_capital_quarterly_full(code)
     time.sleep(random.uniform(0.2, 0.4))
     a2 = fetch_capital_balance_sheet(code)
     time.sleep(random.uniform(0.2, 0.4))
@@ -1314,7 +1314,7 @@ def fetch_all_three(code):
     # 全部抓完後，統一同步到 stocks 表
     sync_to_stocks(code)
 
-    return a1, q1, a2, a3, a4, a5
+    return 0, q1, a2, a3, a4, a5
 
 
 # ── 批次補齊全部股票 ────────────────────────────────────
