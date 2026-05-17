@@ -578,7 +578,7 @@ def recalc_all_derived(codes=None):
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(f"""SELECT code, close, industry,
+    rows = conn.execute(f"""SELECT code, name, close, industry,
         eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
         eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
         eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
@@ -629,15 +629,17 @@ def recalc_all_derived(codes=None):
         # 葛林布萊：計算 ROIC 和盈餘殖利率
         fa = fa_map.get(r['code'])
         is_financial = r.get('industry') in ('金融保險業', '金融業')
-        if fa and not is_financial and r.get('close'):
+        is_ky = r['code'].endswith('-KY') or (r.get('name') or '').endswith('-KY')
+        if fa and not is_financial and not is_ky and r.get('close'):
             # ROIC 直接取 financial_annual 已算好的值
             r['gb_roic'] = round(fa['roic'], 2) if fa.get('roic') else None
-            # 盈餘殖利率 = operating_income / EV
+            # 盈餘殖利率 = operating_income / EV，同時算市值供門檻過濾
             oi = fa.get('operating_income')
             cs = fa.get('common_stock')
             if oi and cs and cs > 0:
                 shares = cs / 10  # 股本(元) / 面額10 = 股數
                 market_cap = r['close'] * shares
+                r['_gb_market_cap'] = market_cap  # 暫存，排名過濾用
                 cash = fa.get('cash_and_equivalents') or 0
                 debt = (fa.get('short_term_debt') or 0) + (fa.get('short_term_notes') or 0) + \
                        (fa.get('current_long_term_debt') or 0) + (fa.get('long_term_bank_debt') or 0) + \
@@ -649,16 +651,21 @@ def recalc_all_derived(codes=None):
                     r['gb_ey'] = None
             else:
                 r['gb_ey'] = None
+                r['_gb_market_cap'] = None
         else:
             r['gb_roic'] = None
             r['gb_ey'] = None
+            r['_gb_market_cap'] = None
         r['gb_roic_rank'] = None
         r['gb_ey_rank'] = None
         r['gb_total_rank'] = None
         all_results.append(r)
 
-    # 葛林布萊排名（全市場非金融股，由高到低排名）
-    rankable = [r for r in all_results if r.get('gb_roic') is not None and r.get('gb_ey') is not None]
+    # 葛林布萊排名（排除金融股、KY股、市值<30億）
+    GB_MIN_MARKET_CAP = 3_000_000_000  # 30億
+    rankable = [r for r in all_results
+                if r.get('gb_roic') is not None and r.get('gb_ey') is not None
+                and r.get('_gb_market_cap') and r['_gb_market_cap'] >= GB_MIN_MARKET_CAP]
     rankable.sort(key=lambda x: x['gb_roic'], reverse=True)
     for i, r in enumerate(rankable):
         r['gb_roic_rank'] = i + 1
