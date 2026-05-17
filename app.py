@@ -1309,7 +1309,7 @@ def calc_all_checklists():
                       short_term_debt, short_term_notes, current_long_term_debt,
                       long_term_bank_debt, other_long_term_debt, bonds_payable,
                       gross_profit, cash_dividend, weighted_shares, current_liabilities
-               FROM financial_annual WHERE year >= ?
+               FROM financial_annual WHERE year >= ? AND revenue IS NOT NULL
                ORDER BY code, year""",
             (datetime.now().year - 11,)
         )
@@ -1577,7 +1577,7 @@ def _recalc_checklist_single(code):
                                   total_equity, pretax_income, tax, gross_profit, cash_dividend, weighted_shares,
                                   short_term_debt, short_term_notes, current_long_term_debt,
                                   long_term_bank_debt, other_long_term_debt, bonds_payable, cash_and_equivalents
-                           FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 5""", (code,))
+                           FROM financial_annual WHERE code=? AND revenue IS NOT NULL ORDER BY year DESC LIMIT 5""", (code,))
         _opm_5y, _roic_5y, _gm_5y, _fcf_rev_5y = [], [], [], []
         _fcf_latest, _div_total = None, None
         for _fr in _fa5:

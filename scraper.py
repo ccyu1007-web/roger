@@ -4339,6 +4339,8 @@ def _run_maintenance_inner(scheduled=True):
                     if label is None:
                         continue
                     year = int(label) + 1911
+                    if year >= datetime.now().year:
+                        continue  # 當年及未來年度的年報不存在，跳過
                     c.execute("""INSERT INTO financial_annual (code, year, cash_dividend, stock_dividend, updated_at)
                         VALUES (?,?,?,?,?)
                         ON CONFLICT(code, year) DO UPDATE SET
@@ -4363,9 +4365,12 @@ def _run_maintenance_inner(scheduled=True):
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with sqlite3.get_conn() as conn:
             c = conn.cursor()
+            cur_west_year = datetime.now().year  # 當年年報尚未公告，不寫入
             for code, years in hist.items():
                 for yr, eps_val in years.items():
                     west_year = int(yr) + 1911
+                    if west_year >= cur_west_year:
+                        continue  # 當年及未來年度的年報不存在，跳過
                     c.execute("""INSERT INTO financial_annual (code, year, eps, updated_at)
                         VALUES (?,?,?,?)
                         ON CONFLICT(code, year) DO UPDATE SET
