@@ -1846,6 +1846,12 @@ function autoQualityCheck(silent) {
 
   saveQuality();
 
+  // 批次同步到 DB（判斷結果整批寫入，清除舊的再寫入新的）
+  fetch('/api/user-lists/quality', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action: 'sync', codes: [...qualitySet]})
+  }).catch(() => {});
+
   if (!silent) {
     render();
     const includeRules = [];
