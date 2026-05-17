@@ -717,6 +717,7 @@ CHECKLIST_ITEMS = [
     {'key': 'inv_days_high',  'category': 'safety', 'label': '最近一年存貨週轉天數未創5年新高'},
     {'key': 'ar_days_avg',    'category': 'safety', 'label': '最近一年應收帳款週轉天數 <= 近5年平均'},
     {'key': 'ar_days_high',   'category': 'safety', 'label': '最近一年應收帳款週轉天數未創5年新高'},
+    {'key': 'qinv_4v20',     'category': 'safety', 'label': '近四季平均存貨週轉天數 < 近5年(20季)平均'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1010,6 +1011,15 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _ard_max = max(_ard_5y) if _ard_5y else None
     checks['ar_days_high'] = 1 if _ard_latest is not None and _ard_max is not None and _ard_latest < _ard_max else 0
     detail['ar_days_high'] = f'最近={_ard_latest:.1f}天 vs 5年最高={_ard_max:.1f}天' if _ard_latest is not None and _ard_max is not None else '無資料'
+
+    # 近四季平均存貨週轉天數 < 近5年(20季)平均
+    _qinv = r.get('_qinv')
+    if _qinv:
+        checks['qinv_4v20'] = 1 if _qinv['avg4'] < _qinv['avg20'] else 0
+        detail['qinv_4v20'] = f'近4季平均={_qinv["avg4"]}天 vs 近20季平均={_qinv["avg20"]}天'
+    else:
+        checks['qinv_4v20'] = 0
+        detail['qinv_4v20'] = '季度存貨資料不足'
 
     # === 基本門檻 + 成長加分（名稱制） ===
 
@@ -1526,6 +1536,33 @@ def calc_all_checklists():
     except Exception as e:
         print(f"[Checklist] 毛利率查詢失敗: {e}")
 
+    # 批次算季度存貨週轉天數（近4季平均 vs 近20季平均）
+    qinv_map = {}  # {code: {'avg4': x, 'avg20': y}}
+    try:
+        qinv_rows = query_db("""SELECT code, quarter, cost, inventory FROM quarterly_financial
+                                WHERE cost > 0 AND inventory IS NOT NULL
+                                ORDER BY code, quarter""")
+        from collections import defaultdict
+        _qinv_by_code = defaultdict(list)
+        for qr in qinv_rows:
+            _qinv_by_code[qr['code']].append(qr)
+        for code, qs in _qinv_by_code.items():
+            # 數值排序（避免字串排序 99Q4 > 114Q4）
+            qs.sort(key=lambda x: (int(x['quarter'].split('Q')[0]), int(x['quarter'].split('Q')[1])))
+            # 算每季存貨週轉天數 = (本季存貨+上季存貨)/2 / 當季成本 × 90
+            days_list = []
+            for i in range(1, len(qs)):
+                avg_inv = (qs[i]['inventory'] + qs[i-1]['inventory']) / 2
+                days = avg_inv / qs[i]['cost'] * 90
+                days_list.append(round(days, 1))
+            if len(days_list) >= 4:
+                avg4 = round(sum(days_list[-4:]) / 4, 1)
+                n20 = min(len(days_list), 20)
+                avg20 = round(sum(days_list[-n20:]) / n20, 1)
+                qinv_map[code] = {'avg4': avg4, 'avg20': avg20}
+    except Exception as e:
+        print(f"[Checklist] 季度存貨週轉天數失敗: {e}")
+
     # 預載10年EPS（席勒PE用）和5年ROIC
     _shiller_map = {}  # {code: [eps_list]}
     _roic_map = {}     # {code: [roic_list]}
@@ -1682,6 +1719,7 @@ def calc_all_checklists():
         # 安全性指標序列
         for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days'):
             r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
+        r['_qinv'] = qinv_map.get(r['code'])
         r['_fcf_latest'] = _roic_map.get(r['code'] + '_fcf_latest')
         r['_div_total_latest'] = _roic_map.get(r['code'] + '_div_total')
         user_params = up
