@@ -978,6 +978,10 @@ function renderFinTable(data) {
     const cls = v < 0 ? 'v-neg' : 'v-neutral';
     return `<td class="${cls}">${v.toFixed(2)}</td>`;
   };
+  const fmt1 = v => {
+    if (v == null) return '<td class="v-empty">-</td>';
+    return `<td class="v-neutral">${v.toFixed(1)}</td>`;
+  };
   const fmtFcfM = v => {
     if (v == null) return '<td class="v-empty">-</td>';
     const m = v / 1000000;
@@ -1032,6 +1036,7 @@ function renderFinTable(data) {
       ['股東權益總額', d => d.total_equity,       fmtM],
       ['股本',       d => d.common_stock,       fmtM],
       ['現金及約當現金', d => d.cash_and_equivalents, fmtM],
+      ['應收帳款',   d => d.accounts_receivable, fmtM],
       ['存貨',       d => d.inventory,          fmtM],
       ['合約負債',   d => d.contract_liability, fmtCL],
       ['短期借款',   d => d.short_term_debt,    fmtM],
@@ -1060,6 +1065,8 @@ function renderFinTable(data) {
       ['盈餘品質率', d => d.earnings_quality, fmtP],
       ['負債比率',   d => d.debt_ratio,        fmtP],
       ['金融負債比', d => d.fin_debt_ratio,    fmtP],
+      ['存貨週轉天數', d => d.inventory_days,  fmt1],
+      ['應收帳款週轉天數', d => d.ar_days,     fmt1],
     ]},
   ];
 

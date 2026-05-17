@@ -3117,18 +3117,19 @@ def _refresh_fin_grades():
         if not codes:
             return
 
-        # 確保 financial_annual 有 ROIC 相關欄位
-        for col in ('roic', 'nopat', 'invested_capital', 'fin_grade'):
+        # 確保 financial_annual 有 ROIC 相關欄位 + 週轉天數
+        for col in ('roic', 'nopat', 'invested_capital', 'fin_grade', 'inventory_days', 'ar_days', 'accounts_receivable'):
             try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {'REAL' if col != 'fin_grade' else 'TEXT'}")
             except Exception: pass
 
         updated = 0
         for code in codes:
-            c.execute("""SELECT year, revenue, operating_income, pretax_income, tax, net_income,
+            c.execute("""SELECT year, revenue, cost, operating_income, pretax_income, tax, net_income,
                                 total_equity, total_assets, operating_cf, capex,
                                 cash_and_equivalents, short_term_debt, short_term_notes,
                                 current_long_term_debt, long_term_bank_debt,
-                                other_long_term_debt, bonds_payable, current_liabilities
+                                other_long_term_debt, bonds_payable, current_liabilities,
+                                inventory, accounts_receivable
                          FROM financial_annual WHERE code = ?
                          ORDER BY year DESC""", (code,))
             rows = c.fetchall()
@@ -3158,10 +3159,30 @@ def _refresh_fin_grades():
 
                 grade = _calc_fin_grade(roic, opm, fcf, rev)
 
+                # 存貨週轉天數 = 平均存貨 / 成本 × 365
+                inv = row['inventory']
+                cost_val = row['cost']
+                prev_inv = prev_row['inventory'] if prev_row else None
+                if inv is not None and cost_val and cost_val > 0:
+                    avg_inv = (inv + prev_inv) / 2 if prev_inv is not None else inv
+                    inv_days = round(avg_inv / cost_val * 365, 1)
+                else:
+                    inv_days = None
+
+                # 應收帳款週轉天數 = 平均應收帳款 / 營收 × 365
+                ar = row['accounts_receivable']
+                prev_ar = prev_row['accounts_receivable'] if prev_row else None
+                if ar is not None and rev and rev > 0:
+                    avg_ar = (ar + prev_ar) / 2 if prev_ar is not None else ar
+                    ar_days_val = round(avg_ar / rev * 365, 1)
+                else:
+                    ar_days_val = None
+
                 # 寫入 financial_annual（所有年度）
-                c.execute("""UPDATE financial_annual SET roic=?, nopat=?, invested_capital=?, fin_grade=?
+                c.execute("""UPDATE financial_annual SET roic=?, nopat=?, invested_capital=?, fin_grade=?,
+                             inventory_days=?, ar_days=?
                              WHERE code=? AND year=?""",
-                          (roic, nopat, ic, grade, code, row['year']))
+                          (roic, nopat, ic, grade, inv_days, ar_days_val, code, row['year']))
 
                 # stocks 表固定存 6 年，前端控制顯示幾年
                 if row['year'] <= max_year and grade_idx < 6:
