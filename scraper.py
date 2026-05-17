@@ -3184,13 +3184,13 @@ def _refresh_fin_grades():
                 _debt_ratio = round((ta - te) / ta * 100, 2) if ta and ta > 0 and te is not None else None
 
                 # 金融負債比 = 有息負債 / 總資產 × 100
-                _fin_debt = (row.get('short_term_debt') or 0) + (row.get('short_term_notes') or 0) + \
-                            (row.get('current_long_term_debt') or 0) + (row.get('long_term_bank_debt') or 0) + \
-                            (row.get('other_long_term_debt') or 0) + (row.get('bonds_payable') or 0)
+                _fin_debt = (row['short_term_debt'] or 0) + (row['short_term_notes'] or 0) + \
+                            (row['current_long_term_debt'] or 0) + (row['long_term_bank_debt'] or 0) + \
+                            (row['other_long_term_debt'] or 0) + (row['bonds_payable'] or 0)
                 _fin_debt_ratio = round(_fin_debt / ta * 100, 2) if ta and ta > 0 else None
 
                 # 利息保障倍數 = 營業利益 / 財務成本
-                _int_exp = row.get('interest_expense')
+                _int_exp = row['interest_expense']
                 _interest_cov = round(oi / _int_exp, 2) if oi is not None and _int_exp and _int_exp > 0 else None
 
                 # 盈餘品質率 = 營業現金流 / 稅後淨利 × 100
