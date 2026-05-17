@@ -202,7 +202,8 @@
   body.hide-g-sys .g-sys,
   body.hide-g-growth .g-growth,
   body.hide-g-240d .g-240d,
-  body.hide-g-etf .g-etf { display: none !important; }
+  body.hide-g-etf .g-etf,
+  body.hide-g-gb .g-gb { display: none !important; }
 
   /* ETF 標籤 */
   .etf-tag { display:inline-block; padding:1px 5px; border-radius:3px; font-size:.68rem; font-weight:600; margin:1px; white-space:nowrap; }
@@ -581,6 +582,12 @@
           <th class="g-cl" data-col="cl_2" onclick="sortBy('contract_2')"><span id="hdr_cl2">合約負債2</span><span class="sort-icon" id="si_contract_2">↕</span></th>
           <th class="g-cl" data-col="cl_3" onclick="sortBy('contract_3')"><span id="hdr_cl3">合約負債3</span><span class="sort-icon" id="si_contract_3">↕</span></th>
           <th class="g-cl" data-col="cl_chg" onclick="sortBy('contract_chg')">合約負債變動<span class="sort-icon" id="si_contract_chg">↕</span></th>
+          <!-- 葛林布萊神奇公式 -->
+          <th class="g-gb col-div" data-col="gb_roic" onclick="sortBy('gb_roic')">ROIC%<span class="sort-icon" id="si_gb_roic">↕</span></th>
+          <th class="g-gb" data-col="gb_ey" onclick="sortBy('gb_ey')">盈餘殖利率%<span class="sort-icon" id="si_gb_ey">↕</span></th>
+          <th class="g-gb" data-col="gb_roic_rank" onclick="sortBy('gb_roic_rank')">ROIC排名<span class="sort-icon" id="si_gb_roic_rank">↕</span></th>
+          <th class="g-gb" data-col="gb_ey_rank" onclick="sortBy('gb_ey_rank')">殖利率排名<span class="sort-icon" id="si_gb_ey_rank">↕</span></th>
+          <th class="g-gb" data-col="gb_total_rank" onclick="sortBy('gb_total_rank')">加總排名<span class="sort-icon" id="si_gb_total_rank">↕</span></th>
           <!-- ETF 成分股 -->
           <th class="g-etf col-div" data-col="etf">ETF 成分股</th>
           <th class="g-revchg" data-col="rev_note">營收備註</th>
@@ -633,6 +640,7 @@ const COL_GROUPS = [
   { key: 'g-po',   label: '配息率', default: false },
   { key: 'g-inst', label: '法人買賣', default: true },
   { key: 'g-cl',   label: '合約負債', default: true },
+  { key: 'g-gb',   label: '葛林布萊', default: false },
   { key: 'g-etf',  label: 'ETF成分股', default: true },
 ];
 
@@ -777,6 +785,11 @@ const CUSTOM_COLS = [
   ]},
   { group: '合約負債', cols: [
     { id: 'cl_1', label: '合約1' }, { id: 'cl_2', label: '合約2' }, { id: 'cl_3', label: '合約3' }, { id: 'cl_chg', label: '變動' }
+  ]},
+  { group: '葛林布萊', cols: [
+    { id: 'gb_roic', label: 'ROIC' }, { id: 'gb_ey', label: '盈餘殖利率' },
+    { id: 'gb_roic_rank', label: 'ROIC排名' }, { id: 'gb_ey_rank', label: '殖利率排名' },
+    { id: 'gb_total_rank', label: '加總排名' }
   ]},
   { group: 'ETF', cols: [
     { id: 'etf', label: 'ETF成分股' }
@@ -1525,6 +1538,11 @@ const FIELD_OPTIONS = [
   {label:'短期營收3M(%)', key:'_gi.rev_3m_yoy'},
   {label:'長期營收12M(%)', key:'_gi.rev_12m_yoy'},
   {label:'掛牌年數(年)', key:'listed_years'},
+  {label:'葛林布萊ROIC(%)', key:'gb_roic'},
+  {label:'葛林布萊盈餘殖利率(%)', key:'gb_ey'},
+  {label:'葛林布萊ROIC排名', key:'gb_roic_rank'},
+  {label:'葛林布萊殖利率排名', key:'gb_ey_rank'},
+  {label:'葛林布萊加總排名', key:'gb_total_rank'},
 ];
 
 let _customConditions = JSON.parse(localStorage.getItem('watch_custom_conds') || '[]');
@@ -1538,6 +1556,9 @@ const QUALITY_FIELD_OPTIONS = [
   {label:'FCF/營收均值(%)', key:'_gi.fcf_rev_avg'},
   {label:'內生成長率(%)', key:'_gi.intrinsic_growth'},
   {label:'掛牌年數(年)', key:'listed_years'},
+  {label:'葛林布萊ROIC(%)', key:'gb_roic'},
+  {label:'葛林布萊盈餘殖利率(%)', key:'gb_ey'},
+  {label:'葛林布萊加總排名', key:'gb_total_rank'},
 ];
 function renderQualityConds() {
   const container = document.getElementById('qualityCustomConds');
@@ -2843,6 +2864,12 @@ function render() {
       <td class="g-cl" data-col="cl_2">${r.contract_2 != null ? (r.contract_2 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl" data-col="cl_3">${r.contract_3 != null ? (r.contract_3 / 1000).toLocaleString('zh-TW', {maximumFractionDigits: 0}) : '－'}</td>
       <td class="g-cl" data-col="cl_chg">${r.contract_chg != null ? `<span class="${r.contract_chg > 0 ? 'cl-up' : r.contract_chg < 0 ? 'cl-down' : 'flat'}">${r.contract_chg > 0 ? '▲' : r.contract_chg < 0 ? '▼' : ''} ${Math.abs(r.contract_chg).toFixed(2)}%</span>` : '－'}</td>
+      <!-- 葛林布萊 -->
+      <td class="g-gb col-div" data-col="gb_roic">${r.gb_roic != null ? r.gb_roic.toFixed(2) : '－'}</td>
+      <td class="g-gb" data-col="gb_ey">${r.gb_ey != null ? r.gb_ey.toFixed(2) : '－'}</td>
+      <td class="g-gb" data-col="gb_roic_rank" style="${r.gb_roic_rank != null && r.gb_roic_rank <= 30 ? 'color:#dc2626;font-weight:700' : ''}">${r.gb_roic_rank != null ? r.gb_roic_rank : '－'}</td>
+      <td class="g-gb" data-col="gb_ey_rank" style="${r.gb_ey_rank != null && r.gb_ey_rank <= 30 ? 'color:#dc2626;font-weight:700' : ''}">${r.gb_ey_rank != null ? r.gb_ey_rank : '－'}</td>
+      <td class="g-gb" data-col="gb_total_rank" style="${r.gb_total_rank != null && r.gb_total_rank <= 60 ? 'color:#dc2626;font-weight:700' : ''}">${r.gb_total_rank != null ? r.gb_total_rank : '－'}</td>
       <td class="g-etf col-div" data-col="etf">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
       <td class="g-revchg" data-col="rev_note" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
     </tr>`;

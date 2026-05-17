@@ -708,7 +708,8 @@ def _push_annual_to_render():
                 val_aa, val_a1, val_a2, val_a, val_lt6,
                 val_eps_used, val_div_used,
                 est_eps, est_div, est_pe, est_yld, est_grade,
-                sys_pe, sys_yld, sys_grade
+                sys_pe, sys_yld, sys_grade,
+                gb_roic, gb_ey, gb_roic_rank, gb_ey_rank, gb_total_rank
                 FROM stocks WHERE close IS NOT NULL""").fetchall()
 
         cols = ['code', 'eps_date',
@@ -732,7 +733,8 @@ def _push_annual_to_render():
             'val_aa','val_a1','val_a2','val_a','val_lt6',
             'val_eps_used','val_div_used',
             'est_eps','est_div','est_pe','est_yld','est_grade',
-            'sys_pe','sys_yld','sys_grade']
+            'sys_pe','sys_yld','sys_grade',
+            'gb_roic','gb_ey','gb_roic_rank','gb_ey_rank','gb_total_rank']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
 
         failed = 0
