@@ -691,6 +691,19 @@ def recalc_all_derived(codes=None):
 
 # 檢核項目定義（順序即顯示順序，插入/調序只改這裡）
 CHECKLIST_ITEMS = [
+    # ── 獲利性檢核（12項）──
+    {'key': 'roic_avg5',      'category': 'profit', 'label': 'ROIC 近5年平均 >15%'},
+    {'key': 'roic_latest',    'category': 'profit', 'label': '最近一年 ROIC >15%'},
+    {'key': 'roic_3v5',       'category': 'profit', 'label': '近3年平均 ROIC > 近5年平均 ROIC'},
+    {'key': 'roic_min5',      'category': 'profit', 'label': 'ROIC 近5年最低值 >10%'},
+    {'key': 'gm_avg5',        'category': 'profit', 'label': '毛利率近5年平均 >30%'},
+    {'key': 'gm_latest',      'category': 'profit', 'label': '最近一年毛利率 >30%'},
+    {'key': 'gm_3v5',         'category': 'profit', 'label': '近3年平均毛利率 > 近5年平均毛利率'},
+    {'key': 'gm_min5',        'category': 'profit', 'label': '毛利率近5年最低值 >25%'},
+    {'key': 'opm_avg5',       'category': 'profit', 'label': '營益率近5年平均 >10%'},
+    {'key': 'opm_latest',     'category': 'profit', 'label': '最近一年營益率 >10%'},
+    {'key': 'opm_3v5',        'category': 'profit', 'label': '近3年平均營益率 > 近5年平均營益率'},
+    {'key': 'opm_min5',       'category': 'profit', 'label': '營益率近5年最低值 >5%'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -712,6 +725,7 @@ CHECKLIST_ITEMS = [
     {'key': 'roic_trend',     'category': 'bonus', 'label': 'ROIC 未連續3年下滑'},
     {'key': 'gm_trend',       'category': 'bonus', 'label': '毛利率未連續下滑超過3個百分點'},
 ]
+CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
 CHECKLIST_ALL_KEYS = [item['key'] for item in CHECKLIST_ITEMS]
@@ -744,7 +758,7 @@ def _init_checklist_db():
                  ('lt_div','REAL'),('lt_yld','REAL'),
                  ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
                  ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
-                 ('base_count','INTEGER'),('bonus_count','INTEGER'),
+                 ('profit_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
                  ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
                  ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
                  ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
@@ -858,6 +872,58 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     lt5 = round(lt_div / 0.05, 2) if lt_div and lt_div > 0 else None
     lt6 = round(lt_div / 0.06, 2) if lt_div and lt_div > 0 else None
     lt7 = round(lt_div / 0.07, 2) if lt_div and lt_div > 0 else None
+
+    # === 獲利性檢核（12項） ===
+    _roic_5y = r.get('_roic_5y') or []  # [(year, roic%), ...] 最近→最遠
+    _roic_vals_5 = [v for _, v in _roic_5y if v is not None]
+    _roic_vals_3 = [v for _, v in _roic_5y[:3] if v is not None]
+    _roic_avg5 = sum(_roic_vals_5) / len(_roic_vals_5) if _roic_vals_5 else None
+    _roic_avg3 = sum(_roic_vals_3) / len(_roic_vals_3) if _roic_vals_3 else None
+    _roic_min5 = min(_roic_vals_5) if _roic_vals_5 else None
+    _roic_latest = _roic_vals_5[0] if _roic_vals_5 else None
+
+    checks['roic_avg5'] = 1 if _roic_avg5 is not None and _roic_avg5 > 15 else 0
+    detail['roic_avg5'] = f'5年平均={_roic_avg5:.2f}%' if _roic_avg5 is not None else '無資料'
+    checks['roic_latest'] = 1 if _roic_latest is not None and _roic_latest > 15 else 0
+    detail['roic_latest'] = f'最近一年={_roic_latest:.2f}%' if _roic_latest is not None else '無資料'
+    checks['roic_3v5'] = 1 if _roic_avg3 is not None and _roic_avg5 is not None and _roic_avg3 > _roic_avg5 else 0
+    detail['roic_3v5'] = f'3年平均={_roic_avg3:.2f}% vs 5年平均={_roic_avg5:.2f}%' if _roic_avg3 is not None and _roic_avg5 is not None else '無資料'
+    checks['roic_min5'] = 1 if _roic_min5 is not None and _roic_min5 > 10 else 0
+    detail['roic_min5'] = f'5年最低={_roic_min5:.2f}%' if _roic_min5 is not None else '無資料'
+
+    _gm_5y = r.get('_gm_5y') or []  # [(year, gm%), ...]
+    _gm_vals_5 = [v for _, v in _gm_5y if v is not None]
+    _gm_vals_3 = [v for _, v in _gm_5y[:3] if v is not None]
+    _gm_avg5 = sum(_gm_vals_5) / len(_gm_vals_5) if _gm_vals_5 else None
+    _gm_avg3 = sum(_gm_vals_3) / len(_gm_vals_3) if _gm_vals_3 else None
+    _gm_min5 = min(_gm_vals_5) if _gm_vals_5 else None
+    _gm_latest = _gm_vals_5[0] if _gm_vals_5 else None
+
+    checks['gm_avg5'] = 1 if _gm_avg5 is not None and _gm_avg5 > 30 else 0
+    detail['gm_avg5'] = f'5年平均={_gm_avg5:.2f}%' if _gm_avg5 is not None else '無資料'
+    checks['gm_latest'] = 1 if _gm_latest is not None and _gm_latest > 30 else 0
+    detail['gm_latest'] = f'最近一年={_gm_latest:.2f}%' if _gm_latest is not None else '無資料'
+    checks['gm_3v5'] = 1 if _gm_avg3 is not None and _gm_avg5 is not None and _gm_avg3 > _gm_avg5 else 0
+    detail['gm_3v5'] = f'3年平均={_gm_avg3:.2f}% vs 5年平均={_gm_avg5:.2f}%' if _gm_avg3 is not None and _gm_avg5 is not None else '無資料'
+    checks['gm_min5'] = 1 if _gm_min5 is not None and _gm_min5 > 25 else 0
+    detail['gm_min5'] = f'5年最低={_gm_min5:.2f}%' if _gm_min5 is not None else '無資料'
+
+    _opm_5y = r.get('_opm_5y') or []
+    _opm_vals_5 = [v for _, v in _opm_5y if v is not None]
+    _opm_vals_3 = [v for _, v in _opm_5y[:3] if v is not None]
+    _opm_avg5 = sum(_opm_vals_5) / len(_opm_vals_5) if _opm_vals_5 else None
+    _opm_avg3 = sum(_opm_vals_3) / len(_opm_vals_3) if _opm_vals_3 else None
+    _opm_min5 = min(_opm_vals_5) if _opm_vals_5 else None
+    _opm_latest = _opm_vals_5[0] if _opm_vals_5 else None
+
+    checks['opm_avg5'] = 1 if _opm_avg5 is not None and _opm_avg5 > 10 else 0
+    detail['opm_avg5'] = f'5年平均={_opm_avg5:.2f}%' if _opm_avg5 is not None else '無資料'
+    checks['opm_latest'] = 1 if _opm_latest is not None and _opm_latest > 10 else 0
+    detail['opm_latest'] = f'最近一年={_opm_latest:.2f}%' if _opm_latest is not None else '無資料'
+    checks['opm_3v5'] = 1 if _opm_avg3 is not None and _opm_avg5 is not None and _opm_avg3 > _opm_avg5 else 0
+    detail['opm_3v5'] = f'3年平均={_opm_avg3:.2f}% vs 5年平均={_opm_avg5:.2f}%' if _opm_avg3 is not None and _opm_avg5 is not None else '無資料'
+    checks['opm_min5'] = 1 if _opm_min5 is not None and _opm_min5 > 5 else 0
+    detail['opm_min5'] = f'5年最低={_opm_min5:.2f}%' if _opm_min5 is not None else '無資料'
 
     # === 基本門檻 + 成長加分（名稱制） ===
 
@@ -1093,9 +1159,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['fcf_cover_div'] = 1  # 無資料預設通過
         detail['fcf_cover_div'] = '無FCF或股利資料（預設通過）'
 
+    profit_count = sum(checks[k] for k in CHECKLIST_PROFIT_KEYS)
     base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
     bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
-    pass_count = base_count + bonus_count
+    pass_count = profit_count + base_count + bonus_count
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
     gi = r.get('_gi') or {}
@@ -1127,6 +1194,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         **{f'chk_{k}': checks.get(k, 0) for k in CHECKLIST_ALL_KEYS},
         'pass_count': pass_count,
         'total_count': len(CHECKLIST_ALL_KEYS),
+        'profit_count': profit_count,
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
@@ -1551,7 +1619,7 @@ def calc_all_checklists():
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
         all_fields = ['code'] + chk_fields + [
-                       'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
+                       'pass_count', 'total_count', 'profit_count', 'base_count', 'bonus_count', 'detail',
                        'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                        'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                        'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
@@ -1709,7 +1777,7 @@ def _recalc_checklist_single(code):
     # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
     chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
     all_fields = ['code'] + chk_fields + [
-                   'pass_count', 'total_count', 'base_count', 'bonus_count', 'detail',
+                   'pass_count', 'total_count', 'profit_count', 'base_count', 'bonus_count', 'detail',
                    'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                    'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                    'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',

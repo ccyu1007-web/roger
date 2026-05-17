@@ -675,13 +675,19 @@ async function loadDecision() {
 
     // 從 API 取得檢核項目定義（單一來源，不用前端維護 labels）
     const items = cl._items || [];
+    const profitItems = items.filter(it => it.category === 'profit');
     const baseItems = items.filter(it => it.category === 'base');
     const bonusItems = items.filter(it => it.category === 'bonus');
 
     const detail = cl.detail || {};
-    // 容錯：Render DB 可能沒有 base_count/bonus_count 欄位，自己算
+    // 容錯：Render DB 可能沒有各 count 欄位，自己算
+    let profitCount = cl.profit_count;
     let baseCount = cl.base_count;
     let bonusCount = cl.bonus_count;
+    if (profitCount == null) {
+      profitCount = 0;
+      profitItems.forEach(it => { if (cl[`chk_${it.key}`] === 1) profitCount++; });
+    }
     if (baseCount == null) {
       baseCount = 0;
       baseItems.forEach(it => { if (cl[`chk_${it.key}`] === 1) baseCount++; });
@@ -690,17 +696,35 @@ async function loadDecision() {
       bonusCount = 0;
       bonusItems.forEach(it => { if (cl[`chk_${it.key}`] === 1) bonusCount++; });
     }
-    const totalPass = baseCount + bonusCount;
-    const totalItems = baseItems.length + bonusItems.length;
+    const totalPass = profitCount + baseCount + bonusCount;
+    const totalItems = profitItems.length + baseItems.length + bonusItems.length;
 
     let html = '';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（基本 ${baseCount}/${baseItems.length} + 加分 ${bonusCount}/${bonusItems.length}）</span>`;
+    html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（獲利 ${profitCount}/${profitItems.length} + 基本 ${baseCount}/${baseItems.length} + 加分 ${bonusCount}/${bonusItems.length}）</span>`;
     html += '</div>';
 
-    // 基本門檻（動態渲染，順序由後端定義）
+    // 獲利性檢核（在基本門檻上面）
     html += '<table class="chk-table">';
+    html += '<thead><tr><th>#</th><th>獲利性檢核</th><th>是</th><th>否</th></tr></thead>';
+    html += '<tbody>';
+    profitItems.forEach((it, i) => {
+      const pass = cl[`chk_${it.key}`] === 1;
+      const d = detail[it.key] || '';
+      html += '<tr>';
+      html += `<td>${i + 1}</td>`;
+      html += `<td class="chk-cond">${it.label}`;
+      if (d) html += `<div class="chk-detail">${d}</div>`;
+      html += '</td>';
+      html += `<td class="chk-yes">${pass ? 'V' : ''}</td>`;
+      html += `<td class="chk-no">${pass ? '' : 'X'}</td>`;
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+
+    // 基本門檻（動態渲染，順序由後端定義）
+    html += '<table class="chk-table" style="margin-top:12px">';
     html += '<thead><tr><th>#</th><th>基本門檻</th><th>是</th><th>否</th></tr></thead>';
     html += '<tbody>';
     baseItems.forEach((it, i) => {
