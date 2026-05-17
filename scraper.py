@@ -4522,7 +4522,7 @@ def _fill_all_gaps():
         ).fetchall():
             needs_div.add(r[0])
 
-        # 缺關鍵財報（年報 equity/cf/capex/dividend 或季報 inventory）
+        # 缺關鍵財報（年報 equity/cf/capex/accounts_receivable 或 PE 歷史）
         needs_financial = set()
         for r in c.execute("""
             SELECT DISTINCT s.code FROM stocks s
@@ -4530,6 +4530,7 @@ def _fill_all_gaps():
                 s.code IN (
                     SELECT code FROM financial_annual WHERE year = ? AND (
                         total_equity IS NULL OR operating_cf IS NULL OR capex IS NULL
+                        OR accounts_receivable IS NULL
                     )
                 )
                 OR (s.code NOT IN (SELECT DISTINCT code FROM pe_history)
