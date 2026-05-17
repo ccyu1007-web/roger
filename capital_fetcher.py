@@ -938,6 +938,7 @@ def fetch_capital_annual_eps(code):
         '歸屬母公司淨利（損）': 'net_income_parent',
         '每股盈餘':     'eps',
         '加權平均股數': 'weighted_shares',
+        '財務成本':     'interest_expense',
     }
     NO_MUL_FIELDS = {'eps', 'weighted_shares'}
 

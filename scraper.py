@@ -3118,7 +3118,9 @@ def _refresh_fin_grades():
             return
 
         # 確保 financial_annual 有 ROIC 相關欄位 + 週轉天數
-        for col in ('roic', 'nopat', 'invested_capital', 'fin_grade', 'inventory_days', 'ar_days', 'accounts_receivable'):
+        for col in ('roic', 'nopat', 'invested_capital', 'fin_grade', 'inventory_days', 'ar_days',
+                    'accounts_receivable', 'interest_expense',
+                    'debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf'):
             try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {'REAL' if col != 'fin_grade' else 'TEXT'}")
             except Exception: pass
 
@@ -3129,7 +3131,7 @@ def _refresh_fin_grades():
                                 cash_and_equivalents, short_term_debt, short_term_notes,
                                 current_long_term_debt, long_term_bank_debt,
                                 other_long_term_debt, bonds_payable, current_liabilities,
-                                inventory, accounts_receivable
+                                inventory, accounts_receivable, interest_expense
                          FROM financial_annual WHERE code = ?
                          ORDER BY year DESC""", (code,))
             rows = c.fetchall()
@@ -3178,11 +3180,33 @@ def _refresh_fin_grades():
                 else:
                     ar_days_val = None
 
+                # 負債比 = (總資產 - 股東權益) / 總資產 × 100
+                _debt_ratio = round((ta - te) / ta * 100, 2) if ta and ta > 0 and te is not None else None
+
+                # 金融負債比 = 有息負債 / 總資產 × 100
+                _fin_debt = (row.get('short_term_debt') or 0) + (row.get('short_term_notes') or 0) + \
+                            (row.get('current_long_term_debt') or 0) + (row.get('long_term_bank_debt') or 0) + \
+                            (row.get('other_long_term_debt') or 0) + (row.get('bonds_payable') or 0)
+                _fin_debt_ratio = round(_fin_debt / ta * 100, 2) if ta and ta > 0 else None
+
+                # 利息保障倍數 = 營業利益 / 財務成本
+                _int_exp = row.get('interest_expense')
+                _interest_cov = round(oi / _int_exp, 2) if oi is not None and _int_exp and _int_exp > 0 else None
+
+                # 盈餘品質率 = 營業現金流 / 稅後淨利 × 100
+                _eq = round(ocf / ni * 100, 2) if ocf is not None and ni and ni > 0 else None
+
+                # 自由現金流
+                _fcf = round(ocf + capex_val, 2) if ocf is not None and capex_val is not None else None
+
                 # 寫入 financial_annual（所有年度）
                 c.execute("""UPDATE financial_annual SET roic=?, nopat=?, invested_capital=?, fin_grade=?,
-                             inventory_days=?, ar_days=?
+                             inventory_days=?, ar_days=?,
+                             debt_ratio=?, fin_debt_ratio=?, interest_coverage=?, earnings_quality=?, fcf=?
                              WHERE code=? AND year=?""",
-                          (roic, nopat, ic, grade, inv_days, ar_days_val, code, row['year']))
+                          (roic, nopat, ic, grade, inv_days, ar_days_val,
+                           _debt_ratio, _fin_debt_ratio, _interest_cov, _eq, _fcf,
+                           code, row['year']))
 
                 # stocks 表固定存 6 年，前端控制顯示幾年
                 if row['year'] <= max_year and grade_idx < 6:
