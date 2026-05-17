@@ -2867,9 +2867,9 @@ function render() {
       <!-- 葛林布萊 -->
       <td class="g-gb col-div" data-col="gb_roic">${r.gb_roic != null ? r.gb_roic.toFixed(2) : '－'}</td>
       <td class="g-gb" data-col="gb_ey">${r.gb_ey != null ? r.gb_ey.toFixed(2) : '－'}</td>
-      <td class="g-gb" data-col="gb_roic_rank" style="${r.gb_roic_rank != null && r.gb_roic_rank <= 30 ? 'color:#dc2626;font-weight:700' : ''}">${r.gb_roic_rank != null ? r.gb_roic_rank : '－'}</td>
-      <td class="g-gb" data-col="gb_ey_rank" style="${r.gb_ey_rank != null && r.gb_ey_rank <= 30 ? 'color:#dc2626;font-weight:700' : ''}">${r.gb_ey_rank != null ? r.gb_ey_rank : '－'}</td>
-      <td class="g-gb" data-col="gb_total_rank" style="${r.gb_total_rank != null && r.gb_total_rank <= 60 ? 'color:#dc2626;font-weight:700' : ''}">${r.gb_total_rank != null ? r.gb_total_rank : '－'}</td>
+      <td class="g-gb" data-col="gb_roic_rank">${r.gb_roic_rank != null ? r.gb_roic_rank : '－'}</td>
+      <td class="g-gb" data-col="gb_ey_rank">${r.gb_ey_rank != null ? r.gb_ey_rank : '－'}</td>
+      <td class="g-gb" data-col="gb_total_rank">${r.gb_total_rank != null ? r.gb_total_rank : '－'}</td>
       <td class="g-etf col-div" data-col="etf">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
       <td class="g-revchg" data-col="rev_note" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
     </tr>`;
