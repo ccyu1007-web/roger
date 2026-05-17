@@ -704,6 +704,19 @@ CHECKLIST_ITEMS = [
     {'key': 'opm_latest',     'category': 'profit', 'label': '最近一年營益率 >10%'},
     {'key': 'opm_3v5',        'category': 'profit', 'label': '近3年平均營益率 > 近5年平均營益率'},
     {'key': 'opm_min5',       'category': 'profit', 'label': '營益率近5年最低值 >5%'},
+    # ── 安全性檢核（12項）──
+    {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比 <60%'},
+    {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比 <30%'},
+    {'key': 'icr_ok',         'category': 'safety', 'label': '利息保障倍數 >5'},
+    {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值 >3'},
+    {'key': 'fcf_5y_pos',     'category': 'safety', 'label': '自由現金流連續5年為正'},
+    {'key': 'fcf_latest_pos', 'category': 'safety', 'label': '最近一年自由現金流 >0'},
+    {'key': 'eq_ok',          'category': 'safety', 'label': '盈餘品質率 >80%'},
+    {'key': 'eq_min5',        'category': 'safety', 'label': '盈餘品質率近5年最低值 >60%'},
+    {'key': 'inv_days_avg',   'category': 'safety', 'label': '最近一年存貨週轉天數 <= 近5年平均'},
+    {'key': 'inv_days_high',  'category': 'safety', 'label': '最近一年存貨週轉天數未創5年新高'},
+    {'key': 'ar_days_avg',    'category': 'safety', 'label': '最近一年應收帳款週轉天數 <= 近5年平均'},
+    {'key': 'ar_days_high',   'category': 'safety', 'label': '最近一年應收帳款週轉天數未創5年新高'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -726,6 +739,7 @@ CHECKLIST_ITEMS = [
     {'key': 'gm_trend',       'category': 'bonus', 'label': '毛利率未連續下滑超過3個百分點'},
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
+CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
 CHECKLIST_ALL_KEYS = [item['key'] for item in CHECKLIST_ITEMS]
@@ -758,7 +772,7 @@ def _init_checklist_db():
                  ('lt_div','REAL'),('lt_yld','REAL'),
                  ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
                  ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
-                 ('profit_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
+                 ('profit_count','INTEGER'),('safety_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
                  ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
                  ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
                  ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
@@ -924,6 +938,78 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     detail['opm_3v5'] = f'3年平均={_opm_avg3:.2f}% vs 5年平均={_opm_avg5:.2f}%' if _opm_avg3 is not None and _opm_avg5 is not None else '無資料'
     checks['opm_min5'] = 1 if _opm_min5 is not None and _opm_min5 > 5 else 0
     detail['opm_min5'] = f'5年最低={_opm_min5:.2f}%' if _opm_min5 is not None else '無資料'
+
+    # === 安全性檢核（12項） ===
+    def _5y_vals(key):
+        return [v for _, v in (r.get(f'_{key}_5y') or []) if v is not None]
+
+    # 負債比 <60%
+    _dr_5y = _5y_vals('debt_ratio')
+    _dr_latest = _dr_5y[0] if _dr_5y else None
+    checks['debt_ratio_ok'] = 1 if _dr_latest is not None and _dr_latest < 60 else 0
+    detail['debt_ratio_ok'] = f'最近一年={_dr_latest:.2f}%' if _dr_latest is not None else '無資料'
+
+    # 金融負債比 <30%
+    _fdr_5y = _5y_vals('fin_debt_ratio')
+    _fdr_latest = _fdr_5y[0] if _fdr_5y else None
+    checks['fin_debt_ok'] = 1 if _fdr_latest is not None and _fdr_latest < 30 else 0
+    detail['fin_debt_ok'] = f'最近一年={_fdr_latest:.2f}%' if _fdr_latest is not None else '無資料'
+
+    # 利息保障倍數 >5
+    _icr_5y = _5y_vals('interest_coverage')
+    _icr_latest = _icr_5y[0] if _icr_5y else None
+    checks['icr_ok'] = 1 if _icr_latest is not None and _icr_latest > 5 else 0
+    detail['icr_ok'] = f'最近一年={_icr_latest:.2f}倍' if _icr_latest is not None else '無資料'
+
+    # 利息保障倍數近5年最低值 >3
+    _icr_min = min(_icr_5y) if _icr_5y else None
+    checks['icr_min5'] = 1 if _icr_min is not None and _icr_min > 3 else 0
+    detail['icr_min5'] = f'5年最低={_icr_min:.2f}倍' if _icr_min is not None else '無資料'
+
+    # 自由現金流連續5年為正
+    _fcf_5y = _5y_vals('fcf')
+    checks['fcf_5y_pos'] = 1 if len(_fcf_5y) >= 5 and all(v > 0 for v in _fcf_5y) else 0
+    detail['fcf_5y_pos'] = f'{len(_fcf_5y)}年資料，正值{sum(1 for v in _fcf_5y if v > 0)}年' if _fcf_5y else '無資料'
+
+    # 最近一年自由現金流 >0
+    _fcf_latest = _fcf_5y[0] if _fcf_5y else None
+    checks['fcf_latest_pos'] = 1 if _fcf_latest is not None and _fcf_latest > 0 else 0
+    detail['fcf_latest_pos'] = f'最近一年FCF={_fcf_latest / 1000000:.0f}百萬' if _fcf_latest is not None else '無資料'
+
+    # 盈餘品質率 >80%
+    _eq_5y = _5y_vals('earnings_quality')
+    _eq_latest = _eq_5y[0] if _eq_5y else None
+    checks['eq_ok'] = 1 if _eq_latest is not None and _eq_latest > 80 else 0
+    detail['eq_ok'] = f'最近一年={_eq_latest:.2f}%' if _eq_latest is not None else '無資料'
+
+    # 盈餘品質率近5年最低值 >60%
+    _eq_min = min(_eq_5y) if _eq_5y else None
+    checks['eq_min5'] = 1 if _eq_min is not None and _eq_min > 60 else 0
+    detail['eq_min5'] = f'5年最低={_eq_min:.2f}%' if _eq_min is not None else '無資料'
+
+    # 存貨週轉天數：最近一年 <= 近5年平均
+    _invd_5y = _5y_vals('inventory_days')
+    _invd_latest = _invd_5y[0] if _invd_5y else None
+    _invd_avg = sum(_invd_5y) / len(_invd_5y) if _invd_5y else None
+    checks['inv_days_avg'] = 1 if _invd_latest is not None and _invd_avg is not None and _invd_latest <= _invd_avg else 0
+    detail['inv_days_avg'] = f'最近={_invd_latest:.1f}天 vs 5年平均={_invd_avg:.1f}天' if _invd_latest is not None and _invd_avg is not None else '無資料'
+
+    # 存貨週轉天數：未創5年新高
+    _invd_max = max(_invd_5y) if _invd_5y else None
+    checks['inv_days_high'] = 1 if _invd_latest is not None and _invd_max is not None and _invd_latest < _invd_max else 0
+    detail['inv_days_high'] = f'最近={_invd_latest:.1f}天 vs 5年最高={_invd_max:.1f}天' if _invd_latest is not None and _invd_max is not None else '無資料'
+
+    # 應收帳款週轉天數：最近一年 <= 近5年平均
+    _ard_5y = _5y_vals('ar_days')
+    _ard_latest = _ard_5y[0] if _ard_5y else None
+    _ard_avg = sum(_ard_5y) / len(_ard_5y) if _ard_5y else None
+    checks['ar_days_avg'] = 1 if _ard_latest is not None and _ard_avg is not None and _ard_latest <= _ard_avg else 0
+    detail['ar_days_avg'] = f'最近={_ard_latest:.1f}天 vs 5年平均={_ard_avg:.1f}天' if _ard_latest is not None and _ard_avg is not None else '無資料'
+
+    # 應收帳款週轉天數：未創5年新高
+    _ard_max = max(_ard_5y) if _ard_5y else None
+    checks['ar_days_high'] = 1 if _ard_latest is not None and _ard_max is not None and _ard_latest < _ard_max else 0
+    detail['ar_days_high'] = f'最近={_ard_latest:.1f}天 vs 5年最高={_ard_max:.1f}天' if _ard_latest is not None and _ard_max is not None else '無資料'
 
     # === 基本門檻 + 成長加分（名稱制） ===
 
@@ -1160,9 +1246,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         detail['fcf_cover_div'] = '無FCF或股利資料（預設通過）'
 
     profit_count = sum(checks[k] for k in CHECKLIST_PROFIT_KEYS)
+    safety_count = sum(checks[k] for k in CHECKLIST_SAFETY_KEYS)
     base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
     bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
-    pass_count = profit_count + base_count + bonus_count
+    pass_count = profit_count + safety_count + base_count + bonus_count
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
     gi = r.get('_gi') or {}
@@ -1195,6 +1282,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'pass_count': pass_count,
         'total_count': len(CHECKLIST_ALL_KEYS),
         'profit_count': profit_count,
+        'safety_count': safety_count,
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
@@ -1448,7 +1536,9 @@ def calc_all_checklists():
                       total_equity, total_assets, cash_and_equivalents,
                       short_term_debt, short_term_notes, current_long_term_debt,
                       long_term_bank_debt, other_long_term_debt, bonds_payable,
-                      gross_profit, cash_dividend, weighted_shares, current_liabilities
+                      gross_profit, cash_dividend, weighted_shares, current_liabilities,
+                      debt_ratio, fin_debt_ratio, interest_coverage, earnings_quality, fcf,
+                      inventory_days, ar_days
                FROM financial_annual WHERE year >= ? AND revenue IS NOT NULL
                ORDER BY code, year""",
             (datetime.now().year - 11,)
@@ -1465,6 +1555,8 @@ def calc_all_checklists():
             # 最近5年各項均值（ROIC/ROE/OPM/FCF_REV）+ 趨勢用年度序列
             _roic_vals, _roe_vals, _opm_vals, _fcf_rev_vals = [], [], [], []
             _roic_yearly, _opm_yearly, _fcf_rev_yearly, _gm_yearly = [], [], [], []
+            _safety_yearly = {'debt_ratio': [], 'fin_debt_ratio': [], 'interest_coverage': [],
+                              'earnings_quality': [], 'fcf': [], 'inventory_days': [], 'ar_days': []}
             _fcf_latest_val, _div_total_val = None, None
             for _fr in _frs[-5:]:
                 _oi = _fr.get('operating_income')
@@ -1523,6 +1615,10 @@ def calc_all_checklists():
                     _gm_yearly.append((_yr, round(_gp / _rev * 100, 2)))
                 else:
                     _gm_yearly.append((_yr, None))
+                # 安全性指標（直接讀 DB 已算好的值）
+                for _sk in _safety_yearly:
+                    _sv = _fr.get(_sk)
+                    _safety_yearly[_sk].append((_yr, _sv))
             # 最新年 FCF vs 現金股利（cash_dividend × weighted_shares千股）
             if _frs:
                 _last_fr = _frs[-1]
@@ -1548,6 +1644,9 @@ def calc_all_checklists():
             _roic_map[_code + '_gm_5y'] = list(reversed(_gm_yearly))
             _roic_map[_code + '_fcf_latest'] = _fcf_latest_val
             _roic_map[_code + '_div_total'] = _div_total_val
+            # 安全性序列（最近→最遠）
+            for _sk in _safety_yearly:
+                _roic_map[_code + f'_{_sk}_5y'] = list(reversed(_safety_yearly[_sk]))
     except Exception as e:
         print(f"[Checklist] 席勒/ROIC 預載失敗: {e}")
 
@@ -1580,6 +1679,9 @@ def calc_all_checklists():
         r['_roic_5y'] = _roic_map.get(r['code'] + '_roic_5y', [])
         r['_gm_5y'] = _roic_map.get(r['code'] + '_gm_5y', [])
         r['_fcf_rev_5y'] = _roic_map.get(r['code'] + '_fcf_rev_5y', [])
+        # 安全性指標序列
+        for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days'):
+            r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
         r['_fcf_latest'] = _roic_map.get(r['code'] + '_fcf_latest')
         r['_div_total_latest'] = _roic_map.get(r['code'] + '_div_total')
         user_params = up
@@ -1619,7 +1721,7 @@ def calc_all_checklists():
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
         all_fields = ['code'] + chk_fields + [
-                       'pass_count', 'total_count', 'profit_count', 'base_count', 'bonus_count', 'detail',
+                       'pass_count', 'total_count', 'profit_count', 'safety_count', 'base_count', 'bonus_count', 'detail',
                        'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                        'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                        'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
@@ -1777,7 +1879,7 @@ def _recalc_checklist_single(code):
     # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
     chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
     all_fields = ['code'] + chk_fields + [
-                   'pass_count', 'total_count', 'profit_count', 'base_count', 'bonus_count', 'detail',
+                   'pass_count', 'total_count', 'profit_count', 'safety_count', 'base_count', 'bonus_count', 'detail',
                    'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                    'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                    'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
