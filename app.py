@@ -2760,6 +2760,11 @@ def get_financials(code):
         _ta = d.get('total_assets')
         _te = d.get('total_equity')
         d['debt_ratio'] = round((_ta - _te) / _ta * 100, 2) if _ta and _ta > 0 and _te is not None else None
+        # 長短期金融負債比
+        _fin_debt = sum(d.get(f, 0) or 0 for f in
+                        ['short_term_debt', 'short_term_notes', 'current_long_term_debt',
+                         'long_term_bank_debt', 'other_long_term_debt', 'bonds_payable'])
+        d['fin_debt_ratio'] = round(_fin_debt / _ta * 100, 2) if _ta and _ta > 0 and _fin_debt > 0 else (0.0 if _ta and _ta > 0 else None)
         # 自由現金流（capex 為負值）
         d['fcf'] = round(ocf + capex, 2) if ocf is not None and capex is not None else None
         # 加權平均股數（千股，從 EPS 反算）
