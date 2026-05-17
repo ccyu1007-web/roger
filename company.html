@@ -1612,13 +1612,13 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="val-method">
       <div class="val-method-title">逍遙價值投資評價法</div>
       <div class="val-inputs">
-        <div class="val-inp-group"><label>EPS設定</label><input id="vmEps" type="text" oninput="_vmManual=true; calcValMethod()"></div>
-        <div class="val-inp-group"><label>股利設定</label><input id="vmDiv" type="text" oninput="_vmManual=true; calcValMethod()"></div>
+        <div class="val-inp-group"><label>EPS設定</label><input id="vmEps" type="text" oninput="_vmManual=true; _useDbVal=false; calcValMethod()"></div>
+        <div class="val-inp-group"><label>股利設定</label><input id="vmDiv" type="text" oninput="_vmManual=true; _useDbVal=false; calcValMethod()"></div>
         <div class="val-inp-group"><label>偏高殖利率</label><span class="auto-val" id="vmYldHigh">-</span></div>
         <div class="val-inp-group"><label>最高殖利率</label><span class="auto-val" id="vmYldMax">-</span></div>
       </div>
       <div class="val-inputs">
-        <div class="val-inp-group"><label>綜合股利</label><input id="vmLtDiv" type="text" placeholder="綜合股利" oninput="_vmManual=true; calcValMethod()"></div>
+        <div class="val-inp-group"><label>綜合股利</label><input id="vmLtDiv" type="text" placeholder="綜合股利" oninput="_vmManual=true; _useDbVal=false; calcValMethod()"></div>
         <div class="val-inp-group">
           <label>長期殖利率設定</label><input id="vmLtYld" type="text" value="${_ltYld}" oninput="onLtYldChange()" style="width:60px">
           <span class="val-global-note">%（全部公司）</span>
@@ -1736,6 +1736,11 @@ let _estPrice = null;
 const _estYear = new Date().getFullYear() - 1911;  // 115
 let _yldFloor = parseFloat(localStorage.getItem('global_yld_floor') || '5');
 let _ltYld = parseFloat(localStorage.getItem('global_lt_yld') || '6');
+
+// DB 預算好的評價門檻（與總表同源）
+let _dbValThresholds = null;  // { val_aa, val_a1, val_a2, val_a, val_lt6 }
+// 是否使用 DB 值顯示（初始載入 true，使用者改參數後 false）
+let _useDbVal = true;
 
 // vmEps/vmDiv/vmLtDiv 是否由使用者手動編輯（區分自動帶入 vs 手動設定）
 let _vmManual = false;
@@ -1906,6 +1911,18 @@ async function initEstimator(sharesMillion) {
     }
     _stockData = stock;
   } catch(e) {}
+
+  // 從 DB 讀取評價門檻（與總表同源，不前端重算）
+  if (_stockData) {
+    _dbValThresholds = {
+      val_aa: _stockData.val_aa,
+      val_a1: _stockData.val_a1,
+      val_a2: _stockData.val_a2,
+      val_a:  _stockData.val_a,
+      val_lt6: _stockData.val_lt6,
+    };
+    _useDbVal = true;
+  }
 
   // 預設值（從後端 DB 讀取，確保前後端一致）
   let _shenEps = null, _shenDiv = null, _blendDiv = null, _blendEps = null;
@@ -3005,6 +3022,7 @@ function _syncToValMethod() {
   const annDiv = parseNum('annDiv');
   if (annEps != null) document.getElementById('vmEps').value = annEps.toFixed(2);
   if (annDiv != null) document.getElementById('vmDiv').value = annDiv.toFixed(2);
+  _useDbVal = false;  // 使用者修改了估算，切成前端計算模式
   calcValMethod();
 }
 
@@ -3038,32 +3056,44 @@ function calcValMethod() {
     }
   }
 
-  if (!eps || !div) {
-    el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入所有參數</div>';
-    return;
+  let gradeA, gradeA1, gradeA2, gradeAA, lt5, lt6, lt7;
+
+  // 優先使用 DB 預算好的門檻值（與總表同源）
+  if (_useDbVal && _dbValThresholds &&
+      _dbValThresholds.val_aa != null && _dbValThresholds.val_a != null) {
+    gradeA  = _dbValThresholds.val_a;
+    gradeA1 = _dbValThresholds.val_a1;
+    gradeA2 = _dbValThresholds.val_a2;
+    gradeAA = _dbValThresholds.val_aa;
+    lt6     = _dbValThresholds.val_lt6;
+    // lt5/lt7 DB 沒存，從 ltDiv 推算
+    lt5 = ltDiv != null ? ltDiv / 0.05 : null;
+    lt7 = ltDiv != null ? ltDiv / 0.07 : null;
+  } else {
+    // 使用者改參數後的即時預覽（前端計算）
+    if (!eps || !div) {
+      el.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:8px 0">請先填入所有參數</div>';
+      return;
+    }
+
+    const peFair  = (peHi + peLo) / 2;
+    const peBelow = (peFair + peLo) / 2;
+
+    const yHighR = yHigh / 100;
+    const yMaxR  = yMax / 100;
+
+    const ltYldR = _ltYld / 100;
+    const ltTerm = (ltDiv != null && ltYldR > 0) ? (ltDiv / ltYldR + div) : null;
+
+    gradeA  = Math.min(eps * peBelow, div / yHighR, ...(ltTerm != null ? [ltTerm] : []));
+    gradeA1 = Math.min(eps * peLo,    div / yHighR, ...(ltTerm != null ? [ltTerm] : []));
+    gradeA2 = Math.min(eps * peBelow, div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
+    gradeAA = Math.min(eps * peLo,    div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
+
+    lt5 = ltDiv != null ? ltDiv / 0.05 : null;
+    lt6 = ltDiv != null ? ltDiv / 0.06 : null;
+    lt7 = ltDiv != null ? ltDiv / 0.07 : null;
   }
-
-  const peFair  = (peHi + peLo) / 2;
-  const peAbove = (peHi + peFair) / 2;
-  const peBelow = (peFair + peLo) / 2;
-
-  const yHighR = yHigh / 100;
-  const yMaxR  = yMax / 100;
-
-  // 第三項：長期股利/偏高殖利率 + 預估股利
-  const ltYldR = _ltYld / 100;
-  const ltTerm = (ltDiv != null && ltYldR > 0) ? (ltDiv / ltYldR + div) : null;
-
-  // 各等級公式
-  const gradeA  = Math.min(eps * peBelow, div / yHighR, ...(ltTerm != null ? [ltTerm] : []));
-  const gradeA1 = Math.min(eps * peLo,    div / yHighR, ...(ltTerm != null ? [ltTerm] : []));
-  const gradeA2 = Math.min(eps * peBelow, div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
-  const gradeAA = Math.min(eps * peLo,    div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
-
-  // 長期殖利率價格
-  const lt5 = ltDiv != null ? ltDiv / 0.05 : null;
-  const lt6 = ltDiv != null ? ltDiv / 0.06 : null;
-  const lt7 = ltDiv != null ? ltDiv / 0.07 : null;
 
   const f = v => v != null && isFinite(v) ? v.toFixed(2) : '-';
 
@@ -3112,11 +3142,27 @@ function saveValParams() {
   Object.assign(saved, params);
   saved.valParamsDate = now;
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
-  // 同步到 DB
+  // 同步到 DB（後端會觸發 recalc_all_derived 重算門檻）
   fetch(`/api/user-estimates/${CODE}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(saved)
-  });
+  }).then(r => r.json()).then(() => {
+    // 重新從 DB 取回重算後的值（與總表同源）
+    return fetch(`/api/stocks?exact=${CODE}`);
+  }).then(r => r.json()).then(json => {
+    const stock = json.data.find(s => s.code === CODE);
+    if (stock) {
+      _dbValThresholds = {
+        val_aa: stock.val_aa,
+        val_a1: stock.val_a1,
+        val_a2: stock.val_a2,
+        val_a:  stock.val_a,
+        val_lt6: stock.val_lt6,
+      };
+      _useDbVal = true;
+      calcValMethod();
+    }
+  }).catch(() => {});
   document.getElementById('valParamsDate').textContent = '已儲存：' + now;
   renderMatrix();
 }
@@ -3148,11 +3194,26 @@ function clearValParams() {
    'dcfFcf','dcfRate','dcfGrowth','dcfGrowthYears','dcfTermGrowth','dcfMargin'].forEach(k => delete saved[k]);
   _vmManual = false;
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
-  // 同步到 DB
+  // 同步到 DB（後端會觸發 recalc_all_derived 重算門檻）
   fetch(`/api/user-estimates/${CODE}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(saved)
-  });
+  }).then(r => r.json()).then(() => {
+    return fetch(`/api/stocks?exact=${CODE}`);
+  }).then(r => r.json()).then(json => {
+    const stock = json.data.find(s => s.code === CODE);
+    if (stock) {
+      _dbValThresholds = {
+        val_aa: stock.val_aa,
+        val_a1: stock.val_a1,
+        val_a2: stock.val_a2,
+        val_a:  stock.val_a,
+        val_lt6: stock.val_lt6,
+      };
+      _useDbVal = true;
+      calcValMethod();
+    }
+  }).catch(() => {});
   document.getElementById('valParamsDate').textContent = '';
   // 重設顯示
   ['peAbove','peFair','peBelow','priceAbove','priceFair','priceBelow',
@@ -3226,11 +3287,27 @@ function saveEstimate() {
   try { existing = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   Object.assign(existing, d);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(existing));
-  // 同步到 DB
+  // 同步到 DB（後端會觸發 recalc_all_derived 重算門檻）
   fetch(`/api/user-estimates/${CODE}`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(existing)
-  });
+  }).then(r => r.json()).then(() => {
+    // 重新從 DB 取回重算後的值（與總表同源）
+    return fetch(`/api/stocks?exact=${CODE}`);
+  }).then(r => r.json()).then(json => {
+    const stock = json.data.find(s => s.code === CODE);
+    if (stock) {
+      _dbValThresholds = {
+        val_aa: stock.val_aa,
+        val_a1: stock.val_a1,
+        val_a2: stock.val_a2,
+        val_a:  stock.val_a,
+        val_lt6: stock.val_lt6,
+      };
+      _useDbVal = true;
+      calcValMethod();
+    }
+  }).catch(() => {});
   document.getElementById('estDate').textContent = '已儲存：' + now;
 }
 

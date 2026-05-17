@@ -4845,27 +4845,20 @@ def save_user_estimate(code):
               (code, json.dumps(params, ensure_ascii=False), now, est_year))
     conn.commit()
     conn.close()
-    # 即時重算該股檢核表
+    # 即時重算該股衍生欄位（評價門檻等）+ 檢核表
+    try: recalc_all_derived(codes=[code])
+    except Exception: pass
     try: _recalc_checklist_single(code)
     except Exception: pass
     # 本機才推 Render（背景執行避免阻塞）
     if not os.environ.get('DATABASE_URL'):
-        def _push_single():
+        def _push_after_save():
             try:
-                from render_sync import _push_table_to_render
-                _push_table_to_render(
-                    table='stock_checklist',
-                    columns=['code','chk_1','chk_2','chk_3','chk_4','chk_5','chk_6',
-                             'chk_7','chk_8','chk_9','chk_10','chk_11','chk_12','chk_13',
-                             'pass_count','total_count','detail',
-                             'eps_setting','div_setting','yld_high','yld_max','pe_high','pe_low',
-                             'lt_div','lt_yld','val_a','val_a1','val_a2','val_aa','lt5','lt6','lt7',
-                             'updated_at'],
-                    pk=['code'],
-                    where=f"WHERE code='{code}'",
-                )
-            except Exception: pass
-        threading.Thread(target=_push_single, daemon=True).start()
+                from render_sync import _push_annual_to_render
+                _push_annual_to_render()  # stocks 表（含衍生欄位+評價門檻）
+            except Exception as e:
+                print(f"[Push] 儲存後同步失敗: {e}")
+        threading.Thread(target=_push_after_save, daemon=True).start()
     return jsonify({"status": "ok"})
 
 # ── 啟動 ────────────────────────────────────────────────────
