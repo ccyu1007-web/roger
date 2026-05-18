@@ -719,7 +719,7 @@ CHECKLIST_ITEMS = [
     {'key': 'ar_days_high',   'category': 'safety', 'label': '最近一年應收帳款週轉天數未創5年新高'},
     {'key': 'qinv_4v20',     'category': 'safety', 'label': '近四季平均存貨週轉天數 < 近5年(20季)平均'},
     # ── 價值評估檢核（5項）──
-    {'key': 'shen_pe_ok',    'category': 'value', 'label': '沈董本益比 <= 15'},
+    {'key': 'shen_pe_ok',    'category': 'value', 'label': '預估(沈董)本益比 <= 15'},
     {'key': 'shen_vs_avg5',  'category': 'value', 'label': '沈董EPS >= 近五年平均EPS'},
     {'key': 'shen_vs_avg3',  'category': 'value', 'label': '沈董EPS >= 近三年平均EPS'},
     {'key': 'eps_5y_pos',    'category': 'value', 'label': '近五年EPS皆大於0'},
@@ -1038,9 +1038,12 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _eps_y = [r.get(f'eps_y{i}') for i in range(1, 6)]
     _eps_y_valid = [e for e in _eps_y if e is not None]
 
-    # 沈董本益比 <= 15
-    checks['shen_pe_ok'] = 1 if _shen_pe is not None and _shen_pe > 0 and _shen_pe <= 15 else 0
-    detail['shen_pe_ok'] = f'沈董PE={_shen_pe:.2f}倍' if _shen_pe is not None else '無資料'
+    # 預估(沈董)本益比 <= 15：有預估PE用預估，沒有用沈董
+    _est_pe = r.get('est_pe')
+    _used_pe = _est_pe if _est_pe is not None and _est_pe > 0 else _shen_pe
+    _pe_src = '預估' if _est_pe is not None and _est_pe > 0 else '沈董'
+    checks['shen_pe_ok'] = 1 if _used_pe is not None and _used_pe > 0 and _used_pe <= 15 else 0
+    detail['shen_pe_ok'] = f'{_pe_src}PE={_used_pe:.2f}倍' if _used_pe is not None else '無資料'
 
     # 沈董EPS >= 近五年平均EPS
     _eps_avg5 = sum(_eps_y_valid) / len(_eps_y_valid) if _eps_y_valid else None
