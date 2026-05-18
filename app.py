@@ -731,6 +731,8 @@ CHECKLIST_ITEMS = [
     {'key': 'grade_a_ok',   'category': 'value', 'label': '預估(沈董)等級為A級'},
     {'key': 'grade_a12_ok', 'category': 'value', 'label': '預估(沈董)等級為A1或A2級'},
     {'key': 'grade_aa_ok',  'category': 'value', 'label': '預估(沈董)等級為AA級'},
+    {'key': 'price_in_a',   'category': 'value', 'label': 'AA級評價 <= 股價 <= A級評價'},
+    {'key': 'price_below_aa_v', 'category': 'value', 'label': '股價 <= AA級評價'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1111,6 +1113,22 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     # 預估(沈董)等級為AA級
     checks['grade_aa_ok'] = 1 if _used_grade == 'AA' else 0
     detail['grade_aa_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
+
+    # AA級評價 <= 股價 <= A級評價
+    if close and val_aa and val_a:
+        checks['price_in_a'] = 1 if val_aa <= close + 0.005 and close <= val_a + 0.005 else 0
+        detail['price_in_a'] = f'股價{close} vs AA={val_aa} / A={val_a}'
+    else:
+        checks['price_in_a'] = 0
+        detail['price_in_a'] = '無評價門檻'
+
+    # 股價 <= AA級評價
+    if close and val_aa:
+        checks['price_below_aa_v'] = 1 if close <= val_aa + 0.005 else 0
+        detail['price_below_aa_v'] = f'股價{close} vs AA={val_aa}'
+    else:
+        checks['price_below_aa_v'] = 0
+        detail['price_below_aa_v'] = '無AA門檻'
 
     # 沈董法累計營業利益 / 累計稅前淨利 > 80%
     _cr = r.get('_core_ratio')
