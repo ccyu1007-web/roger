@@ -705,7 +705,7 @@ CHECKLIST_ITEMS = [
     {'key': 'opm_3v5',        'category': 'profit', 'label': '近3年平均營益率 > 近5年平均營益率'},
     {'key': 'opm_min5',       'category': 'profit', 'label': '營益率近5年最低值 >5%'},
     # ── 安全性檢核（12項）──
-    {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比 <60%'},
+    {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比 <= 50%'},
     {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比 <30%'},
     {'key': 'icr_ok',         'category': 'safety', 'label': '利息保障倍數 >5'},
     {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值 >3'},
@@ -957,7 +957,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     # 負債比 <60%
     _dr_5y = _5y_vals('debt_ratio')
     _dr_latest = _dr_5y[0] if _dr_5y else None
-    checks['debt_ratio_ok'] = 1 if _dr_latest is not None and _dr_latest < 60 else 0
+    checks['debt_ratio_ok'] = 1 if _dr_latest is not None and _dr_latest <= 50 else 0
     detail['debt_ratio_ok'] = f'最近一年={_dr_latest:.2f}%' if _dr_latest is not None else '無資料'
 
     # 金融負債比 <30%
