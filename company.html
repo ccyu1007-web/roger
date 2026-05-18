@@ -711,15 +711,15 @@ async function loadDecision() {
     html += '</div>';
 
     function renderChkTable(title, chkItems) {
-      let t = `<table class="chk-table" style="margin-top:12px"><thead><tr><th>#</th><th>${title}</th><th>是</th><th>否</th></tr></thead><tbody>`;
+      let t = `<table class="chk-table" style="margin-top:12px;border-collapse:collapse"><thead><tr><th>#</th><th>${title}</th><th>是</th><th>否</th></tr></thead><tbody>`;
       chkItems.forEach((it, i) => {
         const pass = cl[`chk_${it.key}`] === 1;
         const d = detail[it.key] || '';
         const hlStyle = it.hl ? 'color:#2563eb;font-weight:700' : '';
-        const hlBg = it.hl ? 'background:#dbeafe' : '';
         const isFirstHl = it.hl && (i === 0 || !chkItems[i-1].hl);
-        const sepStyle = isFirstHl ? 'border-top:4px solid #2563eb' : '';
-        t += `<tr style="${sepStyle};${hlBg}"><td style="${hlStyle}">${i + 1}</td><td class="chk-cond" style="${hlStyle}">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
+        const sepStyle = isFirstHl ? 'border-top:3px solid #2563eb' : '';
+        const borderStyle = 'border-bottom:1px solid #e2e8f0';
+        t += `<tr style="${sepStyle};${borderStyle}"><td style="${hlStyle}">${i + 1}</td><td class="chk-cond" style="${hlStyle}">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
         t += `<td class="chk-yes">${pass ? 'V' : ''}</td><td class="chk-no">${pass ? '' : 'X'}</td></tr>`;
       });
       t += '</tbody></table>';
