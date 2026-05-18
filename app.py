@@ -2942,15 +2942,8 @@ def sync_financial_annual():
         c.execute("SELECT * FROM financial_annual LIMIT 0")
         existing_cols = set(desc[0] for desc in c.description)
     except Exception: pass
-    fa_cols = [col for col in ['revenue','cost','gross_profit','operating_expense','operating_income',
-               'non_operating','pretax_income','tax','net_income','net_income_parent',
-               'total_assets','total_equity','common_stock','inventory','contract_liability',
-               'operating_cf','capex','eps','weighted_shares','cash_dividend','stock_dividend',
-               'eps_core','eps_nonop',
-               'cash_and_equivalents','short_term_debt','short_term_notes',
-               'current_long_term_debt','long_term_bank_debt',
-               'other_long_term_debt','bonds_payable',
-               'current_liabilities','roic','nopat','invested_capital','fin_grade'] if col in existing_cols]
+    # 動態取所有欄位（排除 pk 和 updated_at），不用維護白名單
+    fa_cols = [col for col in existing_cols if col not in ('code', 'year', 'updated_at')]
     for r in rows:
         code = r.get('code')
         year = r.get('year')
