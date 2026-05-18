@@ -2930,7 +2930,11 @@ def sync_financial_annual():
                      ('other_long_term_debt','REAL'),('bonds_payable','REAL'),
                      ('inventory','REAL'),('contract_liability','REAL'),
                      ('current_liabilities','REAL'),('roic','REAL'),('nopat','REAL'),
-                     ('invested_capital','REAL'),('fin_grade','TEXT')]:
+                     ('invested_capital','REAL'),('fin_grade','TEXT'),
+                     ('accounts_receivable','REAL'),('interest_expense','REAL'),
+                     ('debt_ratio','REAL'),('fin_debt_ratio','REAL'),('interest_coverage','REAL'),
+                     ('earnings_quality','REAL'),('fcf','REAL'),
+                     ('inventory_days','REAL'),('ar_days','REAL')]:
         try: c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {typ}")
         except Exception: pass
     try: conn.commit()
