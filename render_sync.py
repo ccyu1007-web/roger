@@ -43,6 +43,30 @@ def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
     return None
 
 
+def _push_single_table(table_name):
+    """按表名 push 單張表到 Render — 自動從本機 DB 讀取所有欄位。
+    stock_checklist 等 clear_first 的表會清空重推。
+    用法：_push_single_table('stock_checklist')
+    """
+    if _is_cloud():
+        return
+    # 從本機 DB 取得所有欄位名
+    with sqlite3.get_conn() as conn:
+        cursor = conn.execute(f"PRAGMA table_info({table_name})")
+        cols_info = cursor.fetchall()
+    if not cols_info:
+        print(f"[同步] 表 {table_name} 不存在")
+        return
+    columns = [c[1] for c in cols_info]
+    # 取得主鍵
+    pk = [c[1] for c in cols_info if c[5] > 0]  # pk index > 0
+    if not pk:
+        pk = [columns[0]]  # fallback: 第一個欄位
+    # stock_checklist/material_news/etf 等需要 clear_first
+    clear_tables = {'stock_checklist', 'material_news', 'etf_holdings', 'etf_changes', 'etf_info'}
+    _push_table_to_render(table_name, columns, pk, clear_first=(table_name in clear_tables))
+
+
 def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500, clear_first=False, since=None):
     """
     通用全表同步：把本機任意資料表 push 到 Render
