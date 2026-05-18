@@ -815,6 +815,32 @@ async function loadDecision() {
       html += '</div></div>';
     }
 
+    // === 股利折現模式摘要 ===
+    const ddmDetail = detail.val_ddm_return;
+    if (ddmDetail) {
+      const ddmPass = cl.chk_val_ddm_return === 1;
+      html += '<div style="margin-top:16px;padding:16px 20px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      html += '<div style="font-size:1rem;font-weight:700;color:#0369a1">股利折現模式</div>';
+      html += `<span style="font-size:.85rem;font-weight:600;color:${ddmPass ? '#16a34a' : '#dc2626'}">${ddmPass ? 'V 通過' : 'X 未達標'}</span>`;
+      html += '</div>';
+      html += `<div style="font-size:.85rem;color:#334155;margin-top:8px">${ddmDetail}</div>`;
+      html += '</div>';
+    }
+
+    // === 現金流量折現法摘要 ===
+    const dcfDetail = detail.dcf_safe_ok;
+    if (dcfDetail) {
+      const dcfPass = cl.chk_dcf_safe_ok === 1;
+      html += '<div style="margin-top:16px;padding:16px 20px;background:#faf5ff;border-radius:10px;border:1px solid #e9d5ff">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      html += '<div style="font-size:1rem;font-weight:700;color:#7c3aed">現金流量折現法（DCF）</div>';
+      html += `<span style="font-size:.85rem;font-weight:600;color:${dcfPass ? '#16a34a' : '#dc2626'}">${dcfPass ? 'V 通過' : 'X 未達標'}</span>`;
+      html += '</div>';
+      html += `<div style="font-size:.85rem;color:#334155;margin-top:8px">${dcfDetail}</div>`;
+      html += '</div>';
+    }
+
     // === 質性研究筆記 ===
     const noteContent = noteData.content || '';
     if (noteContent) {
