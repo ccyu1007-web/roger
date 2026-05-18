@@ -740,6 +740,7 @@ CHECKLIST_ITEMS = [
     {'key': 'eps_cagr5_ok',   'category': 'growth_eval', 'label': '近5年保守成長率(EPS) > 5%'},
     {'key': 'rev_accel',      'category': 'growth_eval', 'label': '近3年營收CAGR > 近5年營收CAGR'},
     {'key': 'eps_accel',      'category': 'growth_eval', 'label': '近3年EPS CAGR > 近5年EPS CAGR'},
+    {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率 >= 0%'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1178,6 +1179,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         checks['eps_accel'] = 0
         detail['eps_accel'] = '無資料'
+
+    # 累積營收年增率 >= 0%
+    _cum_yoy = r.get('revenue_cum_yoy')
+    checks['cum_rev_pos'] = 1 if _cum_yoy is not None and _cum_yoy >= 0 else 0
+    detail['cum_rev_pos'] = f'累積營收年增率={_cum_yoy}%' if _cum_yoy is not None else '無資料'
 
     # === 基本門檻 + 成長加分（名稱制） ===
 
