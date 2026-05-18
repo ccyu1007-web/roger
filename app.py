@@ -718,6 +718,12 @@ CHECKLIST_ITEMS = [
     {'key': 'ar_days_avg',    'category': 'safety', 'label': '最近一年應收帳款週轉天數 <= 近5年平均'},
     {'key': 'ar_days_high',   'category': 'safety', 'label': '最近一年應收帳款週轉天數未創5年新高'},
     {'key': 'qinv_4v20',     'category': 'safety', 'label': '近四季平均存貨週轉天數 < 近5年(20季)平均'},
+    # ── 價值評估檢核（5項）──
+    {'key': 'shen_pe_ok',    'category': 'value', 'label': '沈董本益比 <= 15'},
+    {'key': 'shen_vs_avg5',  'category': 'value', 'label': '沈董EPS >= 近五年平均EPS'},
+    {'key': 'shen_vs_avg3',  'category': 'value', 'label': '沈董EPS >= 近三年平均EPS'},
+    {'key': 'eps_5y_pos',    'category': 'value', 'label': '近五年EPS皆大於0'},
+    {'key': 'eps_5y_stable', 'category': 'value', 'label': '近五年最高EPS/最低EPS < 3'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -741,6 +747,7 @@ CHECKLIST_ITEMS = [
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
+CHECKLIST_VALUE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'value']
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
 CHECKLIST_ALL_KEYS = [item['key'] for item in CHECKLIST_ITEMS]
@@ -773,7 +780,7 @@ def _init_checklist_db():
                  ('lt_div','REAL'),('lt_yld','REAL'),
                  ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
                  ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
-                 ('profit_count','INTEGER'),('safety_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
+                 ('profit_count','INTEGER'),('safety_count','INTEGER'),('value_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
                  ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
                  ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
                  ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
@@ -1021,6 +1028,42 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['qinv_4v20'] = 0
         detail['qinv_4v20'] = '季度存貨資料不足'
 
+    # === 價值評估檢核（5項） ===
+    _shen_pe = r.get('shen_pe')
+    _shen_eps = r.get('shen_eps')
+    _eps_y = [r.get(f'eps_y{i}') for i in range(1, 6)]
+    _eps_y_valid = [e for e in _eps_y if e is not None]
+
+    # 沈董本益比 <= 15
+    checks['shen_pe_ok'] = 1 if _shen_pe is not None and _shen_pe > 0 and _shen_pe <= 15 else 0
+    detail['shen_pe_ok'] = f'沈董PE={_shen_pe:.2f}倍' if _shen_pe is not None else '無資料'
+
+    # 沈董EPS >= 近五年平均EPS
+    _eps_avg5 = sum(_eps_y_valid) / len(_eps_y_valid) if _eps_y_valid else None
+    checks['shen_vs_avg5'] = 1 if _shen_eps is not None and _eps_avg5 is not None and _shen_eps >= _eps_avg5 else 0
+    detail['shen_vs_avg5'] = f'沈董EPS={_shen_eps:.2f} vs 5年平均={_eps_avg5:.2f}' if _shen_eps is not None and _eps_avg5 is not None else '無資料'
+
+    # 沈董EPS >= 近三年平均EPS
+    _eps_y3_valid = [e for e in _eps_y[:3] if e is not None]
+    _eps_avg3 = sum(_eps_y3_valid) / len(_eps_y3_valid) if _eps_y3_valid else None
+    checks['shen_vs_avg3'] = 1 if _shen_eps is not None and _eps_avg3 is not None and _shen_eps >= _eps_avg3 else 0
+    detail['shen_vs_avg3'] = f'沈董EPS={_shen_eps:.2f} vs 3年平均={_eps_avg3:.2f}' if _shen_eps is not None and _eps_avg3 is not None else '無資料'
+
+    # 近五年EPS皆大於0
+    checks['eps_5y_pos'] = 1 if len(_eps_y_valid) >= 5 and all(e > 0 for e in _eps_y_valid) else 0
+    detail['eps_5y_pos'] = f'{len(_eps_y_valid)}年資料，正值{sum(1 for e in _eps_y_valid if e > 0)}年' if _eps_y_valid else '無資料'
+
+    # 近五年最高EPS/最低EPS < 3
+    if len(_eps_y_valid) >= 5 and all(e > 0 for e in _eps_y_valid):
+        _eps_max = max(_eps_y_valid)
+        _eps_min = min(_eps_y_valid)
+        _eps_ratio = round(_eps_max / _eps_min, 2) if _eps_min > 0 else None
+        checks['eps_5y_stable'] = 1 if _eps_ratio is not None and _eps_ratio < 3 else 0
+        detail['eps_5y_stable'] = f'最高{_eps_max:.2f}/最低{_eps_min:.2f}={_eps_ratio:.2f}倍' if _eps_ratio is not None else '無資料'
+    else:
+        checks['eps_5y_stable'] = 0
+        detail['eps_5y_stable'] = 'EPS資料不足或有負值'
+
     # === 基本門檻 + 成長加分（名稱制） ===
 
     # ── 基本門檻 ──
@@ -1257,9 +1300,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     profit_count = sum(checks[k] for k in CHECKLIST_PROFIT_KEYS)
     safety_count = sum(checks[k] for k in CHECKLIST_SAFETY_KEYS)
+    value_count = sum(checks[k] for k in CHECKLIST_VALUE_KEYS)
     base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
     bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
-    pass_count = profit_count + safety_count + base_count + bonus_count
+    pass_count = profit_count + safety_count + value_count + base_count + bonus_count
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
     gi = r.get('_gi') or {}
@@ -1293,6 +1337,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'total_count': len(CHECKLIST_ALL_KEYS),
         'profit_count': profit_count,
         'safety_count': safety_count,
+        'value_count': value_count,
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
@@ -1759,7 +1804,7 @@ def calc_all_checklists():
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
         all_fields = ['code'] + chk_fields + [
-                       'pass_count', 'total_count', 'profit_count', 'safety_count', 'base_count', 'bonus_count', 'detail',
+                       'pass_count', 'total_count', 'profit_count', 'safety_count', 'value_count', 'base_count', 'bonus_count', 'detail',
                        'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                        'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                        'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
@@ -1917,7 +1962,7 @@ def _recalc_checklist_single(code):
     # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
     chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
     all_fields = ['code'] + chk_fields + [
-                   'pass_count', 'total_count', 'profit_count', 'safety_count', 'base_count', 'bonus_count', 'detail',
+                   'pass_count', 'total_count', 'profit_count', 'safety_count', 'value_count', 'base_count', 'bonus_count', 'detail',
                    'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                    'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                    'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
