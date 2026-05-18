@@ -1170,13 +1170,14 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['cum_rev_pos'] = 1 if _cum_yoy is not None and _cum_yoy >= 0 else 0
     detail['cum_rev_pos'] = f'累積營收年增率={_cum_yoy}%' if _cum_yoy is not None else '無資料'
 
-    # 短期3M >= 0%
-    _rev_3m = _gi.get('rev_3m_yoy')
+    # 短期3M >= 0%（從 growth_map 讀取，不在 _gi 裡）
+    _gs = (growth_map or {}).get(r['code'], {})
+    _rev_3m = _gs.get('gi_rev_3m_yoy')
     checks['rev_3m_pos'] = 1 if _rev_3m is not None and _rev_3m >= 0 else 0
     detail['rev_3m_pos'] = f'短期3M={_rev_3m:.2f}%' if _rev_3m is not None else '無資料'
 
     # 長期12M >= 0%
-    _rev_12m = _gi.get('rev_12m_yoy')
+    _rev_12m = _gs.get('gi_rev_12m_yoy')
     checks['rev_12m_pos'] = 1 if _rev_12m is not None and _rev_12m >= 0 else 0
     detail['rev_12m_pos'] = f'長期12M={_rev_12m:.2f}%' if _rev_12m is not None else '無資料'
 
