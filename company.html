@@ -591,6 +591,17 @@
     padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
     font-size: .85rem; outline: none;
   }
+  /* ── 列印/匯出 PDF ── */
+  @media print {
+    body { background: #fff !important; }
+    .tab-bar, .tab-bar *, #pageTitle, .notes-wrap, .dcf-btn-group { display: none !important; }
+    .chk-summary { break-inside: avoid; }
+    .chk-table { break-inside: avoid; font-size: .8rem !important; }
+    #ckDdmWrap, #ckDcfWrap { break-inside: avoid; }
+    #printDate { display: block !important; }
+    #printExportBtn { display: none !important; }
+  }
+  #printDate { display: none; font-size: .85rem; color: #64748b; margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -690,6 +701,10 @@ async function loadDecision() {
     const totalItems = profitItems.length + safetyItems.length + valueItems.length + growthEvalItems.length;
 
     let html = '';
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    html += `<div id="printDate">匯出日期：${dateStr}</div>`;
+    html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button id="printExportBtn" onclick="window.print()" style="padding:6px 16px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;font-size:.85rem;cursor:pointer">匯出 PDF</button></div>';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
     html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（獲利 ${profitCount}/${profitItems.length} + 安全 ${safetyCount}/${safetyItems.length} + 價值 ${valueCount}/${valueItems.length} + 成長 ${growthEvalCount}/${growthEvalItems.length}）</span>`;
