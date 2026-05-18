@@ -742,9 +742,9 @@ CHECKLIST_ITEMS = [
     {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率 >= 0%'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率 >= 0%'},
     {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M >= 長期12M'},
-    {'key': 'ge_neff_ratio',  'category': 'growth_eval', 'label': '聶夫 Neff 比率 >= 0.7'},
-    {'key': 'ge_lynch_peg',   'category': 'growth_eval', 'label': '林區 PEG <= 1.0'},
-    {'key': 'ge_lynch_consist','category': 'growth_eval', 'label': '林區成長一致性 >= 0.5'},
+    {'key': 'ge_neff_ratio',  'category': 'value', 'label': '聶夫 Neff 比率 >= 0.7'},
+    {'key': 'ge_lynch_peg',   'category': 'value', 'label': '林區 PEG <= 1.0'},
+    {'key': 'ge_lynch_consist','category': 'value', 'label': '林區成長一致性 >= 0.5'},
     {'key': 'ge_growth_green', 'category': 'growth_eval', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
