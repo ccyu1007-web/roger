@@ -727,6 +727,7 @@ CHECKLIST_ITEMS = [
     {'key': 'core_ratio',    'category': 'value', 'label': '預估(沈董法)累計營業利益 / 累計稅前淨利 > 80%'},
     {'key': 'wt_yld_ok',    'category': 'value', 'label': '綜合殖利率 >= 5%'},
     {'key': 'wt_payout_ok', 'category': 'value', 'label': '加權配息率 > 50%'},
+    {'key': 'eps_vs_10y',   'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS >= 1'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1082,6 +1083,16 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _wt_payout = r.get('weighted_payout')
     checks['wt_payout_ok'] = 1 if _wt_payout is not None and _wt_payout > 50 else 0
     detail['wt_payout_ok'] = f'加權配息率={_wt_payout:.2f}%' if _wt_payout is not None else '無資料'
+
+    # 預估(沈董)EPS / 十年平均EPS >= 1
+    _avg_eps_10y = (r.get('_gi') or {}).get('shiller_avg_eps')
+    if _used_eps is not None and _avg_eps_10y is not None and _avg_eps_10y > 0:
+        _eps_ratio_10y = round(_used_eps / _avg_eps_10y, 2)
+        checks['eps_vs_10y'] = 1 if _eps_ratio_10y >= 1 else 0
+        detail['eps_vs_10y'] = f'{_eps_src}EPS={_used_eps:.2f} / 10年均EPS={_avg_eps_10y:.2f} = {_eps_ratio_10y:.2f}'
+    else:
+        checks['eps_vs_10y'] = 0
+        detail['eps_vs_10y'] = '10年均EPS<=0或無資料' if _avg_eps_10y is not None and _avg_eps_10y <= 0 else '無資料'
 
     # 沈董法累計營業利益 / 累計稅前淨利 > 80%
     _cr = r.get('_core_ratio')
