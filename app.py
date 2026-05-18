@@ -711,7 +711,7 @@ CHECKLIST_ITEMS = [
     {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值 >3'},
     {'key': 'fcf_5y_pos',     'category': 'safety', 'label': '自由現金流連續5年為正'},
     {'key': 'fcf_latest_pos', 'category': 'safety', 'label': '最近一年自由現金流 >0'},
-    {'key': 'eq_ok',          'category': 'safety', 'label': '盈餘品質率 >80%'},
+    {'key': 'eq_ok',          'category': 'safety', 'label': '盈餘品質率 >= 70%'},
     {'key': 'eq_min5',        'category': 'safety', 'label': '盈餘品質率近5年最低值 >60%'},
     {'key': 'inv_days_avg',   'category': 'safety', 'label': '最近一年存貨週轉天數 <= 近5年平均'},
     {'key': 'inv_days_high',  'category': 'safety', 'label': '最近一年存貨週轉天數未創5年新高'},
@@ -990,7 +990,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     # 盈餘品質率 >80%
     _eq_5y = _5y_vals('earnings_quality')
     _eq_latest = _eq_5y[0] if _eq_5y else None
-    checks['eq_ok'] = 1 if _eq_latest is not None and _eq_latest > 80 else 0
+    checks['eq_ok'] = 1 if _eq_latest is not None and _eq_latest >= 70 else 0
     detail['eq_ok'] = f'最近一年={_eq_latest:.2f}%' if _eq_latest is not None else '無資料'
 
     # 盈餘品質率近5年最低值 >60%
