@@ -914,12 +914,18 @@ function _renderCkDdm(stock, cl) {
   const intrinsic = pv1 + pv2 + pv3;
   const safePrice = intrinsic * margin;
 
-  const retI = close > 0 ? ((intrinsic - close) / close * 100) : null;
-  const retS = close > 0 ? ((safePrice - close) / close * 100) : null;
-  const annI = retI != null ? ((Math.pow(1 + retI/100, 1/3) - 1) * 100) : null;
-  const annS = retS != null ? ((Math.pow(1 + retS/100, 1/3) - 1) * 100) : null;
-  const retC = close > 0 ? (((sellPrice + div1+div2+div3 - close) / close) * 100) : null;
-  const annC = retC != null ? ((Math.pow(1 + retC/100, 1/3) - 1) * 100) : null;
+  // 潛在報酬 = (targetPrice - 買入價) / 買入價（與季估計表 calcDDM 一致）
+  const targetPrice = sellPrice + div1 + div2 + div3;
+  const calcRet = (base) => {
+    if (!base || base <= 0) return { ret: null, ann: null };
+    const ret = (targetPrice - base) / base * 100;
+    const ann = (Math.pow(1 + ret/100, 1/3) - 1) * 100;
+    return { ret, ann };
+  };
+  const rI = calcRet(intrinsic), rS = calcRet(safePrice), rC = calcRet(close);
+  const retI = rI.ret, annI = rI.ann;
+  const retS = rS.ret, annS = rS.ann;
+  const retC = rC.ret, annC = rC.ann;
 
   const thS = 'padding:8px 10px;background:#0369a1;color:#fff;font-weight:600;text-align:center;font-size:.82rem';
   const td = 'padding:8px 10px;border:1px solid #bae6fd;text-align:center;font-size:.82rem';
