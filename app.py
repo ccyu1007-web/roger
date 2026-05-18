@@ -1181,13 +1181,22 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     # Neff 比率 >= 0.7
     _ge_neff_d = _gi.get('neff_d')
+    _ge_neff_c = _gi.get('neff_c')
+    _ge_yld = _gi.get('yield')
+    _ge_pe = _gi.get('pe')
     checks['ge_neff_ratio'] = 1 if _ge_neff_d is not None and _ge_neff_d >= 0.7 else 0
-    detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}' if _ge_neff_d is not None else '無資料'
+    if _ge_neff_d is not None and _ge_neff_c is not None and _ge_yld is not None and _ge_pe:
+        detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}　(保守成長率{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) / PE{_ge_pe:.2f} = {round(_ge_neff_c + _ge_yld, 2)}/{_ge_pe:.2f}'
+    else:
+        detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}' if _ge_neff_d is not None else '無資料'
 
     # PEG <= 1.0
     _ge_lynch_d = _gi.get('lynch_d')
     checks['ge_lynch_peg'] = 1 if _ge_lynch_d is not None and _ge_lynch_d <= 1.0 else 0
-    detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}' if _ge_lynch_d is not None else '無資料'
+    if _ge_lynch_d is not None and _ge_neff_c is not None and _ge_yld is not None and _ge_pe:
+        detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}　PE{_ge_pe:.2f} / (成長率{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) = {_ge_pe:.2f}/{round(_ge_neff_c + _ge_yld, 2)}'
+    else:
+        detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}' if _ge_lynch_d is not None else '無資料'
 
     # 林區一致性 >= 0.5
     _ge_lynch_c = _gi.get('lynch_c')

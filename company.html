@@ -815,31 +815,17 @@ async function loadDecision() {
       html += '</div></div>';
     }
 
-    // === 股利折現模式摘要 ===
-    const ddmDetail = detail.val_ddm_return;
-    if (ddmDetail) {
-      const ddmPass = cl.chk_val_ddm_return === 1;
-      html += '<div style="margin-top:16px;padding:16px 20px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-      html += '<div style="font-size:1rem;font-weight:700;color:#0369a1">股利折現模式</div>';
-      html += `<span style="font-size:.85rem;font-weight:600;color:${ddmPass ? '#16a34a' : '#dc2626'}">${ddmPass ? 'V 通過' : 'X 未達標'}</span>`;
-      html += '</div>';
-      html += `<div style="font-size:.85rem;color:#334155;margin-top:8px">${ddmDetail}</div>`;
-      html += '</div>';
-    }
+    // === 股利折現模式（完整表格） ===
+    html += '<div id="ckDdmWrap" style="margin-top:16px;padding:16px 20px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">';
+    html += '<div style="font-size:1rem;font-weight:700;color:#0369a1;margin-bottom:12px">股利折現模式</div>';
+    html += '<div id="ckDdmContent" style="font-size:.85rem;color:#94a3b8">載入中...</div>';
+    html += '</div>';
 
-    // === 現金流量折現法摘要 ===
-    const dcfDetail = detail.dcf_safe_ok;
-    if (dcfDetail) {
-      const dcfPass = cl.chk_dcf_safe_ok === 1;
-      html += '<div style="margin-top:16px;padding:16px 20px;background:#faf5ff;border-radius:10px;border:1px solid #e9d5ff">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-      html += '<div style="font-size:1rem;font-weight:700;color:#7c3aed">現金流量折現法（DCF）</div>';
-      html += `<span style="font-size:.85rem;font-weight:600;color:${dcfPass ? '#16a34a' : '#dc2626'}">${dcfPass ? 'V 通過' : 'X 未達標'}</span>`;
-      html += '</div>';
-      html += `<div style="font-size:.85rem;color:#334155;margin-top:8px">${dcfDetail}</div>`;
-      html += '</div>';
-    }
+    // === 現金流量折現法（完整表格） ===
+    html += '<div id="ckDcfWrap" style="margin-top:16px;padding:16px 20px;background:#faf5ff;border-radius:10px;border:1px solid #e9d5ff">';
+    html += '<div style="font-size:1rem;font-weight:700;color:#7c3aed;margin-bottom:12px">現金流量折現法（DCF）</div>';
+    html += '<div id="ckDcfContent" style="font-size:.85rem;color:#94a3b8">載入中...</div>';
+    html += '</div>';
 
     // === 質性研究筆記 ===
     const noteContent = noteData.content || '';
@@ -858,10 +844,175 @@ async function loadDecision() {
     }
 
     panel.innerHTML = html;
+
+    // 載入 DDM/DCF 完整表格（從 user_estimates + stock 資料計算）
+    _renderCkDdm(stock, cl);
+    _renderCkDcf(stock);
   } catch(e) {
     console.error('檢核清單錯誤:', e);
     panel.innerHTML = `<div class="loading" style="color:#ef4444">載入失敗: ${e.message}</div>`;
   }
+}
+
+function _renderCkDdm(stock, cl) {
+  const wrap = document.getElementById('ckDdmContent');
+  if (!wrap) return;
+  const f = v => v != null ? Number(v).toFixed(2) : '-';
+  const close = stock.close;
+
+  // 讀取參數（與季估計表同邏輯）
+  let saved = {};
+  try {
+    const ls = localStorage.getItem('estimate_' + CODE);
+    if (ls) saved = JSON.parse(ls);
+  } catch(e) {}
+
+  const shenEps = stock.shen_eps, blendDiv = stock.blend_div, shenDiv = stock.shen_div;
+  const sysEps = stock.sys_ann_eps;
+  const userEps = saved.q1 || saved.q2 || saved.q3 || saved.q4
+    ? [saved.q1, saved.q2, saved.q3, saved.q4].filter(v => v).reduce((a, b) => parseFloat(a||0) + parseFloat(b||0), 0) : null;
+
+  // DDM EPS
+  let ddmEps = null;
+  if (userEps && !isNaN(userEps) && userEps > 0) ddmEps = userEps;
+  else if (sysEps != null && shenEps != null) ddmEps = Math.min(sysEps, shenEps);
+  else ddmEps = sysEps || shenEps;
+
+  const ddmDiv = blendDiv || shenDiv;
+  const pe = parseFloat(saved.ddmPE || cl.pe_high || 14);
+  const rate = parseFloat(saved.ddmRate || 0.10);
+  const margin = parseFloat(saved.ddmMargin || 0.90);
+
+  if (!ddmEps || ddmEps <= 0 || !close) { wrap.textContent = '無法計算（缺EPS或股價）'; return; }
+
+  const div1 = parseFloat(saved.ddmDiv1) || ddmDiv || 0;
+  const div2 = parseFloat(saved.ddmDiv2) || ddmDiv || 0;
+  const div3 = parseFloat(saved.ddmDiv3) || ddmDiv || 0;
+  const sellPrice = ddmEps * pe;
+
+  const df1 = 1 / (1 + rate), df2 = 1 / Math.pow(1 + rate, 2), df3 = 1 / Math.pow(1 + rate, 3);
+  const pv1 = div1 * df1, pv2 = div2 * df2, pv3 = (div3 + sellPrice) * df3;
+  const intrinsic = pv1 + pv2 + pv3;
+  const safePrice = intrinsic * margin;
+
+  const retI = close > 0 ? ((intrinsic - close) / close * 100) : null;
+  const retS = close > 0 ? ((safePrice - close) / close * 100) : null;
+  const annI = retI != null ? ((Math.pow(1 + retI/100, 1/3) - 1) * 100) : null;
+  const annS = retS != null ? ((Math.pow(1 + retS/100, 1/3) - 1) * 100) : null;
+  const retC = close > 0 ? (((sellPrice + div1+div2+div3 - close) / close) * 100) : null;
+  const annC = retC != null ? ((Math.pow(1 + retC/100, 1/3) - 1) * 100) : null;
+
+  const thS = 'padding:8px 10px;background:#0369a1;color:#fff;font-weight:600;text-align:center;font-size:.82rem';
+  const td = 'padding:8px 10px;border:1px solid #bae6fd;text-align:center;font-size:.82rem';
+  const tdL = td + ';text-align:left;font-weight:600;color:#334155;background:#f0f9ff';
+  const hi = v => v != null && v >= 10 ? ';color:#16a34a;font-weight:700' : (v != null && v < 0 ? ';color:#dc2626' : '');
+
+  let h = `<div style="font-size:.82rem;color:#475569;margin-bottom:8px">EPS=${f(ddmEps)}　PE=${pe}　折現率=${rate}　安全邊際=${margin}　股利=${f(div1)}/${f(div2)}/${f(div3)}</div>`;
+  h += '<table style="width:100%;border-collapse:collapse">';
+  h += `<thead><tr><th style="${thS};width:90px">年度</th><th style="${thS}">1</th><th style="${thS}">2</th><th style="${thS}">3</th></tr></thead>`;
+  h += `<tbody><tr><td style="${tdL}">現金股利</td><td style="${td}">${f(div1)}</td><td style="${td}">${f(div2)}</td><td style="${td}">${f(div3)}</td></tr>`;
+  h += `<tr><td style="${tdL}">賣出價</td><td style="${td}">-</td><td style="${td}">-</td><td style="${td}">${f(sellPrice)}</td></tr>`;
+  h += `<tr><td style="${tdL}">折現值</td><td style="${td}">${f(pv1)}</td><td style="${td}">${f(pv2)}</td><td style="${td}">${f(pv3)}</td></tr>`;
+  h += '</tbody></table>';
+
+  h += '<table style="width:100%;border-collapse:collapse;margin-top:8px">';
+  h += `<thead><tr><th style="${thS}"></th><th style="${thS}">價格</th><th style="${thS}">潛在報酬</th><th style="${thS}">潛在年報酬</th></tr></thead>`;
+  h += `<tbody><tr><td style="${tdL}">內含價值</td><td style="${td}">${f(intrinsic)}</td><td style="${td}${hi(retI)}">${retI != null ? retI.toFixed(2)+'%' : '-'}</td><td style="${td}${hi(annI)}">${annI != null ? annI.toFixed(2)+'%' : '-'}</td></tr>`;
+  h += `<tr><td style="${tdL}">安全邊際價</td><td style="${td}">${f(safePrice)}</td><td style="${td}${hi(retS)}">${retS != null ? retS.toFixed(2)+'%' : '-'}</td><td style="${td}${hi(annS)}">${annS != null ? annS.toFixed(2)+'%' : '-'}</td></tr>`;
+  h += `<tr><td style="${tdL}">現價</td><td style="${td}">${f(close)}</td><td style="${td}${hi(retC)}">${retC != null ? retC.toFixed(2)+'%' : '-'}</td><td style="${td}${hi(annC)}">${annC != null ? annC.toFixed(2)+'%' : '-'}</td></tr>`;
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
+}
+
+async function _renderCkDcf(stock) {
+  const wrap = document.getElementById('ckDcfContent');
+  if (!wrap) return;
+  const f = v => v != null ? Number(v).toFixed(2) : '-';
+  const fM = v => v != null ? (v / 1000000).toLocaleString() + ' 百萬' : '-';
+  const close = stock.close;
+
+  // 取得年報 FCF 資料
+  let fcfData = [], sharesMillion = null;
+  try {
+    const res = await fetch(`/api/stocks/${CODE}/financials`);
+    const json = await res.json();
+    if (json.data) {
+      fcfData = json.data.filter(d => d.fcf != null).sort((a, b) => b.year - a.year).slice(0, 5).reverse();
+      const latest = json.data.find(d => d.common_stock && d.common_stock > 0);
+      if (latest) sharesMillion = latest.common_stock / 10 / 1000000;
+    }
+  } catch(e) {}
+
+  if (!fcfData.length || !sharesMillion) { wrap.textContent = '無FCF資料'; return; }
+
+  // FCF 中位數
+  const fcfValues = fcfData.map(d => d.fcf).filter(v => v > 0);
+  let medianFcf = null;
+  if (fcfValues.length) {
+    const sorted = [...fcfValues].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    medianFcf = sorted.length % 2 === 0 ? (sorted[mid-1]+sorted[mid])/2 : sorted[mid];
+  }
+
+  // 讀取使用者參數
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  const fcfM = parseFloat(saved.dcfFcf) || (medianFcf ? medianFcf / 1000000 : null);
+  const rate = parseFloat(saved.dcfRate || 10);
+  const growth = parseFloat(saved.dcfGrowth || 4);
+  const growthYears = parseInt(saved.dcfGrowthYears || 5);
+  const termGrowth = parseFloat(saved.dcfTermGrowth || 2);
+  const margin = parseFloat(saved.dcfMargin || 80);
+
+  if (!fcfM || fcfM <= 0) { wrap.textContent = 'FCF 為負或無資料，無法計算'; return; }
+
+  const r = rate / 100, g = growth / 100, tg = termGrowth / 100, mg = margin / 100;
+  const fcf = fcfM * 1000000;
+  const n = growthYears;
+
+  // DCF 計算
+  let pvTotal = 0, cfYear = fcf;
+  for (let i = 1; i <= n; i++) { cfYear = i === 1 ? fcf * (1+g) : cfYear * (1+g); pvTotal += cfYear / Math.pow(1+r, i); }
+  const tv = cfYear * (1+tg) / (r - tg);
+  const pvTv = tv / Math.pow(1+r, n);
+  const totalValue = pvTotal + pvTv;
+  const shares = sharesMillion * 1000000;
+  const perShare = totalValue / shares;
+  const safePrice = perShare * mg;
+
+  // FCF 歷史表
+  const thS = 'padding:8px 10px;background:#7c3aed;color:#fff;font-weight:600;text-align:center;font-size:.82rem';
+  const td = 'padding:8px 10px;border:1px solid #e9d5ff;text-align:center;font-size:.82rem';
+  const tdL = td + ';text-align:left;font-weight:600;color:#334155;background:#faf5ff';
+
+  let h = `<div style="font-size:.82rem;color:#475569;margin-bottom:8px">FCF=${fcfM.toLocaleString()}百萬　成長${growth}%×${n}年　永續${termGrowth}%　折現${rate}%　安全邊際${margin}%　股數=${(sharesMillion).toFixed(1)}百萬股</div>`;
+
+  // FCF 歷史
+  h += '<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><thead><tr>';
+  h += `<th style="${thS}">年度</th>`;
+  fcfData.forEach(d => { h += `<th style="${thS}">${d.year}</th>`; });
+  h += `<th style="${thS}">中位數</th></tr></thead><tbody><tr><td style="${tdL}">FCF(百萬)</td>`;
+  fcfData.forEach(d => { h += `<td style="${td}${d.fcf < 0 ? ';color:#dc2626' : ''}">${(d.fcf/1e6).toLocaleString(undefined,{maximumFractionDigits:0})}</td>`; });
+  h += `<td style="${td};font-weight:700;color:#7c3aed">${medianFcf ? (medianFcf/1e6).toLocaleString(undefined,{maximumFractionDigits:0}) : '-'}</td></tr></tbody></table>`;
+
+  // 結果表
+  const discFair = close && perShare ? (close / perShare * 100) : null;
+  const discSafe = close && safePrice ? (close / safePrice * 100) : null;
+  h += '<table style="width:100%;border-collapse:collapse">';
+  h += `<thead><tr><th style="${thS};width:180px">項目</th><th style="${thS}">數值</th></tr></thead><tbody>`;
+  h += `<tr><td style="${tdL}">合理內在價值（每股）</td><td style="${td};font-weight:700;color:#7c3aed">${f(perShare)}</td></tr>`;
+  h += `<tr><td style="${tdL}">安全邊際價（${margin}%）</td><td style="${td};font-weight:700;color:#7c3aed">${f(safePrice)}</td></tr>`;
+  h += `<tr><td style="${tdL}">現價</td><td style="${td}">${f(close)}</td></tr>`;
+  if (discFair != null) {
+    const cls = discFair <= 80 ? ';color:#16a34a;font-weight:700' : discFair >= 100 ? ';color:#dc2626' : '';
+    h += `<tr><td style="${tdL}">現價 / 合理價</td><td style="${td}${cls}">${discFair.toFixed(1)}%</td></tr>`;
+  }
+  if (discSafe != null) {
+    const cls = discSafe <= 100 ? ';color:#16a34a;font-weight:700' : ';color:#dc2626';
+    h += `<tr><td style="${tdL}">現價 / 安全邊際價</td><td style="${td}${cls}">${discSafe.toFixed(1)}%</td></tr>`;
+  }
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
 }
 
 // ── 載入年度財報 ──
