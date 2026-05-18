@@ -748,33 +748,11 @@ CHECKLIST_ITEMS = [
     {'key': 'ge_lynch_peg',   'category': 'growth_eval', 'label': '林區 PEG <= 1.0'},
     {'key': 'ge_lynch_consist','category': 'growth_eval', 'label': '林區成長一致性 >= 0.5'},
     {'key': 'ge_growth_green', 'category': 'growth_eval', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
-    # ── 基本門檻（10項）──
-    {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
-    {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
-    {'key': 'cum_yoy',        'category': 'base',  'label': '累積營收年增率 >= 0%'},
-    {'key': 'gm_change',      'category': 'base',  'label': '最近一季毛利率變化 > 0'},
-    {'key': 'best_aa',        'category': 'base',  'label': '最佳等級達 AA（各種EPS至少一個達AA）'},
-    {'key': 'price_below_aa', 'category': 'base',  'label': '股價低於 AA 門檻'},
-    {'key': 'blend_pe_12',    'category': 'base',  'label': '綜合本益比 <= 12 倍'},
-    {'key': 'blend_yield',    'category': 'base',  'label': '綜合殖利率 >= 6%'},
-    {'key': 'payout_ok',      'category': 'base',  'label': '配息率 50%~85%（穩定且可持續）'},
-    {'key': 'ddm_return',     'category': 'base',  'label': '股利折現模式現價潛在年報酬 >= 10%'},
-    # ── 成長加分（8項）──
-    {'key': 'neff_growth',    'category': 'bonus', 'label': '聶夫保守成長率 >= 7%'},
-    {'key': 'neff_ratio',     'category': 'bonus', 'label': '聶夫 Neff 比率 >= 0.7'},
-    {'key': 'lynch_peg',      'category': 'bonus', 'label': '林區 PEG <= 1.0'},
-    {'key': 'lynch_consist',  'category': 'bonus', 'label': '林區成長一致性 >= 0.5'},
-    {'key': 'growth_green',   'category': 'bonus', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
-    {'key': 'shiller_safe',   'category': 'bonus', 'label': '席勒警示 >= 0.5（非循環高點）'},
-    {'key': 'roic_trend',     'category': 'bonus', 'label': 'ROIC 未連續3年下滑'},
-    {'key': 'gm_trend',       'category': 'bonus', 'label': '毛利率未連續下滑超過3個百分點'},
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
 CHECKLIST_VALUE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'value']
 CHECKLIST_GROWTH_EVAL_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'growth_eval']
-CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
-CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
 CHECKLIST_ALL_KEYS = [item['key'] for item in CHECKLIST_ITEMS]
 
 def _init_checklist_db():
@@ -1231,90 +1209,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['ge_growth_green'] = 1 if _ge_signal == 'green' else 0
     detail['ge_growth_green'] = f'燈號={_ge_signal or "無"}'
 
-    # === 基本門檻 + 成長加分（名稱制） ===
-
-    # ── 基本門檻 ──
-
-    # fin_grade: 近五年財務等級有3年以上A級(AA/A1/A2/B1A/B2A)，且近兩年都A級以上
-    grades5 = [r.get(f'fin_grade_{i}') for i in range(1, 6)]
-    grades5y = [r.get(f'fin_grade_{i}y') for i in range(1, 6)]
-    above_a = sum(1 for g in grades5 if _is_grade_a_level(g))
-    recent2_a = _is_grade_a_level(grades5[0]) and _is_grade_a_level(grades5[1]) if len(grades5) >= 2 else False
-    checks['fin_grade'] = 1 if above_a >= 3 and recent2_a else 0
-    detail['fin_grade'] = ' / '.join(
-        f'{grades5y[i] or ""}:{grades5[i]}' if grades5[i] else '--'
-        for i in range(5)
-    )
-
-    # opm_stable: 近五年營益率>=10%達3年以上，且近2年>=10%
-    _opm_5y = r.get('_opm_5y') or []  # list of (year, opm%) 由外部傳入
-    _opm_above = sum(1 for _, v in _opm_5y if v is not None and v >= 10)
-    _opm_recent2 = (len(_opm_5y) >= 2 and
-                    _opm_5y[0][1] is not None and _opm_5y[0][1] >= 10 and
-                    _opm_5y[1][1] is not None and _opm_5y[1][1] >= 10)
-    checks['opm_stable'] = 1 if _opm_above >= 3 and _opm_recent2 else 0
-    if _opm_5y:
-        detail['opm_stable'] = ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _opm_5y)
-    else:
-        detail['opm_stable'] = '無營益率資料'
-
-    # cum_yoy: 累積營收年增率 >= 0%
-    cum_yoy = r.get('revenue_cum_yoy')
-    checks['cum_yoy'] = 1 if cum_yoy is not None and cum_yoy >= 0 else 0
-    detail['cum_yoy'] = f'{cum_yoy}%' if cum_yoy is not None else None
-
-    # gm_change: 最近一季毛利率變化 > 0（資料由外部傳入 r['_gm_data']）
-    gm_data = r.get('_gm_data')  # {'latest_q','latest_gm','prev_q','prev_gm','change'}
-    gm_change = gm_data.get('change') if gm_data else None
-    checks['gm_change'] = 1 if gm_change is not None and gm_change > 0 else 0
-    if gm_data and gm_change is not None:
-        detail['gm_change'] = f'{gm_data["latest_q"]}毛利率{gm_data["latest_gm"]}% - {gm_data["prev_q"]}毛利率{gm_data["prev_gm"]}% = {gm_change:+.2f}%'
-    else:
-        detail['gm_change'] = None
-
-    # best_aa: 各種EPS算的AA門檻至少一個 >= 股價（代表有可能達AA）
-    _aa_labels = ['預估', '系統', '沈董', '綜合', '加權', '近四季']
-    eps_4q_sum = r.get('eps_4q_sum')
-    _aa_eps_list = [est_eps, r.get('sys_ann_eps'), shen_eps, blend_eps, weighted_eps, eps_4q_sum]
-    _aa_candidates = []
-    _aa_details = []
-    for _lbl, _ep_val in zip(_aa_labels, _aa_eps_list):
-        if _ep_val is not None and _ep_val > 0:
-            _aa_price = round(_ep_val * pe_lo, 2)
-            _aa_candidates.append(_aa_price)
-            _hit = '達AA' if close and _aa_price >= close else ''
-            _aa_details.append(f'{_lbl}EPS {_ep_val}×PE{pe_lo}={_aa_price} {_hit}')
-    checks['best_aa'] = 1 if close and any(p >= close for p in _aa_candidates) else 0
-    if _aa_details:
-        detail['best_aa'] = f'股價{close} | ' + ' / '.join(_aa_details)
-    else:
-        detail['best_aa'] = '無EPS資料'
-
-    # price_below_aa: 股價低於AA門檻
-    checks['price_below_aa'] = 1 if close and val_aa and close < val_aa + 0.005 else 0
-    detail['price_below_aa'] = f'股價{close} vs AA門檻{val_aa}' if val_aa else '無AA門檻'
-
-    # blend_pe_12: 綜合本益比 <= 12 倍
-    checks['blend_pe_12'] = 1 if blend_pe is not None and blend_pe > 0 and blend_pe <= 12 else 0
-    if blend_pe is not None:
-        detail['blend_pe_12'] = f'綜合PE={round(blend_pe, 2)}倍　(綜合EPS={blend_eps} / 股價={close})'
-    else:
-        detail['blend_pe_12'] = None
-
-    # blend_yield: 綜合殖利率 >= 6%
-    checks['blend_yield'] = 1 if blend_yld is not None and blend_yld >= 6 else 0
-    if blend_yld is not None:
-        detail['blend_yield'] = f'殖利率={round(blend_yld, 2)}%　(綜合股利={blend_div} / 股價={close} × 100)'
-    else:
-        detail['blend_yield'] = None
-
-    # payout_ok: 配息率 50%~85%（穩定且可持續）
-    _payout = r.get('weighted_payout')
-    checks['payout_ok'] = 1 if _payout is not None and 50 <= _payout < 85 else (1 if _payout is None else 0)
-    if _payout is not None:
-        detail['payout_ok'] = f'加權配息率={round(_payout, 2)}%　(50%~85%為合格區間)'
-    else:
-        detail['payout_ok'] = '無配息率資料'
+    # === DDM / DCF 計算（價值評估共用） ===
 
     # ddm_return: 股利折現模式現價潛在年報酬 >= 10%
     ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
@@ -1384,135 +1279,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['dcf_safe_ok'] = 0
         detail['dcf_safe_ok'] = 'FCF<=0或無資料' if _dcf_fcf and _dcf_fcf <= 0 else '無資料'
 
-    # ── 成長加分 ──
-
-    # neff_growth: 保守成長率 >= 7%（聶夫法門檻）
-    gi = r.get('_gi') or {}
-    neff_a = gi.get('neff_a')    # 5年端點
-    neff_b = gi.get('neff_b')    # 5年平滑
-    neff_3a = gi.get('neff_3a')  # 3年端點
-    neff_3b = gi.get('neff_3b')  # 3年平滑
-    neff_c = gi.get('neff_c')
-    checks['neff_growth'] = 1 if neff_c is not None and neff_c >= 7 else 0
-    if neff_c is not None:
-        _parts = []
-        if neff_a is not None: _parts.append(f'5年端點{neff_a}%')
-        if neff_b is not None: _parts.append(f'5年平滑{neff_b}%')
-        if neff_3a is not None: _parts.append(f'3年端點{neff_3a}%')
-        if neff_3b is not None: _parts.append(f'3年平滑{neff_3b}%')
-        detail['neff_growth'] = f'保守成長率={neff_c}%　min({", ".join(_parts)})，>20%以20%計'
-    else:
-        detail['neff_growth'] = None
-
-    # neff_ratio: Neff比率 >= 0.7
-    neff_d = gi.get('neff_d')
-    _gi_yld = gi.get('yield', 0)
-    _gi_pe = gi.get('pe', 0)
-    checks['neff_ratio'] = 1 if neff_d is not None and neff_d >= 0.7 else 0
-    if neff_d is not None:
-        _total_ret = round(neff_c + _gi_yld, 2) if neff_c is not None else None
-        detail['neff_ratio'] = f'Neff比率={neff_d}　(保守成長率{neff_c}% + 殖利率{_gi_yld}%) / PE{_gi_pe} = {_total_ret}/{_gi_pe} = {neff_d}'
-    else:
-        detail['neff_ratio'] = None
-
-    # lynch_peg: PEG <= 1.0（涅夫比率的倒數）
-    _peg = round(1 / neff_d, 2) if neff_d and neff_d > 0 else None
-    checks['lynch_peg'] = 1 if _peg is not None and _peg <= 1.0 else 0
-    if _peg is not None:
-        detail['lynch_peg'] = f'PEG={_peg}　(PE{_gi_pe} / (成長率{neff_c}%+殖利率{_gi_yld}%))'
-    else:
-        detail['lynch_peg'] = None
-
-    # lynch_consist: 林區成長一致性 >= 0.5
-    lynch_b = gi.get('lynch_b')
-    lynch_c = gi.get('lynch_c')
-    checks['lynch_consist'] = 1 if lynch_c is not None and lynch_c >= 0.5 else 0
-    if lynch_c is not None:
-        detail['lynch_consist'] = f'一致性={lynch_c}　(月營收正成長比例×0.3 + 波動度×0.25 + 連續衰退×0.25 + 季EPS正成長×0.2)'
-    else:
-        detail['lynch_consist'] = None
-
-    # growth_green: 趨勢燈號為多頭
-    gs_data = (growth_map or {}).get(r['code'], {})
-    _signal = gs_data.get('growth_signal')
-    checks['growth_green'] = 1 if _signal == 'green' else 0
-    detail['growth_green'] = f'趨勢={_signal}' if _signal else None
-
-    # shiller_safe: 席勒警示 >= 0.5（非循環高點）
-    _shiller_alert = gi.get('shiller_alert')
-    checks['shiller_safe'] = 1 if _shiller_alert is None or _shiller_alert >= 0.5 else 0
-    if _shiller_alert is not None:
-        _shiller_pe = gi.get('shiller_pe')
-        _shiller_avg = gi.get('shiller_avg_eps')
-        detail['shiller_safe'] = f'席勒警示={_shiller_alert}　綜合PE{blend_pe} / 席勒PE{_shiller_pe}　(10年均EPS={_shiller_avg})'
-    else:
-        detail['shiller_safe'] = 'EPS年數不足7年，無法計算席勒PE（預設通過）'
-
-    # roic_trend: ROIC未連續3年下滑
-    _roic_5y = r.get('_roic_5y') or []  # list of (year, roic%) 由外部傳入，最近→最遠
-    _roic_declining_3 = False
-    if len(_roic_5y) >= 3:
-        # 取最近3年，檢查是否遞減
-        _r3 = [v for _, v in _roic_5y[:3] if v is not None]
-        if len(_r3) >= 3 and _r3[0] < _r3[1] < _r3[2]:
-            _roic_declining_3 = True
-    checks['roic_trend'] = 0 if _roic_declining_3 else 1
-    if _roic_5y:
-        detail['roic_trend'] = 'ROIC: ' + ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _roic_5y)
-    else:
-        detail['roic_trend'] = '無ROIC資料（預設通過）'
-
-    # gm_trend: 近3年毛利率下滑幅度未超過3個百分點
-    _gm_5y = r.get('_gm_5y') or []  # list of (year, gm%) 最近→最遠
-    _gm_drop_3pp = False
-    _gm_drop_val = None
-    if len(_gm_5y) >= 3:
-        # 取近3年（index 0=最新, 2=3年前）
-        _gm_recent3 = [(y, v) for y, v in _gm_5y[:3] if v is not None]
-        if len(_gm_recent3) >= 2:
-            _gm_latest = _gm_recent3[0][1]
-            _gm_3y_ago = _gm_recent3[-1][1]  # 3年前
-            _gm_drop_val = round(_gm_3y_ago - _gm_latest, 2)
-            if _gm_drop_val > 3:
-                _gm_drop_3pp = True
-    checks['gm_trend'] = 0 if _gm_drop_3pp else 1
-    if _gm_5y:
-        _gm_info = ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _gm_5y)
-        _drop_str = f'　近3年降幅={_gm_drop_val}pp' if _gm_drop_val is not None else ''
-        detail['gm_trend'] = f'毛利率: {_gm_info}{_drop_str}'
-    else:
-        detail['gm_trend'] = '無毛利率資料（預設通過）'
-
-    # fcf_trend: FCF/營收未連續3年下滑
-    _fcf_rev_5y = r.get('_fcf_rev_5y') or []  # list of (year, fcf/rev%) 最近→最遠
-    _fcf_declining_3 = False
-    if len(_fcf_rev_5y) >= 3:
-        _f3 = [v for _, v in _fcf_rev_5y[:3] if v is not None]
-        if len(_f3) >= 3 and _f3[0] < _f3[1] < _f3[2]:
-            _fcf_declining_3 = True
-    checks['fcf_trend'] = 0 if _fcf_declining_3 else 1
-    if _fcf_rev_5y:
-        detail['fcf_trend'] = 'FCF/營收: ' + ' / '.join(f'{y}:{v}%' if v is not None else f'{y}:--' for y, v in _fcf_rev_5y)
-    else:
-        detail['fcf_trend'] = '無FCF資料（預設通過）'
-
-    # fcf_cover_div: 自由現金流覆蓋配息
-    _fcf_latest = r.get('_fcf_latest')  # (operating_cf + capex) 最近一年
-    _div_total = r.get('_div_total_latest')  # 最近一年現金股利總額
-    if _fcf_latest is not None and _div_total is not None and _div_total > 0:
-        checks['fcf_cover_div'] = 1 if _fcf_latest >= _div_total else 0
-        detail['fcf_cover_div'] = f'FCF={round(_fcf_latest/1e6, 0)}百萬 vs 現金股利={round(_div_total/1e6, 0)}百萬'
-    else:
-        checks['fcf_cover_div'] = 1  # 無資料預設通過
-        detail['fcf_cover_div'] = '無FCF或股利資料（預設通過）'
-
     profit_count = sum(checks[k] for k in CHECKLIST_PROFIT_KEYS)
     safety_count = sum(checks[k] for k in CHECKLIST_SAFETY_KEYS)
     value_count = sum(checks[k] for k in CHECKLIST_VALUE_KEYS)
     growth_eval_count = sum(checks[k] for k in CHECKLIST_GROWTH_EVAL_KEYS)
-    base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
-    bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
-    pass_count = profit_count + safety_count + value_count + growth_eval_count + base_count + bonus_count
+    pass_count = profit_count + safety_count + value_count + growth_eval_count
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
     gi = r.get('_gi') or {}
@@ -1548,8 +1319,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'safety_count': safety_count,
         'value_count': value_count,
         'growth_eval_count': growth_eval_count,
-        'base_count': base_count,
-        'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
         'eps_setting': r.get('val_eps_used') or r.get('shen_eps'),
         'div_setting': r.get('val_div_used') or r.get('shen_div'),
