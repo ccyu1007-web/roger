@@ -734,6 +734,7 @@ CHECKLIST_ITEMS = [
     {'key': 'price_in_a',   'category': 'value', 'label': 'AA級評價 <= 股價 <= A級評價'},
     {'key': 'price_below_aa_v', 'category': 'value', 'label': '股價 <= AA級評價'},
     {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現模式現價潛在年報酬 >= 10%'},
+    {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 <= 現金流量折現法安全邊際價'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1256,6 +1257,43 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         detail['ddm_return'] = None
         detail['val_ddm_return'] = None
 
+    # dcf_safe_ok: 現價 <= DCF 安全邊際價
+    _dcf_fcf = r.get('_fcf_latest')  # 最新年 FCF (元)
+    _dcf_cs = r.get('_common_stock')  # 股本 (元)
+    _dcf_safe_price = None
+    if _dcf_fcf and _dcf_fcf > 0 and _dcf_cs and _dcf_cs > 0:
+        # 讀使用者自訂參數，沒有用預設
+        _up = user_params or {}
+        _dcf_rate = float(_up['dcfRate']) / 100 if _up.get('dcfRate') else 0.10
+        _ig = (r.get('_gi') or {}).get('intrinsic_growth')
+        _dcf_growth = float(_up['dcfGrowth']) / 100 if _up.get('dcfGrowth') else (
+            _ig / 100 if _ig is not None else 0.05)
+        _dcf_n = int(float(_up['dcfGrowthYears'])) if _up.get('dcfGrowthYears') else 5
+        _dcf_tg = float(_up['dcfTermGrowth']) / 100 if _up.get('dcfTermGrowth') else 0.02
+        _dcf_mg = float(_up['dcfMargin']) / 100 if _up.get('dcfMargin') else 0.80
+        if _up.get('dcfFcf'):
+            _dcf_fcf = float(_up['dcfFcf']) * 1000000  # 使用者輸入百萬，轉元
+        # DCF 計算
+        if _dcf_rate > _dcf_tg:
+            _pv = 0
+            _cf = _dcf_fcf
+            for _i in range(1, _dcf_n + 1):
+                _cf = (_dcf_fcf * (1 + _dcf_growth) if _i == 1 else _cf * (1 + _dcf_growth))
+                _pv += _cf / (1 + _dcf_rate) ** _i
+            _tv = _cf * (1 + _dcf_tg) / (_dcf_rate - _dcf_tg)
+            _pv_tv = _tv / (1 + _dcf_rate) ** _dcf_n
+            _total = _pv + _pv_tv
+            _shares = _dcf_cs / 10
+            _per_share = _total / _shares
+            _dcf_safe_price = round(_per_share * _dcf_mg, 2)
+
+    if _dcf_safe_price is not None and close:
+        checks['dcf_safe_ok'] = 1 if close <= _dcf_safe_price + 0.005 else 0
+        detail['dcf_safe_ok'] = f'股價{close} vs 安全邊際價{_dcf_safe_price}'
+    else:
+        checks['dcf_safe_ok'] = 0
+        detail['dcf_safe_ok'] = 'FCF<=0或無資料' if _dcf_fcf and _dcf_fcf <= 0 else '無資料'
+
     # ── 成長加分 ──
 
     # neff_growth: 保守成長率 >= 7%（聶夫法門檻）
@@ -1713,7 +1751,7 @@ def calc_all_checklists():
                       total_equity, total_assets, cash_and_equivalents,
                       short_term_debt, short_term_notes, current_long_term_debt,
                       long_term_bank_debt, other_long_term_debt, bonds_payable,
-                      gross_profit, cash_dividend, weighted_shares, current_liabilities,
+                      gross_profit, cash_dividend, weighted_shares, common_stock, current_liabilities,
                       debt_ratio, fin_debt_ratio, interest_coverage, earnings_quality, fcf,
                       inventory_days, ar_days
                FROM financial_annual WHERE year >= ? AND revenue IS NOT NULL
@@ -1821,6 +1859,11 @@ def calc_all_checklists():
             _roic_map[_code + '_gm_5y'] = list(reversed(_gm_yearly))
             _roic_map[_code + '_fcf_latest'] = _fcf_latest_val
             _roic_map[_code + '_div_total'] = _div_total_val
+            # 最新年 common_stock（DCF 用）
+            if _frs:
+                _cs = _frs[-1].get('common_stock')
+                if _cs and _cs > 0:
+                    _roic_map[_code + '_common_stock'] = _cs
             # 安全性序列（最近→最遠）
             for _sk in _safety_yearly:
                 _roic_map[_code + f'_{_sk}_5y'] = list(reversed(_safety_yearly[_sk]))
@@ -1860,6 +1903,7 @@ def calc_all_checklists():
         for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days'):
             r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
         r['_qinv'] = qinv_map.get(r['code'])
+        r['_common_stock'] = _roic_map.get(r['code'] + '_common_stock')
         # 沈董法本業佔比：用 eps_1q 判斷當年度已公布季度
         _cr_data = _cr_by_code.get(r['code'], [])
         if _cr_data:
