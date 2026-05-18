@@ -726,6 +726,8 @@ CHECKLIST_ITEMS = [
     {'key': 'eps_5y_stable', 'category': 'value', 'label': '近五年最高EPS/最低EPS < 3'},
     {'key': 'core_ratio',    'category': 'value', 'label': '沈董法累計營業利益 / 累計稅前淨利 > 80%'},
     {'key': 'shen_yld_ok',  'category': 'value', 'label': '沈董殖利率 >= 5%'},
+    {'key': 'wt_yld_ok',    'category': 'value', 'label': '加權殖利率 >= 5%'},
+    {'key': 'wt_payout_ok', 'category': 'value', 'label': '加權配息率 > 50%'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1070,6 +1072,16 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _shen_yld = r.get('shen_yld')
     checks['shen_yld_ok'] = 1 if _shen_yld is not None and _shen_yld >= 5 else 0
     detail['shen_yld_ok'] = f'沈董殖利率={_shen_yld:.2f}%' if _shen_yld is not None else '無資料'
+
+    # 加權殖利率 >= 5%
+    _wt_yld = r.get('weighted_yld')
+    checks['wt_yld_ok'] = 1 if _wt_yld is not None and _wt_yld >= 5 else 0
+    detail['wt_yld_ok'] = f'加權殖利率={_wt_yld:.2f}%' if _wt_yld is not None else '無資料'
+
+    # 加權配息率 > 50%
+    _wt_payout = r.get('weighted_payout')
+    checks['wt_payout_ok'] = 1 if _wt_payout is not None and _wt_payout > 50 else 0
+    detail['wt_payout_ok'] = f'加權配息率={_wt_payout:.2f}%' if _wt_payout is not None else '無資料'
 
     # 沈董法累計營業利益 / 累計稅前淨利 > 80%
     _cr = r.get('_core_ratio')
