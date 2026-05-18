@@ -733,6 +733,7 @@ CHECKLIST_ITEMS = [
     {'key': 'grade_aa_ok',  'category': 'value', 'label': '預估(沈董)等級為AA級'},
     {'key': 'price_in_a',   'category': 'value', 'label': 'AA級評價 <= 股價 <= A級評價'},
     {'key': 'price_below_aa_v', 'category': 'value', 'label': '股價 <= AA級評價'},
+    {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現模式現價潛在年報酬 >= 10%'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1246,10 +1247,14 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
             total_ret = (target_price - close) / close
             ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
     checks['ddm_return'] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
+    checks['val_ddm_return'] = checks['ddm_return']
     if ddm_ann_ret is not None:
-        detail['ddm_return'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
+        _ddm_detail = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
+        detail['ddm_return'] = _ddm_detail
+        detail['val_ddm_return'] = _ddm_detail
     else:
         detail['ddm_return'] = None
+        detail['val_ddm_return'] = None
 
     # ── 成長加分 ──
 
