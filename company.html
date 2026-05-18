@@ -700,10 +700,10 @@ async function loadDecision() {
       chkItems.forEach((it, i) => {
         const pass = cl[`chk_${it.key}`] === 1;
         const d = detail[it.key] || '';
-        const hlStyle = it.hl ? 'color:#1d4ed8;font-weight:700' : '';
-        const hlBg = it.hl ? 'background:#eff6ff' : '';
+        const hlStyle = it.hl ? 'color:#2563eb;font-weight:700' : '';
+        const hlBg = it.hl ? 'background:#dbeafe' : '';
         const isFirstHl = it.hl && (i === 0 || !chkItems[i-1].hl);
-        const sepStyle = isFirstHl ? 'border-top:4px solid #1d4ed8' : '';
+        const sepStyle = isFirstHl ? 'border-top:4px solid #2563eb' : '';
         t += `<tr style="${sepStyle};${hlBg}"><td style="${hlStyle}">${i + 1}</td><td class="chk-cond" style="${hlStyle}">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
         t += `<td class="chk-yes">${pass ? 'V' : ''}</td><td class="chk-no">${pass ? '' : 'X'}</td></tr>`;
       });
