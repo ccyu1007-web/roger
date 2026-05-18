@@ -1997,8 +1997,7 @@ function onWeightChange() {
   localStorage.setItem('global_div_weights', JSON.stringify(_divWeights));
   syncUserSettings();
   updateWeightTotal();
-  // 前端即時預覽（拖動時立即反應）
-  allData.forEach(r => { r.shen_eps = null; calcDerived(r); });
+  allData.forEach(calcDerived);
   applyFilter();
   // 背景呼叫 API 重算存 DB
   _triggerRecalcDerived();
@@ -2016,7 +2015,7 @@ function resetWeights() {
   localStorage.setItem('global_div_weights', JSON.stringify(_divWeights));
   syncUserSettings();
   initWeights();
-  allData.forEach(r => { r.shen_eps = null; calcDerived(r); });
+  allData.forEach(calcDerived);
   applyFilter();
   _triggerRecalcDerived();
 }
@@ -2043,7 +2042,7 @@ function onBlendChange() {
   localStorage.setItem('blend_ratio', JSON.stringify({ shen: _blendShen, wt: _blendWt }));
   syncUserSettings();
   updateBlendTotal();
-  allData.forEach(r => { r.shen_eps = null; calcDerived(r); });
+  allData.forEach(calcDerived);
   applyFilter();
   _triggerRecalcDerived();
 }
