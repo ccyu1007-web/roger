@@ -724,6 +724,7 @@ CHECKLIST_ITEMS = [
     {'key': 'shen_vs_avg3',  'category': 'value', 'label': '沈董EPS >= 近三年平均EPS'},
     {'key': 'eps_5y_pos',    'category': 'value', 'label': '近五年EPS皆大於0'},
     {'key': 'eps_5y_stable', 'category': 'value', 'label': '近五年最高EPS/最低EPS < 3'},
+    {'key': 'core_ratio',    'category': 'value', 'label': '沈董法累計營業利益 / 累計稅前淨利 > 80%'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1063,6 +1064,15 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         checks['eps_5y_stable'] = 0
         detail['eps_5y_stable'] = 'EPS資料不足或有負值'
+
+    # 沈董法累計營業利益 / 累計稅前淨利 > 80%
+    _cr = r.get('_core_ratio')
+    if _cr:
+        checks['core_ratio'] = 1 if _cr['ratio'] > 80 else 0
+        detail['core_ratio'] = f'累計營業利益/稅前淨利={_cr["ratio"]:.2f}%（{_cr["quarters"]}季）'
+    else:
+        checks['core_ratio'] = 0
+        detail['core_ratio'] = '無季度資料'
 
     # === 基本門檻 + 成長加分（名稱制） ===
 
@@ -1608,6 +1618,21 @@ def calc_all_checklists():
     except Exception as e:
         print(f"[Checklist] 季度存貨週轉天數失敗: {e}")
 
+    # 批次算沈董法本業佔比（累計營業利益 / 累計稅前淨利）
+    core_ratio_map = {}  # {code: {'ratio': x, 'oi_sum': y, 'pti_sum': z, 'quarters': n}}
+    try:
+        _cr_rows = query_db("""SELECT code, quarter, operating_income, pretax_income
+                               FROM quarterly_financial
+                               WHERE operating_income IS NOT NULL AND pretax_income IS NOT NULL
+                               ORDER BY code, quarter""")
+        from collections import defaultdict
+        _cr_by_code = defaultdict(list)
+        for cr in _cr_rows:
+            _cr_by_code[cr['code']].append(cr)
+    except Exception as e:
+        _cr_by_code = {}
+        print(f"[Checklist] 本業佔比查詢失敗: {e}")
+
     # 預載10年EPS（席勒PE用）和5年ROIC
     _shiller_map = {}  # {code: [eps_list]}
     _roic_map = {}     # {code: [roic_list]}
@@ -1765,6 +1790,27 @@ def calc_all_checklists():
         for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days'):
             r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
         r['_qinv'] = qinv_map.get(r['code'])
+        # 沈董法本業佔比：用 eps_1q 判斷當年度已公布季度
+        _cr_data = _cr_by_code.get(r['code'], [])
+        if _cr_data:
+            _eq1 = r.get('eps_1q')  # 最新季，如 "115Q1" 或 "114Q4"
+            if _eq1:
+                _yr_roc = int(_eq1.split('Q')[0])
+                _cur_q = int(_eq1.split('Q')[1])
+                _cur_qs = [f'{_yr_roc}Q{q}' for q in range(1, _cur_q + 1)]
+                if _cur_q == 4 or _yr_roc < cur_roc:
+                    # Q4 全年或 fallback 到去年：用該年度全部季度
+                    pass
+                _cr_map_q = {cr['quarter']: cr for cr in _cr_data}
+                _oi_sum = sum(_cr_map_q[q]['operating_income'] for q in _cur_qs if q in _cr_map_q)
+                _pti_sum = sum(_cr_map_q[q]['pretax_income'] for q in _cur_qs if q in _cr_map_q)
+                _matched = sum(1 for q in _cur_qs if q in _cr_map_q)
+                if _matched > 0 and _pti_sum and _pti_sum > 0:
+                    core_ratio_map[r['code']] = {
+                        'ratio': round(_oi_sum / _pti_sum * 100, 2),
+                        'oi_sum': _oi_sum, 'pti_sum': _pti_sum, 'quarters': _matched
+                    }
+        r['_core_ratio'] = core_ratio_map.get(r['code'])
         r['_fcf_latest'] = _roic_map.get(r['code'] + '_fcf_latest')
         r['_div_total_latest'] = _roic_map.get(r['code'] + '_div_total')
         user_params = up
