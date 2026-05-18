@@ -741,6 +741,13 @@ CHECKLIST_ITEMS = [
     {'key': 'rev_accel',      'category': 'growth_eval', 'label': '近3年營收CAGR > 近5年營收CAGR'},
     {'key': 'eps_accel',      'category': 'growth_eval', 'label': '近3年EPS CAGR > 近5年EPS CAGR'},
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率 >= 0%'},
+    {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率 >= 0%'},
+    {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率 >= 0%'},
+    {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M >= 長期12M'},
+    {'key': 'ge_neff_ratio',  'category': 'growth_eval', 'label': '聶夫 Neff 比率 >= 0.7'},
+    {'key': 'ge_lynch_peg',   'category': 'growth_eval', 'label': '林區 PEG <= 1.0'},
+    {'key': 'ge_lynch_consist','category': 'growth_eval', 'label': '林區成長一致性 >= 0.5'},
+    {'key': 'ge_growth_green', 'category': 'growth_eval', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1184,6 +1191,45 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _cum_yoy = r.get('revenue_cum_yoy')
     checks['cum_rev_pos'] = 1 if _cum_yoy is not None and _cum_yoy >= 0 else 0
     detail['cum_rev_pos'] = f'累積營收年增率={_cum_yoy}%' if _cum_yoy is not None else '無資料'
+
+    # 短期3M >= 0%
+    _rev_3m = _gi.get('rev_3m_yoy')
+    checks['rev_3m_pos'] = 1 if _rev_3m is not None and _rev_3m >= 0 else 0
+    detail['rev_3m_pos'] = f'短期3M={_rev_3m:.2f}%' if _rev_3m is not None else '無資料'
+
+    # 長期12M >= 0%
+    _rev_12m = _gi.get('rev_12m_yoy')
+    checks['rev_12m_pos'] = 1 if _rev_12m is not None and _rev_12m >= 0 else 0
+    detail['rev_12m_pos'] = f'長期12M={_rev_12m:.2f}%' if _rev_12m is not None else '無資料'
+
+    # 短期3M >= 長期12M
+    if _rev_3m is not None and _rev_12m is not None:
+        checks['rev_3m_gt_12m'] = 1 if _rev_3m >= _rev_12m else 0
+        detail['rev_3m_gt_12m'] = f'3M={_rev_3m:.2f}% vs 12M={_rev_12m:.2f}%'
+    else:
+        checks['rev_3m_gt_12m'] = 0
+        detail['rev_3m_gt_12m'] = '無資料'
+
+    # Neff 比率 >= 0.7
+    _ge_neff_d = _gi.get('neff_d')
+    checks['ge_neff_ratio'] = 1 if _ge_neff_d is not None and _ge_neff_d >= 0.7 else 0
+    detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}' if _ge_neff_d is not None else '無資料'
+
+    # PEG <= 1.0
+    _ge_lynch_d = _gi.get('lynch_d')
+    checks['ge_lynch_peg'] = 1 if _ge_lynch_d is not None and _ge_lynch_d <= 1.0 else 0
+    detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}' if _ge_lynch_d is not None else '無資料'
+
+    # 林區一致性 >= 0.5
+    _ge_lynch_c = _gi.get('lynch_c')
+    checks['ge_lynch_consist'] = 1 if _ge_lynch_c is not None and _ge_lynch_c >= 0.5 else 0
+    detail['ge_lynch_consist'] = f'一致性={_ge_lynch_c:.2f}' if _ge_lynch_c is not None else '無資料'
+
+    # 趨勢燈號為多頭
+    _gs_data = growth_map.get(r['code'], {}) if growth_map else {}
+    _ge_signal = _gs_data.get('growth_signal')
+    checks['ge_growth_green'] = 1 if _ge_signal == 'green' else 0
+    detail['ge_growth_green'] = f'燈號={_ge_signal or "無"}'
 
     # === 基本門檻 + 成長加分（名稱制） ===
 
