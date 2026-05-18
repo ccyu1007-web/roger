@@ -720,11 +720,11 @@ CHECKLIST_ITEMS = [
     {'key': 'qinv_4v20',     'category': 'safety', 'label': '近四季平均存貨週轉天數 < 近5年(20季)平均'},
     # ── 價值評估檢核（5項）──
     {'key': 'shen_pe_ok',    'category': 'value', 'label': '預估(沈董)本益比 <= 15'},
-    {'key': 'shen_vs_avg5',  'category': 'value', 'label': '沈董EPS >= 近五年平均EPS'},
-    {'key': 'shen_vs_avg3',  'category': 'value', 'label': '沈董EPS >= 近三年平均EPS'},
+    {'key': 'shen_vs_avg5',  'category': 'value', 'label': '預估(沈董)EPS >= 近五年平均EPS'},
+    {'key': 'shen_vs_avg3',  'category': 'value', 'label': '預估(沈董)EPS >= 近三年平均EPS'},
     {'key': 'eps_5y_pos',    'category': 'value', 'label': '近五年EPS皆大於0'},
     {'key': 'eps_5y_stable', 'category': 'value', 'label': '近五年最高EPS/最低EPS < 3'},
-    {'key': 'core_ratio',    'category': 'value', 'label': '沈董法累計營業利益 / 累計稅前淨利 > 80%'},
+    {'key': 'core_ratio',    'category': 'value', 'label': '預估(沈董法)累計營業利益 / 累計稅前淨利 > 80%'},
     {'key': 'shen_yld_ok',  'category': 'value', 'label': '沈董殖利率 >= 5%'},
     {'key': 'wt_yld_ok',    'category': 'value', 'label': '加權殖利率 >= 5%'},
     {'key': 'wt_payout_ok', 'category': 'value', 'label': '加權配息率 > 50%'},
@@ -1045,16 +1045,19 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['shen_pe_ok'] = 1 if _used_pe is not None and _used_pe > 0 and _used_pe <= 15 else 0
     detail['shen_pe_ok'] = f'{_pe_src}PE={_used_pe:.2f}倍' if _used_pe is not None else '無資料'
 
-    # 沈董EPS >= 近五年平均EPS
+    # 預估(沈董)EPS >= 近五年平均EPS：有預估EPS用預估，沒有用沈董
+    _est_eps_val = r.get('est_eps')
+    _used_eps = _est_eps_val if _est_eps_val is not None and _est_eps_val > 0 else _shen_eps
+    _eps_src = '預估' if _est_eps_val is not None and _est_eps_val > 0 else '沈董'
     _eps_avg5 = sum(_eps_y_valid) / len(_eps_y_valid) if _eps_y_valid else None
-    checks['shen_vs_avg5'] = 1 if _shen_eps is not None and _eps_avg5 is not None and _shen_eps >= _eps_avg5 else 0
-    detail['shen_vs_avg5'] = f'沈董EPS={_shen_eps:.2f} vs 5年平均={_eps_avg5:.2f}' if _shen_eps is not None and _eps_avg5 is not None else '無資料'
+    checks['shen_vs_avg5'] = 1 if _used_eps is not None and _eps_avg5 is not None and _used_eps >= _eps_avg5 else 0
+    detail['shen_vs_avg5'] = f'{_eps_src}EPS={_used_eps:.2f} vs 5年平均={_eps_avg5:.2f}' if _used_eps is not None and _eps_avg5 is not None else '無資料'
 
-    # 沈董EPS >= 近三年平均EPS
+    # 預估(沈董)EPS >= 近三年平均EPS
     _eps_y3_valid = [e for e in _eps_y[:3] if e is not None]
     _eps_avg3 = sum(_eps_y3_valid) / len(_eps_y3_valid) if _eps_y3_valid else None
-    checks['shen_vs_avg3'] = 1 if _shen_eps is not None and _eps_avg3 is not None and _shen_eps >= _eps_avg3 else 0
-    detail['shen_vs_avg3'] = f'沈董EPS={_shen_eps:.2f} vs 3年平均={_eps_avg3:.2f}' if _shen_eps is not None and _eps_avg3 is not None else '無資料'
+    checks['shen_vs_avg3'] = 1 if _used_eps is not None and _eps_avg3 is not None and _used_eps >= _eps_avg3 else 0
+    detail['shen_vs_avg3'] = f'{_eps_src}EPS={_used_eps:.2f} vs 3年平均={_eps_avg3:.2f}' if _used_eps is not None and _eps_avg3 is not None else '無資料'
 
     # 近五年EPS皆大於0
     checks['eps_5y_pos'] = 1 if len(_eps_y_valid) >= 5 and all(e > 0 for e in _eps_y_valid) else 0
