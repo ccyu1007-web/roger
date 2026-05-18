@@ -2275,9 +2275,12 @@ async function initEstimator(sharesMillion) {
       if (d.peLow) document.getElementById('peLow').value = d.peLow;
       if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
       if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
-      if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
-      if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
-      if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+      // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
+      if (d._vmManual) {
+        if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
+        if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
+        if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+      }
       // DDM：EPS 和股利每次從最新資料重算，只還原使用者調過的 PE/折現率/安全邊際
       if (d.ddmPE) document.getElementById('ddmPE').value = d.ddmPE;
       if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
@@ -3174,9 +3177,12 @@ function _applyEstimateData(d) {
   if (d.peLow) document.getElementById('peLow').value = d.peLow;
   if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
   if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
-  if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
-  if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
-  if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+  // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
+  if (d._vmManual) {
+    if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
+    if (d.vmDiv) document.getElementById('vmDiv').value = d.vmDiv;
+    if (d.vmLtDiv) document.getElementById('vmLtDiv').value = d.vmLtDiv;
+  }
   if (d.ddmPE) document.getElementById('ddmPE').value = d.ddmPE;
   if (d.ddmRate) document.getElementById('ddmRate').value = d.ddmRate;
   if (d.ddmMargin) document.getElementById('ddmMargin').value = d.ddmMargin;
@@ -3461,14 +3467,25 @@ function saveEstimate() {
     peLow: document.getElementById('peLow').value,
     yldHigh: document.getElementById('yldHigh').value,
     yldMax: document.getElementById('yldMax').value,
-    vmEps: document.getElementById('vmEps').value,
-    vmDiv: document.getElementById('vmDiv').value,
-    vmLtDiv: document.getElementById('vmLtDiv').value,
     date: now,
   };
+  // vmEps/vmDiv/vmLtDiv 只在手動編輯過時才存（避免自動帶入的值被當成手動設定）
+  if (_vmManual) {
+    d.vmEps = document.getElementById('vmEps').value;
+    d.vmDiv = document.getElementById('vmDiv').value;
+    d.vmLtDiv = document.getElementById('vmLtDiv').value;
+    d._vmManual = true;
+  }
   // 合併既有參數（避免覆蓋 valParams 區的設定）
   let existing = {};
   try { existing = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+  // 若非手動，清除舊的自動存值
+  if (!_vmManual) {
+    delete existing.vmEps;
+    delete existing.vmDiv;
+    delete existing.vmLtDiv;
+    delete existing._vmManual;
+  }
   Object.assign(existing, d);
   localStorage.setItem('estimate_' + CODE, JSON.stringify(existing));
   // 同步到 DB（後端會觸發 recalc_all_derived 重算門檻）
