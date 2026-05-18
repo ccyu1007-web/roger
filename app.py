@@ -729,6 +729,8 @@ CHECKLIST_ITEMS = [
     {'key': 'wt_payout_ok', 'category': 'value', 'label': '加權配息率 > 50%'},
     {'key': 'eps_vs_10y',   'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS >= 1'},
     {'key': 'grade_a_ok',   'category': 'value', 'label': '預估(沈董)等級為A級'},
+    {'key': 'grade_a12_ok', 'category': 'value', 'label': '預估(沈董)等級為A1或A2級'},
+    {'key': 'grade_aa_ok',  'category': 'value', 'label': '預估(沈董)等級為AA級'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -1101,6 +1103,14 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _grade_src = '預估' if _est_grade else '沈董'
     checks['grade_a_ok'] = 1 if _used_grade and _is_grade_a_level(_used_grade) else 0
     detail['grade_a_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
+
+    # 預估(沈董)等級為A1或A2級
+    checks['grade_a12_ok'] = 1 if _used_grade in ('A1', 'A2', 'AA') else 0
+    detail['grade_a12_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
+
+    # 預估(沈董)等級為AA級
+    checks['grade_aa_ok'] = 1 if _used_grade == 'AA' else 0
+    detail['grade_aa_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
 
     # 沈董法累計營業利益 / 累計稅前淨利 > 80%
     _cr = r.get('_core_ratio')
