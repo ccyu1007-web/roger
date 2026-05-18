@@ -2064,7 +2064,10 @@ function _triggerRecalcDerived() {
   _recalcTimer = setTimeout(() => {
     fetch('/api/recalc-derived', { method: 'POST' })
       .then(r => r.json())
-      .then(d => console.log('[Derived] 後端重算完成:', d))
+      .then(d => {
+        console.log('[Derived] 後端重算完成:', d);
+        reloadStocks();
+      })
       .catch(e => console.warn('[Derived] 重算失敗:', e));
   }, 500);
 }
