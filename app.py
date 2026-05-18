@@ -735,6 +735,11 @@ CHECKLIST_ITEMS = [
     {'key': 'price_below_aa_v', 'category': 'value', 'label': '股價 <= AA級評價'},
     {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現模式現價潛在年報酬 >= 10%'},
     {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 <= 現金流量折現法安全邊際價'},
+    # ── 成長性評估檢核（4項）──
+    {'key': 'rev_cagr5_ok',   'category': 'growth_eval', 'label': '近5年營收CAGR > 5%'},
+    {'key': 'eps_cagr5_ok',   'category': 'growth_eval', 'label': '近5年保守成長率(EPS) > 5%'},
+    {'key': 'rev_accel',      'category': 'growth_eval', 'label': '近3年營收CAGR > 近5年營收CAGR'},
+    {'key': 'eps_accel',      'category': 'growth_eval', 'label': '近3年EPS CAGR > 近5年EPS CAGR'},
     # ── 基本門檻（10項）──
     {'key': 'fin_grade',      'category': 'base',  'label': '近五年 ROIC 版等級 A級 以上 >= 3 年'},
     {'key': 'opm_stable',     'category': 'base',  'label': '近五年營益率 >= 10% 達 3 年以上，且近2年>=10%'},
@@ -759,6 +764,7 @@ CHECKLIST_ITEMS = [
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
 CHECKLIST_VALUE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'value']
+CHECKLIST_GROWTH_EVAL_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'growth_eval']
 CHECKLIST_BASE_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'base']
 CHECKLIST_BONUS_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'bonus']
 CHECKLIST_ALL_KEYS = [item['key'] for item in CHECKLIST_ITEMS]
@@ -791,7 +797,7 @@ def _init_checklist_db():
                  ('lt_div','REAL'),('lt_yld','REAL'),
                  ('val_a','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_aa','REAL'),
                  ('lt5','REAL'),('lt6','REAL'),('lt7','REAL'),
-                 ('profit_count','INTEGER'),('safety_count','INTEGER'),('value_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
+                 ('profit_count','INTEGER'),('safety_count','INTEGER'),('value_count','INTEGER'),('growth_eval_count','INTEGER'),('base_count','INTEGER'),('bonus_count','INTEGER'),
                  ('gi_neff_a','REAL'),('gi_neff_b','REAL'),
                  ('gi_neff_3a','REAL'),('gi_neff_3b','REAL'),
                  ('gi_neff_c','REAL'),('gi_neff_d','REAL'),
@@ -1141,6 +1147,38 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['core_ratio'] = 0
         detail['core_ratio'] = '無季度資料'
 
+    # === 成長性評估檢核（4項） ===
+    _gi = r.get('_gi') or {}
+
+    # 近5年營收CAGR > 5%
+    _rev_cagr5 = _gi.get('rev_cagr_5y')
+    checks['rev_cagr5_ok'] = 1 if _rev_cagr5 is not None and _rev_cagr5 > 5 else 0
+    detail['rev_cagr5_ok'] = f'5年營收CAGR={_rev_cagr5:.2f}%' if _rev_cagr5 is not None else '無資料'
+
+    # 近5年保守成長率(EPS) > 5%
+    _neff_c = _gi.get('neff_c')
+    checks['eps_cagr5_ok'] = 1 if _neff_c is not None and _neff_c > 5 else 0
+    detail['eps_cagr5_ok'] = f'保守成長率={_neff_c:.2f}%' if _neff_c is not None else '無資料'
+
+    # 近3年營收CAGR > 近5年營收CAGR（營收加速）
+    _rev_cagr3 = _gi.get('rev_cagr_3y')
+    if _rev_cagr3 is not None and _rev_cagr5 is not None:
+        checks['rev_accel'] = 1 if _rev_cagr3 > _rev_cagr5 else 0
+        detail['rev_accel'] = f'3年={_rev_cagr3:.2f}% vs 5年={_rev_cagr5:.2f}%'
+    else:
+        checks['rev_accel'] = 0
+        detail['rev_accel'] = '無資料'
+
+    # 近3年EPS CAGR > 近5年EPS CAGR（EPS加速）
+    _neff_3a = _gi.get('neff_3a')
+    _neff_a = _gi.get('neff_a')
+    if _neff_3a is not None and _neff_a is not None:
+        checks['eps_accel'] = 1 if _neff_3a > _neff_a else 0
+        detail['eps_accel'] = f'3年端點={_neff_3a:.2f}% vs 5年端點={_neff_a:.2f}%'
+    else:
+        checks['eps_accel'] = 0
+        detail['eps_accel'] = '無資料'
+
     # === 基本門檻 + 成長加分（名稱制） ===
 
     # ── 基本門檻 ──
@@ -1419,9 +1457,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     profit_count = sum(checks[k] for k in CHECKLIST_PROFIT_KEYS)
     safety_count = sum(checks[k] for k in CHECKLIST_SAFETY_KEYS)
     value_count = sum(checks[k] for k in CHECKLIST_VALUE_KEYS)
+    growth_eval_count = sum(checks[k] for k in CHECKLIST_GROWTH_EVAL_KEYS)
     base_count = sum(checks[k] for k in CHECKLIST_BASE_KEYS)
     bonus_count = sum(checks[k] for k in CHECKLIST_BONUS_KEYS)
-    pass_count = profit_count + safety_count + value_count + base_count + bonus_count
+    pass_count = profit_count + safety_count + value_count + growth_eval_count + base_count + bonus_count
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
     gi = r.get('_gi') or {}
@@ -1456,6 +1495,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'profit_count': profit_count,
         'safety_count': safety_count,
         'value_count': value_count,
+        'growth_eval_count': growth_eval_count,
         'base_count': base_count,
         'bonus_count': bonus_count,
         'detail': json.dumps(detail, ensure_ascii=False),
@@ -1964,7 +2004,7 @@ def calc_all_checklists():
         # 動態建構 INSERT/UPDATE（名稱制 + 成長率指標欄位 + 成長燈號）
         chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
         all_fields = ['code'] + chk_fields + [
-                       'pass_count', 'total_count', 'profit_count', 'safety_count', 'value_count', 'base_count', 'bonus_count', 'detail',
+                       'pass_count', 'total_count', 'profit_count', 'safety_count', 'value_count', 'growth_eval_count', 'base_count', 'bonus_count', 'detail',
                        'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                        'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                        'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
@@ -2122,7 +2162,7 @@ def _recalc_checklist_single(code):
     # 動態建構 INSERT/UPDATE（與 calc_all_checklists 一致）
     chk_fields = [f'chk_{k}' for k in CHECKLIST_ALL_KEYS]
     all_fields = ['code'] + chk_fields + [
-                   'pass_count', 'total_count', 'profit_count', 'safety_count', 'value_count', 'base_count', 'bonus_count', 'detail',
+                   'pass_count', 'total_count', 'profit_count', 'safety_count', 'value_count', 'growth_eval_count', 'base_count', 'bonus_count', 'detail',
                    'eps_setting', 'div_setting', 'yld_high', 'yld_max', 'pe_high', 'pe_low',
                    'lt_div', 'lt_yld', 'val_a', 'val_a1', 'val_a2', 'val_aa', 'lt5', 'lt6', 'lt7',
                    'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',

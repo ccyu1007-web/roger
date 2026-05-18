@@ -678,6 +678,7 @@ async function loadDecision() {
     const profitItems = items.filter(it => it.category === 'profit');
     const safetyItems = items.filter(it => it.category === 'safety');
     const valueItems = items.filter(it => it.category === 'value');
+    const growthEvalItems = items.filter(it => it.category === 'growth_eval');
     const baseItems = items.filter(it => it.category === 'base');
     const bonusItems = items.filter(it => it.category === 'bonus');
 
@@ -686,15 +687,16 @@ async function loadDecision() {
     let profitCount = cl.profit_count != null ? cl.profit_count : _countOf(profitItems, cl);
     let safetyCount = cl.safety_count != null ? cl.safety_count : _countOf(safetyItems, cl);
     let valueCount = cl.value_count != null ? cl.value_count : _countOf(valueItems, cl);
+    let growthEvalCount = cl.growth_eval_count != null ? cl.growth_eval_count : _countOf(growthEvalItems, cl);
     let baseCount = cl.base_count != null ? cl.base_count : _countOf(baseItems, cl);
     let bonusCount = cl.bonus_count != null ? cl.bonus_count : _countOf(bonusItems, cl);
-    const totalPass = profitCount + safetyCount + valueCount + baseCount + bonusCount;
-    const totalItems = profitItems.length + safetyItems.length + valueItems.length + baseItems.length + bonusItems.length;
+    const totalPass = profitCount + safetyCount + valueCount + growthEvalCount + baseCount + bonusCount;
+    const totalItems = profitItems.length + safetyItems.length + valueItems.length + growthEvalItems.length + baseItems.length + bonusItems.length;
 
     let html = '';
     html += '<div class="chk-summary">';
     html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（獲利 ${profitCount}/${profitItems.length} + 安全 ${safetyCount}/${safetyItems.length} + 價值 ${valueCount}/${valueItems.length} + 基本 ${baseCount}/${baseItems.length} + 加分 ${bonusCount}/${bonusItems.length}）</span>`;
+    html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（獲利 ${profitCount}/${profitItems.length} + 安全 ${safetyCount}/${safetyItems.length} + 價值 ${valueCount}/${valueItems.length} + 成長 ${growthEvalCount}/${growthEvalItems.length} + 基本 ${baseCount}/${baseItems.length} + 加分 ${bonusCount}/${bonusItems.length}）</span>`;
     html += '</div>';
 
     function renderChkTable(title, chkItems) {
@@ -712,6 +714,7 @@ async function loadDecision() {
     html += renderChkTable('獲利性檢核', profitItems);
     html += renderChkTable('安全性檢核', safetyItems);
     html += renderChkTable('價值評估檢核', valueItems);
+    html += renderChkTable('成長性評估檢核', growthEvalItems);
 
     html += renderChkTable('基本門檻', baseItems);
     html += renderChkTable('成長加分', bonusItems);
