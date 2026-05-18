@@ -2125,10 +2125,10 @@ function onGlobalValChange() {
   _globalVal.yldMax = parseFloat(document.getElementById('gYldMax').value) || 6;
   localStorage.setItem('global_val_params', JSON.stringify(_globalVal));
   syncUserSettings();
-  // 同步更新 company.html 用的殖利率下限
   localStorage.setItem('global_yld_floor', String(_globalVal.yldFloor));
   allData.forEach(calcDerived);
   applyFilter();
+  _triggerRecalcDerived();
 }
 
 function resetGlobalVal() {
@@ -2139,6 +2139,7 @@ function resetGlobalVal() {
   initGlobalVal();
   allData.forEach(calcDerived);
   applyFilter();
+  _triggerRecalcDerived();
 }
 
 let _fixedQ = [], _fixedY = [], _fixedD = [];  // 固定欄位的季度/年度
