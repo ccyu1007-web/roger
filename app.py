@@ -1097,11 +1097,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _est_grade = r.get('est_grade')
     _used_grade = _est_grade if _est_grade else r.get('shen_grade')
     _grade_src = '預估' if _est_grade else '沈董'
-    checks['grade_a_ok'] = 1 if _used_grade and _is_grade_a_level(_used_grade) else 0
+    checks['grade_a_ok'] = 1 if _used_grade == 'A' else 0
     detail['grade_a_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
 
     # 預估(沈董)等級為A1或A2級
-    checks['grade_a12_ok'] = 1 if _used_grade in ('A1', 'A2', 'AA') else 0
+    checks['grade_a12_ok'] = 1 if _used_grade in ('A1', 'A2') else 0
     detail['grade_a12_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
 
     # 預估(沈董)等級為AA級
