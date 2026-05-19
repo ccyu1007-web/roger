@@ -614,6 +614,7 @@ def fetch_capital_balance_sheet(code):
         '存貨': 'inventory',
         '合約負債－流動': 'contract_liability',
         '流動負債': 'current_liabilities',
+        '流動資產': 'current_assets',
         # ROIC 所需欄位
         '應收帳款及票據': 'accounts_receivable',
         '現金及約當現金': 'cash_and_equivalents',
@@ -632,7 +633,7 @@ def fetch_capital_balance_sheet(code):
     roic_cols = ['cash_and_equivalents', 'short_term_debt', 'short_term_notes',
                  'current_long_term_debt', 'long_term_bank_debt', 'other_long_term_debt',
                  'bonds_payable', 'current_liabilities']
-    all_extra_cols = ['inventory', 'contract_liability', 'accounts_receivable'] + roic_cols
+    all_extra_cols = ['inventory', 'contract_liability', 'accounts_receivable', 'current_assets'] + roic_cols
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.get_conn() as conn:
@@ -645,7 +646,7 @@ def fetch_capital_balance_sheet(code):
 
         # 所有需要寫入的欄位（含基本 + ROIC）
         all_fields = ['total_assets', 'total_equity', 'common_stock',
-                      'inventory', 'contract_liability', 'accounts_receivable'] + roic_cols
+                      'inventory', 'contract_liability', 'accounts_receivable', 'current_assets'] + roic_cols
 
         saved = 0
         for year_str, fields in data.items():

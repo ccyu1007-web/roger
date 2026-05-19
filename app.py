@@ -705,6 +705,8 @@ CHECKLIST_ITEMS = [
     # ── B 安全性檢核（13項）──
     {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比', 'threshold': '≤ 50%', 'weight': '核心'},
     {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比', 'threshold': '< 30%', 'weight': '核心'},
+    {'key': 'current_ratio',  'category': 'safety', 'label': '流動比率', 'threshold': '≥ 150%', 'weight': '重要'},
+    {'key': 'quick_ratio',    'category': 'safety', 'label': '速動比率', 'threshold': '≥ 100%', 'weight': '重要'},
     {'key': 'icr_ok',         'category': 'safety', 'label': '利息保障倍數', 'threshold': '> 5', 'weight': '重要'},
     {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值', 'threshold': '> 3', 'weight': '重要'},
     {'key': 'fcf_5y_pos',     'category': 'safety', 'label': '自由現金流連續5年為正', 'threshold': '是', 'weight': '核心'},
@@ -964,6 +966,18 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _fdr_latest = _fdr_5y[0] if _fdr_5y else None
     checks['fin_debt_ok'] = 1 if _fdr_latest is not None and _fdr_latest < 30 else 0
     detail['fin_debt_ok'] = f'最近一年={_fdr_latest:.2f}%' if _fdr_latest is not None else '無資料'
+
+    # 流動比率 >= 150%
+    _cr_5y = _5y_vals('current_ratio')
+    _cr_latest = _cr_5y[0] if _cr_5y else None
+    checks['current_ratio'] = 1 if _cr_latest is not None and _cr_latest >= 150 else 0
+    detail['current_ratio'] = f'最近一年={_cr_latest:.2f}%' if _cr_latest is not None else '無資料'
+
+    # 速動比率 >= 100%
+    _qr_5y = _5y_vals('quick_ratio')
+    _qr_latest = _qr_5y[0] if _qr_5y else None
+    checks['quick_ratio'] = 1 if _qr_latest is not None and _qr_latest >= 100 else 0
+    detail['quick_ratio'] = f'最近一年={_qr_latest:.2f}%' if _qr_latest is not None else '無資料'
 
     # 利息保障倍數 >5
     _icr_5y = _5y_vals('interest_coverage')
@@ -1277,6 +1291,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _bl('opm_min5', _opm_min5, 5)
     _bl('debt_ratio_ok', _dr_latest, 50)
     _bl('fin_debt_ok', _fdr_latest, 30)
+    _bl('current_ratio', _cr_latest, 150)
+    _bl('quick_ratio', _qr_latest, 100)
     _bl('icr_ok', _icr_latest, 5)
     _bl('icr_min5', _icr_min, 3)
     _bl('eq_ok', _eq_latest, 70)
@@ -1645,7 +1661,7 @@ def calc_all_checklists():
                       total_equity, total_assets, cash_and_equivalents,
                       short_term_debt, short_term_notes, current_long_term_debt,
                       long_term_bank_debt, other_long_term_debt, bonds_payable,
-                      gross_profit, cash_dividend, weighted_shares, common_stock, current_liabilities,
+                      gross_profit, cash_dividend, weighted_shares, common_stock, current_liabilities, current_assets, inventory,
                       debt_ratio, fin_debt_ratio, interest_coverage, earnings_quality, fcf,
                       inventory_days, ar_days
                FROM financial_annual WHERE year >= ? AND revenue IS NOT NULL
@@ -1665,7 +1681,8 @@ def calc_all_checklists():
             _roic_vals, _roe_vals, _opm_vals, _fcf_rev_vals = [], [], [], []
             _roic_yearly, _opm_yearly, _fcf_rev_yearly, _gm_yearly = [], [], [], []
             _safety_yearly = {'debt_ratio': [], 'fin_debt_ratio': [], 'interest_coverage': [],
-                              'earnings_quality': [], 'fcf': [], 'inventory_days': [], 'ar_days': []}
+                              'earnings_quality': [], 'fcf': [], 'inventory_days': [], 'ar_days': [],
+                              'current_ratio': [], 'quick_ratio': []}
             _fcf_latest_val, _div_total_val = None, None
             for _fr in _frs[-5:]:
                 _oi = _fr.get('operating_income')
@@ -1726,8 +1743,20 @@ def calc_all_checklists():
                     _gm_yearly.append((_yr, None))
                 # 安全性指標（直接讀 DB 已算好的值）
                 for _sk in _safety_yearly:
+                    if _sk in ('current_ratio', 'quick_ratio'):
+                        continue  # 下面單獨算
                     _sv = _fr.get(_sk)
                     _safety_yearly[_sk].append((_yr, _sv))
+                # 流動比率/速動比率（從 current_assets/current_liabilities/inventory 即時算）
+                _ca = _fr.get('current_assets')
+                _cl_val = _fr.get('current_liabilities')
+                _inv = _fr.get('inventory') or 0
+                if _ca and _cl_val and _cl_val > 0:
+                    _safety_yearly['current_ratio'].append((_yr, round(_ca / _cl_val * 100, 2)))
+                    _safety_yearly['quick_ratio'].append((_yr, round((_ca - _inv) / _cl_val * 100, 2)))
+                else:
+                    _safety_yearly['current_ratio'].append((_yr, None))
+                    _safety_yearly['quick_ratio'].append((_yr, None))
             # 最新年 FCF vs 現金股利（cash_dividend × weighted_shares千股）
             if _frs:
                 _last_fr = _frs[-1]
@@ -1794,7 +1823,7 @@ def calc_all_checklists():
         r['_gm_5y'] = _roic_map.get(r['code'] + '_gm_5y', [])
         r['_fcf_rev_5y'] = _roic_map.get(r['code'] + '_fcf_rev_5y', [])
         # 安全性指標序列
-        for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days'):
+        for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days', 'current_ratio', 'quick_ratio'):
             r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
         r['_qinv'] = qinv_map.get(r['code'])
         r['_qgm'] = gm_map.get(r['code'])
