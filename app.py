@@ -1117,15 +1117,15 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         if _eps_avg5 is not None:
             _p5 = _used_eps >= _eps_avg5
             _pass_count += 1 if _p5 else 0
-            _cmp_parts.append(f'5年均{_eps_avg5:.2f}{"V" if _p5 else "X"}')
+            _cmp_parts.append(f'5年均{_eps_avg5:.2f} {"V" if _p5 else "X"}')
         if _eps_avg3 is not None:
             _p3 = _used_eps >= _eps_avg3
             _pass_count += 1 if _p3 else 0
-            _cmp_parts.append(f'3年均{_eps_avg3:.2f}{"V" if _p3 else "X"}')
+            _cmp_parts.append(f'3年均{_eps_avg3:.2f} {"V" if _p3 else "X"}')
         if _avg_eps_10y is not None and _avg_eps_10y > 0:
             _p10 = _used_eps >= _avg_eps_10y
             _pass_count += 1 if _p10 else 0
-            _cmp_parts.append(f'10年均{_avg_eps_10y:.2f}{"V" if _p10 else "X"}')
+            _cmp_parts.append(f'10年均{_avg_eps_10y:.2f} {"V" if _p10 else "X"}')
     checks['eps_vs_multi'] = 1 if _pass_count >= 2 else 0
     detail['eps_vs_multi'] = f'{_eps_src}EPS={_used_eps:.2f}　' + '　'.join(_cmp_parts) + f'　通過{_pass_count}/3' if _used_eps is not None and _cmp_parts else '無資料'
 
