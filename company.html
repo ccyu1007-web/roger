@@ -448,7 +448,8 @@
   .chk-table th { padding: 10px 14px; background: #1e3a5f; color: #fff; font-weight: 600; text-align: center; }
   .chk-table th:nth-child(1) { width: 50px; }
   .chk-table th:nth-child(2) { text-align: left; }
-  .chk-table th:nth-child(3), .chk-table th:nth-child(4) { width: 70px; }
+  .chk-table th:nth-child(3), .chk-table th:nth-child(4) { width: 80px; }
+  .chk-table th:nth-child(5), .chk-table th:nth-child(6) { width: 40px; }
   .chk-table td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
   .chk-table td:first-child { text-align: center; font-weight: 700; color: #64748b; }
   .chk-table .chk-cond { color: #334155; line-height: 1.5; }
@@ -697,39 +698,93 @@ async function loadDecision() {
     let safetyCount = cl.safety_count != null ? cl.safety_count : _countOf(safetyItems, cl);
     let valueCount = cl.value_count != null ? cl.value_count : _countOf(valueItems, cl);
     let growthEvalCount = cl.growth_eval_count != null ? cl.growth_eval_count : _countOf(growthEvalItems, cl);
-    const totalPass = profitCount + safetyCount + valueCount + growthEvalCount;
-    const totalItems = profitItems.length + safetyItems.length + valueItems.length + growthEvalItems.length;
+
+    const borderline = cl._borderline || {};
+    const redFlags = cl._red_flags || [];
 
     let html = '';
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     html += `<div id="printDate">匯出日期：${dateStr}</div>`;
     html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button id="printExportBtn" onclick="window.print()" style="padding:6px 16px;border:1px solid #2563eb;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;font-size:.85rem;cursor:pointer">匯出 PDF</button></div>';
-    html += '<div class="chk-summary">';
-    html += `<span class="chk-price">${CODE} ${stock.name || ''} ${fmtV(close)} ${chgStr}</span>`;
-    html += `<span class="chk-score">通過 ${totalPass}/${totalItems}（獲利 ${profitCount}/${profitItems.length} + 安全 ${safetyCount}/${safetyItems.length} + 價值 ${valueCount}/${valueItems.length} + 成長 ${growthEvalCount}/${growthEvalItems.length}）</span>`;
-    html += '</div>';
+    // 紅旗顯示
+    const hasRedFlag = redFlags.length > 0;
+    const flagHtml = hasRedFlag
+      ? `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 16px;margin-bottom:12px;color:#dc2626;font-weight:700;font-size:.9rem">⚠ 核心瑕疵：${redFlags.join('；')}</div>`
+      : '';
 
-    function renderChkTable(title, chkItems) {
-      let t = `<table class="chk-table" style="margin-top:12px;border-collapse:collapse"><thead><tr><th>#</th><th>${title}</th><th>是</th><th>否</th></tr></thead><tbody>`;
+    const _pct = (c, t) => t > 0 ? Math.round(c / t * 100) : 0;
+    html += `<div class="chk-summary">
+      <span class="chk-price">${CODE} ${stock.name || ''}　${fmtV(close)}　${chgStr}</span>
+    </div>`;
+    html += flagHtml;
+    html += `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;text-align:center">
+        <div style="font-size:.78rem;color:#166534">獲利性</div>
+        <div style="font-size:1.3rem;font-weight:700;color:#166534">${_pct(profitCount, profitItems.length)}%</div>
+        <div style="font-size:.72rem;color:#4ade80">${profitCount}/${profitItems.length}</div>
+      </div>
+      <div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;text-align:center">
+        <div style="font-size:.78rem;color:#1d4ed8">安全性</div>
+        <div style="font-size:1.3rem;font-weight:700;color:#1d4ed8">${_pct(safetyCount, safetyItems.length)}%</div>
+        <div style="font-size:.72rem;color:#60a5fa">${safetyCount}/${safetyItems.length}</div>
+      </div>
+      <div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;background:#fefce8;border:1px solid #fde68a;text-align:center">
+        <div style="font-size:.78rem;color:#a16207">價值評估</div>
+        <div style="font-size:1.3rem;font-weight:700;color:#a16207">${_pct(valueCount, valueItems.length)}%</div>
+        <div style="font-size:.72rem;color:#fbbf24">${valueCount}/${valueItems.length}</div>
+      </div>
+      <div style="flex:1;min-width:120px;padding:10px 14px;border-radius:8px;background:#fdf4ff;border:1px solid #e9d5ff;text-align:center">
+        <div style="font-size:.78rem;color:#7e22ce">成長性</div>
+        <div style="font-size:1.3rem;font-weight:700;color:#7e22ce">${_pct(growthEvalCount, growthEvalItems.length)}%</div>
+        <div style="font-size:.72rem;color:#a78bfa">${growthEvalCount}/${growthEvalItems.length}</div>
+      </div>
+    </div>`;
+
+    function renderChkTable(title, chkItems, catCount, borderline) {
+      const total = chkItems.length;
+      const pct = total > 0 ? Math.round(catCount / total * 100) : 0;
+      // 核心題紅旗
+      const coreFailItems = chkItems.filter(it => it.weight === '核心' && cl[`chk_${it.key}`] !== 1);
+      const coreWarn = coreFailItems.length > 0
+        ? `<div style="color:#dc2626;font-weight:700;font-size:.82rem;margin:6px 0">⚠ 核心瑕疵：${coreFailItems.map(it => it.label).join('、')}</div>`
+        : '';
+
+      let t = coreWarn;
+      t += `<table class="chk-table" style="margin-top:8px;border-collapse:collapse">`;
+      t += `<thead><tr><th style="width:40px">#</th><th>${title}（${catCount}/${total}，${pct}%）</th><th style="width:80px">門檻</th><th style="width:50px">權重</th><th style="width:40px">是</th><th style="width:40px">否</th></tr></thead><tbody>`;
+
+      let lastGroup = null;
       chkItems.forEach((it, i) => {
+        // C 區子分組標題
+        if (it.group && it.group !== lastGroup) {
+          t += `<tr><td colspan="6" style="padding:8px 14px;background:#f0f9ff;font-weight:700;color:#0369a1;font-size:.82rem;border-bottom:2px solid #bae6fd">${it.group}</td></tr>`;
+          lastGroup = it.group;
+        }
+
         const pass = cl[`chk_${it.key}`] === 1;
         const d = detail[it.key] || '';
-        const hlStyle = it.hl ? 'color:#2563eb;font-weight:700' : '';
-        const isFirstHl = it.hl && (i === 0 || !chkItems[i-1].hl);
-        const sepStyle = isFirstHl ? 'border-top:3px solid #2563eb' : '';
-        const borderStyle = 'border-bottom:1px solid #e2e8f0';
-        t += `<tr style="${sepStyle};${borderStyle}"><td style="${hlStyle}">${i + 1}</td><td class="chk-cond" style="${hlStyle}">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
-        t += `<td class="chk-yes">${pass ? 'V' : ''}</td><td class="chk-no">${pass ? '' : 'X'}</td></tr>`;
+        const bl = borderline[it.key];  // 壓線
+        const blMark = bl ? ' △' : '';
+        const weightColor = it.weight === '核心' ? '#dc2626' : (it.weight === '重要' ? '#2563eb' : '#94a3b8');
+
+        t += `<tr style="border-bottom:1px solid #e2e8f0">`;
+        t += `<td style="text-align:center;font-weight:700;color:#64748b">${i + 1}</td>`;
+        t += `<td class="chk-cond">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
+        t += `<td style="text-align:center;font-size:.8rem;color:#475569">${it.threshold || ''}</td>`;
+        t += `<td style="text-align:center;font-size:.8rem;font-weight:600;color:${weightColor}">${it.weight || ''}</td>`;
+        t += `<td class="chk-yes">${pass ? 'V' : ''}${pass && bl ? '<span style="color:#f59e0b"> △</span>' : ''}</td>`;
+        t += `<td class="chk-no">${pass ? '' : 'X'}${!pass && bl ? '<span style="color:#f59e0b"> △</span>' : ''}</td>`;
+        t += `</tr>`;
       });
       t += '</tbody></table>';
       return t;
     }
 
-    html += renderChkTable('獲利性檢核', profitItems);
-    html += renderChkTable('安全性檢核', safetyItems);
-    html += renderChkTable('價值評估檢核', valueItems);
-    html += renderChkTable('成長性評估檢核', growthEvalItems);
+    html += renderChkTable('A 獲利性檢核', profitItems, profitCount, borderline);
+    html += renderChkTable('B 安全性檢核', safetyItems, safetyCount, borderline);
+    html += renderChkTable('C 價值評估檢核', valueItems, valueCount, borderline);
+    html += renderChkTable('D 成長性檢核', growthEvalItems, growthEvalCount, borderline);
 
 
     // === 配息率歷史（近5年）===

@@ -691,61 +691,50 @@ def recalc_all_derived(codes=None):
 
 # 檢核項目定義（順序即顯示順序，插入/調序只改這裡）
 CHECKLIST_ITEMS = [
-    # ── 獲利性檢核（12項）──
-    {'key': 'roic_avg5',      'category': 'profit', 'label': 'ROIC 近5年平均 >15%'},
-    {'key': 'roic_latest',    'category': 'profit', 'label': '最近一年 ROIC >15%'},
-    {'key': 'roic_3v5',       'category': 'profit', 'label': '近3年平均 ROIC > 近5年平均 ROIC'},
-    {'key': 'roic_min5',      'category': 'profit', 'label': 'ROIC 近5年最低值 >10%'},
-    {'key': 'gm_avg5',        'category': 'profit', 'label': '毛利率近5年平均 >30%'},
-    {'key': 'gm_latest',      'category': 'profit', 'label': '最近一年毛利率 >30%'},
-    {'key': 'gm_3v5',         'category': 'profit', 'label': '近3年平均毛利率 > 近5年平均毛利率'},
-    {'key': 'gm_min5',        'category': 'profit', 'label': '毛利率近5年最低值 >25%'},
-    {'key': 'opm_avg5',       'category': 'profit', 'label': '營益率近5年平均 >10%'},
-    {'key': 'opm_latest',     'category': 'profit', 'label': '最近一年營益率 >10%'},
-    {'key': 'opm_3v5',        'category': 'profit', 'label': '近3年平均營益率 > 近5年平均營益率'},
-    {'key': 'opm_min5',       'category': 'profit', 'label': '營益率近5年最低值 >5%'},
-    # ── 安全性檢核（12項）──
-    {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比 <= 50%'},
-    {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比 <30%'},
-    {'key': 'icr_ok',         'category': 'safety', 'label': '利息保障倍數 >5'},
-    {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值 >3'},
-    {'key': 'fcf_5y_pos',     'category': 'safety', 'label': '自由現金流連續5年為正'},
-    {'key': 'fcf_latest_pos', 'category': 'safety', 'label': '最近一年自由現金流 >0'},
-    {'key': 'eq_ok',          'category': 'safety', 'label': '盈餘品質率 >= 70%'},
-    {'key': 'eq_min5',        'category': 'safety', 'label': '盈餘品質率近5年最低值 >60%'},
-    {'key': 'inv_days_avg',   'category': 'safety', 'label': '最近一年存貨週轉天數 <= 近5年平均'},
-    {'key': 'inv_days_high',  'category': 'safety', 'label': '最近一年存貨週轉天數未創5年新高'},
-    {'key': 'ar_days_avg',    'category': 'safety', 'label': '最近一年應收帳款週轉天數 <= 近5年平均'},
-    {'key': 'ar_days_high',   'category': 'safety', 'label': '最近一年應收帳款週轉天數未創5年新高'},
-    {'key': 'qinv_4v20',     'category': 'safety', 'label': '近四季平均存貨週轉天數 < 近5年(20季)平均'},
-    # ── 價值評估檢核（5項）──
-    {'key': 'shen_pe_ok',    'category': 'value', 'label': '預估(沈董)本益比 <= 15'},
-    {'key': 'shen_vs_avg5',  'category': 'value', 'label': '預估(沈董)EPS >= 近五年平均EPS'},
-    {'key': 'shen_vs_avg3',  'category': 'value', 'label': '預估(沈董)EPS >= 近三年平均EPS'},
-    {'key': 'eps_5y_pos',    'category': 'value', 'label': '近五年EPS皆大於0'},
-    {'key': 'eps_5y_stable', 'category': 'value', 'label': '近五年最高EPS/最低EPS < 3'},
-    {'key': 'core_ratio',    'category': 'value', 'label': '預估(沈董法)累計營業利益 / 累計稅前淨利 > 80%'},
-    {'key': 'wt_yld_ok',    'category': 'value', 'label': '綜合殖利率 >= 5%'},
-    {'key': 'wt_payout_ok', 'category': 'value', 'label': '加權配息率 > 50%'},
-    {'key': 'eps_vs_10y',   'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS >= 1'},
-    {'key': 'grade_a_ok',   'category': 'value', 'label': '預估(沈董)等級為A級以上'},
-    {'key': 'price_in_a',   'category': 'value', 'label': 'AA級評價 <= 股價 <= A級評價', 'hl': 1},
-    {'key': 'price_below_aa_v', 'category': 'value', 'label': '股價 <= AA級評價', 'hl': 1},
-    {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現模式現價潛在年報酬 >= 10%', 'hl': 1},
-    {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 <= 現金流量折現法安全邊際價', 'hl': 1},
-    # ── 成長性評估檢核（4項）──
-    {'key': 'rev_cagr5_ok',   'category': 'growth_eval', 'label': '近5年營收CAGR > 5%'},
-    {'key': 'eps_cagr5_ok',   'category': 'growth_eval', 'label': '近5年保守成長率(EPS) > 5%'},
-    {'key': 'rev_accel',      'category': 'growth_eval', 'label': '近3年營收CAGR > 近5年營收CAGR'},
-    {'key': 'eps_accel',      'category': 'growth_eval', 'label': '近3年EPS CAGR > 近5年EPS CAGR'},
-    {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率 >= 0%'},
-    {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率 >= 0%'},
-    {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率 >= 0%'},
-    {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M >= 長期12M', 'hl': 1},
-    {'key': 'ge_neff_ratio',  'category': 'value', 'label': '聶夫 Neff 比率 >= 0.7', 'hl': 1},
-    {'key': 'ge_lynch_peg',   'category': 'value', 'label': '林區 PEG <= 1.0', 'hl': 1},
-    {'key': 'ge_lynch_consist','category': 'value', 'label': '林區成長一致性 >= 0.5', 'hl': 1},
-    {'key': 'ge_growth_green', 'category': 'growth_eval', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
+    # ── A 獲利性檢核（9項）──
+    {'key': 'roic_avg5',   'category': 'profit', 'label': 'ROIC 近5年平均', 'threshold': '≥ 15%', 'weight': '核心'},
+    {'key': 'roic_latest', 'category': 'profit', 'label': 'ROIC 最近一年', 'threshold': '≥ 15%', 'weight': '核心'},
+    {'key': 'roic_trend',  'category': 'profit', 'label': 'ROIC 趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '重要'},
+    {'key': 'roic_min5',   'category': 'profit', 'label': 'ROIC 近5年最低值', 'threshold': '≥ 10%', 'weight': '重要'},
+    {'key': 'opm_avg5',    'category': 'profit', 'label': '營益率近5年平均', 'threshold': '≥ 10%', 'weight': '核心'},
+    {'key': 'opm_trend',   'category': 'profit', 'label': '營益率趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '重要'},
+    {'key': 'opm_min5',    'category': 'profit', 'label': '營益率近5年最低值', 'threshold': '≥ 5%', 'weight': '輔助'},
+    {'key': 'gm_trend',    'category': 'profit', 'label': '毛利率趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '輔助'},
+    {'key': 'gm_stable',   'category': 'profit', 'label': '毛利率穩定度：近5年最低值 ≥ 均值×0.85', 'threshold': '是', 'weight': '輔助'},
+    # ── B 安全性檢核（13項）──
+    {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比', 'threshold': '≤ 50%', 'weight': '核心'},
+    {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比', 'threshold': '< 30%', 'weight': '核心'},
+    {'key': 'icr_ok',         'category': 'safety', 'label': '利息保障倍數', 'threshold': '> 5', 'weight': '重要'},
+    {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值', 'threshold': '> 3', 'weight': '重要'},
+    {'key': 'fcf_5y_pos',     'category': 'safety', 'label': '自由現金流連續5年為正', 'threshold': '是', 'weight': '核心'},
+    {'key': 'fcf_latest_pos', 'category': 'safety', 'label': '最近一年自由現金流 > 0', 'threshold': '是', 'weight': '重要'},
+    {'key': 'eq_ok',          'category': 'safety', 'label': '盈餘品質率', 'threshold': '≥ 70%', 'weight': '重要'},
+    {'key': 'eq_min5',        'category': 'safety', 'label': '盈餘品質率近5年最低值', 'threshold': '> 60%', 'weight': '重要'},
+    {'key': 'inv_days_avg',   'category': 'safety', 'label': '存貨週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要'},
+    {'key': 'inv_days_high',  'category': 'safety', 'label': '存貨週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助'},
+    {'key': 'qinv_4v20',      'category': 'safety', 'label': '近4季存貨週轉天數 < 近20季平均', 'threshold': '是', 'weight': '輔助'},
+    {'key': 'ar_days_avg',    'category': 'safety', 'label': '應收帳款週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要'},
+    {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助'},
+    # ── C 價值評估檢核（13項）──
+    {'key': 'shen_pe_ok',     'category': 'value', 'label': '沈董法本益比', 'threshold': '≤ 15', 'weight': '核心', 'group': '沈董法'},
+    {'key': 'eps_vs_multi',   'category': 'value', 'label': '沈董EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法'},
+    {'key': 'eps_vs_10y',     'category': 'value', 'label': '沈董EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法'},
+    {'key': 'core_ratio',     'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 80%', 'weight': '重要', 'group': '沈董法'},
+    {'key': 'price_val_ok',   'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法'},
+    {'key': 'eps_5y_pos',     'category': 'value', 'label': '近5年EPS逐年皆 > 0', 'threshold': '是', 'weight': '核心', 'group': 'EPS 品質'},
+    {'key': 'eps_5y_stable',  'category': 'value', 'label': '近5年最高EPS / 最低EPS', 'threshold': '< 3', 'weight': '重要', 'group': 'EPS 品質'},
+    {'key': 'wt_yld_ok',      'category': 'value', 'label': '綜合殖利率', 'threshold': '≥ 5%', 'weight': '核心', 'group': '殖利率法'},
+    {'key': 'wt_payout_ok',   'category': 'value', 'label': '加權配息率', 'threshold': '40%~80%', 'weight': '重要', 'group': '殖利率法'},
+    {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現現價潛在年報酬', 'threshold': '≥ 10%', 'weight': '重要', 'group': 'DDM'},
+    {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 ≤ DCF安全邊際價', 'threshold': '是', 'weight': '重要', 'group': 'DCF'},
+    {'key': 'ge_neff_ratio',  'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 0.7', 'weight': '輔助', 'group': '林區／聶夫法'},
+    {'key': 'ge_lynch_peg',   'category': 'value', 'label': '林區 PEG', 'threshold': '≤ 1.0', 'weight': '輔助', 'group': '林區／聶夫法'},
+    # ── D 成長性檢核（5項）──
+    {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率', 'threshold': '≥ 0%', 'weight': '重要'},
+    {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率', 'threshold': '≥ 0%', 'weight': '重要'},
+    {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率', 'threshold': '≥ 0%', 'weight': '重要'},
+    {'key': 'rev_both_pos',   'category': 'growth_eval', 'label': '短期3M ≥ 0% 且 長期12M ≥ 0%（一致向上）', 'threshold': '是', 'weight': '輔助'},
+    {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M ≥ 長期12M', 'threshold': '是', 'weight': '重要'},
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
@@ -797,7 +786,8 @@ def _init_checklist_db():
                  ('growth_signal','TEXT'),('growth_rev_momentum','REAL'),
                  ('growth_eps_trend','REAL'),('growth_inv_risk','INTEGER'),
                  ('growth_detail','TEXT'),
-                 ('gi_rev_3m_yoy','REAL'),('gi_rev_12m_yoy','REAL')]
+                 ('gi_rev_3m_yoy','REAL'),('gi_rev_12m_yoy','REAL'),
+                 ('borderline','TEXT'),('red_flags','TEXT')]
     for col, typ in add_cols:
         try: conn.execute(f"ALTER TABLE stock_checklist ADD COLUMN {col} {typ}")
         except Exception: pass
@@ -909,8 +899,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     detail['roic_avg5'] = f'5年平均={_roic_avg5:.2f}%' if _roic_avg5 is not None else '無資料'
     checks['roic_latest'] = 1 if _roic_latest is not None and _roic_latest > 15 else 0
     detail['roic_latest'] = f'最近一年={_roic_latest:.2f}%' if _roic_latest is not None else '無資料'
-    checks['roic_3v5'] = 1 if _roic_avg3 is not None and _roic_avg5 is not None and _roic_avg3 > _roic_avg5 else 0
-    detail['roic_3v5'] = f'3年平均={_roic_avg3:.2f}% vs 5年平均={_roic_avg5:.2f}%' if _roic_avg3 is not None and _roic_avg5 is not None else '無資料'
+    checks['roic_trend'] = 1 if _roic_latest is not None and _roic_avg3 is not None and _roic_latest >= _roic_avg3 else 0
+    detail['roic_trend'] = f'最近一年={_roic_latest:.2f}% vs 近3年平均={_roic_avg3:.2f}%' if _roic_latest is not None and _roic_avg3 is not None else '無資料'
     checks['roic_min5'] = 1 if _roic_min5 is not None and _roic_min5 > 10 else 0
     detail['roic_min5'] = f'5年最低={_roic_min5:.2f}%' if _roic_min5 is not None else '無資料'
 
@@ -922,14 +912,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _gm_min5 = min(_gm_vals_5) if _gm_vals_5 else None
     _gm_latest = _gm_vals_5[0] if _gm_vals_5 else None
 
-    checks['gm_avg5'] = 1 if _gm_avg5 is not None and _gm_avg5 > 30 else 0
-    detail['gm_avg5'] = f'5年平均={_gm_avg5:.2f}%' if _gm_avg5 is not None else '無資料'
-    checks['gm_latest'] = 1 if _gm_latest is not None and _gm_latest > 30 else 0
-    detail['gm_latest'] = f'最近一年={_gm_latest:.2f}%' if _gm_latest is not None else '無資料'
-    checks['gm_3v5'] = 1 if _gm_avg3 is not None and _gm_avg5 is not None and _gm_avg3 > _gm_avg5 else 0
-    detail['gm_3v5'] = f'3年平均={_gm_avg3:.2f}% vs 5年平均={_gm_avg5:.2f}%' if _gm_avg3 is not None and _gm_avg5 is not None else '無資料'
-    checks['gm_min5'] = 1 if _gm_min5 is not None and _gm_min5 > 25 else 0
-    detail['gm_min5'] = f'5年最低={_gm_min5:.2f}%' if _gm_min5 is not None else '無資料'
+    checks['gm_trend'] = 1 if _gm_latest is not None and _gm_avg3 is not None and _gm_latest >= _gm_avg3 else 0
+    detail['gm_trend'] = f'最近一年={_gm_latest:.2f}% vs 近3年平均={_gm_avg3:.2f}%' if _gm_latest is not None and _gm_avg3 is not None else '無資料'
+    _gm_threshold = _gm_avg5 * 0.85 if _gm_avg5 is not None else None
+    checks['gm_stable'] = 1 if _gm_min5 is not None and _gm_threshold is not None and _gm_min5 >= _gm_threshold else 0
+    detail['gm_stable'] = f'5年最低={_gm_min5:.2f}% vs 均值×0.85={_gm_threshold:.2f}%' if _gm_min5 is not None and _gm_threshold is not None else '無資料'
 
     _opm_5y = r.get('_opm_5y') or []
     _opm_vals_5 = [v for _, v in _opm_5y if v is not None]
@@ -941,10 +928,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     checks['opm_avg5'] = 1 if _opm_avg5 is not None and _opm_avg5 > 10 else 0
     detail['opm_avg5'] = f'5年平均={_opm_avg5:.2f}%' if _opm_avg5 is not None else '無資料'
-    checks['opm_latest'] = 1 if _opm_latest is not None and _opm_latest > 10 else 0
-    detail['opm_latest'] = f'最近一年={_opm_latest:.2f}%' if _opm_latest is not None else '無資料'
-    checks['opm_3v5'] = 1 if _opm_avg3 is not None and _opm_avg5 is not None and _opm_avg3 > _opm_avg5 else 0
-    detail['opm_3v5'] = f'3年平均={_opm_avg3:.2f}% vs 5年平均={_opm_avg5:.2f}%' if _opm_avg3 is not None and _opm_avg5 is not None else '無資料'
+    checks['opm_trend'] = 1 if _opm_latest is not None and _opm_avg3 is not None and _opm_latest >= _opm_avg3 else 0
+    detail['opm_trend'] = f'最近一年={_opm_latest:.2f}% vs 近3年平均={_opm_avg3:.2f}%' if _opm_latest is not None and _opm_avg3 is not None else '無資料'
     checks['opm_min5'] = 1 if _opm_min5 is not None and _opm_min5 > 5 else 0
     detail['opm_min5'] = f'5年最低={_opm_min5:.2f}%' if _opm_min5 is not None else '無資料'
 
@@ -1042,19 +1027,13 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['shen_pe_ok'] = 1 if _used_pe is not None and _used_pe > 0 and _used_pe <= 15 else 0
     detail['shen_pe_ok'] = f'{_pe_src}PE={_used_pe:.2f}倍' if _used_pe is not None else '無資料'
 
-    # 預估(沈董)EPS >= 近五年平均EPS：有預估EPS用預估，沒有用沈董
+    # EPS 來源判斷：有預估EPS用預估，沒有用沈董
     _est_eps_val = r.get('est_eps')
     _used_eps = _est_eps_val if _est_eps_val is not None and _est_eps_val > 0 else _shen_eps
     _eps_src = '預估' if _est_eps_val is not None and _est_eps_val > 0 else '沈董'
     _eps_avg5 = sum(_eps_y_valid) / len(_eps_y_valid) if _eps_y_valid else None
-    checks['shen_vs_avg5'] = 1 if _used_eps is not None and _eps_avg5 is not None and _used_eps >= _eps_avg5 else 0
-    detail['shen_vs_avg5'] = f'{_eps_src}EPS={_used_eps:.2f} vs 5年平均={_eps_avg5:.2f}' if _used_eps is not None and _eps_avg5 is not None else '無資料'
-
-    # 預估(沈董)EPS >= 近三年平均EPS
     _eps_y3_valid = [e for e in _eps_y[:3] if e is not None]
     _eps_avg3 = sum(_eps_y3_valid) / len(_eps_y3_valid) if _eps_y3_valid else None
-    checks['shen_vs_avg3'] = 1 if _used_eps is not None and _eps_avg3 is not None and _used_eps >= _eps_avg3 else 0
-    detail['shen_vs_avg3'] = f'{_eps_src}EPS={_used_eps:.2f} vs 3年平均={_eps_avg3:.2f}' if _used_eps is not None and _eps_avg3 is not None else '無資料'
 
     # 近五年EPS皆大於0
     checks['eps_5y_pos'] = 1 if len(_eps_y_valid) >= 5 and all(e > 0 for e in _eps_y_valid) else 0
@@ -1076,13 +1055,14 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['wt_yld_ok'] = 1 if _blend_yld is not None and _blend_yld >= 5 else 0
     detail['wt_yld_ok'] = f'綜合殖利率={_blend_yld:.2f}%' if _blend_yld is not None else '無資料'
 
-    # 加權配息率 > 50%
+    # 加權配息率 40%~80%
     _wt_payout = r.get('weighted_payout')
-    checks['wt_payout_ok'] = 1 if _wt_payout is not None and _wt_payout > 50 else 0
+    checks['wt_payout_ok'] = 1 if _wt_payout is not None and 40 <= _wt_payout <= 80 else 0
     detail['wt_payout_ok'] = f'加權配息率={_wt_payout:.2f}%' if _wt_payout is not None else '無資料'
 
-    # 預估(沈董)EPS / 十年平均EPS >= 1
+    # 沈董EPS / 十年平均EPS >= 1
     _avg_eps_10y = (r.get('_gi') or {}).get('shiller_avg_eps')
+    _eps_ratio_10y = None
     if _used_eps is not None and _avg_eps_10y is not None and _avg_eps_10y > 0:
         _eps_ratio_10y = round(_used_eps / _avg_eps_10y, 2)
         checks['eps_vs_10y'] = 1 if _eps_ratio_10y >= 1 else 0
@@ -1091,28 +1071,35 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['eps_vs_10y'] = 0
         detail['eps_vs_10y'] = '10年均EPS<=0或無資料' if _avg_eps_10y is not None and _avg_eps_10y <= 0 else '無資料'
 
-    # 預估(沈董)等級為A級：有預估等級用預估，沒有用沈董
-    _est_grade = r.get('est_grade')
-    _used_grade = _est_grade if _est_grade else r.get('shen_grade')
-    _grade_src = '預估' if _est_grade else '沈董'
-    checks['grade_a_ok'] = 1 if _used_grade in ('A', 'A1', 'A2', 'AA') else 0
-    detail['grade_a_ok'] = f'{_grade_src}等級={_used_grade}' if _used_grade else '無資料'
+    # 沈董EPS >= 近5年/近3年/十年均EPS 中至少2個
+    _pass_count = 0
+    _cmp_parts = []
+    if _used_eps is not None:
+        if _eps_avg5 is not None:
+            _p5 = _used_eps >= _eps_avg5
+            _pass_count += 1 if _p5 else 0
+            _cmp_parts.append(f'5年均{_eps_avg5:.2f}{"V" if _p5 else "X"}')
+        if _eps_avg3 is not None:
+            _p3 = _used_eps >= _eps_avg3
+            _pass_count += 1 if _p3 else 0
+            _cmp_parts.append(f'3年均{_eps_avg3:.2f}{"V" if _p3 else "X"}')
+        if _avg_eps_10y is not None and _avg_eps_10y > 0:
+            _p10 = _used_eps >= _avg_eps_10y
+            _pass_count += 1 if _p10 else 0
+            _cmp_parts.append(f'10年均{_avg_eps_10y:.2f}{"V" if _p10 else "X"}')
+    checks['eps_vs_multi'] = 1 if _pass_count >= 2 else 0
+    detail['eps_vs_multi'] = f'{_eps_src}EPS={_used_eps:.2f}　' + '　'.join(_cmp_parts) + f'　通過{_pass_count}/3' if _used_eps is not None and _cmp_parts else '無資料'
 
-    # AA級評價 <= 股價 <= A級評價
-    if close and val_aa and val_a:
-        checks['price_in_a'] = 1 if val_aa <= close + 0.005 and close <= val_a + 0.005 else 0
-        detail['price_in_a'] = f'股價{close} vs AA={val_aa} / A={val_a}'
+    # 現價 ≤ A級評價；≤ AA更佳
+    if close and val_a:
+        _in_a = close <= val_a + 0.005
+        _below_aa = val_aa is not None and close <= val_aa + 0.005
+        checks['price_val_ok'] = 1 if _in_a else 0
+        _level = '≤ AA' if _below_aa else ('≤ A' if _in_a else '> A')
+        detail['price_val_ok'] = f'股價{close} vs AA={val_aa} / A={val_a}（{_level}）'
     else:
-        checks['price_in_a'] = 0
-        detail['price_in_a'] = '無評價門檻'
-
-    # 股價 <= AA級評價
-    if close and val_aa:
-        checks['price_below_aa_v'] = 1 if close <= val_aa + 0.005 else 0
-        detail['price_below_aa_v'] = f'股價{close} vs AA={val_aa}'
-    else:
-        checks['price_below_aa_v'] = 0
-        detail['price_below_aa_v'] = '無AA門檻'
+        checks['price_val_ok'] = 0
+        detail['price_val_ok'] = '無評價門檻'
 
     # 沈董法累計營業利益 / 累計稅前淨利 > 80%
     _cr = r.get('_core_ratio')
@@ -1123,37 +1110,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['core_ratio'] = 0
         detail['core_ratio'] = '無季度資料'
 
-    # === 成長性評估檢核（4項） ===
+    # === 成長性評估檢核（5項） ===
     _gi = r.get('_gi') or {}
-
-    # 近5年營收CAGR > 5%
-    _rev_cagr5 = _gi.get('rev_cagr_5y')
-    checks['rev_cagr5_ok'] = 1 if _rev_cagr5 is not None and _rev_cagr5 > 5 else 0
-    detail['rev_cagr5_ok'] = f'5年營收CAGR={_rev_cagr5:.2f}%' if _rev_cagr5 is not None else '無資料'
-
-    # 近5年保守成長率(EPS) > 5%
-    _neff_c = _gi.get('neff_c')
-    checks['eps_cagr5_ok'] = 1 if _neff_c is not None and _neff_c > 5 else 0
-    detail['eps_cagr5_ok'] = f'保守成長率={_neff_c:.2f}%' if _neff_c is not None else '無資料'
-
-    # 近3年營收CAGR > 近5年營收CAGR（營收加速）
-    _rev_cagr3 = _gi.get('rev_cagr_3y')
-    if _rev_cagr3 is not None and _rev_cagr5 is not None:
-        checks['rev_accel'] = 1 if _rev_cagr3 > _rev_cagr5 else 0
-        detail['rev_accel'] = f'3年={_rev_cagr3:.2f}% vs 5年={_rev_cagr5:.2f}%'
-    else:
-        checks['rev_accel'] = 0
-        detail['rev_accel'] = '無資料'
-
-    # 近3年EPS CAGR > 近5年EPS CAGR（EPS加速）
-    _neff_3a = _gi.get('neff_3a')
-    _neff_a = _gi.get('neff_a')
-    if _neff_3a is not None and _neff_a is not None:
-        checks['eps_accel'] = 1 if _neff_3a > _neff_a else 0
-        detail['eps_accel'] = f'3年端點={_neff_3a:.2f}% vs 5年端點={_neff_a:.2f}%'
-    else:
-        checks['eps_accel'] = 0
-        detail['eps_accel'] = '無資料'
 
     # 累積營收年增率 >= 0%
     _cum_yoy = r.get('revenue_cum_yoy')
@@ -1170,6 +1128,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _rev_12m = _gs.get('gi_rev_12m_yoy')
     checks['rev_12m_pos'] = 1 if _rev_12m is not None and _rev_12m >= 0 else 0
     detail['rev_12m_pos'] = f'長期12M={_rev_12m:.2f}%' if _rev_12m is not None else '無資料'
+
+    # 短期3M >= 0% 且 長期12M >= 0%（一致向上）
+    checks['rev_both_pos'] = 1 if _rev_3m is not None and _rev_12m is not None and _rev_3m >= 0 and _rev_12m >= 0 else 0
+    detail['rev_both_pos'] = f'3M={_rev_3m:.2f}% 12M={_rev_12m:.2f}%' if _rev_3m is not None and _rev_12m is not None else '無資料'
 
     # 短期3M >= 長期12M
     if _rev_3m is not None and _rev_12m is not None:
@@ -1198,17 +1160,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}' if _ge_lynch_d is not None else '無資料'
 
-    # 林區一致性 >= 0.5
-    _ge_lynch_c = _gi.get('lynch_c')
-    checks['ge_lynch_consist'] = 1 if _ge_lynch_c is not None and _ge_lynch_c >= 0.5 else 0
-    detail['ge_lynch_consist'] = f'一致性={_ge_lynch_c:.2f}' if _ge_lynch_c is not None else '無資料'
-
-    # 趨勢燈號為多頭
-    _gs_data = growth_map.get(r['code'], {}) if growth_map else {}
-    _ge_signal = _gs_data.get('growth_signal')
-    checks['ge_growth_green'] = 1 if _ge_signal == 'green' else 0
-    detail['ge_growth_green'] = f'燈號={_ge_signal or "無"}'
-
     # === DDM / DCF 計算（價值評估共用） ===
 
     # ddm_return: 股利折現模式現價潛在年報酬 >= 10%
@@ -1232,14 +1183,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
             target_price = sell_price + total_div
             total_ret = (target_price - close) / close
             ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
-    checks['ddm_return'] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
-    checks['val_ddm_return'] = checks['ddm_return']
+    checks['val_ddm_return'] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
     if ddm_ann_ret is not None:
-        _ddm_detail = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
-        detail['ddm_return'] = _ddm_detail
-        detail['val_ddm_return'] = _ddm_detail
+        detail['val_ddm_return'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
     else:
-        detail['ddm_return'] = None
         detail['val_ddm_return'] = None
 
     # dcf_safe_ok: 現價 <= DCF 安全邊際價
@@ -1279,11 +1226,56 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['dcf_safe_ok'] = 0
         detail['dcf_safe_ok'] = 'FCF<=0或無資料' if _dcf_fcf and _dcf_fcf <= 0 else '無資料'
 
-    profit_count = sum(checks[k] for k in CHECKLIST_PROFIT_KEYS)
-    safety_count = sum(checks[k] for k in CHECKLIST_SAFETY_KEYS)
-    value_count = sum(checks[k] for k in CHECKLIST_VALUE_KEYS)
-    growth_eval_count = sum(checks[k] for k in CHECKLIST_GROWTH_EVAL_KEYS)
+    profit_count = sum(checks.get(k, 0) for k in CHECKLIST_PROFIT_KEYS)
+    safety_count = sum(checks.get(k, 0) for k in CHECKLIST_SAFETY_KEYS)
+    value_count = sum(checks.get(k, 0) for k in CHECKLIST_VALUE_KEYS)
+    growth_eval_count = sum(checks.get(k, 0) for k in CHECKLIST_GROWTH_EVAL_KEYS)
     pass_count = profit_count + safety_count + value_count + growth_eval_count
+
+    # === 壓線標記（實際值落在門檻 ±10% 區間）===
+    borderline = {}
+    def _bl(key, actual, threshold, higher_is_pass=True):
+        if actual is None or threshold is None or threshold == 0:
+            return
+        margin = abs(threshold * 0.1)
+        if threshold - margin <= actual <= threshold + margin:
+            borderline[key] = True
+    _bl('roic_avg5', _roic_avg5, 15)
+    _bl('roic_latest', _roic_latest, 15)
+    _bl('roic_min5', _roic_min5, 10)
+    _bl('opm_avg5', _opm_avg5, 10)
+    _bl('opm_min5', _opm_min5, 5)
+    _bl('debt_ratio_ok', _dr_latest, 50)
+    _bl('fin_debt_ok', _fdr_latest, 30)
+    _bl('icr_ok', _icr_latest, 5)
+    _bl('icr_min5', _icr_min, 3)
+    _bl('eq_ok', _eq_latest, 70)
+    _bl('eq_min5', _eq_min, 60)
+    _bl('shen_pe_ok', _used_pe, 15)
+    _bl('wt_yld_ok', _blend_yld, 5)
+    if _eps_ratio_10y is not None:
+        _bl('eps_vs_10y', _eps_ratio_10y, 1)
+    if ddm_ann_ret is not None:
+        _bl('val_ddm_return', ddm_ann_ret, 10)
+    _bl('ge_neff_ratio', _ge_neff_d, 0.7)
+    _bl('ge_lynch_peg', _ge_lynch_d, 1.0)
+    if _wt_payout is not None:
+        if _wt_payout < 40 and _wt_payout >= 36:
+            borderline['wt_payout_ok'] = True
+        elif _wt_payout > 80 and _wt_payout <= 88:
+            borderline['wt_payout_ok'] = True
+
+    # === 紅旗偵測（核心題不過 → 標記）===
+    _core_keys = [it['key'] for it in CHECKLIST_ITEMS if it.get('weight') == '核心']
+    red_flags = []
+    for k in _core_keys:
+        if checks.get(k) != 1:
+            _it = next((x for x in CHECKLIST_ITEMS if x['key'] == k), None)
+            if _it:
+                red_flags.append(f'{_it["label"]}不過')
+    # 趨勢燈號紅旗（不計分但觸發警示）
+    if _gs.get('growth_signal') == 'red':
+        red_flags.append('趨勢燈號為空頭')
 
     # 成長率指標（從 r['_gi'] 取出存入 DB）
     gi = r.get('_gi') or {}
@@ -1320,6 +1312,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'value_count': value_count,
         'growth_eval_count': growth_eval_count,
         'detail': json.dumps(detail, ensure_ascii=False),
+        'borderline': json.dumps(borderline, ensure_ascii=False),
+        'red_flags': json.dumps(red_flags, ensure_ascii=False),
         'eps_setting': r.get('val_eps_used') or r.get('shen_eps'),
         'div_setting': r.get('val_div_used') or r.get('shen_div'),
         'yld_high': y_high,
@@ -4928,6 +4922,16 @@ def get_checklist(code):
         if r.get('detail'):
             try: r['detail'] = json.loads(r['detail'])
             except Exception: pass
+        if r.get('borderline'):
+            try: r['_borderline'] = json.loads(r['borderline'])
+            except Exception: r['_borderline'] = {}
+        else:
+            r['_borderline'] = {}
+        if r.get('red_flags'):
+            try: r['_red_flags'] = json.loads(r['red_flags'])
+            except Exception: r['_red_flags'] = []
+        else:
+            r['_red_flags'] = []
         # 附帶檢核項目定義，前端動態渲染用
         r['_items'] = CHECKLIST_ITEMS
         return jsonify(r)
