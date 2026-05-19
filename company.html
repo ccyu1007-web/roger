@@ -770,8 +770,8 @@ async function loadDecision() {
 
         t += `<tr style="border-bottom:1px solid #e2e8f0">`;
         t += `<td style="text-align:center;font-weight:700;color:#64748b">${i + 1}</td>`;
-        t += `<td class="chk-cond">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
-        t += `<td style="text-align:center;font-size:.8rem;color:#475569">${it.threshold || ''}</td>`;
+        t += `<td class="chk-cond">${it.label}</td>`;
+        t += `<td style="text-align:center;font-size:.8rem;color:#475569">${it.threshold || ''}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
         t += `<td style="text-align:center;font-size:.8rem;font-weight:600;color:${weightColor}">${it.weight || ''}</td>`;
         t += `<td class="chk-yes">${pass ? 'V' : ''}${pass && bl ? '<span style="color:#f59e0b"> △</span>' : ''}</td>`;
         t += `<td class="chk-no">${pass ? '' : 'X'}${!pass && bl ? '<span style="color:#f59e0b"> △</span>' : ''}</td>`;
