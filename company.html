@@ -751,8 +751,9 @@ async function loadDecision() {
         : '';
 
       let t = coreWarn;
-      t += `<table class="chk-table" style="margin-top:8px;border-collapse:collapse">`;
-      t += `<thead><tr><th style="width:40px">#</th><th>${title}（${catCount}/${total}，${pct}%）</th><th style="width:80px">門檻</th><th style="width:50px">權重</th><th style="width:40px">是</th><th style="width:40px">否</th></tr></thead><tbody>`;
+      t += `<table class="chk-table" style="margin-top:8px;border-collapse:collapse;table-layout:fixed;width:100%">`;
+      t += `<colgroup><col style="width:36px"><col><col style="width:90px"><col style="width:46px"><col style="width:36px"><col style="width:36px"></colgroup>`;
+      t += `<thead><tr><th>#</th><th>${title}（${catCount}/${total}，${pct}%）</th><th>門檻</th><th>權重</th><th>是</th><th>否</th></tr></thead><tbody>`;
 
       let lastGroup = null;
       chkItems.forEach((it, i) => {
