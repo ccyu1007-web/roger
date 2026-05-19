@@ -736,6 +736,7 @@ CHECKLIST_ITEMS = [
     {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率', 'threshold': '≥ 0%', 'weight': '重要'},
     {'key': 'rev_both_pos',   'category': 'growth_eval', 'label': '短期3M ≥ 0% 且 長期12M ≥ 0%（一致向上）', 'threshold': '是', 'weight': '輔助'},
     {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M ≥ 長期12M', 'threshold': '是', 'weight': '重要'},
+    {'key': 'growth_green',   'category': 'growth_eval', 'label': '趨勢燈號為多頭', 'threshold': 'green', 'weight': '輔助'},
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
@@ -1164,6 +1165,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         checks['rev_3m_gt_12m'] = 0
         detail['rev_3m_gt_12m'] = '無資料'
+
+    # 趨勢燈號為多頭
+    _ge_signal = _gs.get('growth_signal')
+    checks['growth_green'] = 1 if _ge_signal == 'green' else 0
+    detail['growth_green'] = f'燈號={_ge_signal or "無"}'
 
     # Neff 比率 >= 0.7
     _ge_neff_d = _gi.get('neff_d')
