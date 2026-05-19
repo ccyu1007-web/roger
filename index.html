@@ -400,7 +400,7 @@
       <span class="wb-label" style="color:#059669">體質判斷：</span>
       <span style="color:#059669;font-size:.75rem;font-weight:600;margin-right:2px">好公司</span>
       <div class="wb-item"><label>等級</label>
-        <select id="qGradeThreshold" onchange="saveQualitySettings()" style="border:1px solid #cbd5e1;border-radius:5px;padding:3px 6px;font-size:.82rem">
+        <select id="qGradeThreshold" onchange="saveQualitySettings();previewQuality()" style="border:1px solid #cbd5e1;border-radius:5px;padding:3px 6px;font-size:.82rem">
           <option value="AA">AA 以上</option>
           <option value="A2">A1/A2 以上</option>
           <option value="A">A 以上</option>
@@ -409,30 +409,41 @@
           <option value="C">C 以上</option>
         </select>
       </div>
-      <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" onchange="saveQualitySettings()">年</div>
+      <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" oninput="saveQualitySettings();previewQuality()">年</div>
+      <span id="qPreviewGrade" style="font-size:.72rem;color:#059669;font-weight:600"></span>
       <span style="color:#cbd5e1">|</span>
-      <div class="wb-item"><label><input type="checkbox" id="qNoRedFlag" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> 無核心瑕疵</label></div>
-      <div class="wb-item"><label>獲利性 >=</label><input id="qProfitMin" type="text" style="width:30px" value="0" onchange="saveQualitySettings()">%</div>
-      <div class="wb-item"><label>安全性 >=</label><input id="qSafetyMin" type="text" style="width:30px" value="0" onchange="saveQualitySettings()">%</div>
+      <div class="wb-item"><label><input type="checkbox" id="qNoRedFlag" onchange="saveQualitySettings();previewQuality()" style="width:14px;height:14px;vertical-align:middle"> 無核心瑕疵</label></div>
+      <span id="qPreviewRedFlag" style="font-size:.72rem;color:#059669;font-weight:600"></span>
+      <div class="wb-item"><label>獲利性 >=</label><input id="qProfitMin" type="text" style="width:30px" value="0" oninput="saveQualitySettings();previewQuality()">%</div>
+      <span id="qPreviewProfit" style="font-size:.72rem;color:#059669;font-weight:600"></span>
+      <div class="wb-item"><label>安全性 >=</label><input id="qSafetyMin" type="text" style="width:30px" value="0" oninput="saveQualitySettings();previewQuality()">%</div>
+      <span id="qPreviewSafety" style="font-size:.72rem;color:#059669;font-weight:600"></span>
       <div id="qualityCustomConds" style="display:inline"></div>
       <button onclick="addQualityCond()" style="padding:2px 8px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">+ 自訂</button>
       <span style="color:#cbd5e1">|</span>
       <span style="color:#ef4444;font-size:.75rem;font-weight:600;margin-right:2px">排除</span>
-      <div class="wb-item"><label><input type="checkbox" id="qExcludeKY" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> KY股</label></div>
-      <div class="wb-item"><label><input type="checkbox" id="qExcludeConstruction" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> 營建股</label></div>
-      <div class="wb-item"><label>其他產業</label><input id="qExcludeIndustry" type="text" placeholder="逗號分隔" style="width:120px" onchange="saveQualitySettings()"></div>
+      <div class="wb-item"><label><input type="checkbox" id="qExcludeKY" onchange="saveQualitySettings();previewQuality()" style="width:14px;height:14px;vertical-align:middle"> KY股</label></div>
+      <div class="wb-item"><label><input type="checkbox" id="qExcludeConstruction" onchange="saveQualitySettings();previewQuality()" style="width:14px;height:14px;vertical-align:middle"> 營建股</label></div>
+      <div class="wb-item"><label>其他產業</label><input id="qExcludeIndustry" type="text" placeholder="逗號分隔" style="width:120px" onchange="saveQualitySettings();previewQuality()"></div>
+      <span id="qPreviewExclude" style="font-size:.72rem;color:#ef4444;font-weight:600"></span>
+      <span style="color:#cbd5e1">|</span>
+      <span id="qPreviewTotal" style="font-size:.82rem;color:#059669;font-weight:700"></span>
     </div>
     <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #f59e0b">
       <span class="wb-label" style="color:#f59e0b">觀察挑選：</span>
       <span style="color:#f59e0b;font-size:.75rem;font-weight:600;margin-right:2px">好價格</span>
-      <div class="wb-item"><label><input type="checkbox" id="wsRequireQuality" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> 須體質佳</label></div>
-      <div class="wb-item"><label><input type="checkbox" id="wsPositiveEps" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> EPS正數</label></div>
+      <div class="wb-item"><label><input type="checkbox" id="wsRequireQuality" onchange="saveWatchSettings();previewWatch()" style="width:14px;height:14px;vertical-align:middle"> 須體質佳</label></div>
+      <div class="wb-item"><label><input type="checkbox" id="wsPositiveEps" onchange="saveWatchSettings();previewWatch()" style="width:14px;height:14px;vertical-align:middle"> EPS正數</label></div>
       <span style="color:#cbd5e1">|</span>
-      <div class="wb-item"><label>價值評估 >=</label><input id="wsValueMin" type="text" style="width:30px" value="0" onchange="saveWatchSettings()">%</div>
-      <div class="wb-item"><label>成長性 >=</label><input id="wsGrowthMin" type="text" style="width:30px" value="0" onchange="saveWatchSettings()">%</div>
+      <div class="wb-item"><label>價值評估 >=</label><input id="wsValueMin" type="text" style="width:30px" value="0" oninput="saveWatchSettings();previewWatch()">%</div>
+      <span id="wPreviewValue" style="font-size:.72rem;color:#f59e0b;font-weight:600"></span>
+      <div class="wb-item"><label>成長性 >=</label><input id="wsGrowthMin" type="text" style="width:30px" value="0" oninput="saveWatchSettings();previewWatch()">%</div>
+      <span id="wPreviewGrowth" style="font-size:.72rem;color:#f59e0b;font-weight:600"></span>
       <span style="color:#cbd5e1">|</span>
       <div id="customConditions" style="display:inline"></div>
       <button onclick="addCondition()" style="padding:2px 8px;border:1px solid #6366f1;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#6366f1;font-weight:600">+ 自訂</button>
+      <span style="color:#cbd5e1">|</span>
+      <span id="wPreviewTotal" style="font-size:.82rem;color:#f59e0b;font-weight:700"></span>
     </div>
     <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #f59e0b;padding-left:18px">
       <span class="wb-label" style="color:#f59e0b">等級篩選：</span>
