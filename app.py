@@ -718,8 +718,8 @@ CHECKLIST_ITEMS = [
     {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助'},
     # ── C 價值評估檢核（13項）──
     {'key': 'grade_a_ok',     'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法'},
-    {'key': 'eps_vs_multi',   'category': 'value', 'label': '沈董EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法'},
-    {'key': 'eps_vs_10y',     'category': 'value', 'label': '沈董EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法'},
+    {'key': 'eps_vs_multi',   'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法'},
+    {'key': 'eps_vs_10y',     'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法'},
     {'key': 'core_ratio',     'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 80%', 'weight': '重要', 'group': '沈董法'},
     {'key': 'price_val_ok',   'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法'},
     {'key': 'eps_5y_pos',     'category': 'value', 'label': '近5年EPS逐年皆 > 0', 'threshold': '是', 'weight': '核心', 'group': 'EPS 品質'},
