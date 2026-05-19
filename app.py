@@ -2208,6 +2208,8 @@ def get_stocks():
     try:
         _init_checklist_db()
         chk_rows = query_db("""SELECT code, pass_count, total_count,
+                                profit_count, safety_count, value_count, growth_eval_count,
+                                red_flags,
                                 gi_neff_a, gi_neff_b, gi_neff_3a, gi_neff_3b,
                                 gi_neff_c, gi_neff_d, gi_intrinsic_growth,
                                 gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
@@ -2234,6 +2236,20 @@ def get_stocks():
         chk = chk_map.get(row["code"])
         row["_chk_pass"] = chk['pass_count'] if chk else None
         row["_chk_total"] = chk['total_count'] if chk else None
+        row["_chk_profit"] = chk['profit_count'] if chk else None
+        row["_chk_profit_total"] = len(CHECKLIST_PROFIT_KEYS)
+        row["_chk_safety"] = chk['safety_count'] if chk else None
+        row["_chk_safety_total"] = len(CHECKLIST_SAFETY_KEYS)
+        row["_chk_value"] = chk['value_count'] if chk else None
+        row["_chk_value_total"] = len(CHECKLIST_VALUE_KEYS)
+        row["_chk_growth"] = chk['growth_eval_count'] if chk else None
+        row["_chk_growth_total"] = len(CHECKLIST_GROWTH_EVAL_KEYS)
+        try:
+            import json as _json_rf
+            _rf = _json_rf.loads(chk['red_flags']) if chk and chk.get('red_flags') else []
+            row["_chk_red_flags"] = len(_rf)
+        except Exception:
+            row["_chk_red_flags"] = 0
         row["_growth_signal"] = chk.get('growth_signal') if chk else None
         row["_growth_rev"] = chk.get('growth_rev_momentum') if chk else None
         row["_growth_eps"] = chk.get('growth_eps_trend') if chk else None

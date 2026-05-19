@@ -398,8 +398,8 @@
   <div id="allSettingsPanel" style="display:none">
     <div class="weight-bar" style="margin-bottom:4px;border-left:4px solid #059669">
       <span class="wb-label" style="color:#059669">體質判斷：</span>
-      <span style="color:#059669;font-size:.75rem;font-weight:600;margin-right:2px">選入</span>
-      <div class="wb-item"><label>等級要求</label>
+      <span style="color:#059669;font-size:.75rem;font-weight:600;margin-right:2px">好公司</span>
+      <div class="wb-item"><label>等級</label>
         <select id="qGradeThreshold" onchange="saveQualitySettings()" style="border:1px solid #cbd5e1;border-radius:5px;padding:3px 6px;font-size:.82rem">
           <option value="AA">AA 以上</option>
           <option value="A2">A1/A2 以上</option>
@@ -409,8 +409,11 @@
           <option value="C">C 以上</option>
         </select>
       </div>
-      <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" onchange="saveQualitySettings()">年通過</div>
-      <div class="wb-item"><label><input type="checkbox" id="qRoicEnabled" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> ROIC均值 >=</label><input id="qRoicThreshold" type="text" style="width:36px" onchange="saveQualitySettings()">%</div>
+      <div class="wb-item"><label>>=</label><input id="qGradeYears" type="text" style="width:36px" onchange="saveQualitySettings()">年</div>
+      <span style="color:#cbd5e1">|</span>
+      <div class="wb-item"><label><input type="checkbox" id="qNoRedFlag" onchange="saveQualitySettings()" style="width:14px;height:14px;vertical-align:middle"> 無核心瑕疵</label></div>
+      <div class="wb-item"><label>獲利性 >=</label><input id="qProfitMin" type="text" style="width:30px" value="0" onchange="saveQualitySettings()">%</div>
+      <div class="wb-item"><label>安全性 >=</label><input id="qSafetyMin" type="text" style="width:30px" value="0" onchange="saveQualitySettings()">%</div>
       <div id="qualityCustomConds" style="display:inline"></div>
       <button onclick="addQualityCond()" style="padding:2px 8px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">+ 自訂</button>
       <span style="color:#cbd5e1">|</span>
@@ -421,12 +424,12 @@
     </div>
     <div class="weight-bar" style="margin-bottom:0;border-left:4px solid #f59e0b">
       <span class="wb-label" style="color:#f59e0b">觀察挑選：</span>
+      <span style="color:#f59e0b;font-size:.75rem;font-weight:600;margin-right:2px">好價格</span>
       <div class="wb-item"><label><input type="checkbox" id="wsRequireQuality" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> 須體質佳</label></div>
       <div class="wb-item"><label><input type="checkbox" id="wsPositiveEps" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> EPS正數</label></div>
       <span style="color:#cbd5e1">|</span>
-      <div class="wb-item"><label><input type="checkbox" id="wsShillerOk" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> 席勒警示正常</label></div>
-      <div class="wb-item"><label><input type="checkbox" id="wsIntrinsicGrowth" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> 內生成長率 >=</label><input id="wsIntrinsicVal" type="text" style="width:30px" onchange="saveWatchSettings()">%</div>
-      <div class="wb-item"><label><input type="checkbox" id="wsRevCagr" onchange="saveWatchSettings()" style="width:14px;height:14px;vertical-align:middle"> 營收CAGR >=</label><input id="wsRevCagrVal" type="text" style="width:30px" onchange="saveWatchSettings()">%</div>
+      <div class="wb-item"><label>價值評估 >=</label><input id="wsValueMin" type="text" style="width:30px" value="0" onchange="saveWatchSettings()">%</div>
+      <div class="wb-item"><label>成長性 >=</label><input id="wsGrowthMin" type="text" style="width:30px" value="0" onchange="saveWatchSettings()">%</div>
       <span style="color:#cbd5e1">|</span>
       <div id="customConditions" style="display:inline"></div>
       <button onclick="addCondition()" style="padding:2px 8px;border:1px solid #6366f1;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#6366f1;font-weight:600">+ 自訂</button>
@@ -1324,8 +1327,7 @@ function removeFocus(code) {
 // ── 觀察清單自動挑選 ──────────────────────────────────────
 const DEFAULT_W_SETTINGS = {
   requireQuality: true, positiveEps: true,
-  shillerOk: false, intrinsicGrowth: false, intrinsicVal: 5,
-  revCagr: false, revCagrVal: 5,
+  valueMin: 0, growthMin: 0,
 };
 let _wSettings = JSON.parse(localStorage.getItem('watch_settings') || 'null') || {...DEFAULT_W_SETTINGS};
 
@@ -1358,11 +1360,8 @@ function initWatchSettings() {
   }
   document.getElementById('wsRequireQuality').checked = _wSettings.requireQuality;
   document.getElementById('wsPositiveEps').checked = _wSettings.positiveEps;
-  document.getElementById('wsShillerOk').checked = _wSettings.shillerOk || false;
-  document.getElementById('wsIntrinsicGrowth').checked = _wSettings.intrinsicGrowth || false;
-  document.getElementById('wsIntrinsicVal').value = _wSettings.intrinsicVal || 5;
-  document.getElementById('wsRevCagr').checked = _wSettings.revCagr || false;
-  document.getElementById('wsRevCagrVal').value = _wSettings.revCagrVal || 5;
+  document.getElementById('wsValueMin').value = _wSettings.valueMin || 0;
+  document.getElementById('wsGrowthMin').value = _wSettings.growthMin || 0;
   if (!localStorage.getItem('watch_settings')) {
     localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
     syncUserSettings();
@@ -1372,11 +1371,8 @@ function initWatchSettings() {
 function saveWatchSettings() {
   _wSettings.requireQuality = document.getElementById('wsRequireQuality').checked;
   _wSettings.positiveEps = document.getElementById('wsPositiveEps').checked;
-  _wSettings.shillerOk = document.getElementById('wsShillerOk').checked;
-  _wSettings.intrinsicGrowth = document.getElementById('wsIntrinsicGrowth').checked;
-  _wSettings.intrinsicVal = parseFloat(document.getElementById('wsIntrinsicVal').value) || 5;
-  _wSettings.revCagr = document.getElementById('wsRevCagr').checked;
-  _wSettings.revCagrVal = parseFloat(document.getElementById('wsRevCagrVal').value) || 5;
+  _wSettings.valueMin = parseFloat(document.getElementById('wsValueMin').value) || 0;
+  _wSettings.growthMin = parseFloat(document.getElementById('wsGrowthMin').value) || 0;
   localStorage.setItem('watch_settings', JSON.stringify(_wSettings));
   syncUserSettings();
 }
@@ -1405,20 +1401,15 @@ function autoWatchCheck(silent) {
       excluded[r.code] = `EPS非正數(${r.shen_eps})`;
       return;
     }
-    // 席勒警示正常（alert >= 0.5 或無資料視為正常）
-    if (s.shillerOk) {
-      const sa = r._gi?.shiller_alert;
-      if (sa != null && sa < 0.5) { excluded[r.code] = `席勒警示異常(${sa})`; return; }
+    // 價值評估通過率
+    if (s.valueMin > 0 && r._chk_value_total > 0) {
+      const valPct = r._chk_value != null ? r._chk_value / r._chk_value_total * 100 : 0;
+      if (valPct < s.valueMin) { excluded[r.code] = `價值評估${Math.round(valPct)}%<${s.valueMin}%`; return; }
     }
-    // 內生成長率
-    if (s.intrinsicGrowth) {
-      const ig = r._gi?.intrinsic_growth;
-      if (ig == null || ig < (s.intrinsicVal || 5)) { excluded[r.code] = `內生成長率不足(${ig})`; return; }
-    }
-    // 營收CAGR
-    if (s.revCagr) {
-      const rc = r._gi?.rev_cagr_5y ?? r._gi?.rev_cagr_3y;
-      if (rc == null || rc < (s.revCagrVal || 5)) { excluded[r.code] = `營收CAGR不足(${rc})`; return; }
+    // 成長性通過率
+    if (s.growthMin > 0 && r._chk_growth_total > 0) {
+      const growPct = r._chk_growth != null ? r._chk_growth / r._chk_growth_total * 100 : 0;
+      if (growPct < s.growthMin) { excluded[r.code] = `成長性${Math.round(growPct)}%<${s.growthMin}%`; return; }
     }
     // 自訂條件
     if (_customConditions.length > 0 && !evalCustomConditions(r)) {
@@ -1463,9 +1454,8 @@ function autoWatchCheck(silent) {
   const condText = [
     s.requireQuality ? '須通過體質篩選' : '',
     s.positiveEps ? 'EPS 須為正' : '',
-    s.shillerOk ? '席勒警示正常' : '',
-    s.intrinsicGrowth ? `內生成長率 >= ${s.intrinsicVal}%` : '',
-    s.revCagr ? `營收CAGR >= ${s.revCagrVal}%` : '',
+    s.valueMin > 0 ? `價值評估 >= ${s.valueMin}%` : '',
+    s.growthMin > 0 ? `成長性 >= ${s.growthMin}%` : '',
     ..._customConditions.map(c => {
       const label = FIELD_OPTIONS.find(f => f.key === c.field)?.label || c.field;
       return `${label} ${c.op} ${c.value}`;
@@ -1477,10 +1467,12 @@ function autoWatchCheck(silent) {
   ].filter(Boolean).map((c, i) => `  ${i+1}. ${c}`).join('\n');
 
   // debug: 排除原因按步驟統計
-  const stepCounts = {'未通過體質':0,'EPS非正數':0,'自訂條件不符':0,'等級篩選不符':0};
+  const stepCounts = {'未通過體質':0,'EPS非正數':0,'價值評估不足':0,'成長性不足':0,'自訂條件不符':0,'等級篩選不符':0};
   Object.values(excluded).forEach(r => {
     if (r.includes('體質')) stepCounts['未通過體質']++;
     else if (r.includes('EPS')) stepCounts['EPS非正數']++;
+    else if (r.includes('價值評估')) stepCounts['價值評估不足']++;
+    else if (r.includes('成長性')) stepCounts['成長性不足']++;
     else if (r.includes('自訂條件')) stepCounts['自訂條件不符']++;
     else if (r.includes('等級篩選')) stepCounts['等級篩選不符']++;
   });
@@ -1778,8 +1770,9 @@ function applyEtfFilter() { page = 1; applyFilter(); }
 const DEFAULT_Q_SETTINGS = {
   gradeThreshold: 'A2',   // 等級門檻（A2以上才算通過）
   gradeYears: 3,           // 幾年以上
-  roicEnabled: false,      // ROIC均值篩選
-  roicThreshold: 10,       // ROIC門檻 %
+  noRedFlag: false,        // 無核心瑕疵
+  profitMin: 0,            // 獲利性最低通過率 %
+  safetyMin: 0,            // 安全性最低通過率 %
   excludeKY: true,
   excludeConstruction: true,
   excludeIndustry: '',    // 額外排除產業（逗號分隔）
@@ -1789,8 +1782,9 @@ let _qSettings = JSON.parse(localStorage.getItem('quality_settings') || 'null') 
 function initQualitySettings() {
   document.getElementById('qGradeThreshold').value = _qSettings.gradeThreshold;
   document.getElementById('qGradeYears').value = _qSettings.gradeYears;
-  document.getElementById('qRoicEnabled').checked = _qSettings.roicEnabled || false;
-  document.getElementById('qRoicThreshold').value = _qSettings.roicThreshold || 10;
+  document.getElementById('qNoRedFlag').checked = _qSettings.noRedFlag || false;
+  document.getElementById('qProfitMin').value = _qSettings.profitMin || 0;
+  document.getElementById('qSafetyMin').value = _qSettings.safetyMin || 0;
   document.getElementById('qExcludeKY').checked = _qSettings.excludeKY;
   document.getElementById('qExcludeConstruction').checked = _qSettings.excludeConstruction;
   document.getElementById('qExcludeIndustry').value = _qSettings.excludeIndustry || '';
@@ -1799,8 +1793,9 @@ function initQualitySettings() {
 function saveQualitySettings() {
   _qSettings.gradeThreshold = document.getElementById('qGradeThreshold').value;
   _qSettings.gradeYears = parseInt(document.getElementById('qGradeYears').value) || 3;
-  _qSettings.roicEnabled = document.getElementById('qRoicEnabled').checked;
-  _qSettings.roicThreshold = parseFloat(document.getElementById('qRoicThreshold').value) || 10;
+  _qSettings.noRedFlag = document.getElementById('qNoRedFlag').checked;
+  _qSettings.profitMin = parseFloat(document.getElementById('qProfitMin').value) || 0;
+  _qSettings.safetyMin = parseFloat(document.getElementById('qSafetyMin').value) || 0;
   _qSettings.excludeKY = document.getElementById('qExcludeKY').checked;
   _qSettings.excludeConstruction = document.getElementById('qExcludeConstruction').checked;
   _qSettings.excludeIndustry = document.getElementById('qExcludeIndustry').value.trim();
@@ -1854,9 +1849,19 @@ function autoQualityCheck(silent) {
     const goodCount = grades.filter(g => meetsThreshold(g)).length;
     if (goodCount < s.gradeYears) { excluded++; return; }
 
-    if (s.roicEnabled) {
-      const roicAvg = r._gi?.roic_avg;
-      if (roicAvg == null || roicAvg < (s.roicThreshold || 10)) { excluded++; return; }
+    // 無核心瑕疵（紅旗 = 0）
+    if (s.noRedFlag && r._chk_red_flags > 0) { excluded++; return; }
+
+    // 獲利性通過率
+    if (s.profitMin > 0 && r._chk_profit_total > 0) {
+      const profitPct = r._chk_profit != null ? r._chk_profit / r._chk_profit_total * 100 : 0;
+      if (profitPct < s.profitMin) { excluded++; return; }
+    }
+
+    // 安全性通過率
+    if (s.safetyMin > 0 && r._chk_safety_total > 0) {
+      const safetyPct = r._chk_safety != null ? r._chk_safety / r._chk_safety_total * 100 : 0;
+      if (safetyPct < s.safetyMin) { excluded++; return; }
     }
 
     if (_qualityCustomConds.length > 0 && !evalCustomConditions(r, _qualityCustomConds)) { excluded++; return; }
@@ -1877,7 +1882,9 @@ function autoQualityCheck(silent) {
     render();
     const includeRules = [];
     includeRules.push(`等級 ${s.gradeThreshold} 以上 >= ${s.gradeYears} 年`);
-    if (s.roicEnabled) includeRules.push(`ROIC均值 >= ${s.roicThreshold}%`);
+    if (s.noRedFlag) includeRules.push('無核心瑕疵');
+    if (s.profitMin > 0) includeRules.push(`獲利性 >= ${s.profitMin}%`);
+    if (s.safetyMin > 0) includeRules.push(`安全性 >= ${s.safetyMin}%`);
     _qualityCustomConds.forEach(c => {
       const label = QUALITY_FIELD_OPTIONS.find(f => f.key === c.field)?.label || c.field;
       includeRules.push(`${label} ${c.op} ${c.value}`);
