@@ -700,7 +700,8 @@ CHECKLIST_ITEMS = [
     {'key': 'opm_trend',   'category': 'profit', 'label': '營益率趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '重要'},
     {'key': 'opm_min5',    'category': 'profit', 'label': '營益率近5年最低值', 'threshold': '≥ 5%', 'weight': '輔助'},
     {'key': 'gm_trend',    'category': 'profit', 'label': '毛利率趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '輔助'},
-    {'key': 'gm_stable',   'category': 'profit', 'label': '毛利率穩定度：近5年最低值 ≥ 均值×0.85', 'threshold': '是', 'weight': '輔助'},
+    {'key': 'gm_median',   'category': 'profit', 'label': '毛利率位置：最近一年 ≥ 近5年中位數', 'threshold': '是', 'weight': '重要'},
+    {'key': 'gm_q_trend',  'category': 'profit', 'label': '毛利率季趨勢：近4季平均 ≥ 近12季平均', 'threshold': '是', 'weight': '輔助'},
     # ── B 安全性檢核（13項）──
     {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比', 'threshold': '≤ 50%', 'weight': '核心'},
     {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比', 'threshold': '< 30%', 'weight': '核心'},
@@ -914,9 +915,23 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
 
     checks['gm_trend'] = 1 if _gm_latest is not None and _gm_avg3 is not None and _gm_latest >= _gm_avg3 else 0
     detail['gm_trend'] = f'最近一年={_gm_latest:.2f}% vs 近3年平均={_gm_avg3:.2f}%' if _gm_latest is not None and _gm_avg3 is not None else '無資料'
-    _gm_threshold = _gm_avg5 * 0.85 if _gm_avg5 is not None else None
-    checks['gm_stable'] = 1 if _gm_min5 is not None and _gm_threshold is not None and _gm_min5 >= _gm_threshold else 0
-    detail['gm_stable'] = f'5年最低={_gm_min5:.2f}% vs 均值×0.85={_gm_threshold:.2f}%' if _gm_min5 is not None and _gm_threshold is not None else '無資料'
+
+    # 毛利率位置：最近一年 >= 近5年中位數
+    _gm_median5 = None
+    if len(_gm_vals_5) >= 5:
+        _sorted_gm = sorted(_gm_vals_5)
+        _gm_median5 = _sorted_gm[len(_sorted_gm) // 2]
+    checks['gm_median'] = 1 if _gm_latest is not None and _gm_median5 is not None and _gm_latest >= _gm_median5 else 0
+    detail['gm_median'] = f'最近一年={_gm_latest:.2f}% vs 5年中位數={_gm_median5:.2f}%' if _gm_latest is not None and _gm_median5 is not None else '無資料'
+
+    # 毛利率季趨勢：近4季平均 >= 近12季平均
+    _qgm = r.get('_qgm')
+    if _qgm and _qgm.get('q_avg4') is not None and _qgm.get('q_avg12') is not None:
+        checks['gm_q_trend'] = 1 if _qgm['q_avg4'] >= _qgm['q_avg12'] else 0
+        detail['gm_q_trend'] = f'近4季平均={_qgm["q_avg4"]}% vs 近12季平均={_qgm["q_avg12"]}%'
+    else:
+        checks['gm_q_trend'] = 0
+        detail['gm_q_trend'] = '季度毛利率資料不足（需12季以上）'
 
     _opm_5y = r.get('_opm_5y') or []
     _opm_vals_5 = [v for _, v in _opm_5y if v is not None]
@@ -1543,13 +1558,22 @@ def calc_all_checklists():
             _qf_by_code[qr['code']].append(qr)
         for code, qs in _qf_by_code.items():
             qs.sort(key=lambda x: (int(x['quarter'].split('Q')[0]), int(x['quarter'].split('Q')[1])), reverse=True)
+            # 計算每季毛利率
+            q_gms = []
+            for q in qs:
+                if q['revenue'] > 0 and q['gross_profit'] is not None:
+                    q_gms.append(round(q['gross_profit'] / q['revenue'] * 100, 2))
             if len(qs) >= 2:
                 gm0 = round(qs[0]['gross_profit'] / qs[0]['revenue'] * 100, 2)
                 gm1 = round(qs[1]['gross_profit'] / qs[1]['revenue'] * 100, 2)
+                # 季趨勢：近4季平均 vs 近12季平均
+                _gm_q_avg4 = round(sum(q_gms[:4]) / len(q_gms[:4]), 2) if len(q_gms) >= 4 else None
+                _gm_q_avg12 = round(sum(q_gms[:12]) / len(q_gms[:12]), 2) if len(q_gms) >= 12 else None
                 gm_map[code] = {
                     'latest_q': qs[0]['quarter'], 'latest_gm': gm0,
                     'prev_q': qs[1]['quarter'], 'prev_gm': gm1,
                     'change': round(gm0 - gm1, 2),
+                    'q_avg4': _gm_q_avg4, 'q_avg12': _gm_q_avg12,
                 }
     except Exception as e:
         print(f"[Checklist] 毛利率查詢失敗: {e}")
@@ -1758,6 +1782,7 @@ def calc_all_checklists():
         for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days'):
             r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
         r['_qinv'] = qinv_map.get(r['code'])
+        r['_qgm'] = gm_map.get(r['code'])
         r['_common_stock'] = _roic_map.get(r['code'] + '_common_stock')
         # 沈董法本業佔比：用 eps_1q 判斷當年度已公布季度
         _cr_data = _cr_by_code.get(r['code'], [])
