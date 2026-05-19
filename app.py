@@ -1832,6 +1832,7 @@ def calc_all_checklists():
                        'growth_signal', 'growth_rev_momentum', 'growth_eps_trend',
                        'growth_inv_risk', 'growth_detail',
                        'gi_rev_3m_yoy', 'gi_rev_12m_yoy',
+                       'borderline', 'red_flags',
                        'updated_at']
         result['updated_at'] = now
         placeholders = ','.join(['?'] * len(all_fields))
@@ -1985,6 +1986,7 @@ def _recalc_checklist_single(code):
                    'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
                    'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
                    'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
+                   'borderline', 'red_flags',
                    'updated_at']
     result['updated_at'] = now
     placeholders = ','.join(['?'] * len(all_fields))
