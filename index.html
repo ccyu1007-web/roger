@@ -2340,6 +2340,8 @@ async function loadData() {
     // 載入時自動用當前設定重算體質判斷和觀察挑選（確保設定變更立即生效）
     autoQualityCheck(true);  // true = 靜默模式，不觸發 render 和 alert
     autoWatchCheck(true);    // true = 靜默模式，不彈 alert
+    previewQuality();
+    previewWatch();
     applySort();
     render();
 
