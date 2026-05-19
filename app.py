@@ -717,7 +717,7 @@ CHECKLIST_ITEMS = [
     {'key': 'ar_days_avg',    'category': 'safety', 'label': '應收帳款週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要'},
     {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助'},
     # ── C 價值評估檢核（13項）──
-    {'key': 'shen_pe_ok',     'category': 'value', 'label': '沈董法本益比', 'threshold': '≤ 15', 'weight': '核心', 'group': '沈董法'},
+    {'key': 'grade_a_ok',     'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法'},
     {'key': 'eps_vs_multi',   'category': 'value', 'label': '沈董EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法'},
     {'key': 'eps_vs_10y',     'category': 'value', 'label': '沈董EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法'},
     {'key': 'core_ratio',     'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 80%', 'weight': '重要', 'group': '沈董法'},
@@ -1035,12 +1035,21 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _eps_y = [r.get(f'eps_y{i}') for i in range(1, 6)]
     _eps_y_valid = [e for e in _eps_y if e is not None]
 
-    # 預估(沈董)本益比 <= 15：有預估PE用預估，沒有用沈董
+    # 預估(沈董)等級為A級以上
     _est_pe = r.get('est_pe')
     _used_pe = _est_pe if _est_pe is not None and _est_pe > 0 else _shen_pe
     _pe_src = '預估' if _est_pe is not None and _est_pe > 0 else '沈董'
-    checks['shen_pe_ok'] = 1 if _used_pe is not None and _used_pe > 0 and _used_pe <= 15 else 0
-    detail['shen_pe_ok'] = f'{_pe_src}PE={_used_pe:.2f}倍' if _used_pe is not None else '無資料'
+    _est_grade = r.get('est_grade')
+    _used_grade = _est_grade if _est_grade else r.get('shen_grade')
+    _grade_src = '預估' if _est_grade else '沈董'
+    _used_yld = r.get('est_yld') or r.get('shen_yld')
+    checks['grade_a_ok'] = 1 if _used_grade in ('A', 'A1', 'A2', 'AA') else 0
+    _grade_parts = [f'{_grade_src}等級={_used_grade or "無"}']
+    if _used_pe is not None:
+        _grade_parts.append(f'PE={_used_pe:.2f}倍')
+    if _used_yld is not None:
+        _grade_parts.append(f'殖利率={_used_yld:.2f}%')
+    detail['grade_a_ok'] = '　'.join(_grade_parts)
 
     # EPS 來源判斷：有預估EPS用預估，沒有用沈董
     _est_eps_val = r.get('est_eps')
@@ -1266,7 +1275,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _bl('icr_min5', _icr_min, 3)
     _bl('eq_ok', _eq_latest, 70)
     _bl('eq_min5', _eq_min, 60)
-    _bl('shen_pe_ok', _used_pe, 15)
+    # grade_a_ok 是等級判斷，無數值壓線
     _bl('wt_yld_ok', _blend_yld, 5)
     if _eps_ratio_10y is not None:
         _bl('eps_vs_10y', _eps_ratio_10y, 1)
