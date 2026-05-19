@@ -751,15 +751,14 @@ async function loadDecision() {
         : '';
 
       let t = coreWarn;
-      t += `<table class="chk-table" style="margin-top:8px;border-collapse:collapse;table-layout:fixed;width:100%">`;
-      t += `<colgroup><col style="width:36px"><col><col style="width:90px"><col style="width:46px"><col style="width:36px"><col style="width:36px"></colgroup>`;
-      t += `<thead><tr><th>#</th><th>${title}（${catCount}/${total}，${pct}%）</th><th>門檻</th><th>權重</th><th>是</th><th>否</th></tr></thead><tbody>`;
+      t += `<table class="chk-table" style="margin-top:8px;border-collapse:collapse">`;
+      t += `<thead><tr><th style="width:36px">#</th><th>${title}（${catCount}/${total}，${pct}%）</th><th style="width:46px">權重</th><th style="width:36px">是</th><th style="width:36px">否</th></tr></thead><tbody>`;
 
       let lastGroup = null;
       chkItems.forEach((it, i) => {
         // C 區子分組標題
         if (it.group && it.group !== lastGroup) {
-          t += `<tr><td colspan="6" style="padding:8px 14px;background:#f0f9ff;font-weight:700;color:#0369a1;font-size:.82rem;border-bottom:2px solid #bae6fd">${it.group}</td></tr>`;
+          t += `<tr><td colspan="5" style="padding:8px 14px;background:#f0f9ff;font-weight:700;color:#0369a1;font-size:.82rem;border-bottom:2px solid #bae6fd">${it.group}</td></tr>`;
           lastGroup = it.group;
         }
 
@@ -771,8 +770,8 @@ async function loadDecision() {
 
         t += `<tr style="border-bottom:1px solid #e2e8f0">`;
         t += `<td style="text-align:center;font-weight:700;color:#64748b">${i + 1}</td>`;
-        t += `<td class="chk-cond">${it.label}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
-        t += `<td style="text-align:center;font-size:.8rem;color:#475569">${it.threshold || ''}</td>`;
+        const thresholdText = it.threshold ? `<span style="color:#64748b;font-weight:400">　${it.threshold}</span>` : '';
+        t += `<td class="chk-cond">${it.label}${thresholdText}${d ? `<div class="chk-detail">${d}</div>` : ''}</td>`;
         t += `<td style="text-align:center;font-size:.8rem;font-weight:600;color:${weightColor}">${it.weight || ''}</td>`;
         t += `<td class="chk-yes">${pass ? 'V' : ''}${pass && bl ? '<span style="color:#f59e0b"> △</span>' : ''}</td>`;
         t += `<td class="chk-no">${pass ? '' : 'X'}${!pass && bl ? '<span style="color:#f59e0b"> △</span>' : ''}</td>`;
