@@ -1816,6 +1816,106 @@ function saveQualitySettings() {
 
 function toggleQualitySettings() { toggleAllSettings(); }
 
+function previewQuality() {
+  if (!allData.length) return;
+  const s = _qSettings;
+  const gradeOrder = {'AA':9,'A1':8,'A2':8,'B1A':6,'B2A':6,'A':5,'B1':4,'B2':4,'C':3,'D':2};
+  function gradeBase(g) { return g ? g.replace(/[+-]$/, '') : ''; }
+  function meetsThreshold(g) { return (gradeOrder[gradeBase(g)] || 0) >= (gradeOrder[s.gradeThreshold] || 7); }
+  const excludeIndustries = new Set();
+  if (s.excludeConstruction) excludeIndustries.add('建材營造');
+  if (s.excludeIndustry) s.excludeIndustry.split(',').forEach(i => { if (i.trim()) excludeIndustries.add(i.trim()); });
+
+  let pool = [...allData];
+  // 排除
+  const beforeExclude = pool.length;
+  pool = pool.filter(r => !(s.excludeKY && r.name && /[-*]?KY$/i.test(r.name.trim())));
+  pool = pool.filter(r => !(r.industry && excludeIndustries.has(r.industry)));
+  const afterExclude = pool.length;
+  const el_ex = document.getElementById('qPreviewExclude');
+  if (el_ex) el_ex.textContent = beforeExclude - afterExclude > 0 ? `排除${beforeExclude - afterExclude}支` : '';
+
+  // 等級
+  pool = pool.filter(r => {
+    const grades = [];
+    for (const y of _fixedY) { const g = r._fg ? r._fg[y] : null; if (g) grades.push(g); }
+    if (grades.length < 3) return false;
+    return grades.filter(g => meetsThreshold(g)).length >= s.gradeYears;
+  });
+  const el_g = document.getElementById('qPreviewGrade');
+  if (el_g) el_g.textContent = `→${pool.length}支`;
+
+  // 無核心瑕疵
+  if (s.noRedFlag) {
+    pool = pool.filter(r => !r._chk_red_flags || r._chk_red_flags === 0);
+  }
+  const el_rf = document.getElementById('qPreviewRedFlag');
+  if (el_rf) el_rf.textContent = s.noRedFlag ? `→${pool.length}支` : '';
+
+  // 獲利性
+  const profitMin = s.profitMin || 0;
+  if (profitMin > 0) {
+    pool = pool.filter(r => r._chk_profit_total > 0 && (r._chk_profit || 0) / r._chk_profit_total * 100 >= profitMin);
+  }
+  const el_p = document.getElementById('qPreviewProfit');
+  if (el_p) el_p.textContent = profitMin > 0 ? `→${pool.length}支` : '';
+
+  // 安全性
+  const safetyMin = s.safetyMin || 0;
+  if (safetyMin > 0) {
+    pool = pool.filter(r => r._chk_safety_total > 0 && (r._chk_safety || 0) / r._chk_safety_total * 100 >= safetyMin);
+  }
+  const el_s = document.getElementById('qPreviewSafety');
+  if (el_s) el_s.textContent = safetyMin > 0 ? `→${pool.length}支` : '';
+
+  // 自訂條件
+  if (_qualityCustomConds.length > 0) {
+    pool = pool.filter(r => evalCustomConditions(r, _qualityCustomConds));
+  }
+
+  const el_t = document.getElementById('qPreviewTotal');
+  if (el_t) el_t.textContent = `最終：${pool.length}支`;
+}
+
+function previewWatch() {
+  if (!allData.length) return;
+  const s = _wSettings;
+  let pool = s.requireQuality ? allData.filter(r => qualitySet.has(r.code)) : [...allData];
+  const el_t = document.getElementById('wPreviewTotal');
+
+  // EPS 正數
+  if (s.positiveEps) {
+    pool = pool.filter(r => r.shen_eps != null && r.shen_eps > 0);
+  }
+
+  // 價值評估
+  const valueMin = s.valueMin || 0;
+  if (valueMin > 0) {
+    pool = pool.filter(r => r._chk_value_total > 0 && (r._chk_value || 0) / r._chk_value_total * 100 >= valueMin);
+  }
+  const el_v = document.getElementById('wPreviewValue');
+  if (el_v) el_v.textContent = valueMin > 0 ? `→${pool.length}支` : '';
+
+  // 成長性
+  const growthMin = s.growthMin || 0;
+  if (growthMin > 0) {
+    pool = pool.filter(r => r._chk_growth_total > 0 && (r._chk_growth || 0) / r._chk_growth_total * 100 >= growthMin);
+  }
+  const el_gr = document.getElementById('wPreviewGrowth');
+  if (el_gr) el_gr.textContent = growthMin > 0 ? `→${pool.length}支` : '';
+
+  // 自訂條件
+  if (_customConditions.length > 0) {
+    pool = pool.filter(r => evalCustomConditions(r));
+  }
+  // 等級篩選
+  if (Object.keys(_gradeFilters).length > 0) {
+    pool = pool.filter(r => evalGradeFilters(r));
+  }
+
+  if (el_t) el_t.textContent = `最終：${pool.length}支`;
+}
+
 function clearQuality() {
   if (!qualitySet.size) return;
   qualitySet.clear();
