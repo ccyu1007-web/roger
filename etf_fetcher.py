@@ -186,7 +186,7 @@ def _fetch_yuanta(etf_code):
     """從元大投信網站的 Nuxt SSR 資料抓取 ETF 持股權重"""
     try:
         url = f'https://www.yuantaetfs.com/product/detail/{etf_code}/ratio'
-        r = _session.get(url, timeout=20)
+        r = _session.get(url, timeout=20, verify=False)
         if r.status_code != 200:
             print(f"  [元大] HTTP {r.status_code}")
             return []
@@ -269,12 +269,12 @@ def _fetch_yuanta(etf_code):
     return []
 
 
-# ── 來源 2：MoneyDJ（通用 fallback，抓 top 10）──────────────
+# ── 來源 2：MoneyDJ（通用 fallback，完整持股）──────────────
 def _fetch_moneydj(etf_code):
-    """從 MoneyDJ 抓取 ETF 前 10 大持股"""
+    """從 MoneyDJ 抓取 ETF 完整持股明細"""
     try:
-        url = f'https://www.moneydj.com/ETF/X/Basic/Basic0007.xdjhtm?etfid={etf_code}.TW'
-        r = _session.get(url, timeout=15)
+        url = f'https://www.moneydj.com/ETF/X/Basic/Basic0007B.xdjhtm?etfid={etf_code}.TW'
+        r = _session.get(url, timeout=15, verify=False)
         r.encoding = 'utf-8'
         if r.status_code != 200:
             print(f"  [MoneyDJ] HTTP {r.status_code}")
@@ -316,7 +316,7 @@ def _fetch_moneydj(etf_code):
                 break
 
         if holdings:
-            print(f"  [MoneyDJ] 解析出 {len(holdings)} 筆持股（前10大）")
+            print(f"  [MoneyDJ] 解析出 {len(holdings)} 筆持股（完整）")
         return holdings
 
     except Exception as e:
@@ -348,7 +348,7 @@ def _save_holdings(etf_code, holdings):
     added = set(new_codes.keys()) - set(old_codes.keys())
     removed = set(old_codes.keys()) - set(new_codes.keys())
 
-    # 防止部分來源（如 MoneyDJ 前10大）覆蓋完整持股造成假異動
+    # 防止資料來源異常（如網頁改版只回傳部分資料）覆蓋完整持股造成假異動
     # 新資料筆數不到舊資料的一半 → 判定為不完整資料，不記異動也不覆蓋
     if old_codes and len(new_codes) < len(old_codes) * 0.5:
         print(f"  [{etf_code}] 新資料 {len(new_codes)} 筆遠少於舊資料 {len(old_codes)} 筆，疑似不完整，跳過覆蓋")
@@ -401,7 +401,7 @@ def _fetch_msci_tw():
     """從群益權值計算機抓取 MSCI 台灣指數成分股"""
     try:
         url = 'https://stock.capital.com.tw/z/zm/zmd/zmdc.djhtm?MSCI=0'
-        r = _session.get(url, timeout=20)
+        r = _session.get(url, timeout=20, verify=False)
         r.encoding = 'big5'
         if r.status_code != 200:
             print(f"  [MSCI] HTTP {r.status_code}")
@@ -491,7 +491,7 @@ def fetch_etf_holdings(etf_code):
     if issuer == 'yuanta':
         holdings = _fetch_yuanta(etf_code)
 
-    # 所有 ETF 的通用 fallback：MoneyDJ（前 10 大持股）
+    # 所有 ETF 的通用 fallback：MoneyDJ（完整持股）
     if not holdings:
         print(f"  發行商來源無資料，嘗試 MoneyDJ...")
         holdings = _fetch_moneydj(etf_code)
