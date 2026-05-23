@@ -366,9 +366,10 @@ function indNewsHtml(n) {
     const m = n.time.match(/(\d{2}:\d{2})/);
     if (m) timeStr = m[1];
   }
+  const safeTitle = n.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
   const archiveBtn = n.archived_code
     ? `<span class="ind-archived">${n.archived_code}</span>`
-    : `<span class="ind-archive" onclick="showArchiveModal(${n.id}, '${n.title.replace(/'/g,"\\'")}')">歸檔</span>`;
+    : `<span class="ind-archive" data-id="${n.id}" data-title="${safeTitle}" onclick="showArchiveModal(+this.dataset.id, this.dataset.title)">歸檔</span>`;
   return `<div class="ind-news-item">
     <span class="ind-source ${srcCls}">${srcName} ${srcLabel}</span>
     <span class="ind-title"><a href="${n.link}" target="_blank">${n.title}</a></span>
