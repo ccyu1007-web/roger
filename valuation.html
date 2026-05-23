@@ -360,7 +360,7 @@ function renderList(mode) {
 }
 
 function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '-'; }
-function _revColor(v) { return v != null ? (v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#64748b') : '#cbd5e1'; }
+function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
 
 function _cheapTableHtml(items, growthField, growthLabel) {
   const hasGrowthCol = !!growthField;
