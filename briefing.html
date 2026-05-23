@@ -82,6 +82,8 @@
   .cheap-table .code-cell { color: #2563eb; font-weight: 700; cursor: pointer; }
   .cheap-table .code-cell:hover { text-decoration: underline; }
   .cheap-table .num { text-align: right; }
+  .cheap-table-wrap { overflow-x: auto; }
+  .cheap-table th, .cheap-table td { white-space: nowrap; }
   .group-divider {
     padding: 8px 0; font-weight: 700; font-size: .85em; color: #475569;
     display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;
@@ -179,6 +181,7 @@
 let _indNewsDays = 1;  // 預設只看今天
 let _qualityOnly = false;
 let _qualitySet = new Set();
+let _focusTrackSet = new Set();
 
 async function loadData() {
   try {
@@ -194,6 +197,7 @@ async function loadData() {
     try { indNews = await indRes.json(); } catch(e) {}
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
+    _focusTrackSet = new Set((lists.track || []).map(r => r.code));
     render(brief, newsData, indNews);
   } catch (e) {
     document.getElementById('content').innerHTML =
@@ -383,28 +387,87 @@ function flashItemHtml(v) {
   </div>`;
 }
 
+function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '-'; }
+function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
+
+function _growthBadge(signal, rev) {
+  if (!signal) return '<span style="color:#cbd5e1">-</span>';
+  const colors = {green:'#16a34a', yellow:'#d97706', red:'#dc2626'};
+  const labels = {green:'成長', yellow:'持平', red:'衰退'};
+  const bgs = {green:'#dcfce7', yellow:'#fef3c7', red:'#fee2e2'};
+  const tip = rev != null ? `營收動能:${rev>0?'+':''}${rev.toFixed(1)}%` : '';
+  return `<span style="font-size:.72rem;padding:1px 6px;border-radius:4px;background:${bgs[signal]};color:${colors[signal]};font-weight:700;cursor:default" title="${tip}">${labels[signal]}</span>`;
+}
+
+function _toggleTrack(cb) {
+  const code = cb.dataset.code;
+  const action = cb.checked ? 'add' : 'remove';
+  if (cb.checked) _focusTrackSet.add(code); else _focusTrackSet.delete(code);
+  fetch('/api/user-lists/track', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action, code})
+  });
+}
+
 function cheapGroupHtml(level, list) {
   if (list.length === 0) return '';
   const badgeCls = level === 'AA' ? 'badge-aa' : level === 'A1' ? 'badge-a1' : level === 'A2' ? 'badge-a2' : 'badge-a';
   const sorted = list.sort((a,b) => (b.discount_pct||0) - (a.discount_pct||0));
-  const isOpen = level === 'AA';
+  const isOpen = false;
   return `
     <div class="group-divider" onclick="toggleGroup(this)">
       <span><span class="badge ${badgeCls}">${level}</span> 級</span>
       <span class="badge-count">${list.length} 支 <span class="arrow ${isOpen?'':'collapsed'}">&#9654;</span></span>
     </div>
     <div class="group-content ${isOpen?'':'collapsed'}">
+      <div class="cheap-table-wrap">
       <table class="cheap-table">
-        <tr><th>代碼</th><th>名稱</th><th class="num">股價</th><th class="num">折價%</th><th class="num">天數</th><th class="num">殖利率</th></tr>
-        ${sorted.map(s => `<tr>
-          <td class="code-cell" onclick="window.open('/company.html?code=${s.code}','_blank')">${s.code}</td>
-          <td>${s.name}${s.is_new ? ' <span style="color:#dc2626;font-size:.72em;font-weight:700">NEW</span>' : ''}</td>
-          <td class="num">$${s.price}</td>
-          <td class="num" style="color:${(s.discount_pct||0) > 30 ? '#dc2626' : '#334155'};font-weight:${(s.discount_pct||0) > 30 ? '700' : '400'}">${(s.discount_pct||0).toFixed(1)}%</td>
-          <td class="num" style="color:#64748b">${s.cheap_days || 0}</td>
-          <td class="num" style="color:${(s.shen_yld||0) > 6 ? '#16a34a' : '#334155'}">${(s.shen_yld||0).toFixed(1)}%</td>
-        </tr>`).join('')}
+        <tr>
+          <th>追蹤</th><th>代碼</th><th>名稱</th>
+          <th class="num">檢核</th><th class="num">趨勢</th>
+          <th class="num">股價</th>
+          <th class="num">月營收</th><th class="num">累計</th><th class="num">3M</th><th class="num">12M</th>
+          <th class="num">本益比</th><th class="num">殖利率</th>
+          <th class="num">折價%</th><th class="num">天數</th>
+          <th>新增</th>
+        </tr>
+        ${sorted.map(c => {
+          const isFocused = _focusTrackSet.has(c.code);
+          const chkHtml = c.chk_pass != null
+            ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569">${c.chk_pass}/${c.chk_total||12}</a>`
+            : '-';
+          const growthHtml = _growthBadge(c.growth_signal, c.growth_rev);
+          const _pe = c.val_pe != null ? c.val_pe : c.shen_pe;
+          const _yld = c.val_yld != null ? c.val_yld : c.shen_yld;
+          const _src = c.val_source || '沈董';
+          const srcTag = `<span style="color:#94a3b8;margin-left:3px">${_src[0]}</span>`;
+          const peStr = _pe != null ? _pe.toFixed(1) : '-';
+          const peColor = _pe != null ? (_pe <= 10 ? '#dc2626' : _pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
+          const yldStr = _yld != null ? _yld.toFixed(1) + '%' : '-';
+          const yldColor = _yld != null ? (_yld >= 6 ? '#dc2626' : _yld >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
+          const dp = c.discount_pct;
+          const dpColor = dp != null ? (dp > 30 ? '#dc2626' : '#334155') : '#cbd5e1';
+          const dpStr = dp != null ? dp.toFixed(1) + '%' : '-';
+          const newHtml = c.is_new ? '<span style="color:#dc2626;font-size:.72em;font-weight:700">NEW</span>' : '';
+          return `<tr>
+            <td style="text-align:center"><input type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleTrack(this)"></td>
+            <td class="code-cell" onclick="window.open('/company.html?code=${c.code}','_blank')">${c.code}</td>
+            <td>${c.name}</td>
+            <td class="num">${chkHtml}</td>
+            <td class="num">${growthHtml}</td>
+            <td class="num" style="font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+            <td class="num" style="color:${_revColor(c.revenue_yoy)}">${_revStr(c.revenue_yoy)}</td>
+            <td class="num" style="color:${_revColor(c.revenue_cum_yoy)}">${_revStr(c.revenue_cum_yoy)}</td>
+            <td class="num" style="color:${_revColor(c.rev_3m_yoy)}">${_revStr(c.rev_3m_yoy)}</td>
+            <td class="num" style="color:${_revColor(c.rev_12m_yoy)}">${_revStr(c.rev_12m_yoy)}</td>
+            <td class="num" style="color:${peColor}">${peStr}${srcTag}</td>
+            <td class="num" style="color:${yldColor}">${yldStr}</td>
+            <td class="num" style="color:${dpColor};font-weight:${dp > 30 ? '700' : '400'}">${dpStr}</td>
+            <td class="num" style="color:#64748b">${c.cheap_days || 0}</td>
+            <td>${newHtml}</td>
+          </tr>`; }).join('')}
       </table>
+      </div>
     </div>`;
 }
 
