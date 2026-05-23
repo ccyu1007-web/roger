@@ -4697,6 +4697,9 @@ def api_industry_news():
     import re, time
     results = []
 
+    import requests as _req
+    _headers = {"User-Agent": "Mozilla/5.0"}
+
     # 經濟日報 RSS（產業 + 股市）
     udn_feeds = [
         ("https://money.udn.com/rssfeed/news/1001/5591", "經濟日報-產業"),
@@ -4704,11 +4707,9 @@ def api_industry_news():
     ]
     for feed_url, source in udn_feeds:
         try:
-            import urllib.request
-            req = urllib.request.Request(feed_url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                xml_text = resp.read().decode("utf-8", errors="ignore")
-            root = ET.fromstring(xml_text)
+            resp = _req.get(feed_url, headers=_headers, timeout=8)
+            resp.raise_for_status()
+            root = ET.fromstring(resp.text)
             for item in root.findall(".//item"):
                 title = item.findtext("title", "").strip()
                 link = item.findtext("link", "").strip()
@@ -4731,10 +4732,9 @@ def api_industry_news():
     ]
     for page_url, source in ct_urls:
         try:
-            import urllib.request
-            req = urllib.request.Request(page_url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                html = resp.read().decode("utf-8", errors="ignore")
+            resp = _req.get(page_url, headers=_headers, timeout=8)
+            resp.raise_for_status()
+            html = resp.text
             matches = re.findall(r'<h3[^>]*>\s*<a[^>]*href="(/newspapers/[^"]+)"[^>]*>([^<]+)</a>', html)
             for path, title in matches:
                 results.append({
