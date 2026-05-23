@@ -304,7 +304,8 @@ DERIVED_COLS = [
     'eps_4q_sum','trailing_div','trailing_pe','trailing_yld','trailing_grade',
     'contract_chg',
     'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
-    'val_aa','val_a1','val_a2','val_a','val_lt6','val_eps_used','val_div_used',
+    'val_aa','val_a1','val_a2','val_a','val_lt6','val_eps_used','val_div_used','val_source',
+    'val_pe','val_yld',
     'est_eps','est_div','est_pe','est_yld','est_grade',
     'sys_pe','sys_yld','sys_grade',
     'gb_roic','gb_ey','gb_roic_rank','gb_ey_rank','gb_total_rank'
@@ -487,6 +488,17 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
     val_bdiv = r.get('blend_div')
     r['val_eps_used'] = val_eps
     r['val_div_used'] = val_div
+    r['val_pe'] = round(close / val_eps, 2) if close and val_eps and val_eps > 0 else None
+    r['val_yld'] = round(val_div / close * 100, 2) if close and close > 0 and val_div and val_div > 0 else None
+    # 標記來源
+    if est_eps and est_eps > 0:
+        r['val_source'] = '預估'
+    elif val_eps == r.get('blend_eps'):
+        r['val_source'] = '綜合'
+    elif val_eps == r.get('shen_eps'):
+        r['val_source'] = '沈董'
+    else:
+        r['val_source'] = None
 
     pe_mid_v = (pe_hi + pe_lo) / 2
     pe_lo_bias_v = (pe_mid_v + pe_lo) / 2

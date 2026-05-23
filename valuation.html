@@ -386,10 +386,14 @@ function _cheapTableHtml(items) {
       ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
       : '—';
     const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, c.growth_eps, c.growth_inv);
-    const peStr = c.shen_pe != null ? c.shen_pe.toFixed(1) : '-';
-    const peColor = c.shen_pe != null ? (c.shen_pe <= 10 ? '#dc2626' : c.shen_pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
-    const yldStr = c.shen_yld != null ? c.shen_yld.toFixed(1) + '%' : '-';
-    const yldColor = c.shen_yld != null ? (c.shen_yld >= 6 ? '#dc2626' : c.shen_yld >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
+    const _pe = c.val_pe != null ? c.val_pe : c.shen_pe;
+    const _yld = c.val_yld != null ? c.val_yld : c.shen_yld;
+    const _src = c.val_source || '沈董';
+    const srcTag = `<span style="font-size:.6em;color:#94a3b8;margin-left:2px" title="${_src}法">${_src[0]}</span>`;
+    const peStr = _pe != null ? _pe.toFixed(1) : '-';
+    const peColor = _pe != null ? (_pe <= 10 ? '#dc2626' : _pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
+    const yldStr = _yld != null ? _yld.toFixed(1) + '%' : '-';
+    const yldColor = _yld != null ? (_yld >= 6 ? '#dc2626' : _yld >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
     html += `<tr${rowStyle}>
       <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
       <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
@@ -397,7 +401,7 @@ function _cheapTableHtml(items) {
       <td style="text-align:center">${chkHtml}</td>
       <td style="text-align:center">${growthHtml}</td>
       <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-      <td style="text-align:right;color:${peColor}">${peStr}</td>
+      <td style="text-align:right;color:${peColor}">${peStr}${srcTag}</td>
       <td style="text-align:right;color:${yldColor}">${yldStr}</td>
       <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
       <td style="text-align:center">${addHtml}</td>
