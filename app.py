@@ -4689,6 +4689,66 @@ def test_db():
     except Exception as e:
         return jsonify({"status": "error", "db_type": sqlite3.DB_TYPE, "url": safe_url, "error": str(e)})
 
+# ── 產業新聞 API ──────────────────────────────────────────────
+@app.route("/api/industry-news")
+def api_industry_news():
+    """抓取經濟日報 RSS + 工商時報產業新聞標題"""
+    import xml.etree.ElementTree as ET
+    import re, time
+    results = []
+
+    # 經濟日報 RSS（產業 + 股市）
+    udn_feeds = [
+        ("https://money.udn.com/rssfeed/news/1001/5591", "經濟日報-產業"),
+        ("https://money.udn.com/rssfeed/news/1001/5590", "經濟日報-股市"),
+    ]
+    for feed_url, source in udn_feeds:
+        try:
+            import urllib.request
+            req = urllib.request.Request(feed_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                xml_text = resp.read().decode("utf-8", errors="ignore")
+            root = ET.fromstring(xml_text)
+            for item in root.findall(".//item"):
+                title = item.findtext("title", "").strip()
+                link = item.findtext("link", "").strip()
+                pub = item.findtext("pubDate", "").strip()
+                desc = item.findtext("description", "").strip()
+                if title:
+                    results.append({
+                        "source": source,
+                        "title": title,
+                        "link": link,
+                        "time": pub,
+                        "summary": desc[:100] if desc else ""
+                    })
+        except Exception as e:
+            logging.warning(f"抓取 {source} 失敗: {e}")
+
+    # 工商時報 HTML
+    ct_urls = [
+        ("https://www.chinatimes.com/newspapers/260110", "工商時報-產業"),
+    ]
+    for page_url, source in ct_urls:
+        try:
+            import urllib.request
+            req = urllib.request.Request(page_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                html = resp.read().decode("utf-8", errors="ignore")
+            matches = re.findall(r'<h3[^>]*>\s*<a[^>]*href="(/newspapers/[^"]+)"[^>]*>([^<]+)</a>', html)
+            for path, title in matches:
+                results.append({
+                    "source": source,
+                    "title": title.strip(),
+                    "link": f"https://www.chinatimes.com{path}",
+                    "time": "",
+                    "summary": ""
+                })
+        except Exception as e:
+            logging.warning(f"抓取 {source} 失敗: {e}")
+
+    return jsonify(results)
+
 # ── 前端首頁 ────────────────────────────────────────────────
 @app.route("/")
 def index():
