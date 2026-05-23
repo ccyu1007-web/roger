@@ -337,14 +337,15 @@ def _push_all_to_render():
             'table': 'stock_state',
             'columns': ['stock_id','date','price','price_pos','fair_low','fair_mid','fair_high',
                         'shen_eps','shen_pe','shen_yld','fin_grade','updated_at',
-                        'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct'],
+                        'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct',
+                        'neff_d','lynch_d'],
             'pk': ['stock_id','date'],
             'create_sql': """CREATE TABLE IF NOT EXISTS stock_state (
                 stock_id TEXT NOT NULL, date TEXT NOT NULL,
                 price REAL, price_pos REAL, fair_low REAL, fair_mid REAL, fair_high REAL,
                 shen_eps REAL, shen_pe REAL, shen_yld REAL, fin_grade TEXT, updated_at TEXT,
                 val_level TEXT, val_aa REAL, val_a1 REAL, val_a2 REAL, val_a REAL,
-                val_lt6 REAL, discount_pct REAL,
+                val_lt6 REAL, discount_pct REAL, neff_d REAL, lynch_d REAL,
                 PRIMARY KEY (stock_id, date))""",
         },
         {
