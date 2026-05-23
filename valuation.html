@@ -130,22 +130,18 @@ let _focusTrackSet = new Set();
 let _cheapList = [];
 let _changes = [];
 let _byThreshold = {};
+let _growthChanges = {};
 
 // 第二層按鈕設定
 const L2_CONFIG = {
   shen: [
     {id:'aa',      label:'AA',       badge:'#fecaca', badgeColor:'#dc2626'},
     {id:'cheap',   label:'A1/A2/A',  badge:'#fef3c7', badgeColor:'#92400e'},
-    {id:'crossAA', label:'AA穿越',   badge:'#fecaca', badgeColor:'#991b1b'},
-    {id:'crossOther',label:'A1/A2/A穿越', badge:'#e0e7ff', badgeColor:'#3730a3'},
   ],
   xiaoyao: [
     {id:'thAA',    label:'門檻AA',       badge:'#fecaca', badgeColor:'#991b1b'},
     {id:'thOther', label:'門檻A1/A2/A',  badge:'#e0e7ff', badgeColor:'#3730a3'},
     {id:'thLt6',   label:'門檻6%',       badge:'#d1fae5', badgeColor:'#065f46'},
-    {id:'thAACross',    label:'門檻AA穿越',    badge:'#fecaca', badgeColor:'#991b1b'},
-    {id:'thOtherCross', label:'門檻A1/A2/A穿越', badge:'#e0e7ff', badgeColor:'#3730a3'},
-    {id:'thLt6Cross',   label:'門檻6%穿越',    badge:'#d1fae5', badgeColor:'#065f46'},
   ],
   growth: [
     {id:'neff', label:'約翰聶夫', badge:'#fef3c7', badgeColor:'#92400e'},
@@ -210,6 +206,7 @@ async function load() {
     _cheapList = _data.val_cheap_list || [];
     _changes = _data.val_level_changes || [];
     _byThreshold = _data.val_by_threshold || {};
+    _growthChanges = _data.growth_changes || {};
 
     const changeMap = {};
     _changes.forEach(c => { changeMap[c.code] = c; });
@@ -298,18 +295,12 @@ function updateCounts() {
   const setCnt = (id, v) => { const el = document.getElementById('cnt_'+id); if(el) el.textContent = v; };
   setCnt('aa', pool.filter(s => s.level === 'AA').length);
   setCnt('cheap', pool.filter(s => ['A1','A2','A'].includes(s.level)).length);
-  setCnt('crossAA', filt(_changes.filter(c => c.threshold === 'AA' || (c.direction === 'cheaper' && c.to === 'AA') || (c.direction === 'expensive' && c.from === 'AA'))).length || filt((_byThreshold['AA']||[]).filter(s => s.cross)).length);
-  setCnt('crossOther', filt(_changes.filter(c => ['A1','A2','A'].includes(c.to) || ['A1','A2','A'].includes(c.from))).length);
 
-  // 逍遙 - 便宜清單
+  // 逍遙
   setCnt('thAA', filt((_byThreshold['AA']||[]).filter(s => !s._removed)).length);
   const otherThs = ['A1','A2','A'];
   setCnt('thOther', otherThs.reduce((s,th) => s + filt((_byThreshold[th]||[]).filter(x => !x._removed)).length, 0));
   setCnt('thLt6', filt((_byThreshold['長期6%']||[]).filter(s => !s._removed)).length);
-  // 逍遙 - 穿越
-  setCnt('thAACross', filt((_byThreshold['AA']||[]).filter(s => s.cross)).length);
-  setCnt('thOtherCross', otherThs.reduce((s,th) => s + filt((_byThreshold[th]||[]).filter(x => x.cross)).length, 0));
-  setCnt('thLt6Cross', filt((_byThreshold['長期6%']||[]).filter(s => s.cross)).length);
 
   // 成長（neff_d = Neff比率, lynch_d = PEG）
   const neffList = _stocks.filter(s => {
@@ -328,15 +319,10 @@ function renderTab() {
   if (_L1 === 'shen') {
     if (_L2 === 'aa') renderList('AA');
     else if (_L2 === 'cheap') renderList('cheap');
-    else if (_L2 === 'crossAA') renderCrosses(['AA']);
-    else if (_L2 === 'crossOther') renderCrosses(['A1','A2','A']);
   } else if (_L1 === 'xiaoyao') {
     if (_L2 === 'thAA') renderThresholdList(['AA']);
     else if (_L2 === 'thOther') renderThresholdList(['A1','A2','A']);
     else if (_L2 === 'thLt6') renderThresholdList(['長期6%']);
-    else if (_L2 === 'thAACross') renderCrosses(['AA']);
-    else if (_L2 === 'thOtherCross') renderCrosses(['A1','A2','A']);
-    else if (_L2 === 'thLt6Cross') renderCrosses(['長期6%']);
   } else if (_L1 === 'growth') {
     if (_L2 === 'neff') renderGrowthList('neff');
     else if (_L2 === 'peg') renderGrowthList('peg');
@@ -624,7 +610,10 @@ function renderGrowthList(type) {
       <th style="width:70px;text-align:right">殖利率</th>
       <th style="width:80px;text-align:right">營收3M</th>
       <th style="width:80px;text-align:right">營收12M</th>
+      <th style="width:70px;text-align:center">新增</th>
     </tr></thead><tbody>`;
+
+    const newSet = new Set(type === 'neff' ? (_growthChanges.neff_new||[]) : (_growthChanges.peg_new||[]));
 
     items.forEach(s => {
       const gi = s._gi || {};
@@ -641,6 +630,8 @@ function renderGrowthList(type) {
       const rev12m = gi.rev_12m_yoy != null ? (gi.rev_12m_yoy>0?'+':'')+gi.rev_12m_yoy.toFixed(1)+'%' : '-';
       const rev3mColor = gi.rev_3m_yoy > 0 ? '#16a34a' : gi.rev_3m_yoy < 0 ? '#dc2626' : '#64748b';
       const rev12mColor = gi.rev_12m_yoy > 0 ? '#16a34a' : gi.rev_12m_yoy < 0 ? '#dc2626' : '#64748b';
+      const isNew = newSet.has(s.code);
+      const newHtml = isNew ? '<span class="chg-add">新增</span>' : '';
 
       html += `<tr>
         <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
@@ -654,6 +645,7 @@ function renderGrowthList(type) {
         <td style="text-align:right">${yldStr}</td>
         <td style="text-align:right;color:${rev3mColor}">${rev3m}</td>
         <td style="text-align:right;color:${rev12mColor}">${rev12m}</td>
+        <td style="text-align:center">${newHtml}</td>
       </tr>`;
     });
     html += '</tbody></table></div>';

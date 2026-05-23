@@ -1939,7 +1939,7 @@ def snapshot_stock_states():
         # 確保 stock_state 有評價欄位
         for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
                          ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
-                         ('discount_pct','REAL')]:
+                         ('discount_pct','REAL'),('neff_d','REAL'),('lynch_d','REAL')]:
             try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
             except Exception: pass
         # stocks 表加欄位
@@ -2000,6 +2000,15 @@ def snapshot_stock_states():
         c.execute("SELECT updated_at FROM stocks ORDER BY updated_at DESC LIMIT 1")
         r = c.fetchone()
         data_date = r[0][:10] if r and r[0] else date.today().strftime('%Y-%m-%d')
+
+        # 讀取 neff_d / lynch_d（從 stock_checklist）
+        _growth_map = {}
+        try:
+            c.execute("SELECT code, gi_neff_d, gi_lynch_d FROM stock_checklist")
+            for gr in c.fetchall():
+                _growth_map[gr['code']] = {'neff_d': gr['gi_neff_d'], 'lynch_d': gr['gi_lynch_d']}
+        except Exception:
+            pass
 
         count = 0
         for row in rows:
@@ -2077,12 +2086,16 @@ def snapshot_stock_states():
                 row, close, uvp,
                 est_eps=ue.get('eps'), est_div=ue.get('div'))
 
+            _gm = _growth_map.get(code, {})
+            _neff_d = _gm.get('neff_d')
+            _lynch_d = _gm.get('lynch_d')
+
             c.execute("""INSERT INTO stock_state
                          (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                           shen_eps, shen_pe, shen_yld, fin_grade,
                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
-                          updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                          neff_d, lynch_d, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
                          price=excluded.price, price_pos=excluded.price_pos,
                          fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
@@ -2093,11 +2106,13 @@ def snapshot_stock_states():
                          val_a1=excluded.val_a1, val_a2=excluded.val_a2,
                          val_a=excluded.val_a, val_lt6=excluded.val_lt6,
                          discount_pct=excluded.discount_pct,
+                         neff_d=excluded.neff_d, lynch_d=excluded.lynch_d,
                          updated_at=excluded.updated_at""",
                       (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
                        shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
                        vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
-                       vl['val_a'], vl['val_lt6'], vl['discount_pct'], now_str))
+                       vl['val_a'], vl['val_lt6'], vl['discount_pct'],
+                       _neff_d, _lynch_d, now_str))
 
             # 更新便宜天數和歷史最深等級
             cur_level = vl['val_level']
@@ -2203,7 +2218,8 @@ def get_daily_briefing():
             c = conn.cursor()
             c.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                                 shen_eps, shen_pe, shen_yld, fin_grade,
-                                val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                                val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                                neff_d, lynch_d
                          FROM stock_state ORDER BY stock_id, date DESC""")
             all_rows = c.fetchall()
             # 取股票名稱
@@ -2551,6 +2567,33 @@ def get_daily_briefing():
     for lv in val_dist:
         val_dist_delta[lv] = val_dist[lv] - val_dist_prev.get(lv, 0)
 
+    # 成長評價變動（Neff/PEG 新增/刪除）
+    growth_changes = {'neff_new': [], 'neff_removed': [], 'peg_new': [], 'peg_removed': []}
+    for sid, snapshots in grouped.items():
+        if len(snapshots) < 2:
+            continue
+        cur = snapshots[0]
+        prev = snapshots[1]
+        name = names.get(sid, sid)
+        # Neff: >= 1 為合格
+        cur_neff = cur.get('neff_d')
+        prev_neff = prev.get('neff_d')
+        cur_neff_ok = cur_neff is not None and cur_neff >= 1
+        prev_neff_ok = prev_neff is not None and prev_neff >= 1
+        if cur_neff_ok and not prev_neff_ok:
+            growth_changes['neff_new'].append(sid)
+        elif not cur_neff_ok and prev_neff_ok:
+            growth_changes['neff_removed'].append(sid)
+        # PEG: > 0 且 <= 1 為合格
+        cur_peg = cur.get('lynch_d')
+        prev_peg = prev.get('lynch_d')
+        cur_peg_ok = cur_peg is not None and 0 < cur_peg <= 1
+        prev_peg_ok = prev_peg is not None and 0 < prev_peg <= 1
+        if cur_peg_ok and not prev_peg_ok:
+            growth_changes['peg_new'].append(sid)
+        elif not cur_peg_ok and prev_peg_ok:
+            growth_changes['peg_removed'].append(sid)
+
     return {
         'alerts': alerts,
         'opportunities': opportunities,
@@ -2562,6 +2605,7 @@ def get_daily_briefing():
         'val_dist': val_dist,
         'val_dist_delta': val_dist_delta,
         'val_cheap_list': val_cheap_list,
+        'growth_changes': growth_changes,
         'data_date': grouped[list(grouped.keys())[0]][0]['date'] if grouped else None,
     }
 
