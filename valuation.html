@@ -100,6 +100,7 @@
       <button class="tab-L1 active" onclick="switchL1('shen',this)">預估/沈董評價法</button>
       <button class="tab-L1" onclick="switchL1('xiaoyao',this)">逍遙評價系統</button>
       <button class="tab-L1" onclick="switchL1('growth',this)">成長評價</button>
+      <button class="tab-L1" onclick="switchL1('combo',this)">逍遙+成長</button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
@@ -145,6 +146,11 @@ const L2_CONFIG = {
     {id:'neff', label:'約翰聶夫', badge:'#fef3c7', badgeColor:'#92400e'},
     {id:'peg',  label:'PEG',     badge:'#dbeafe', badgeColor:'#1d4ed8'},
   ],
+  combo: [
+    {id:'comboAA',    label:'門檻AA',       badge:'#fecaca', badgeColor:'#991b1b'},
+    {id:'comboOther', label:'門檻A1/A2/A',  badge:'#e0e7ff', badgeColor:'#3730a3'},
+    {id:'comboLt6',   label:'門檻6%',       badge:'#d1fae5', badgeColor:'#065f46'},
+  ],
 };
 
 // 說明文字
@@ -164,6 +170,9 @@ const INFO_TEXT = {
     <b>約翰聶夫比率</b> = (EPS成長率 + 殖利率) / 本益比　←　Neff Ratio >= 1 表示成長性被低估<br>
     <b>PEG</b> = 本益比 / EPS成長率　←　PEG <= 1 表示股價相對成長性便宜<br>
     <span style="color:#94a3b8">* 使用 neff_d（Neff比率）和 lynch_d（PEG），灰名單股票已排除</span>`,
+  combo: `<b style="color:#334155">逍遙+成長</b><br>
+    同時符合門檻便宜（股價低於門檻）<b>且</b>成長評價通過（Neff >= 1 或 PEG <= 1）的股票。<br>
+    <span style="color:#94a3b8">* 兩個條件都滿足才會列入，是最嚴格的篩選</span>`,
 };
 
 const GRADE_CLS = g => {
@@ -295,6 +304,16 @@ function updateCounts() {
   });
   setCnt('neff', _qualityOnly ? neffList.filter(s => _qualitySet.has(s.code)).length : neffList.length);
   setCnt('peg', _qualityOnly ? pegList.filter(s => _qualitySet.has(s.code)).length : pegList.length);
+
+  // 逍遙+成長
+  const growthCodes = new Set([...neffList.map(s=>s.code), ...pegList.map(s=>s.code)]);
+  const comboFilter = (thItems) => {
+    let items = thItems.filter(s => !s._removed && growthCodes.has(s.code));
+    return _qualityOnly ? items.filter(s => _qualitySet.has(s.code)) : items;
+  };
+  setCnt('comboAA', comboFilter(_byThreshold['AA']||[]).length);
+  setCnt('comboOther', ['A1','A2','A'].reduce((s,th) => s + comboFilter(_byThreshold[th]||[]).length, 0));
+  setCnt('comboLt6', comboFilter(_byThreshold['長期6%']||[]).length);
 }
 
 function renderTab() {
@@ -308,6 +327,10 @@ function renderTab() {
   } else if (_L1 === 'growth') {
     if (_L2 === 'neff') renderGrowthList('neff');
     else if (_L2 === 'peg') renderGrowthList('peg');
+  } else if (_L1 === 'combo') {
+    if (_L2 === 'comboAA') renderComboList(['AA']);
+    else if (_L2 === 'comboOther') renderComboList(['A1','A2','A']);
+    else if (_L2 === 'comboLt6') renderComboList(['長期6%']);
   }
 }
 
@@ -422,8 +445,11 @@ function _cheapTableHtml(items, growthField, growthLabel) {
       <td style="text-align:right;color:${yldColor}">${yldStr}</td>
       ${hasGrowthCol ? (() => {
         const gv = c._growth_val;
-        const gvColor = growthField === 'neff_d' ? (gv >= 2 ? '#dc2626' : '#334155') : (gv <= 0.5 ? '#dc2626' : '#334155');
-        return `<td style="text-align:right;font-weight:700;color:${gvColor}">${gv != null ? gv.toFixed(2) : '-'}</td>`;
+        const gSrc = c._growth_src || '';
+        const isNeff = growthField === 'neff_d' || (growthField === '_combo' && gSrc === 'Neff');
+        const gvColor = isNeff ? (gv >= 2 ? '#dc2626' : '#334155') : (gv != null && gv <= 0.5 ? '#dc2626' : '#334155');
+        const srcMark = growthField === '_combo' && gSrc ? `<span style="color:#94a3b8;margin-left:3px">${gSrc[0]}</span>` : '';
+        return `<td style="text-align:right;font-weight:700;color:${gvColor};white-space:nowrap">${gv != null ? gv.toFixed(2) : '-'}${srcMark}</td>`;
       })() : ''}
       <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
       <td style="text-align:center">${addHtml}</td>
@@ -554,6 +580,60 @@ function renderCrosses(thNames) {
         </tr>`;
       });
       html += '</tbody></table></div>';
+    }
+    html += '</div>';
+  });
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderComboList(thNames) {
+  // 建立成長合格 set（Neff >= 1 或 PEG <= 1）
+  const growthCodes = new Set();
+  _stocks.forEach(s => {
+    const gi = s._gi || {};
+    if ((gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray) ||
+        (gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray)) {
+      growthCodes.add(s.code);
+    }
+  });
+
+  const thStyle = {
+    'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
+    'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
+    'A2':    {bg:'#eff6ff', color:'#1d4ed8', border:'#3b82f6'},
+    'A':     {bg:'#f0fdf4', color:'#166534', border:'#22c55e'},
+    '長期6%': {bg:'#ecfdf5', color:'#065f46', border:'#10b981'},
+  };
+
+  let html = '';
+  thNames.forEach(th => {
+    let items = (_byThreshold[th] || [])
+      .filter(s => !s._removed && growthCodes.has(s.code))
+      .map(s => {
+        const enriched = _enrichFromStockMap({...s});
+        // 加上 Neff/PEG 值供顯示
+        const st = _stockMap[s.code] || {};
+        const gi = st._gi || {};
+        enriched._growth_val = gi.neff_d >= 1 ? gi.neff_d : gi.lynch_d;
+        enriched._growth_src = gi.neff_d >= 1 ? 'Neff' : 'PEG';
+        return enriched;
+      });
+    if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
+    const st = thStyle[th];
+
+    html += `<div class="section">
+      <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
+        ${th} 門檻 + 成長評價
+        <span style="font-weight:400;font-size:.82rem;margin-left:8px">${items.length} 支</span>
+      </div>`;
+
+    if (!items.length) {
+      html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無同時符合的股票</div>';
+    } else {
+      items.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
+      // 用共用表格，多加 Neff/PEG 欄
+      html += '<div style="padding:0 20px">' + _cheapTableHtml(items, '_combo', 'Neff/PEG') + '</div>';
     }
     html += '</div>';
   });
