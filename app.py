@@ -5137,6 +5137,63 @@ def save_user_settings():
     return jsonify({"status": "ok"})
 
 
+# ── 每日筆記 API ─────────────────────────────────────────────
+def _init_daily_notes_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS daily_notes (
+        date TEXT PRIMARY KEY,
+        content TEXT,
+        created_at TEXT
+    )""")
+    conn.commit()
+    conn.close()
+
+@app.route("/api/daily-notes", methods=["GET"])
+def get_daily_notes():
+    """列出所有每日筆記，按日期倒序"""
+    _init_daily_notes_db()
+    rows = query_db("SELECT date, content, created_at FROM daily_notes ORDER BY date DESC")
+    return jsonify([dict(r) for r in rows] if rows else [])
+
+@app.route("/api/daily-notes", methods=["POST"])
+def save_daily_note():
+    """儲存今日筆記"""
+    from datetime import datetime
+    _init_daily_notes_db()
+    data = request.json or {}
+    content = data.get('content', '').strip()
+    note_date = data.get('date') or datetime.now().strftime('%Y-%m-%d')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if not content:
+        return jsonify({"error": "內容不能為空"}), 400
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO daily_notes (date, content, created_at) VALUES (?,?,?)",
+              (note_date, content, now))
+    conn.commit()
+    conn.close()
+    _bg_push_table('daily_notes', ['date','content','created_at'], ['date'],
+                   create_sql="""CREATE TABLE IF NOT EXISTS daily_notes (
+                       date TEXT PRIMARY KEY, content TEXT, created_at TEXT)""")
+    return jsonify({"status": "ok", "date": note_date})
+
+@app.route("/api/daily-notes/<date>", methods=["DELETE"])
+def delete_daily_note(date):
+    """刪除指定日期的筆記"""
+    _init_daily_notes_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM daily_notes WHERE date=?", (date,))
+    deleted = c.rowcount
+    conn.commit()
+    conn.close()
+    if deleted:
+        _bg_push_table('daily_notes', ['date','content','created_at'], ['date'],
+                       create_sql="""CREATE TABLE IF NOT EXISTS daily_notes (
+                           date TEXT PRIMARY KEY, content TEXT, created_at TEXT)""")
+    return jsonify({"status": "ok", "deleted": deleted})
+
 @app.route("/api/user-notes/<code>", methods=["GET"])
 def get_user_note(code):
     rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))

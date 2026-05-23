@@ -402,6 +402,14 @@ def _push_all_to_render():
                 code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""",
         },
         {
+            'table': 'daily_notes',
+            'columns': ['date', 'content', 'created_at'],
+            'pk': ['date'],
+            'clear_first': True,
+            'create_sql': """CREATE TABLE IF NOT EXISTS daily_notes (
+                date TEXT PRIMARY KEY, content TEXT, created_at TEXT)""",
+        },
+        {
             'table': 'industry_news',
             'columns': ['id', 'source', 'title', 'link', 'pub_time', 'summary', 'created_at', 'archived_code', 'archived_at'],
             'pk': ['id'],

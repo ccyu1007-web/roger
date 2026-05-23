@@ -308,10 +308,49 @@ function render(brief, newsArr, indNews) {
         <span>今日筆記</span>
       </div>
       <div class="section-body">
-        <textarea class="notes-textarea" placeholder="看完報告，寫下今天的想法..."></textarea>
+        <textarea class="notes-textarea" id="dailyNoteText" placeholder="看完報告，寫下今天的想法..."></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px;align-items:center">
+          <span id="dailyNoteSaved" style="font-size:.8em;color:#16a34a;display:none">已存檔</span>
+          <button onclick="saveDailyNote()" style="padding:6px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:.85em;cursor:pointer">存檔</button>
+        </div>
       </div>
     </div>
   `;
+
+  // 載入今天已有的筆記
+  loadTodayNote();
+}
+
+async function loadTodayNote() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await fetch('/api/daily-notes');
+    const notes = await res.json();
+    const todayNote = notes.find(n => n.date === today);
+    const el = document.getElementById('dailyNoteText');
+    if (el && todayNote) el.value = todayNote.content;
+  } catch(e) {}
+}
+
+async function saveDailyNote() {
+  const content = document.getElementById('dailyNoteText').value.trim();
+  if (!content) return;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const res = await fetch('/api/daily-notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date: today, content})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      const msg = document.getElementById('dailyNoteSaved');
+      msg.style.display = 'inline';
+      setTimeout(() => msg.style.display = 'none', 2000);
+    }
+  } catch(e) {
+    alert('存檔失敗: ' + e.message);
+  }
 }
 
 function summaryCard(label, value, delta) {
