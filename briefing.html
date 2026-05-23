@@ -257,6 +257,10 @@ function render(brief, newsArr, indNews) {
         <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
       <div class="section-body collapsed">
+        <div style="font-size:.78rem;color:#64748b;padding:8px 0 12px;line-height:1.7;border-bottom:1px solid #f1f5f9;margin-bottom:8px">
+          <b>EPS 取用順序</b>：使用者預估 > min(綜合EPS, 沈董EPS)｜<b>股利</b>：跟隨EPS來源<br>
+          <b>本益比</b> = 股價 / 取用EPS｜<b>殖利率</b> = 取用股利 / 股價 × 100%｜來源標記：<b>預</b>=預估 <b>綜</b>=綜合 <b>沈</b>=沈董
+        </div>
         ${['AA','A1','A2','A'].map(lv => cheapGroupHtml(lv, cheapGroups[lv] || [])).join('')}
       </div>
     </div>
