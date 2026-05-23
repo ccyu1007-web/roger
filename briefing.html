@@ -113,6 +113,11 @@
   .ind-time { font-size: .7em; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
   .ind-archive { font-size: .7em; color: #94a3b8; cursor: pointer; white-space: nowrap; flex-shrink: 0; padding: 2px 6px; border: 1px solid #e2e8f0; border-radius: 4px; }
   .ind-archive:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+  .ind-day-active { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; }
+  .ind-date-header { font-size: .8em; color: #64748b; font-weight: 600; padding: 8px 0 4px; border-bottom: 1px solid #e2e8f0; margin-top: 8px; }
+  .ind-date-header:first-child { margin-top: 0; }
+  .ind-show-more { text-align: center; padding: 8px; color: #2563eb; font-size: .85em; cursor: pointer; border-top: 1px solid #f1f5f9; }
+  .ind-show-more:hover { background: #f8fafc; }
   .ind-archived { font-size: .7em; color: #16a34a; white-space: nowrap; flex-shrink: 0; }
 
   /* Archive modal */
@@ -171,12 +176,14 @@
 </div>
 
 <script>
+let _indNewsDays = 1;  // 預設只看今天
+
 async function loadData() {
   try {
     const [briefRes, newsRes, indRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/news?limit=50'),
-      fetch('/api/industry-news')
+      fetch(`/api/industry-news?days=${_indNewsDays}`)
     ]);
     const brief = await briefRes.json();
     const newsData = await newsRes.json();
@@ -260,7 +267,10 @@ function render(brief, newsArr, indNews) {
         <span class="arrow" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
       <div class="section-body">
-        ${indNews.length > 0 ? indNews.map(n => indNewsHtml(n)).join('') : '<div style="color:#94a3b8;padding:12px 0">暫無產業新聞</div>'}
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+          ${[1,2,3,7].map(d => `<span class="ind-archive ${_indNewsDays===d?'ind-day-active':''}" onclick="switchIndDays(${d})" style="cursor:pointer">${d===1?'今天':d===7?'近7天':'近'+d+'天'}</span>`).join('')}
+        </div>
+        ${indNews.length > 0 ? renderIndNewsByDate(indNews) : '<div style="color:#94a3b8;padding:12px 0">暫無產業新聞</div>'}
       </div>
     </div>
 
@@ -416,6 +426,38 @@ function toggleGroup(divider) {
   const arrow = divider.querySelector('.arrow');
   content.classList.toggle('collapsed');
   arrow.classList.toggle('collapsed');
+}
+
+function renderIndNewsByDate(indNews) {
+  // 按日期分組
+  const groups = {};
+  indNews.forEach(n => {
+    const date = (n.created_at || '').slice(0, 10) || '未知';
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(n);
+  });
+  const dates = Object.keys(groups).sort().reverse();
+  const LIMIT = 20;
+
+  return dates.map(date => {
+    const items = groups[date];
+    const showing = items.slice(0, LIMIT);
+    const hidden = items.slice(LIMIT);
+    const dateId = 'ind-' + date.replace(/-/g, '');
+    return `
+      ${dates.length > 1 ? `<div class="ind-date-header">${date}（${items.length} 則）</div>` : ''}
+      ${showing.map(n => indNewsHtml(n)).join('')}
+      ${hidden.length > 0 ? `
+        <div id="${dateId}-hidden" style="display:none">${hidden.map(n => indNewsHtml(n)).join('')}</div>
+        <div class="ind-show-more" id="${dateId}-btn" onclick="document.getElementById('${dateId}-hidden').style.display='block';this.style.display='none'">
+          顯示更多（還有 ${hidden.length} 則）
+        </div>` : ''}`;
+  }).join('');
+}
+
+function switchIndDays(days) {
+  _indNewsDays = days;
+  loadData();
 }
 
 async function refreshIndustryNews(btn) {
