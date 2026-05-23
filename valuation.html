@@ -28,16 +28,27 @@
   .sc-a2 { background: #dbeafe; color: #1d4ed8; }
   .sc-a { background: #dcfce7; color: #166534; }
 
-  /* Tab */
-  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; }
-  .tab-btn {
-    padding: 10px 20px; font-size: .9rem; font-weight: 600; cursor: pointer;
+  /* 第一層 Tab */
+  .tab-bar-L1 { display: flex; gap: 0; margin-bottom: 12px; }
+  .tab-L1 {
+    padding: 10px 24px; font-size: .92rem; font-weight: 700; cursor: pointer;
+    border: 2px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
+  }
+  .tab-L1:first-child { border-radius: 8px 0 0 8px; }
+  .tab-L1:last-child { border-radius: 0 8px 8px 0; }
+  .tab-L1:not(:first-child):not(:last-child) { border-radius: 0; }
+  .tab-L1.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+
+  /* 第二層 Tab */
+  .tab-bar-L2 { display: flex; gap: 0; margin-bottom: 16px; }
+  .tab-L2 {
+    padding: 8px 16px; font-size: .85rem; font-weight: 600; cursor: pointer;
     border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
   }
-  .tab-btn:first-child { border-radius: 8px 0 0 8px; }
-  .tab-btn:last-child { border-radius: 0 8px 8px 0; }
-  .tab-btn:not(:first-child):not(:last-child) { border-radius: 0; }
-  .tab-btn.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+  .tab-L2:first-child { border-radius: 6px 0 0 6px; }
+  .tab-L2:last-child { border-radius: 0 6px 6px 0; }
+  .tab-L2:not(:first-child):not(:last-child) { border-radius: 0; }
+  .tab-L2.active { background: #2563eb; color: #fff; border-color: #2563eb; }
   .count-badge { font-size: .75rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }
 
   /* 區塊 */
@@ -76,43 +87,33 @@
   </div>
   <div style="display:flex;gap:16px;align-items:center">
     <a href="/">回總表</a>
+    <a href="/briefing.html">逍遙日報</a>
     <a href="/daily.html">新聞報告</a>
     <a href="/etf_changes.html">ETF專區</a>
   </div>
 </header>
 
 <div class="container">
-  <!-- Tab -->
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
-    <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('aa',this)">AA<span class="count-badge" id="cntAA" style="background:#fecaca;color:#dc2626"></span></button>
-      <button class="tab-btn" onclick="switchTab('cheap',this)">A1/A2/A<span class="count-badge" id="cntCheap" style="background:#fef3c7;color:#92400e"></span></button>
-      <button class="tab-btn" onclick="switchTab('crossAA',this)">門檻AA<span class="count-badge" id="cntCrossAA" style="background:#fecaca;color:#991b1b"></span></button>
-      <button class="tab-btn" onclick="switchTab('crossOther',this)">門檻A1/A2/A<span class="count-badge" id="cntCrossOther" style="background:#e0e7ff;color:#3730a3"></span></button>
-      <button class="tab-btn" onclick="switchTab('crossLt6',this)">門檻6%<span class="count-badge" id="cntCrossLt6" style="background:#d1fae5;color:#065f46"></span></button>
+  <!-- 統計卡片（固定） -->
+  <div class="stat-row" id="statCards"></div>
+
+  <!-- 第一層 Tab -->
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+    <div class="tab-bar-L1">
+      <button class="tab-L1 active" onclick="switchL1('shen',this)">預估/沈董評價法</button>
+      <button class="tab-L1" onclick="switchL1('xiaoyao',this)">逍遙評價系統</button>
+      <button class="tab-L1" onclick="switchL1('growth',this)">成長評價</button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
     </label>
   </div>
 
-  <div style="font-size:.78rem;color:#64748b;margin-bottom:12px;padding:12px 16px;background:#f8fafc;border-radius:8px;line-height:1.8">
-    <b style="color:#334155">評價等級判定</b><br>
-    <b>EPS 取用順序</b>：使用者預估 > 系統估算 > 沈董EPS　｜　<b>股利取用順序</b>：使用者預估 > 系統估算 > 沈董股利<br>
-    <span style="color:#dc2626;font-weight:700">AA</span> = min(EPS×最低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　最嚴格（PE=10, 殖利率=6%）<br>
-    <span style="color:#ea580c;font-weight:700">A1</span> = min(EPS×最低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　PE嚴+殖利率寬（PE=10, 殖利率=5.5%）<br>
-    <span style="color:#2563eb;font-weight:700">A2</span> = min(EPS×偏低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　PE寬+殖利率嚴（PE=12, 殖利率=6%）<br>
-    <span style="color:#16a34a;font-weight:700">A</span> = min(EPS×偏低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　最寬鬆（PE=12, 殖利率=5.5%）<br>
-    <span style="color:#94a3b8">* 個股如有自訂 PE/殖利率參數，會優先套用。股價 <= 門檻值即歸入該等級，取最深等級。</span>
-    <br><br>
-    <b style="color:#334155">趨勢燈號判斷邏輯</b><br>
-    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#16a34a;font-weight:700">多頭</span>
-    短期營收(3M) > 長期營收(12M) 且短期為正，或 EPS 同比成長 > 5%（綜合評分 >= 1 且無存貨風險）<br>
-    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#d97706;font-weight:700">持平</span>
-    不符合多頭也不符合空頭條件<br>
-    <span style="display:inline-block;padding:1px 6px;border-radius:4px;background:#fee2e2;color:#dc2626;font-weight:700">空頭</span>
-    短期 < 長期且雙負，或 EPS 衰退 + 存貨風險<br>
-    <span style="color:#94a3b8">* 滑鼠移到各股燈號上可看到短期3M、長期12M、EPS同比%、存貨警訊等細項數值</span>
+  <!-- 第二層 Tab -->
+  <div class="tab-bar-L2" id="tabBarL2"></div>
+
+  <!-- 說明區 -->
+  <div id="infoBox" style="font-size:.78rem;color:#64748b;margin-bottom:12px;padding:12px 16px;background:#f8fafc;border-radius:8px;line-height:1.8">
   </div>
 
   <div id="content"><div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div></div>
@@ -120,13 +121,56 @@
 
 <script>
 let _data = null;
-let _tab = 'aa';
+let _stocks = [];
+let _L1 = 'shen';
+let _L2 = 'aa';
 let _qualityOnly = false;
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
-let _cheapList = [];   // 從 DB 的 val_cheap_list
-let _changes = [];     // 從 DB 的 val_level_changes
-let _byThreshold = {}; // 從 DB 的 val_by_threshold
+let _cheapList = [];
+let _changes = [];
+let _byThreshold = {};
+
+// 第二層按鈕設定
+const L2_CONFIG = {
+  shen: [
+    {id:'aa',      label:'AA',       badge:'#fecaca', badgeColor:'#dc2626'},
+    {id:'cheap',   label:'A1/A2/A',  badge:'#fef3c7', badgeColor:'#92400e'},
+    {id:'crossAA', label:'AA穿越',   badge:'#fecaca', badgeColor:'#991b1b'},
+    {id:'crossOther',label:'A1/A2/A穿越', badge:'#e0e7ff', badgeColor:'#3730a3'},
+  ],
+  xiaoyao: [
+    {id:'thAA',    label:'門檻AA',       badge:'#fecaca', badgeColor:'#991b1b'},
+    {id:'thOther', label:'門檻A1/A2/A',  badge:'#e0e7ff', badgeColor:'#3730a3'},
+    {id:'thLt6',   label:'門檻6%',       badge:'#d1fae5', badgeColor:'#065f46'},
+    {id:'thAACross',    label:'門檻AA穿越',    badge:'#fecaca', badgeColor:'#991b1b'},
+    {id:'thOtherCross', label:'門檻A1/A2/A穿越', badge:'#e0e7ff', badgeColor:'#3730a3'},
+    {id:'thLt6Cross',   label:'門檻6%穿越',    badge:'#d1fae5', badgeColor:'#065f46'},
+  ],
+  growth: [
+    {id:'neff', label:'約翰聶夫', badge:'#fef3c7', badgeColor:'#92400e'},
+    {id:'peg',  label:'PEG',     badge:'#dbeafe', badgeColor:'#1d4ed8'},
+  ],
+};
+
+// 說明文字
+const INFO_TEXT = {
+  shen: `<b style="color:#334155">預估/沈董評價法</b><br>
+    <b>EPS 取用順序</b>：使用者預估 > 系統估算 > 沈董EPS　｜　<b>股利取用順序</b>：使用者預估 > 系統估算 > 沈董股利<br>
+    <span style="color:#dc2626;font-weight:700">AA</span> = min(EPS×最低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　最嚴格（PE=10, 殖利率=6%）<br>
+    <span style="color:#ea580c;font-weight:700">A1</span> = min(EPS×最低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　PE嚴+殖利率寬（PE=10, 殖利率=5.5%）<br>
+    <span style="color:#2563eb;font-weight:700">A2</span> = min(EPS×偏低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　PE寬+殖利率嚴（PE=12, 殖利率=6%）<br>
+    <span style="color:#16a34a;font-weight:700">A</span> = min(EPS×偏低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　最寬鬆（PE=12, 殖利率=5.5%）<br>
+    <span style="color:#94a3b8">* 個股如有自訂 PE/殖利率參數，會優先套用。股價 <= 門檻值即歸入該等級，取最深等級。</span>`,
+  xiaoyao: `<b style="color:#334155">逍遙評價系統</b><br>
+    以門檻價位為基準，追蹤股價穿越各級門檻的情況。<br>
+    <b>門檻便宜清單</b>：目前股價低於各門檻的股票　｜　<b>門檻穿越</b>：今日股價穿越門檻（突破=變便宜，跌破=變貴）<br>
+    <span style="color:#94a3b8">* 門檻AA/A1/A2/A/6% 的計算方式與預估/沈董評價法相同</span>`,
+  growth: `<b style="color:#334155">成長評價</b><br>
+    <b>約翰聶夫比率</b> = (EPS成長率 + 殖利率) / 本益比　←　Neff Ratio >= 1 表示成長性被低估<br>
+    <b>PEG</b> = 本益比 / EPS成長率　←　PEG <= 1 表示股價相對成長性便宜<br>
+    <span style="color:#94a3b8">* 使用 neff_a（含殖利率版）和 lynch_a（含殖利率版），灰名單股票已排除</span>`,
+};
 
 const GRADE_CLS = g => {
   if (!g) return 'grade-c';
@@ -150,25 +194,25 @@ function _growthBadge(signal, rev, eps, inv) {
 
 async function load() {
   try {
-    const [briefRes, listRes] = await Promise.all([
+    const [briefRes, listRes, stocksRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/user-lists'),
+      fetch('/api/stocks'),
     ]);
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
     _focusTrackSet = new Set((lists.track || []).map(r => r.code));
     _data = await briefRes.json();
 
-    // 直接用 DB 算好的資料
+    const stocksJson = await stocksRes.json();
+    _stocks = stocksJson.data || [];
+
     _cheapList = _data.val_cheap_list || [];
     _changes = _data.val_level_changes || [];
     _byThreshold = _data.val_by_threshold || {};
 
-    // 建立等級變動查找表（code → change info）
     const changeMap = {};
     _changes.forEach(c => { changeMap[c.code] = c; });
-
-    // 為每個便宜股標記變動狀態
     _cheapList.forEach(item => {
       const chg = changeMap[item.code];
       if (chg) {
@@ -178,11 +222,9 @@ async function load() {
       }
     });
 
-    // 找出「離開便宜區」的股票（昨天在某等級，今天不在便宜區了）
     const cheapCodes = new Set(_cheapList.map(c => c.code));
     _changes.forEach(c => {
       if (c.direction === 'expensive' && !cheapCodes.has(c.code)) {
-        // 加到便宜清單裡當「刪除」項
         _cheapList.push({
           code: c.code, name: c.name, level: c.from,
           price: c.price, discount_pct: null,
@@ -192,6 +234,8 @@ async function load() {
     });
 
     if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
+    renderStatCards();
+    renderL2Tabs();
     updateCounts();
     renderTab();
   } catch(e) {
@@ -200,34 +244,103 @@ async function load() {
   }
 }
 
-function switchTab(tab, btn) {
-  _tab = tab;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+function renderStatCards() {
+  const dist = _data.val_dist || {};
+  const delta = _data.val_dist_delta || {};
+  const mkCard = (label, cls, val, d) => {
+    const sign = d > 0 ? '+' : '';
+    const dColor = d > 0 ? '#dc2626' : d < 0 ? '#16a34a' : '#94a3b8';
+    return `<div class="stat-card ${cls}">
+      <div class="label">${label}</div>
+      <div class="num">${val || 0}</div>
+      <div class="delta" style="color:${dColor}">${d ? sign+d : '—'}</div>
+    </div>`;
+  };
+  document.getElementById('statCards').innerHTML =
+    mkCard('≤ AA', 'sc-aa', dist.AA, delta.AA) +
+    mkCard('≤ A1', 'sc-a1', dist.A1, delta.A1) +
+    mkCard('≤ A2', 'sc-a2', dist.A2, delta.A2) +
+    mkCard('≤ A', 'sc-a', dist.A, delta.A);
+}
+
+function switchL1(l1, btn) {
+  _L1 = l1;
+  document.querySelectorAll('.tab-L1').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // 切到該分類的第一個子 tab
+  _L2 = L2_CONFIG[l1][0].id;
+  renderL2Tabs();
+  updateCounts();
+  renderTab();
+  document.getElementById('infoBox').innerHTML = INFO_TEXT[l1] || '';
+}
+
+function renderL2Tabs() {
+  const tabs = L2_CONFIG[_L1];
+  document.getElementById('tabBarL2').innerHTML = tabs.map(t =>
+    `<button class="tab-L2 ${t.id===_L2?'active':''}" onclick="switchL2('${t.id}',this)">${t.label}<span class="count-badge" id="cnt_${t.id}" style="background:${t.badge};color:${t.badgeColor}"></span></button>`
+  ).join('');
+  document.getElementById('infoBox').innerHTML = INFO_TEXT[_L1] || '';
+}
+
+function switchL2(l2, btn) {
+  _L2 = l2;
+  document.querySelectorAll('.tab-L2').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderTab();
 }
 
 function updateCounts() {
-  let pool = _qualityOnly ? _cheapList.filter(s => _qualitySet.has(s.code)) : _cheapList;
-  pool = pool.filter(s => !s._removed);
-  document.getElementById('cntAA').textContent = pool.filter(s => s.level === 'AA').length;
-  document.getElementById('cntCheap').textContent = pool.filter(s => ['A1','A2','A'].includes(s.level)).length;
-  const _filt = arr => _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
-  const aaItems = _filt((_byThreshold['AA'] || []).filter(s => !s._removed));
-  document.getElementById('cntCrossAA').textContent = aaItems.length;
+  const filt = arr => _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
+  const pool = filt(_cheapList).filter(s => !s._removed);
+
+  // 預估/沈董
+  const setCnt = (id, v) => { const el = document.getElementById('cnt_'+id); if(el) el.textContent = v; };
+  setCnt('aa', pool.filter(s => s.level === 'AA').length);
+  setCnt('cheap', pool.filter(s => ['A1','A2','A'].includes(s.level)).length);
+  setCnt('crossAA', filt(_changes.filter(c => c.threshold === 'AA' || (c.direction === 'cheaper' && c.to === 'AA') || (c.direction === 'expensive' && c.from === 'AA'))).length || filt((_byThreshold['AA']||[]).filter(s => s.cross)).length);
+  setCnt('crossOther', filt(_changes.filter(c => ['A1','A2','A'].includes(c.to) || ['A1','A2','A'].includes(c.from))).length);
+
+  // 逍遙 - 便宜清單
+  setCnt('thAA', filt((_byThreshold['AA']||[]).filter(s => !s._removed)).length);
   const otherThs = ['A1','A2','A'];
-  const otherCount = otherThs.reduce((s, th) => s + _filt((_byThreshold[th] || []).filter(x => !x._removed)).length, 0);
-  document.getElementById('cntCrossOther').textContent = otherCount;
-  const lt6Items = _filt((_byThreshold['長期6%'] || []).filter(s => !s._removed));
-  document.getElementById('cntCrossLt6').textContent = lt6Items.length;
+  setCnt('thOther', otherThs.reduce((s,th) => s + filt((_byThreshold[th]||[]).filter(x => !x._removed)).length, 0));
+  setCnt('thLt6', filt((_byThreshold['長期6%']||[]).filter(s => !s._removed)).length);
+  // 逍遙 - 穿越
+  setCnt('thAACross', filt((_byThreshold['AA']||[]).filter(s => s.cross)).length);
+  setCnt('thOtherCross', otherThs.reduce((s,th) => s + filt((_byThreshold[th]||[]).filter(x => x.cross)).length, 0));
+  setCnt('thLt6Cross', filt((_byThreshold['長期6%']||[]).filter(s => s.cross)).length);
+
+  // 成長
+  const neffList = _stocks.filter(s => {
+    const gi = s._gi || {};
+    return gi.neff_a != null && gi.neff_a >= 1 && !gi.neff_gray;
+  });
+  const pegList = _stocks.filter(s => {
+    const gi = s._gi || {};
+    return gi.lynch_a != null && gi.lynch_a > 0 && gi.lynch_a <= 1 && !gi.lynch_gray;
+  });
+  setCnt('neff', _qualityOnly ? neffList.filter(s => _qualitySet.has(s.code)).length : neffList.length);
+  setCnt('peg', _qualityOnly ? pegList.filter(s => _qualitySet.has(s.code)).length : pegList.length);
 }
 
 function renderTab() {
-  if (_tab === 'aa') renderList('AA');
-  else if (_tab === 'cheap') renderList('cheap');
-  else if (_tab === 'crossAA') renderCrosses(['AA']);
-  else if (_tab === 'crossOther') renderCrosses(['A1','A2','A']);
-  else if (_tab === 'crossLt6') renderCrosses(['長期6%']);
+  if (_L1 === 'shen') {
+    if (_L2 === 'aa') renderList('AA');
+    else if (_L2 === 'cheap') renderList('cheap');
+    else if (_L2 === 'crossAA') renderCrosses(['AA']);
+    else if (_L2 === 'crossOther') renderCrosses(['A1','A2','A']);
+  } else if (_L1 === 'xiaoyao') {
+    if (_L2 === 'thAA') renderThresholdList(['AA']);
+    else if (_L2 === 'thOther') renderThresholdList(['A1','A2','A']);
+    else if (_L2 === 'thLt6') renderThresholdList(['長期6%']);
+    else if (_L2 === 'thAACross') renderCrosses(['AA']);
+    else if (_L2 === 'thOtherCross') renderCrosses(['A1','A2','A']);
+    else if (_L2 === 'thLt6Cross') renderCrosses(['長期6%']);
+  } else if (_L1 === 'growth') {
+    if (_L2 === 'neff') renderGrowthList('neff');
+    else if (_L2 === 'peg') renderGrowthList('peg');
+  }
 }
 
 function renderList(mode) {
@@ -236,28 +349,17 @@ function renderList(mode) {
     : _cheapList.filter(s => ['A1','A2','A'].includes(s.level));
   if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
-  // 分：正常項 vs 刪除項
   const normal = items.filter(s => !s._removed);
   const removed = items.filter(s => s._removed);
 
-  // 按等級分組
   const groups = {};
-  normal.forEach(c => {
-    const g = c.level;
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(c);
-  });
-  // 刪除項也歸組
+  normal.forEach(c => { const g=c.level; if(!groups[g])groups[g]=[]; groups[g].push(c); });
   const removedByGrade = {};
-  removed.forEach(c => {
-    const g = c.level;
-    if (!removedByGrade[g]) removedByGrade[g] = [];
-    removedByGrade[g].push(c);
-  });
+  removed.forEach(c => { const g=c.level; if(!removedByGrade[g])removedByGrade[g]=[]; removedByGrade[g].push(c); });
 
   const gradeOrder = ['AA','A1','A2','A'];
   const allGrades = new Set([...Object.keys(groups), ...Object.keys(removedByGrade)]);
-  const sortedGrades = [...allGrades].sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+  const sortedGrades = [...allGrades].sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
 
   const title = mode === 'AA' ? 'AA 級' : 'A1 / A2 / A 級';
   const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
@@ -271,70 +373,128 @@ function renderList(mode) {
     let gItems = groups[grade] || [];
     let gRemoved = removedByGrade[grade] || [];
     if (!gItems.length && !gRemoved.length) return;
-
-    // 按折價%排序（DB 已算好 discount_pct）
-    gItems.sort((a, b) => (b.discount_pct || -999) - (a.discount_pct || -999));
+    gItems.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
 
     if (mode !== 'AA') {
       const gcls = GRADE_CLS(grade);
-      html += `<div style="padding:0 20px">
-        <div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0">
-          <span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span>
-          <span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span>
-        </div>`;
+      html += `<div style="padding:0 20px"><div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0"><span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span><span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span></div>`;
     } else {
       html += '<div style="padding:0 20px">';
     }
 
-    html += `<table class="val-table"><thead><tr>
-        <th style="width:36px;text-align:center">追蹤</th>
-        <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-        <th style="width:50px;text-align:center">檢核</th>
-        <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
-        <th style="width:70px;text-align:right">股價</th>
-        <th style="width:80px;text-align:right">折價幅度</th>
-        <th style="width:70px;text-align:center">新增</th>
-        <th style="width:70px;text-align:center">刪除</th>
-      </tr></thead><tbody>`;
-
-    [...gItems, ...gRemoved].forEach(c => {
-      const isRemoved = !!c._removed;
-      const dp = (!isRemoved && c.discount_pct != null) ? c.discount_pct : null;
-      const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
-      const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-
-      // 新增：突破（等級往上，變便宜）
-      const addHtml = (c._chg_direction === 'cheaper' && c._chg_from)
-        ? `<span style="color:#059669;font-weight:600;font-size:.75rem">突破 ${c._chg_from || 'above'}→${c._chg_to}</span>`
-        : (c._chg_direction === 'lateral' && c._chg_from)
-        ? `<span style="color:#2563eb;font-weight:600;font-size:.75rem">平移 ${c._chg_from}→${c._chg_to}</span>` : '';
-      // 刪除：跌破（等級往下，變貴）
-      const rmHtml = isRemoved
-        ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">跌破 ${c._chg_from}→${c._chg_to || 'above'}</span>` : '';
-      const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
-
-      const isFocused = _focusTrackSet.has(c.code);
-      const chkHtml = c.chk_pass != null
-        ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${c.chk_pass}/${c.chk_total||12}</a>`
-        : '—';
-      const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, c.growth_eps, c.growth_inv);
-      html += `<tr${rowStyle}>
-        <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
-        <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-        <td>${c.name}</td>
-        <td style="text-align:center">${chkHtml}</td>
-        <td style="text-align:center">${growthHtml}</td>
-        <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-        <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
-        <td style="text-align:center">${addHtml}</td>
-        <td style="text-align:center">${rmHtml}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    html += _cheapTableHtml([...gItems, ...gRemoved]);
+    html += '</div>';
   });
 
   if (!normal.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
   html += '</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+function _cheapTableHtml(items) {
+  let html = `<table class="val-table"><thead><tr>
+    <th style="width:36px;text-align:center">追蹤</th>
+    <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+    <th style="width:50px;text-align:center">檢核</th>
+    <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
+    <th style="width:70px;text-align:right">股價</th>
+    <th style="width:80px;text-align:right">折價幅度</th>
+    <th style="width:70px;text-align:center">新增</th>
+    <th style="width:70px;text-align:center">刪除</th>
+  </tr></thead><tbody>`;
+
+  items.forEach(c => {
+    const isRemoved = !!c._removed;
+    const dp = (!isRemoved && c.discount_pct != null) ? c.discount_pct : null;
+    const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
+    const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
+    const addHtml = (c._chg_direction === 'cheaper' && c._chg_from)
+      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">突破 ${c._chg_from||'above'}→${c._chg_to}</span>`
+      : (c._chg_direction === 'lateral' && c._chg_from)
+      ? `<span style="color:#2563eb;font-weight:600;font-size:.75rem">平移 ${c._chg_from}→${c._chg_to}</span>` : '';
+    const rmHtml = isRemoved
+      ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">跌破 ${c._chg_from}→${c._chg_to||'above'}</span>` : '';
+    const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
+    const isFocused = _focusTrackSet.has(c.code);
+    const chkHtml = c.chk_pass != null
+      ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
+      : '—';
+    const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, c.growth_eps, c.growth_inv);
+    html += `<tr${rowStyle}>
+      <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+      <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+      <td>${c.name}</td>
+      <td style="text-align:center">${chkHtml}</td>
+      <td style="text-align:center">${growthHtml}</td>
+      <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+      <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
+      <td style="text-align:center">${addHtml}</td>
+      <td style="text-align:center">${rmHtml}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderThresholdList(thNames) {
+  const thStyle = {
+    'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
+    'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
+    'A2':    {bg:'#eff6ff', color:'#1d4ed8', border:'#3b82f6'},
+    'A':     {bg:'#f0fdf4', color:'#166534', border:'#22c55e'},
+    '長期6%': {bg:'#ecfdf5', color:'#065f46', border:'#10b981'},
+  };
+
+  let html = '';
+  thNames.forEach(th => {
+    let items = _byThreshold[th] || [];
+    if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
+    const normal = items.filter(s => !s._removed && !s.cross);
+    const st = thStyle[th];
+
+    html += `<div class="section">
+      <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
+        ${th} 門檻便宜清單
+        <span style="font-weight:400;font-size:.82rem;margin-left:8px">${normal.length} 支</span>
+      </div>`;
+
+    if (!normal.length) {
+      html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
+    } else {
+      html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
+        <th style="width:36px;text-align:center">追蹤</th>
+        <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+        <th style="width:50px;text-align:center">檢核</th>
+        <th style="width:50px;text-align:center">趨勢</th>
+        <th style="width:80px;text-align:right">股價</th>
+        <th style="width:80px;text-align:right">門檻價</th>
+        <th style="width:80px;text-align:right">折價幅度</th>
+      </tr></thead><tbody>`;
+
+      normal.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
+      normal.forEach(c => {
+        const dp = c.discount_pct;
+        const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
+        const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
+        const isFocused = _focusTrackSet.has(c.code);
+        const chkHtml = c.chk_pass != null ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>` : '—';
+        const growthHtml = _growthBadge(c.growth_signal, null, null, null);
+        html += `<tr>
+          <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+          <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
+          <td>${c.name}</td>
+          <td style="text-align:center">${chkHtml}</td>
+          <td style="text-align:center">${growthHtml}</td>
+          <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+          <td style="text-align:right;color:${st.color}">${c.threshold_val != null ? c.threshold_val.toFixed(2) : '-'}</td>
+          <td style="text-align:right;font-weight:600;color:${dpColor}">${dpStr}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+  });
+
   document.getElementById('content').innerHTML = html;
 }
 
@@ -357,18 +517,18 @@ function renderCrosses(thNames) {
 
     html += `<div class="section">
       <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
-        ${th} 門檻
+        ${th} 門檻穿越
         <span style="font-weight:400;font-size:.82rem;margin-left:8px">${normal.length} 支</span>
       </div>`;
 
     if (!normal.length && !removed.length) {
-      html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
+      html += '<div style="text-align:center;padding:30px;color:#94a3b8">今日無穿越此門檻的股票</div>';
     } else {
       html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
         <th style="width:36px;text-align:center">追蹤</th>
         <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
         <th style="width:50px;text-align:center">檢核</th>
-        <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
+        <th style="width:50px;text-align:center">趨勢</th>
         <th style="width:80px;text-align:right">股價</th>
         <th style="width:80px;text-align:right">門檻價</th>
         <th style="width:80px;text-align:right">折價幅度</th>
@@ -383,24 +543,21 @@ function renderCrosses(thNames) {
         const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
         let statusHtml = '';
         if (c.cross === 'below') {
-          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${c.from_th || 'above'}→${c.to_th}</span>`;
+          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${c.from_th||'above'}→${c.to_th}</span>`;
         } else if (c.cross === 'above') {
-          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${c.from_th}→${c.to_th || 'above'}</span>`;
+          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${c.from_th}→${c.to_th||'above'}</span>`;
         }
-
         const isFocused = _focusTrackSet.has(c.code);
-        const chkHtml2 = c.chk_pass != null
-          ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${c.chk_pass}/${c.chk_total||12}</a>`
-          : '—';
-        const growthHtml2 = _growthBadge(c.growth_signal, null, null, null);
+        const chkHtml = c.chk_pass != null ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>` : '—';
+        const growthHtml = _growthBadge(c.growth_signal, null, null, null);
         html += `<tr${rowStyle}>
           <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
           <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
           <td>${c.name}</td>
-          <td style="text-align:center">${chkHtml2}</td>
-          <td style="text-align:center">${growthHtml2}</td>
+          <td style="text-align:center">${chkHtml}</td>
+          <td style="text-align:center">${growthHtml}</td>
           <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-          <td style="text-align:right;color:${st.color}">${c.threshold_val.toFixed(2)}</td>
+          <td style="text-align:right;color:${st.color}">${c.threshold_val != null ? c.threshold_val.toFixed(2) : '-'}</td>
           <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
           <td style="text-align:center">${statusHtml}</td>
         </tr>`;
@@ -410,6 +567,98 @@ function renderCrosses(thNames) {
     html += '</div>';
   });
 
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderGrowthList(type) {
+  let items;
+  let title, headerStyle, sortField, sortLabel, filterLabel;
+
+  if (type === 'neff') {
+    items = _stocks.filter(s => {
+      const gi = s._gi || {};
+      return gi.neff_a != null && gi.neff_a >= 1 && !gi.neff_gray;
+    });
+    title = '約翰聶夫 (Neff Ratio >= 1)';
+    headerStyle = 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
+    sortField = 'neff_a';
+    sortLabel = 'Neff';
+    filterLabel = '(EPS成長率+殖利率) / PE >= 1，成長性被低估';
+  } else {
+    items = _stocks.filter(s => {
+      const gi = s._gi || {};
+      return gi.lynch_a != null && gi.lynch_a > 0 && gi.lynch_a <= 1 && !gi.lynch_gray;
+    });
+    title = 'PEG (PEG <= 1)';
+    headerStyle = 'background:#eff6ff;color:#1d4ed8;border-color:#3b82f6';
+    sortField = 'lynch_a';
+    sortLabel = 'PEG';
+    filterLabel = 'PE / EPS成長率 <= 1，股價相對成長便宜';
+  }
+
+  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
+
+  // 排序：Neff 大到小，PEG 小到大
+  if (type === 'neff') {
+    items.sort((a,b) => ((b._gi||{})[sortField]||0) - ((a._gi||{})[sortField]||0));
+  } else {
+    items.sort((a,b) => ((a._gi||{})[sortField]||999) - ((b._gi||{})[sortField]||999));
+  }
+
+  let html = `<div class="section">
+    <div class="section-header" style="${headerStyle}">${title}
+      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支 — ${filterLabel}</span>
+    </div>`;
+
+  if (!items.length) {
+    html += '<div style="text-align:center;padding:40px;color:#94a3b8">目前無符合條件的股票</div>';
+  } else {
+    html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
+      <th style="width:36px;text-align:center">追蹤</th>
+      <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
+      <th style="width:50px;text-align:center">檢核</th>
+      <th style="width:50px;text-align:center">趨勢</th>
+      <th style="width:70px;text-align:right">股價</th>
+      <th style="width:70px;text-align:right">PE</th>
+      <th style="width:70px;text-align:right">${sortLabel}</th>
+      <th style="width:70px;text-align:right">殖利率</th>
+      <th style="width:80px;text-align:right">營收3M</th>
+      <th style="width:80px;text-align:right">營收12M</th>
+    </tr></thead><tbody>`;
+
+    items.forEach(s => {
+      const gi = s._gi || {};
+      const val = gi[sortField];
+      const isFocused = _focusTrackSet.has(s.code);
+      const chkHtml = s._chk_pass != null
+        ? `<a href="/company.html?code=${s.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${s._chk_pass}/${s._chk_total||12}</a>`
+        : '—';
+      const signal = gi.rev_3m_yoy > gi.rev_12m_yoy && gi.rev_3m_yoy > 0 ? 'green' : (gi.rev_3m_yoy < gi.rev_12m_yoy && gi.rev_3m_yoy < 0 && gi.rev_12m_yoy < 0 ? 'red' : 'yellow');
+      const growthHtml = _growthBadge(signal, gi.rev_3m_yoy, null, null);
+      const valColor = type === 'neff' ? (val >= 2 ? '#dc2626' : '#334155') : (val <= 0.5 ? '#dc2626' : '#334155');
+      const yldStr = gi.yield != null ? gi.yield.toFixed(1)+'%' : '-';
+      const rev3m = gi.rev_3m_yoy != null ? (gi.rev_3m_yoy>0?'+':'')+gi.rev_3m_yoy.toFixed(1)+'%' : '-';
+      const rev12m = gi.rev_12m_yoy != null ? (gi.rev_12m_yoy>0?'+':'')+gi.rev_12m_yoy.toFixed(1)+'%' : '-';
+      const rev3mColor = gi.rev_3m_yoy > 0 ? '#16a34a' : gi.rev_3m_yoy < 0 ? '#dc2626' : '#64748b';
+      const rev12mColor = gi.rev_12m_yoy > 0 ? '#16a34a' : gi.rev_12m_yoy < 0 ? '#dc2626' : '#64748b';
+
+      html += `<tr>
+        <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+        <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
+        <td>${s.name}</td>
+        <td style="text-align:center">${chkHtml}</td>
+        <td style="text-align:center">${growthHtml}</td>
+        <td style="text-align:right;font-weight:600">${s.close != null ? s.close.toFixed(2) : '-'}</td>
+        <td style="text-align:right">${gi.pe != null ? gi.pe.toFixed(1) : '-'}</td>
+        <td style="text-align:right;font-weight:700;color:${valColor}">${val != null ? val.toFixed(2) : '-'}</td>
+        <td style="text-align:right">${yldStr}</td>
+        <td style="text-align:right;color:${rev3mColor}">${rev3m}</td>
+        <td style="text-align:right;color:${rev12mColor}">${rev12m}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
   document.getElementById('content').innerHTML = html;
 }
 
