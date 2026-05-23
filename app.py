@@ -4727,8 +4727,19 @@ def fetch_industry_news():
 
     import requests
     from datetime import datetime
+    from email.utils import parsedate_to_datetime
     items = []
     _headers = {"User-Agent": "Mozilla/5.0"}
+
+    def _parse_pub_time(pub_str):
+        """RFC 2822 轉 YYYY-MM-DD HH:MM:SS"""
+        if not pub_str:
+            return ""
+        try:
+            dt = parsedate_to_datetime(pub_str)
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            return pub_str
 
     # 經濟日報 RSS（產業 + 股市）
     udn_feeds = [
@@ -4746,7 +4757,7 @@ def fetch_industry_news():
                 pub = item.findtext("pubDate", "").strip()
                 desc = item.findtext("description", "").strip()
                 if title:
-                    items.append((source, title, link, pub, desc[:100] if desc else ""))
+                    items.append((source, title, link, _parse_pub_time(pub), desc[:100] if desc else ""))
         except Exception as e:
             logging.warning(f"抓取 {source} 失敗: {e}")
 
@@ -4801,7 +4812,7 @@ def api_industry_news():
     c.execute("""SELECT id, source, title, link, pub_time, summary, created_at, archived_code
                  FROM industry_news
                  WHERE created_at >= datetime('now', ? || ' days')
-                 ORDER BY created_at DESC, id DESC""", (f'-{days}',))
+                 ORDER BY COALESCE(NULLIF(pub_time,''), created_at) DESC, id DESC""", (f'-{days}',))
     rows = c.fetchall()
     conn.close()
     cols = ['id', 'source', 'title', 'link', 'time', 'summary', 'created_at', 'archived_code']
