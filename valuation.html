@@ -128,6 +128,7 @@ let _cheapList = [];
 let _changes = [];
 let _byThreshold = {};
 let _growthChanges = {};
+let _stockMap = {};
 
 // 第二層按鈕設定
 const L2_CONFIG = {
@@ -199,6 +200,9 @@ async function load() {
 
     const stocksJson = await stocksRes.json();
     _stocks = stocksJson.data || [];
+    // 建立 code → stock 查找表，供各頁面補齊欄位
+    _stockMap = {};
+    _stocks.forEach(s => { _stockMap[s.code] = s; });
 
     _cheapList = _data.val_cheap_list || [];
     _changes = _data.val_level_changes || [];
@@ -358,7 +362,8 @@ function renderList(mode) {
 function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '-'; }
 function _revColor(v) { return v != null ? (v > 0 ? '#16a34a' : v < 0 ? '#dc2626' : '#64748b') : '#cbd5e1'; }
 
-function _cheapTableHtml(items) {
+function _cheapTableHtml(items, growthField, growthLabel) {
+  const hasGrowthCol = !!growthField;
   let html = `<table class="val-table"><thead><tr>
     <th style="width:36px;text-align:center">追蹤</th>
     <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
@@ -371,6 +376,7 @@ function _cheapTableHtml(items) {
     <th style="width:60px;text-align:right">12M</th>
     <th style="width:80px;text-align:right">本益比</th>
     <th style="width:60px;text-align:right">殖利率</th>
+    ${hasGrowthCol ? `<th style="width:70px;text-align:right">${growthLabel}</th>` : ''}
     <th style="width:80px;text-align:right">折價幅度</th>
     <th style="width:70px;text-align:center">新增</th>
     <th style="width:70px;text-align:center">刪除</th>
@@ -414,6 +420,11 @@ function _cheapTableHtml(items) {
       <td style="text-align:right;color:${_revColor(c.rev_12m_yoy)}">${_revStr(c.rev_12m_yoy)}</td>
       <td style="text-align:right;color:${peColor};white-space:nowrap">${peStr}${srcTag}</td>
       <td style="text-align:right;color:${yldColor}">${yldStr}</td>
+      ${hasGrowthCol ? (() => {
+        const gv = c._growth_val;
+        const gvColor = growthField === 'neff_d' ? (gv >= 2 ? '#dc2626' : '#334155') : (gv <= 0.5 ? '#dc2626' : '#334155');
+        return `<td style="text-align:right;font-weight:700;color:${gvColor}">${gv != null ? gv.toFixed(2) : '-'}</td>`;
+      })() : ''}
       <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
       <td style="text-align:center">${addHtml}</td>
       <td style="text-align:center">${rmHtml}</td>
@@ -421,6 +432,27 @@ function _cheapTableHtml(items) {
   });
   html += '</tbody></table>';
   return html;
+}
+
+function _enrichFromStockMap(c) {
+  const s = _stockMap[c.code] || {};
+  const gi = s._gi || {};
+  if (c.revenue_yoy == null) c.revenue_yoy = s.revenue_yoy;
+  if (c.revenue_cum_yoy == null) c.revenue_cum_yoy = s.revenue_cum_yoy;
+  if (c.rev_3m_yoy == null) c.rev_3m_yoy = gi.rev_3m_yoy;
+  if (c.rev_12m_yoy == null) c.rev_12m_yoy = gi.rev_12m_yoy;
+  if (c.val_pe == null) c.val_pe = s.val_pe;
+  if (c.val_yld == null) c.val_yld = s.val_yld;
+  if (c.val_source == null) c.val_source = s.val_source;
+  if (c.shen_pe == null) c.shen_pe = s.shen_pe;
+  if (c.shen_yld == null) c.shen_yld = s.shen_yld;
+  if (c.chk_pass == null) c.chk_pass = s._chk_pass;
+  if (c.chk_total == null) c.chk_total = s._chk_total;
+  if (c.growth_signal == null) {
+    c.growth_signal = gi.rev_3m_yoy > gi.rev_12m_yoy && gi.rev_3m_yoy > 0 ? 'green' : (gi.rev_3m_yoy < gi.rev_12m_yoy && gi.rev_3m_yoy < 0 && gi.rev_12m_yoy < 0 ? 'red' : 'yellow');
+    c.growth_rev = gi.rev_3m_yoy;
+  }
+  return c;
 }
 
 function renderThresholdList(thNames) {
@@ -434,7 +466,7 @@ function renderThresholdList(thNames) {
 
   let html = '';
   thNames.forEach(th => {
-    let items = _byThreshold[th] || [];
+    let items = (_byThreshold[th] || []).map(s => _enrichFromStockMap({...s}));
     if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
     const normal = items.filter(s => !s._removed && !s.cross);
     const st = thStyle[th];
@@ -448,36 +480,8 @@ function renderThresholdList(thNames) {
     if (!normal.length) {
       html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
     } else {
-      html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
-        <th style="width:36px;text-align:center">追蹤</th>
-        <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-        <th style="width:50px;text-align:center">檢核</th>
-        <th style="width:50px;text-align:center">趨勢</th>
-        <th style="width:80px;text-align:right">股價</th>
-        <th style="width:80px;text-align:right">門檻價</th>
-        <th style="width:80px;text-align:right">折價幅度</th>
-      </tr></thead><tbody>`;
-
       normal.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
-      normal.forEach(c => {
-        const dp = c.discount_pct;
-        const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
-        const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-        const isFocused = _focusTrackSet.has(c.code);
-        const chkHtml = c.chk_pass != null ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>` : '—';
-        const growthHtml = _growthBadge(c.growth_signal, null, null, null);
-        html += `<tr>
-          <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
-          <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-          <td>${c.name}</td>
-          <td style="text-align:center">${chkHtml}</td>
-          <td style="text-align:center">${growthHtml}</td>
-          <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-          <td style="text-align:right;color:${st.color}">${c.threshold_val != null ? c.threshold_val.toFixed(2) : '-'}</td>
-          <td style="text-align:right;font-weight:600;color:${dpColor}">${dpStr}</td>
-        </tr>`;
-      });
-      html += '</tbody></table></div>';
+      html += '<div style="padding:0 20px">' + _cheapTableHtml(normal) + '</div>';
     }
     html += '</div>';
   });
@@ -558,11 +562,11 @@ function renderCrosses(thNames) {
 }
 
 function renderGrowthList(type) {
-  let items;
+  let rawItems;
   let title, headerStyle, sortField, sortLabel, filterLabel;
 
   if (type === 'neff') {
-    items = _stocks.filter(s => {
+    rawItems = _stocks.filter(s => {
       const gi = s._gi || {};
       return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
     });
@@ -572,7 +576,7 @@ function renderGrowthList(type) {
     sortLabel = 'Neff';
     filterLabel = '(EPS成長率+殖利率) / PE >= 1，成長性被低估';
   } else {
-    items = _stocks.filter(s => {
+    rawItems = _stocks.filter(s => {
       const gi = s._gi || {};
       return gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray;
     });
@@ -583,13 +587,35 @@ function renderGrowthList(type) {
     filterLabel = 'PE / EPS成長率 <= 1，股價相對成長便宜';
   }
 
+  // 轉成 cheapList 格式
+  const newSet = new Set(type === 'neff' ? (_growthChanges.neff_new||[]) : (_growthChanges.peg_new||[]));
+  let items = rawItems.map(s => {
+    const gi = s._gi || {};
+    return {
+      code: s.code, name: s.name, price: s.close,
+      chk_pass: s._chk_pass, chk_total: s._chk_total,
+      growth_signal: gi.rev_3m_yoy > gi.rev_12m_yoy && gi.rev_3m_yoy > 0 ? 'green' : (gi.rev_3m_yoy < gi.rev_12m_yoy && gi.rev_3m_yoy < 0 && gi.rev_12m_yoy < 0 ? 'red' : 'yellow'),
+      growth_rev: gi.rev_3m_yoy,
+      revenue_yoy: s.revenue_yoy, revenue_cum_yoy: s.revenue_cum_yoy,
+      rev_3m_yoy: gi.rev_3m_yoy, rev_12m_yoy: gi.rev_12m_yoy,
+      val_pe: s.val_pe, val_yld: s.val_yld, val_source: s.val_source,
+      shen_pe: s.shen_pe, shen_yld: s.shen_yld,
+      discount_pct: s.discount_pct,
+      _growth_val: gi[sortField],
+      _growth_label: sortLabel,
+      _chg_direction: newSet.has(s.code) ? 'cheaper' : null,
+      _chg_from: newSet.has(s.code) ? 'above' : null,
+      _chg_to: newSet.has(s.code) ? sortLabel : null,
+    };
+  });
+
   if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
-  // 排序：Neff 大到小，PEG 小到大
+  // 排序
   if (type === 'neff') {
-    items.sort((a,b) => ((b._gi||{})[sortField]||0) - ((a._gi||{})[sortField]||0));
+    items.sort((a,b) => (b._growth_val||0) - (a._growth_val||0));
   } else {
-    items.sort((a,b) => ((a._gi||{})[sortField]||999) - ((b._gi||{})[sortField]||999));
+    items.sort((a,b) => (a._growth_val||999) - (b._growth_val||999));
   }
 
   let html = `<div class="section">
@@ -600,56 +626,7 @@ function renderGrowthList(type) {
   if (!items.length) {
     html += '<div style="text-align:center;padding:40px;color:#94a3b8">目前無符合條件的股票</div>';
   } else {
-    html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
-      <th style="width:36px;text-align:center">追蹤</th>
-      <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-      <th style="width:50px;text-align:center">檢核</th>
-      <th style="width:50px;text-align:center">趨勢</th>
-      <th style="width:70px;text-align:right">股價</th>
-      <th style="width:70px;text-align:right">PE</th>
-      <th style="width:70px;text-align:right">${sortLabel}</th>
-      <th style="width:70px;text-align:right">殖利率</th>
-      <th style="width:80px;text-align:right">營收3M</th>
-      <th style="width:80px;text-align:right">營收12M</th>
-      <th style="width:70px;text-align:center">新增</th>
-    </tr></thead><tbody>`;
-
-    const newSet = new Set(type === 'neff' ? (_growthChanges.neff_new||[]) : (_growthChanges.peg_new||[]));
-
-    items.forEach(s => {
-      const gi = s._gi || {};
-      const val = gi[sortField];
-      const isFocused = _focusTrackSet.has(s.code);
-      const chkHtml = s._chk_pass != null
-        ? `<a href="/company.html?code=${s.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${s._chk_pass}/${s._chk_total||12}</a>`
-        : '—';
-      const signal = gi.rev_3m_yoy > gi.rev_12m_yoy && gi.rev_3m_yoy > 0 ? 'green' : (gi.rev_3m_yoy < gi.rev_12m_yoy && gi.rev_3m_yoy < 0 && gi.rev_12m_yoy < 0 ? 'red' : 'yellow');
-      const growthHtml = _growthBadge(signal, gi.rev_3m_yoy, null, null);
-      const valColor = type === 'neff' ? (val >= 2 ? '#dc2626' : '#334155') : (val <= 0.5 ? '#dc2626' : '#334155');
-      const yldStr = gi.yield != null ? gi.yield.toFixed(1)+'%' : '-';
-      const rev3m = gi.rev_3m_yoy != null ? (gi.rev_3m_yoy>0?'+':'')+gi.rev_3m_yoy.toFixed(1)+'%' : '-';
-      const rev12m = gi.rev_12m_yoy != null ? (gi.rev_12m_yoy>0?'+':'')+gi.rev_12m_yoy.toFixed(1)+'%' : '-';
-      const rev3mColor = gi.rev_3m_yoy > 0 ? '#16a34a' : gi.rev_3m_yoy < 0 ? '#dc2626' : '#64748b';
-      const rev12mColor = gi.rev_12m_yoy > 0 ? '#16a34a' : gi.rev_12m_yoy < 0 ? '#dc2626' : '#64748b';
-      const isNew = newSet.has(s.code);
-      const newHtml = isNew ? '<span class="chg-add">新增</span>' : '';
-
-      html += `<tr>
-        <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
-        <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
-        <td>${s.name}</td>
-        <td style="text-align:center">${chkHtml}</td>
-        <td style="text-align:center">${growthHtml}</td>
-        <td style="text-align:right;font-weight:600">${s.close != null ? s.close.toFixed(2) : '-'}</td>
-        <td style="text-align:right">${gi.pe != null ? gi.pe.toFixed(1) : '-'}</td>
-        <td style="text-align:right;font-weight:700;color:${valColor}">${val != null ? val.toFixed(2) : '-'}</td>
-        <td style="text-align:right">${yldStr}</td>
-        <td style="text-align:right;color:${rev3mColor}">${rev3m}</td>
-        <td style="text-align:right;color:${rev12mColor}">${rev12m}</td>
-        <td style="text-align:center">${newHtml}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    html += '<div style="padding:0 20px">' + _cheapTableHtml(items, sortField, sortLabel) + '</div>';
   }
   html += '</div>';
   document.getElementById('content').innerHTML = html;
