@@ -5,458 +5,275 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>逍遙日報</title>
 <style>
-:root {
-  --bg: #0f1923;
-  --card: #1a2634;
-  --card2: #223044;
-  --border: #2a3a4e;
-  --text: #e0e6ed;
-  --muted: #7a8a9e;
-  --red: #ef4444;
-  --green: #22c55e;
-  --yellow: #eab308;
-  --blue: #3b82f6;
-  --orange: #f97316;
-  --accent: #60a5fa;
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, 'Segoe UI', 'Noto Sans TC', sans-serif;
-  line-height: 1.6;
-  padding: 0;
-}
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 16px;
-}
-header {
-  text-align: center;
-  padding: 24px 0 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-}
-header h1 {
-  font-size: 1.6em;
-  font-weight: 300;
-  letter-spacing: 4px;
-  color: var(--accent);
-}
-header .date {
-  color: var(--muted);
-  font-size: 0.9em;
-  margin-top: 4px;
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: 2px; }
+  header .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  header a:hover { color: #fff; }
+  .nav-links { display: flex; gap: 16px; align-items: center; }
+  .container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
 
-/* Summary Cards */
-.summary-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.summary-card {
-  background: var(--card);
-  border-radius: 10px;
-  padding: 14px;
-  text-align: center;
-}
-.summary-card .label {
-  font-size: 0.75em;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-.summary-card .value {
-  font-size: 1.5em;
-  font-weight: 600;
-}
-.summary-card .delta {
-  font-size: 0.75em;
-  margin-top: 2px;
-}
-.delta.up { color: var(--red); }
-.delta.down { color: var(--green); }
-.delta.flat { color: var(--muted); }
+  /* Summary cards */
+  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .summary-card {
+    background: #fff; border-radius: 10px; padding: 14px; text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  }
+  .summary-card .label { font-size: .75em; color: #64748b; margin-bottom: 4px; }
+  .summary-card .value { font-size: 1.5em; font-weight: 700; color: #1e3a5f; }
+  .summary-card .delta { font-size: .75em; margin-top: 2px; }
+  .delta-up { color: #dc2626; }
+  .delta-down { color: #16a34a; }
+  .delta-flat { color: #94a3b8; }
 
-/* Section */
-.section {
-  margin-bottom: 24px;
-}
-.section-title {
-  font-size: 1em;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 2px;
-  margin-bottom: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-}
+  /* Sections */
+  .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
+  .section-header {
+    padding: 14px 20px; font-weight: 700; font-size: .95rem;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .section-header .arrow { font-size: .7em; color: #94a3b8; transition: transform .2s; }
+  .section-header .arrow.collapsed { transform: rotate(-90deg); }
+  .section-body { padding: 0 20px 16px; }
+  .section-body.collapsed { display: none; }
 
-/* Flash opportunities */
-.flash-list { display: flex; flex-direction: column; gap: 8px; }
-.flash-item {
-  background: var(--card);
-  border-radius: 8px;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-left: 3px solid var(--red);
-  cursor: pointer;
-}
-.flash-item.expensive { border-left-color: var(--muted); opacity: 0.6; }
-.flash-item .stock-info {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.flash-item .code { font-weight: 600; color: var(--accent); }
-.flash-item .name { color: var(--text); font-size: 0.9em; }
-.flash-item .badge {
-  font-size: 0.7em;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-.badge-aa { background: rgba(239,68,68,0.2); color: var(--red); }
-.badge-a1 { background: rgba(234,179,8,0.2); color: var(--yellow); }
-.badge-a2 { background: rgba(234,179,8,0.15); color: #d4a20a; }
-.badge-a { background: rgba(59,130,246,0.2); color: var(--blue); }
-.flash-item .right-info {
-  text-align: right;
-  font-size: 0.85em;
-}
-.flash-item .price { font-weight: 600; }
-.flash-item .direction { font-size: 0.75em; color: var(--muted); }
+  /* Color variants */
+  .header-red { background: #fef2f2; color: #991b1b; border-bottom: 2px solid #fca5a5; }
+  .header-blue { background: #eff6ff; color: #1e40af; border-bottom: 2px solid #93c5fd; }
+  .header-gray { background: #f8fafc; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .header-yellow { background: #fffbeb; color: #92400e; border-bottom: 2px solid #fcd34d; }
+  .header-green { background: #f0fdf4; color: #166534; border-bottom: 2px solid #86efac; }
+  .header-purple { background: #faf5ff; color: #6b21a8; border-bottom: 2px solid #d8b4fe; }
 
-/* Cheap table */
-.cheap-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85em;
-}
-.cheap-table th {
-  text-align: left;
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 0.8em;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-}
-.cheap-table td {
-  padding: 8px;
-  border-bottom: 1px solid rgba(42,58,78,0.5);
-}
-.cheap-table tr:hover { background: var(--card2); }
-.cheap-table .code-cell { color: var(--accent); font-weight: 600; cursor: pointer; }
-.cheap-table .num { text-align: right; }
-.cheap-group-header {
-  background: var(--card);
-  padding: 8px 12px;
-  font-size: 0.85em;
-  font-weight: 600;
-  margin-top: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-}
-.cheap-group-header .count { color: var(--muted); font-weight: 400; }
+  /* Flash items */
+  .flash-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer;
+  }
+  .flash-item:last-child { border-bottom: none; }
+  .flash-item:hover { background: #f8fafc; margin: 0 -20px; padding: 10px 20px; }
+  .flash-item .stock-info { display: flex; align-items: baseline; gap: 8px; }
+  .flash-item .code { font-weight: 700; color: #2563eb; }
+  .flash-item .name { color: #334155; font-size: .9em; }
+  .flash-item .right-info { text-align: right; font-size: .85em; }
+  .flash-item .price { font-weight: 700; color: #1a202c; }
+  .flash-item .direction { font-size: .78em; color: #64748b; }
 
-/* News */
-.news-list { display: flex; flex-direction: column; gap: 6px; }
-.news-item {
-  background: var(--card);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-.news-item.tier2 { border-left: 3px solid var(--orange); }
-.news-item.tier1 { border-left: 3px solid var(--border); }
-.news-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.news-meta .stock-tag {
-  font-size: 0.75em;
-  background: var(--card2);
-  padding: 1px 6px;
-  border-radius: 4px;
-  color: var(--accent);
-}
-.news-meta .time {
-  font-size: 0.7em;
-  color: var(--muted);
-}
-.news-item .subject {
-  font-size: 0.85em;
-  color: var(--text);
-}
-.news-item .direction-tag {
-  font-size: 0.65em;
-  padding: 1px 5px;
-  border-radius: 3px;
-  margin-left: 6px;
-}
-.dir-alarm { background: rgba(239,68,68,0.2); color: var(--red); }
-.dir-positive { background: rgba(34,197,94,0.2); color: var(--green); }
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 700; }
+  .badge-aa { background: #fef2f2; color: #dc2626; }
+  .badge-a1 { background: #fffbeb; color: #d97706; }
+  .badge-a2 { background: #fffbeb; color: #b45309; }
+  .badge-a { background: #eff6ff; color: #2563eb; }
+  .badge-count { background: #f1f5f9; color: #64748b; font-weight: 400; font-size: .8em; padding: 2px 8px; border-radius: 10px; }
 
-/* ETF changes */
-.etf-list { display: flex; flex-direction: column; gap: 4px; }
-.etf-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82em;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(42,58,78,0.3);
-}
-.etf-action {
-  font-size: 0.7em;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 600;
-}
-.etf-action.add { background: rgba(34,197,94,0.2); color: var(--green); }
-.etf-action.remove { background: rgba(239,68,68,0.2); color: var(--red); }
+  /* Cheap table */
+  .cheap-table { width: 100%; border-collapse: collapse; font-size: .85em; }
+  .cheap-table th { text-align: left; color: #64748b; font-weight: 400; font-size: .8em; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  .cheap-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+  .cheap-table tr:hover { background: #f8fafc; }
+  .cheap-table .code-cell { color: #2563eb; font-weight: 700; cursor: pointer; }
+  .cheap-table .code-cell:hover { text-decoration: underline; }
+  .cheap-table .num { text-align: right; }
+  .group-divider {
+    padding: 8px 0; font-weight: 700; font-size: .85em; color: #475569;
+    display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0;
+    cursor: pointer; margin-top: 8px;
+  }
+  .group-divider:first-child { margin-top: 0; }
+  .group-content.collapsed { display: none; }
 
-/* Notes area */
-.notes-area {
-  background: var(--card);
-  border-radius: 10px;
-  padding: 16px;
-}
-.notes-area textarea {
-  width: 100%;
-  min-height: 80px;
-  background: var(--card2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  padding: 10px;
-  font-size: 0.9em;
-  font-family: inherit;
-  resize: vertical;
-}
-.notes-area textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-.notes-area textarea::placeholder { color: var(--muted); }
+  /* News */
+  .news-item { padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+  .news-item:last-child { border-bottom: none; }
+  .news-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .stock-tag { font-size: .75em; background: #eff6ff; padding: 1px 6px; border-radius: 4px; color: #2563eb; font-weight: 600; }
+  .time-tag { font-size: .72em; color: #94a3b8; }
+  .news-subject { font-size: .88em; color: #334155; line-height: 1.5; }
+  .dir-alarm { font-size: .68em; background: #fef2f2; color: #dc2626; padding: 1px 5px; border-radius: 3px; }
+  .dir-positive { font-size: .68em; background: #f0fdf4; color: #16a34a; padding: 1px 5px; border-radius: 3px; }
+  .news-item.tier2 { border-left: 3px solid #f97316; margin-left: -20px; padding-left: 17px; }
 
-/* Collapsible */
-.collapsible-content { display: none; }
-.collapsible-content.open { display: block; }
-.toggle-icon { transition: transform 0.2s; }
-.toggle-icon.open { transform: rotate(90deg); }
+  /* Industry news */
+  .ind-news-item { padding: 8px 0; border-bottom: 1px solid #f1f5f9; display: flex; align-items: baseline; gap: 10px; }
+  .ind-news-item:last-child { border-bottom: none; }
+  .ind-source { font-size: .68em; padding: 2px 6px; border-radius: 3px; white-space: nowrap; flex-shrink: 0; }
+  .src-udn { background: #fef3c7; color: #92400e; }
+  .src-ct { background: #e0e7ff; color: #3730a3; }
+  .ind-title { font-size: .88em; color: #334155; flex: 1; }
+  .ind-title a { color: #334155; text-decoration: none; }
+  .ind-title a:hover { color: #2563eb; text-decoration: underline; }
+  .ind-time { font-size: .7em; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
 
-/* Links */
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+  /* ETF */
+  .etf-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: .85em; }
+  .etf-item:last-child { border-bottom: none; }
+  .etf-add { font-size: .72em; background: #f0fdf4; color: #16a34a; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+  .etf-remove { font-size: .72em; background: #fef2f2; color: #dc2626; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
 
-/* Responsive */
-@media (max-width: 600px) {
-  .summary-row { grid-template-columns: repeat(2, 1fr); }
-  .container { padding: 10px; }
-  header h1 { font-size: 1.3em; }
-}
+  /* Notes */
+  .notes-textarea {
+    width: 100%; min-height: 80px; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 12px; font-size: .9em; font-family: inherit; resize: vertical;
+    color: #1a202c; background: #f8fafc;
+  }
+  .notes-textarea:focus { outline: none; border-color: #2563eb; background: #fff; }
+  .notes-textarea::placeholder { color: #94a3b8; }
 
-.loading {
-  text-align: center;
-  color: var(--muted);
-  padding: 40px;
-}
+  .loading { text-align: center; padding: 60px; color: #94a3b8; }
 
-/* Section toggle */
-.section-title {
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.section-title .arrow { font-size: 0.7em; transition: transform 0.2s; }
-.section-title .arrow.collapsed { transform: rotate(-90deg); }
-
-.hidden { display: none; }
-
-/* Navigation */
-.nav-bar {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-bottom: 16px;
-  font-size: 0.82em;
-}
-.nav-bar a {
-  color: var(--muted);
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-.nav-bar a:hover {
-  color: var(--accent);
-  background: var(--card);
-  text-decoration: none;
-}
+  @media (max-width: 600px) {
+    .summary-row { grid-template-columns: repeat(2, 1fr); }
+    header { flex-direction: column; gap: 8px; }
+    .nav-links { flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
+
+<header>
+  <div>
     <h1>逍遙日報</h1>
-    <div class="date" id="dataDate">載入中...</div>
-  </header>
-
-  <nav class="nav-bar">
-    <a href="/">總表</a>
-    <a href="/daily">新聞詳情</a>
-    <a href="/valuation">評價報告</a>
-  </nav>
-
-  <div id="content">
-    <div class="loading">載入資料中...</div>
+    <span class="date-label" id="dataDate"></span>
   </div>
+  <div class="nav-links">
+    <a href="/">總表</a>
+    <a href="/daily.html">新聞詳情</a>
+    <a href="/valuation.html">評價報告</a>
+  </div>
+</header>
+
+<div class="container" id="content">
+  <div class="loading">載入資料中...</div>
 </div>
 
 <script>
-const API_BASE = '';
-
 async function loadData() {
   try {
-    const [briefRes, newsRes] = await Promise.all([
-      fetch(`${API_BASE}/api/daily-briefing`),
-      fetch(`${API_BASE}/api/news?limit=50`)
+    const [briefRes, newsRes, indRes] = await Promise.all([
+      fetch('/api/daily-briefing'),
+      fetch('/api/news?limit=50'),
+      fetch('/api/industry-news')
     ]);
     const brief = await briefRes.json();
     const newsData = await newsRes.json();
-    render(brief, newsData);
+    let indNews = [];
+    try { indNews = await indRes.json(); } catch(e) {}
+    render(brief, newsData, indNews);
   } catch (e) {
     document.getElementById('content').innerHTML =
       `<div class="loading">載入失敗：${e.message}</div>`;
   }
 }
 
-function render(brief, newsArr) {
+function render(brief, newsArr, indNews) {
   const el = document.getElementById('content');
-  document.getElementById('dataDate').textContent = brief.data_date || '---';
+  document.getElementById('dataDate').textContent = brief.data_date || '';
 
   const dist = brief.val_dist || {};
   const delta = brief.val_dist_delta || {};
   const summary = brief.summary || {};
 
-  // Filter val_level_changes
   const cheaper = (brief.val_level_changes || []).filter(v => v.direction === 'cheaper');
   const expensive = (brief.val_level_changes || []).filter(v => v.direction === 'expensive');
 
-  // Group cheap list by level
   const cheapList = brief.val_cheap_list || [];
   const cheapGroups = { AA: [], A1: [], A2: [], A: [] };
-  cheapList.forEach(s => {
-    const lv = s.level || 'A';
-    if (cheapGroups[lv]) cheapGroups[lv].push(s);
-  });
+  cheapList.forEach(s => { if (cheapGroups[s.level]) cheapGroups[s.level].push(s); });
 
-  // News: only tier 1+2
   const news = newsArr.filter(n => n.tier >= 1).slice(0, 20);
-  const tier2News = news.filter(n => n.tier === 2);
-  const tier1News = news.filter(n => n.tier === 1);
-
-  // ETF changes (recent 7 days)
   const etfChanges = (brief.etf_changes || []).slice(0, 15);
 
   el.innerHTML = `
-    <!-- Summary Cards -->
     <div class="summary-row">
-      ${summaryCard('AA', dist.AA, delta.AA)}
-      ${summaryCard('A1', dist.A1, delta.A1)}
-      ${summaryCard('A2', dist.A2, delta.A2)}
-      ${summaryCard('A', dist.A, delta.A)}
+      ${summaryCard('AA 級以下', dist.AA, delta.AA)}
+      ${summaryCard('A1 級以下', dist.A1, delta.A1)}
+      ${summaryCard('A2 級以下', dist.A2, delta.A2)}
+      ${summaryCard('A 級以下', dist.A, delta.A)}
+    </div>
+    <div class="summary-row">
+      ${summaryCard2('變便宜', summary.to_cheap, '#dc2626')}
+      ${summaryCard2('變貴了', summary.to_expensive, '#16a34a')}
+      ${summaryCard2('等級變動', summary.grade_change, '#d97706')}
+      ${summaryCard2('便宜清單', cheapList.length, '#2563eb')}
     </div>
 
-    <div class="summary-row">
-      ${summaryCard2('變便宜', summary.to_cheap, 'var(--red)')}
-      ${summaryCard2('變貴了', summary.to_expensive, 'var(--green)')}
-      ${summaryCard2('等級變動', summary.grade_change, 'var(--yellow)')}
-      ${summaryCard2('追蹤中', cheapList.length, 'var(--accent)')}
-    </div>
-
-    <!-- Flash: 今日跨級 -->
     ${cheaper.length > 0 ? `
     <div class="section">
-      <div class="section-title" onclick="toggleSection('flash-cheaper')">
+      <div class="section-header header-red" onclick="toggle(this)">
         <span>今日變便宜 (${cheaper.length})</span>
-        <span class="arrow" id="arrow-flash-cheaper">&#9654;</span>
+        <span class="arrow">&#9654;</span>
       </div>
-      <div class="collapsible-content open" id="flash-cheaper">
-        <div class="flash-list">
-          ${cheaper.map(v => flashItem(v, false)).join('')}
-        </div>
+      <div class="section-body">
+        ${cheaper.map(v => flashItemHtml(v)).join('')}
       </div>
     </div>` : ''}
 
     ${expensive.length > 0 ? `
     <div class="section">
-      <div class="section-title" onclick="toggleSection('flash-expensive')">
+      <div class="section-header header-gray" onclick="toggle(this)">
         <span>今日變貴了 (${expensive.length})</span>
-        <span class="arrow collapsed" id="arrow-flash-expensive">&#9654;</span>
+        <span class="arrow collapsed">&#9654;</span>
       </div>
-      <div class="collapsible-content" id="flash-expensive">
-        <div class="flash-list">
-          ${expensive.map(v => flashItem(v, true)).join('')}
-        </div>
+      <div class="section-body collapsed">
+        ${expensive.map(v => flashItemHtml(v)).join('')}
       </div>
     </div>` : ''}
 
-    <!-- Cheap List -->
     <div class="section">
-      <div class="section-title" onclick="toggleSection('cheap-section')">
+      <div class="section-header header-blue" onclick="toggle(this)">
         <span>便宜清單 (${cheapList.length})</span>
-        <span class="arrow" id="arrow-cheap-section">&#9654;</span>
+        <span class="arrow">&#9654;</span>
       </div>
-      <div class="collapsible-content open" id="cheap-section">
-        ${Object.entries(cheapGroups).map(([lv, list]) =>
-          list.length > 0 ? cheapGroup(lv, list) : ''
-        ).join('')}
+      <div class="section-body">
+        ${['AA','A1','A2','A'].map(lv => cheapGroupHtml(lv, cheapGroups[lv] || [])).join('')}
       </div>
     </div>
 
-    <!-- News -->
     <div class="section">
-      <div class="section-title" onclick="toggleSection('news-section')">
-        <span>重要訊息 (${news.length})</span>
-        <span class="arrow" id="arrow-news-section">&#9654;</span>
+      <div class="section-header header-purple" onclick="toggle(this)">
+        <span>產業新聞 (${indNews.length})</span>
+        <span class="arrow">&#9654;</span>
       </div>
-      <div class="collapsible-content open" id="news-section">
-        <div class="news-list">
-          ${tier2News.map(n => newsItem(n)).join('')}
-          ${tier1News.map(n => newsItem(n)).join('')}
-        </div>
+      <div class="section-body">
+        ${indNews.length > 0 ? indNews.map(n => indNewsHtml(n)).join('') : '<div style="color:#94a3b8;padding:12px 0">暫無產業新聞</div>'}
       </div>
     </div>
 
-    <!-- ETF Changes -->
+    <div class="section">
+      <div class="section-header header-yellow" onclick="toggle(this)">
+        <span>個股重大訊息 (${news.length})</span>
+        <span class="arrow collapsed">&#9654;</span>
+      </div>
+      <div class="section-body collapsed">
+        ${news.map(n => newsHtml(n)).join('')}
+      </div>
+    </div>
+
     ${etfChanges.length > 0 ? `
     <div class="section">
-      <div class="section-title" onclick="toggleSection('etf-section')">
+      <div class="section-header header-green" onclick="toggle(this)">
         <span>ETF 異動 (${etfChanges.length})</span>
-        <span class="arrow collapsed" id="arrow-etf-section">&#9654;</span>
+        <span class="arrow collapsed">&#9654;</span>
       </div>
-      <div class="collapsible-content" id="etf-section">
-        <div class="etf-list">
-          ${etfChanges.map(e => etfItem(e)).join('')}
-        </div>
+      <div class="section-body collapsed">
+        ${etfChanges.map(e => etfHtml(e)).join('')}
       </div>
     </div>` : ''}
 
-    <!-- Notes -->
     <div class="section">
-      <div class="section-title">
+      <div class="section-header header-gray">
         <span>今日筆記</span>
       </div>
-      <div class="notes-area">
-        <textarea id="dailyNote" placeholder="看完報告，寫下今天的想法..."></textarea>
+      <div class="section-body">
+        <textarea class="notes-textarea" placeholder="看完報告，寫下今天的想法..."></textarea>
       </div>
     </div>
   `;
@@ -464,10 +281,10 @@ function render(brief, newsArr) {
 
 function summaryCard(label, value, delta) {
   const d = delta || 0;
-  const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
+  const cls = d > 0 ? 'delta-up' : d < 0 ? 'delta-down' : 'delta-flat';
   const sign = d > 0 ? '+' : '';
   return `<div class="summary-card">
-    <div class="label">${label} 級以下</div>
+    <div class="label">${label}</div>
     <div class="value">${value || 0}</div>
     <div class="delta ${cls}">${d !== 0 ? sign + d : '-'}</div>
   </div>`;
@@ -480,15 +297,11 @@ function summaryCard2(label, value, color) {
   </div>`;
 }
 
-function flashItem(v, isExpensive) {
-  const cls = isExpensive ? 'flash-item expensive' : 'flash-item';
+function flashItemHtml(v) {
   const level = v.to || v.from || '';
-  const badgeCls = level === 'AA' ? 'badge-aa' :
-    level === 'A1' ? 'badge-a1' : level === 'A2' ? 'badge-a2' : 'badge-a';
-  const arrow = v.direction === 'cheaper' ? '&#9660;' : '&#9650;';
-  const dirText = v.direction === 'cheaper' ?
-    `${v.from || '?'} → ${v.to}` : `${v.from} → ${v.to || '脫離'}`;
-  return `<div class="${cls}" onclick="window.open('/company/${v.code}','_blank')">
+  const badgeCls = level === 'AA' ? 'badge-aa' : level === 'A1' ? 'badge-a1' : level === 'A2' ? 'badge-a2' : 'badge-a';
+  const dirText = v.direction === 'cheaper' ? `${v.from || '?'} → ${v.to}` : `${v.from} → ${v.to || '脫離'}`;
+  return `<div class="flash-item" onclick="window.open('/company/${v.code}','_blank')">
     <div class="stock-info">
       <span class="code">${v.code}</span>
       <span class="name">${v.name}</span>
@@ -501,69 +314,86 @@ function flashItem(v, isExpensive) {
   </div>`;
 }
 
-function cheapGroup(level, list) {
-  const badgeCls = level === 'AA' ? 'badge-aa' :
-    level === 'A1' ? 'badge-a1' : level === 'A2' ? 'badge-a2' : 'badge-a';
+function cheapGroupHtml(level, list) {
+  if (list.length === 0) return '';
+  const badgeCls = level === 'AA' ? 'badge-aa' : level === 'A1' ? 'badge-a1' : level === 'A2' ? 'badge-a2' : 'badge-a';
   const sorted = list.sort((a,b) => (b.discount_pct||0) - (a.discount_pct||0));
-  const id = `cheap-${level}`;
+  const isOpen = level === 'AA';
   return `
-    <div class="cheap-group-header" onclick="toggleSection('${id}')">
+    <div class="group-divider" onclick="toggleGroup(this)">
       <span><span class="badge ${badgeCls}">${level}</span> 級</span>
-      <span class="count">${list.length} 支 <span class="arrow ${level !== 'AA' ? 'collapsed' : ''}" id="arrow-${id}">&#9654;</span></span>
+      <span class="badge-count">${list.length} 支 <span class="arrow ${isOpen?'':'collapsed'}">&#9654;</span></span>
     </div>
-    <div class="collapsible-content ${level === 'AA' ? 'open' : ''}" id="${id}">
+    <div class="group-content ${isOpen?'':'collapsed'}">
       <table class="cheap-table">
-        <tr>
-          <th>代碼</th><th>名稱</th><th class="num">股價</th>
-          <th class="num">折價%</th><th class="num">天數</th><th class="num">殖利率</th>
-        </tr>
+        <tr><th>代碼</th><th>名稱</th><th class="num">股價</th><th class="num">折價%</th><th class="num">天數</th><th class="num">殖利率</th></tr>
         ${sorted.map(s => `<tr>
           <td class="code-cell" onclick="window.open('/company/${s.code}','_blank')">${s.code}</td>
-          <td>${s.name}${s.is_new ? ' <span style="color:var(--red);font-size:0.7em">NEW</span>' : ''}</td>
+          <td>${s.name}${s.is_new ? ' <span style="color:#dc2626;font-size:.72em;font-weight:700">NEW</span>' : ''}</td>
           <td class="num">$${s.price}</td>
-          <td class="num" style="color:${(s.discount_pct||0) > 30 ? 'var(--red)' : 'var(--text)'}">${(s.discount_pct||0).toFixed(1)}%</td>
-          <td class="num" style="color:var(--muted)">${s.cheap_days || 0}</td>
-          <td class="num" style="color:${(s.shen_yld||0) > 6 ? 'var(--green)' : 'var(--text)'}">${(s.shen_yld||0).toFixed(1)}%</td>
+          <td class="num" style="color:${(s.discount_pct||0) > 30 ? '#dc2626' : '#334155'};font-weight:${(s.discount_pct||0) > 30 ? '700' : '400'}">${(s.discount_pct||0).toFixed(1)}%</td>
+          <td class="num" style="color:#64748b">${s.cheap_days || 0}</td>
+          <td class="num" style="color:${(s.shen_yld||0) > 6 ? '#16a34a' : '#334155'}">${(s.shen_yld||0).toFixed(1)}%</td>
         </tr>`).join('')}
       </table>
     </div>`;
 }
 
-function newsItem(n) {
-  const cls = n.tier === 2 ? 'news-item tier2' : 'news-item tier1';
-  const dirTag = n.direction === 'alarm' ? '<span class="direction-tag dir-alarm">警示</span>' :
-    n.direction === 'positive' ? '<span class="direction-tag dir-positive">正向</span>' : '';
+function indNewsHtml(n) {
+  const isUdn = n.source.includes('經濟');
+  const srcCls = isUdn ? 'src-udn' : 'src-ct';
+  const srcLabel = n.source.includes('產業') ? '產業' : n.source.includes('股市') ? '股市' : '新聞';
+  const srcName = isUdn ? '經濟' : '工商';
+  let timeStr = '';
+  if (n.time) {
+    const m = n.time.match(/(\d{2}:\d{2})/);
+    if (m) timeStr = m[1];
+  }
+  return `<div class="ind-news-item">
+    <span class="ind-source ${srcCls}">${srcName} ${srcLabel}</span>
+    <span class="ind-title"><a href="${n.link}" target="_blank">${n.title}</a></span>
+    ${timeStr ? `<span class="ind-time">${timeStr}</span>` : ''}
+  </div>`;
+}
+
+function newsHtml(n) {
+  const cls = n.tier === 2 ? 'news-item tier2' : 'news-item';
+  const dirTag = n.direction === 'alarm' ? '<span class="dir-alarm">警示</span>' :
+    n.direction === 'positive' ? '<span class="dir-positive">正向</span>' : '';
   const timeStr = n.created_at ? n.created_at.slice(11, 16) : '';
   return `<div class="${cls}">
     <div class="news-meta">
       <span class="stock-tag">${n.code} ${n.name}</span>
-      <span class="time">${timeStr}</span>
+      <span class="time-tag">${timeStr}</span>
       ${dirTag}
     </div>
-    <div class="subject">${n.subject}</div>
+    <div class="news-subject">${n.subject}</div>
   </div>`;
 }
 
-function etfItem(e) {
-  const cls = e.action === 'add' ? 'etf-action add' : 'etf-action remove';
+function etfHtml(e) {
+  const cls = e.action === 'add' ? 'etf-add' : 'etf-remove';
   const label = e.action === 'add' ? '納入' : '剔除';
   return `<div class="etf-item">
     <span class="${cls}">${label}</span>
-    <span style="color:var(--muted)">${e.etf_name}</span>
+    <span style="color:#64748b">${e.etf_name}</span>
     <span>${e.stock_code} ${e.stock_name}</span>
-    <span style="color:var(--muted);font-size:0.75em;margin-left:auto">${e.change_date}</span>
+    <span style="color:#94a3b8;font-size:.75em;margin-left:auto">${e.change_date}</span>
   </div>`;
 }
 
-function toggleSection(id) {
-  const content = document.getElementById(id);
-  const arrow = document.getElementById('arrow-' + id);
-  if (content) {
-    content.classList.toggle('open');
-  }
-  if (arrow) {
-    arrow.classList.toggle('collapsed');
-  }
+function toggle(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.arrow');
+  body.classList.toggle('collapsed');
+  arrow.classList.toggle('collapsed');
+}
+
+function toggleGroup(divider) {
+  const content = divider.nextElementSibling;
+  const arrow = divider.querySelector('.arrow');
+  content.classList.toggle('collapsed');
+  arrow.classList.toggle('collapsed');
 }
 
 loadData();
