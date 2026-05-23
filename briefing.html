@@ -428,7 +428,7 @@ function cheapGroupHtml(level, list) {
           <th class="num">股價</th>
           <th class="num">月營收</th><th class="num">累計</th><th class="num">3M</th><th class="num">12M</th>
           <th class="num">本益比</th><th class="num">殖利率</th>
-          <th class="num">折價%</th><th class="num">天數</th>
+          <th class="num">折價%</th>
           <th>新增</th>
         </tr>
         ${sorted.map(c => {
@@ -463,7 +463,6 @@ function cheapGroupHtml(level, list) {
             <td class="num" style="color:${peColor}">${peStr}${srcTag}</td>
             <td class="num" style="color:${yldColor}">${yldStr}</td>
             <td class="num" style="color:${dpColor};font-weight:${dp > 30 ? '700' : '400'}">${dpStr}</td>
-            <td class="num" style="color:#64748b">${c.cheap_days || 0}</td>
             <td>${newHtml}</td>
           </tr>`; }).join('')}
       </table>
