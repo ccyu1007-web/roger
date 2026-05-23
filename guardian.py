@@ -2214,33 +2214,31 @@ def get_daily_briefing():
     # 取所有有快照的股票的最近兩筆
     all_rows = None
     all_rows = None
-    with sqlite3.get_conn(row_factory=True) as conn:
-        c = conn.cursor()
-        # 嘗試含 neff_d/lynch_d 的完整查詢
-        for sql in [
-            """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                      shen_eps, shen_pe, shen_yld, fin_grade,
-                      val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
-                      neff_d, lynch_d
-               FROM stock_state ORDER BY stock_id, date DESC""",
-            """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                      shen_eps, shen_pe, shen_yld, fin_grade,
-                      val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
-               FROM stock_state ORDER BY stock_id, date DESC""",
-            """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
-                      shen_eps, shen_pe, shen_yld, fin_grade
-               FROM stock_state ORDER BY stock_id, date DESC""",
-        ]:
-            try:
+    _ss_queries = [
+        """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                  shen_eps, shen_pe, shen_yld, fin_grade,
+                  val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                  neff_d, lynch_d
+           FROM stock_state ORDER BY stock_id, date DESC""",
+        """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                  shen_eps, shen_pe, shen_yld, fin_grade,
+                  val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+           FROM stock_state ORDER BY stock_id, date DESC""",
+        """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                  shen_eps, shen_pe, shen_yld, fin_grade
+           FROM stock_state ORDER BY stock_id, date DESC""",
+    ]
+    for sql in _ss_queries:
+        try:
+            with sqlite3.get_conn(row_factory=True) as conn:
+                c = conn.cursor()
                 c.execute(sql)
                 all_rows = c.fetchall()
-                break
-            except Exception:
-                try: conn.rollback()
-                except Exception: pass
-                continue
-        c.execute("SELECT code, name FROM stocks")
-        names = {r['code']: r['name'] for r in c.fetchall()}
+                c.execute("SELECT code, name FROM stocks")
+                names = {r['code']: r['name'] for r in c.fetchall()}
+            break
+        except Exception:
+            continue
 
     # 按 stock_id 分組，取最近 6 筆（去抖動需要看 5 日歷史）
     grouped = {}
