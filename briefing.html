@@ -254,9 +254,10 @@ function render(brief, newsArr, indNews) {
     </div>
 
     <div class="section">
-      <div class="section-header header-purple" onclick="toggle(this)">
-        <span>產業新聞 (${indNews.length})</span>
-        <span class="arrow">&#9654;</span>
+      <div class="section-header header-purple">
+        <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">產業新聞 (${indNews.length})</span>
+        <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
+        <span class="arrow" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
       <div class="section-body">
         ${indNews.length > 0 ? indNews.map(n => indNewsHtml(n)).join('') : '<div style="color:#94a3b8;padding:12px 0">暫無產業新聞</div>'}
@@ -414,6 +415,20 @@ function toggleGroup(divider) {
   const arrow = divider.querySelector('.arrow');
   content.classList.toggle('collapsed');
   arrow.classList.toggle('collapsed');
+}
+
+async function refreshIndustryNews(btn) {
+  btn.textContent = '更新中...';
+  btn.style.pointerEvents = 'none';
+  try {
+    const res = await fetch('/api/industry-news/refresh', {method:'POST'});
+    const data = await res.json();
+    btn.textContent = `+${data.inserted || 0} 則`;
+    setTimeout(() => loadData(), 800);
+  } catch(e) {
+    btn.textContent = '失敗';
+  }
+  setTimeout(() => { btn.textContent = '更新'; btn.style.pointerEvents = ''; }, 2000);
 }
 
 function showArchiveModal(newsId, title) {

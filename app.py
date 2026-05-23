@@ -4795,6 +4795,12 @@ def api_industry_news():
     cols = ['id', 'source', 'title', 'link', 'time', 'summary', 'created_at', 'archived_code']
     return jsonify([dict(zip(cols, r)) for r in rows])
 
+@app.route("/api/industry-news/refresh", methods=["POST"])
+def refresh_industry_news():
+    """手動觸發抓取產業新聞"""
+    n = fetch_industry_news()
+    return jsonify({"status": "ok", "inserted": n})
+
 @app.route("/api/industry-news/<int:nid>/archive", methods=["POST"])
 def archive_industry_news(nid):
     """歸檔產業新聞到個股筆記"""
