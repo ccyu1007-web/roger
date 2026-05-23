@@ -389,7 +389,7 @@ function _cheapTableHtml(items) {
     const _pe = c.val_pe != null ? c.val_pe : c.shen_pe;
     const _yld = c.val_yld != null ? c.val_yld : c.shen_yld;
     const _src = c.val_source || '沈董';
-    const srcTag = `<span style="font-size:.6em;color:#94a3b8;margin-left:2px" title="${_src}法">${_src[0]}</span>`;
+    const srcTag = `<span style="color:#94a3b8;margin-left:3px" title="${_src}法">${_src[0]}</span>`;
     const peStr = _pe != null ? _pe.toFixed(1) : '-';
     const peColor = _pe != null ? (_pe <= 10 ? '#dc2626' : _pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
     const yldStr = _yld != null ? _yld.toFixed(1) + '%' : '-';
