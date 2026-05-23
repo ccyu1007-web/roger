@@ -4704,21 +4704,20 @@ def test_db():
 
 # ── 產業新聞 ──────────────────────────────────────────────────
 def _init_industry_news_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS industry_news (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source TEXT,
-        title TEXT,
-        link TEXT,
-        pub_time TEXT,
-        summary TEXT,
-        created_at TEXT,
-        archived_code TEXT,
-        archived_at TEXT
-    )""")
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS industry_news (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT,
+            title TEXT,
+            link TEXT,
+            pub_time TEXT,
+            summary TEXT,
+            created_at TEXT,
+            archived_code TEXT,
+            archived_at TEXT
+        )""")
+        conn.commit()
 
 def fetch_industry_news():
     """抓取經濟日報 RSS + 工商時報產業新聞，存入 DB（標題去重）"""
@@ -4792,11 +4791,12 @@ def fetch_industry_news():
 
 def cleanup_old_industry_news(days=7):
     """清理超過 N 天且未歸檔的產業新聞"""
+    from datetime import datetime, timedelta
     _init_industry_news_db()
+    cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("DELETE FROM industry_news WHERE created_at < datetime('now', ? || ' days') AND archived_code IS NULL",
-              (f'-{days}',))
+    c.execute("DELETE FROM industry_news WHERE created_at < ? AND archived_code IS NULL", (cutoff,))
     deleted = c.rowcount
     conn.commit()
     conn.close()
@@ -4806,18 +4806,16 @@ def cleanup_old_industry_news(days=7):
 @app.route("/api/industry-news")
 def api_industry_news():
     """讀取 DB 中的產業新聞（預設最近 7 天）"""
+    from datetime import datetime, timedelta
     _init_industry_news_db()
-    days = request.args.get('days', '7', type=str)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""SELECT id, source, title, link, pub_time, summary, created_at, archived_code
-                 FROM industry_news
-                 WHERE created_at >= datetime('now', ? || ' days')
-                 ORDER BY COALESCE(NULLIF(pub_time,''), created_at) DESC, id DESC""", (f'-{days}',))
-    rows = c.fetchall()
-    conn.close()
+    days = int(request.args.get('days', '7'))
+    since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+    rows = query_db("""SELECT id, source, title, link, pub_time, summary, created_at, archived_code
+                       FROM industry_news
+                       WHERE created_at >= ?
+                       ORDER BY COALESCE(NULLIF(pub_time,''), created_at) DESC, id DESC""", (since,))
     cols = ['id', 'source', 'title', 'link', 'time', 'summary', 'created_at', 'archived_code']
-    return jsonify([dict(zip(cols, r)) for r in rows])
+    return jsonify([dict(zip(cols, tuple(r[c] if isinstance(r, dict) else r[i] for i, c in enumerate(cols)))) for r in rows] if rows else [])
 
 @app.route("/api/industry-news/refresh", methods=["POST"])
 def refresh_industry_news():
@@ -5151,15 +5149,14 @@ def save_user_settings():
 
 # ── 每日筆記 API ─────────────────────────────────────────────
 def _init_daily_notes_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS daily_notes (
-        date TEXT PRIMARY KEY,
-        content TEXT,
-        created_at TEXT
-    )""")
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("""CREATE TABLE IF NOT EXISTS daily_notes (
+            date TEXT PRIMARY KEY,
+            content TEXT,
+            created_at TEXT
+        )""")
+        conn.commit()
 
 @app.route("/api/daily-notes", methods=["GET"])
 def get_daily_notes():
