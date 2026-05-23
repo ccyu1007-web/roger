@@ -2971,7 +2971,7 @@ def sync_annual():
                        'contract_chg',
                        'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
                        'val_aa','val_a1','val_a2','val_a','val_lt6',
-                       'val_eps_used','val_div_used',
+                       'val_eps_used','val_div_used','val_pe','val_yld','val_source',
                        'est_eps','est_div','est_pe','est_yld','est_grade',
                        'sys_pe','sys_yld','sys_grade',
                        'gb_roic','gb_ey','gb_roic_rank','gb_ey_rank','gb_total_rank']:
