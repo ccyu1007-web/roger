@@ -217,16 +217,10 @@ function render(brief, newsArr, indNews) {
   const cheapGroups = { AA: [], A1: [], A2: [], A: [] };
   cheapList.forEach(s => { if (cheapGroups[s.level]) cheapGroups[s.level].push(s); });
 
-  const news = newsArr.filter(n => n.tier >= 1).slice(0, 20);
+  const news = newsArr.filter(n => n.tier >= 1);
   const etfChanges = (brief.etf_changes || []).slice(0, 15);
 
   el.innerHTML = `
-    <div class="summary-row">
-      ${summaryCard('AA 級以下', dist.AA, delta.AA)}
-      ${summaryCard('A1 級以下', dist.A1, delta.A1)}
-      ${summaryCard('A2 級以下', dist.A2, delta.A2)}
-      ${summaryCard('A 級以下', dist.A, delta.A)}
-    </div>
     <div class="summary-row">
       ${summaryCard2('變便宜', summary.to_cheap, '#dc2626')}
       ${summaryCard2('變貴了', summary.to_expensive, '#16a34a')}
@@ -289,7 +283,12 @@ function render(brief, newsArr, indNews) {
         <span class="arrow collapsed">&#9654;</span>
       </div>
       <div class="section-body collapsed">
-        ${news.map(n => newsHtml(n)).join('')}
+        ${news.slice(0, 20).map(n => newsHtml(n)).join('')}
+        ${news.length > 20 ? `
+          <div id="news-hidden" style="display:none">${news.slice(20).map(n => newsHtml(n)).join('')}</div>
+          <div class="ind-show-more" onclick="document.getElementById('news-hidden').style.display='block';this.style.display='none'">
+            顯示更多（還有 ${news.length - 20} 則）
+          </div>` : ''}
       </div>
     </div>
 
