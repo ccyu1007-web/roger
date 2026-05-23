@@ -362,7 +362,7 @@ function _cheapTableHtml(items) {
     <th style="width:50px;text-align:center">檢核</th>
     <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
     <th style="width:70px;text-align:right">股價</th>
-    <th style="width:60px;text-align:right">本益比</th>
+    <th style="width:80px;text-align:right">本益比</th>
     <th style="width:60px;text-align:right">殖利率</th>
     <th style="width:80px;text-align:right">折價幅度</th>
     <th style="width:70px;text-align:center">新增</th>
@@ -401,7 +401,7 @@ function _cheapTableHtml(items) {
       <td style="text-align:center">${chkHtml}</td>
       <td style="text-align:center">${growthHtml}</td>
       <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-      <td style="text-align:right;color:${peColor}">${peStr}${srcTag}</td>
+      <td style="text-align:right;color:${peColor};white-space:nowrap">${peStr}${srcTag}</td>
       <td style="text-align:right;color:${yldColor}">${yldStr}</td>
       <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
       <td style="text-align:center">${addHtml}</td>
