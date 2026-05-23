@@ -177,18 +177,23 @@
 
 <script>
 let _indNewsDays = 1;  // 預設只看今天
+let _qualityOnly = false;
+let _qualitySet = new Set();
 
 async function loadData() {
   try {
-    const [briefRes, newsRes, indRes] = await Promise.all([
+    const [briefRes, newsRes, indRes, listRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/news?limit=50'),
-      fetch(`/api/industry-news?days=${_indNewsDays}`)
+      fetch(`/api/industry-news?days=${_indNewsDays}`),
+      fetch('/api/user-lists')
     ]);
     const brief = await briefRes.json();
     const newsData = await newsRes.json();
     let indNews = [];
     try { indNews = await indRes.json(); } catch(e) {}
+    const lists = await listRes.json();
+    _qualitySet = new Set((lists.quality || []).map(r => r.code));
     render(brief, newsData, indNews);
   } catch (e) {
     document.getElementById('content').innerHTML =
@@ -207,7 +212,8 @@ function render(brief, newsArr, indNews) {
   const cheaper = (brief.val_level_changes || []).filter(v => v.direction === 'cheaper');
   const expensive = (brief.val_level_changes || []).filter(v => v.direction === 'expensive');
 
-  const cheapList = brief.val_cheap_list || [];
+  const cheapListAll = brief.val_cheap_list || [];
+  const cheapList = _qualityOnly ? cheapListAll.filter(s => _qualitySet.has(s.code)) : cheapListAll;
   const cheapGroups = { AA: [], A1: [], A2: [], A: [] };
   cheapList.forEach(s => { if (cheapGroups[s.level]) cheapGroups[s.level].push(s); });
 
@@ -251,9 +257,12 @@ function render(brief, newsArr, indNews) {
     </div>` : ''}
 
     <div class="section">
-      <div class="section-header header-blue" onclick="toggle(this)">
-        <span>便宜清單 (${cheapList.length})</span>
-        <span class="arrow">&#9654;</span>
+      <div class="section-header header-blue">
+        <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">便宜清單 (${cheapList.length})</span>
+        <label style="font-size:.8rem;color:#475569;cursor:pointer;margin-right:8px;font-weight:400" onclick="event.stopPropagation()">
+          <input type="checkbox" ${_qualityOnly?'checked':''} onchange="_qualityOnly=this.checked;loadData()" style="vertical-align:middle"> 僅體質佳
+        </label>
+        <span class="arrow" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
       <div class="section-body">
         ${['AA','A1','A2','A'].map(lv => cheapGroupHtml(lv, cheapGroups[lv] || [])).join('')}
