@@ -2112,6 +2112,7 @@ def get_stocks():
                         ('payout_4','REAL'),('payout_5','REAL'),('payout_6','REAL'),
                         ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
                         ('val_eps_used','REAL'),('val_div_used','REAL'),
+                        ('val_pe','REAL'),('val_yld','REAL'),('val_source','TEXT'),
                         ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),
                         ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT'),
                         ('gb_roic','REAL'),('gb_ey','REAL'),('gb_roic_rank','INTEGER'),('gb_ey_rank','INTEGER'),('gb_total_rank','INTEGER')]:
