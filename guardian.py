@@ -2377,7 +2377,7 @@ def get_daily_briefing():
         with sqlite3.get_conn(row_factory=True) as conn_chk:
             c_chk = conn_chk.cursor()
             try:
-                c_chk.execute("SELECT code, pass_count, total_count, growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk FROM stock_checklist")
+                c_chk.execute("SELECT code, pass_count, total_count, growth_signal, growth_rev_momentum, growth_eps_trend, growth_inv_risk, gi_rev_3m_yoy, gi_rev_12m_yoy FROM stock_checklist")
             except Exception:
                 c_chk.execute("SELECT code, pass_count, total_count FROM stock_checklist")
             for r in c_chk.fetchall():
