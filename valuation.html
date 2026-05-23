@@ -169,7 +169,7 @@ const INFO_TEXT = {
   growth: `<b style="color:#334155">成長評價</b><br>
     <b>約翰聶夫比率</b> = (EPS成長率 + 殖利率) / 本益比　←　Neff Ratio >= 1 表示成長性被低估<br>
     <b>PEG</b> = 本益比 / EPS成長率　←　PEG <= 1 表示股價相對成長性便宜<br>
-    <span style="color:#94a3b8">* 使用 neff_a（含殖利率版）和 lynch_a（含殖利率版），灰名單股票已排除</span>`,
+    <span style="color:#94a3b8">* 使用 neff_d（Neff比率）和 lynch_d（PEG），灰名單股票已排除</span>`,
 };
 
 const GRADE_CLS = g => {
@@ -311,14 +311,14 @@ function updateCounts() {
   setCnt('thOtherCross', otherThs.reduce((s,th) => s + filt((_byThreshold[th]||[]).filter(x => x.cross)).length, 0));
   setCnt('thLt6Cross', filt((_byThreshold['長期6%']||[]).filter(s => s.cross)).length);
 
-  // 成長
+  // 成長（neff_d = Neff比率, lynch_d = PEG）
   const neffList = _stocks.filter(s => {
     const gi = s._gi || {};
-    return gi.neff_a != null && gi.neff_a >= 1 && !gi.neff_gray;
+    return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
   });
   const pegList = _stocks.filter(s => {
     const gi = s._gi || {};
-    return gi.lynch_a != null && gi.lynch_a > 0 && gi.lynch_a <= 1 && !gi.lynch_gray;
+    return gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray;
   });
   setCnt('neff', _qualityOnly ? neffList.filter(s => _qualitySet.has(s.code)).length : neffList.length);
   setCnt('peg', _qualityOnly ? pegList.filter(s => _qualitySet.has(s.code)).length : pegList.length);
@@ -577,21 +577,21 @@ function renderGrowthList(type) {
   if (type === 'neff') {
     items = _stocks.filter(s => {
       const gi = s._gi || {};
-      return gi.neff_a != null && gi.neff_a >= 1 && !gi.neff_gray;
+      return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
     });
     title = '約翰聶夫 (Neff Ratio >= 1)';
     headerStyle = 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
-    sortField = 'neff_a';
+    sortField = 'neff_d';
     sortLabel = 'Neff';
     filterLabel = '(EPS成長率+殖利率) / PE >= 1，成長性被低估';
   } else {
     items = _stocks.filter(s => {
       const gi = s._gi || {};
-      return gi.lynch_a != null && gi.lynch_a > 0 && gi.lynch_a <= 1 && !gi.lynch_gray;
+      return gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray;
     });
     title = 'PEG (PEG <= 1)';
     headerStyle = 'background:#eff6ff;color:#1d4ed8;border-color:#3b82f6';
-    sortField = 'lynch_a';
+    sortField = 'lynch_d';
     sortLabel = 'PEG';
     filterLabel = 'PE / EPS成長率 <= 1，股價相對成長便宜';
   }
