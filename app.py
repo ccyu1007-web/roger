@@ -5462,15 +5462,20 @@ def save_user_estimate(code):
     except Exception: pass
     try: _recalc_checklist_single(code)
     except Exception: pass
-    # 本機才推 Render（背景執行避免阻塞）
+    # 拍全量快照（更新便宜清單）+ 推 Render
     if not os.environ.get('DATABASE_URL'):
-        def _push_after_save():
+        def _snapshot_and_push():
+            try:
+                from guardian import snapshot_stock_states
+                snapshot_stock_states()
+            except Exception as e:
+                print(f"[快照] 儲存後快照失敗: {e}")
             try:
                 from render_sync import _push_annual_to_render
-                _push_annual_to_render()  # stocks 表（含衍生欄位+評價門檻）
+                _push_annual_to_render()
             except Exception as e:
                 print(f"[Push] 儲存後同步失敗: {e}")
-        threading.Thread(target=_push_after_save, daemon=True).start()
+        threading.Thread(target=_snapshot_and_push, daemon=True).start()
     return jsonify({"status": "ok"})
 
 # ── 啟動 ────────────────────────────────────────────────────
