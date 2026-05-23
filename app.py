@@ -4689,15 +4689,33 @@ def test_db():
     except Exception as e:
         return jsonify({"status": "error", "db_type": sqlite3.DB_TYPE, "url": safe_url, "error": str(e)})
 
-# ── 產業新聞 API ──────────────────────────────────────────────
-@app.route("/api/industry-news")
-def api_industry_news():
-    """抓取經濟日報 RSS + 工商時報產業新聞標題"""
-    import xml.etree.ElementTree as ET
-    import re, time
-    results = []
+# ── 產業新聞 ──────────────────────────────────────────────────
+def _init_industry_news_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS industry_news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT,
+        title TEXT,
+        link TEXT,
+        pub_time TEXT,
+        summary TEXT,
+        created_at TEXT,
+        archived_code TEXT,
+        archived_at TEXT
+    )""")
+    conn.commit()
+    conn.close()
 
-    import requests as _req
+def fetch_industry_news():
+    """抓取經濟日報 RSS + 工商時報產業新聞，存入 DB（標題去重）"""
+    import xml.etree.ElementTree as ET
+    import re
+    _init_industry_news_db()
+
+    import requests
+    from datetime import datetime
+    items = []
     _headers = {"User-Agent": "Mozilla/5.0"}
 
     # 經濟日報 RSS（產業 + 股市）
@@ -4707,7 +4725,7 @@ def api_industry_news():
     ]
     for feed_url, source in udn_feeds:
         try:
-            resp = _req.get(feed_url, headers=_headers, timeout=8)
+            resp = requests.get(feed_url, headers=_headers, timeout=8)
             resp.raise_for_status()
             root = ET.fromstring(resp.text)
             for item in root.findall(".//item"):
@@ -4716,38 +4734,108 @@ def api_industry_news():
                 pub = item.findtext("pubDate", "").strip()
                 desc = item.findtext("description", "").strip()
                 if title:
-                    results.append({
-                        "source": source,
-                        "title": title,
-                        "link": link,
-                        "time": pub,
-                        "summary": desc[:100] if desc else ""
-                    })
+                    items.append((source, title, link, pub, desc[:100] if desc else ""))
         except Exception as e:
             logging.warning(f"抓取 {source} 失敗: {e}")
 
     # 工商時報 HTML
-    ct_urls = [
-        ("https://www.chinatimes.com/newspapers/260110", "工商時報-產業"),
-    ]
-    for page_url, source in ct_urls:
-        try:
-            resp = _req.get(page_url, headers=_headers, timeout=8)
-            resp.raise_for_status()
-            html = resp.text
-            matches = re.findall(r'<h3[^>]*>\s*<a[^>]*href="(/newspapers/[^"]+)"[^>]*>([^<]+)</a>', html)
-            for path, title in matches:
-                results.append({
-                    "source": source,
-                    "title": title.strip(),
-                    "link": f"https://www.chinatimes.com{path}",
-                    "time": "",
-                    "summary": ""
-                })
-        except Exception as e:
-            logging.warning(f"抓取 {source} 失敗: {e}")
+    try:
+        resp = requests.get("https://www.chinatimes.com/newspapers/260110", headers=_headers, timeout=8)
+        resp.raise_for_status()
+        matches = re.findall(r'<h3[^>]*>\s*<a[^>]*href="(/newspapers/[^"]+)"[^>]*>([^<]+)</a>', resp.text)
+        for path, title in matches:
+            items.append(("工商時報-產業", title.strip(), f"https://www.chinatimes.com{path}", "", ""))
+    except Exception as e:
+        logging.warning(f"抓取工商時報失敗: {e}")
 
-    return jsonify(results)
+    if not items:
+        return 0
+
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    inserted = 0
+    for source, title, link, pub_time, summary in items:
+        c.execute("SELECT id FROM industry_news WHERE title=? AND source=?", (title, source))
+        if not c.fetchone():
+            c.execute("INSERT INTO industry_news (source, title, link, pub_time, summary, created_at) VALUES (?,?,?,?,?,?)",
+                      (source, title, link, pub_time, summary, now))
+            inserted += 1
+    conn.commit()
+    conn.close()
+    print(f"[產業新聞] 抓取 {len(items)} 則，新增 {inserted} 則")
+    return inserted
+
+def cleanup_old_industry_news(days=7):
+    """清理超過 N 天且未歸檔的產業新聞"""
+    _init_industry_news_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM industry_news WHERE created_at < datetime('now', ? || ' days') AND archived_code IS NULL",
+              (f'-{days}',))
+    deleted = c.rowcount
+    conn.commit()
+    conn.close()
+    if deleted:
+        print(f"[產業新聞] 清理 {deleted} 則過期新聞")
+
+@app.route("/api/industry-news")
+def api_industry_news():
+    """讀取 DB 中的產業新聞（預設最近 7 天）"""
+    _init_industry_news_db()
+    days = request.args.get('days', '7', type=str)
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT id, source, title, link, pub_time, summary, created_at, archived_code
+                 FROM industry_news
+                 WHERE created_at >= datetime('now', ? || ' days')
+                 ORDER BY created_at DESC, id DESC""", (f'-{days}',))
+    rows = c.fetchall()
+    conn.close()
+    cols = ['id', 'source', 'title', 'link', 'time', 'summary', 'created_at', 'archived_code']
+    return jsonify([dict(zip(cols, r)) for r in rows])
+
+@app.route("/api/industry-news/<int:nid>/archive", methods=["POST"])
+def archive_industry_news(nid):
+    """歸檔產業新聞到個股筆記"""
+    data = request.json or {}
+    code = data.get('code', '').strip()
+    if not code:
+        return jsonify({"error": "需要股票代碼"}), 400
+
+    _init_industry_news_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # 取得新聞內容
+    c.execute("SELECT source, title, link, created_at FROM industry_news WHERE id=?", (nid,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "找不到該新聞"}), 404
+
+    source, title, link, created_at = row
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    date_str = created_at[:10] if created_at else now[:10]
+
+    # 標記已歸檔
+    c.execute("UPDATE industry_news SET archived_code=?, archived_at=? WHERE id=?", (code, now, nid))
+
+    # 寫入 user_notes（append 模式）
+    c.execute("SELECT content FROM user_notes WHERE code=?", (code,))
+    existing = c.fetchone()
+    note_line = f"\n[{date_str} {source}] {title}"
+    if link:
+        note_line += f"\n{link}"
+    if existing and existing[0]:
+        new_content = existing[0] + "\n" + note_line
+    else:
+        new_content = note_line.strip()
+    c.execute("INSERT OR REPLACE INTO user_notes (code, content, updated_at) VALUES (?,?,?)",
+              (code, new_content, now))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "code": code, "title": title})
 
 # ── 前端首頁 ────────────────────────────────────────────────
 @app.route("/")

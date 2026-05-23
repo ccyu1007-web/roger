@@ -402,6 +402,16 @@ def _push_all_to_render():
                 code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""",
         },
         {
+            'table': 'industry_news',
+            'columns': ['id', 'source', 'title', 'link', 'pub_time', 'summary', 'created_at', 'archived_code', 'archived_at'],
+            'pk': ['id'],
+            'clear_first': True,
+            'create_sql': """CREATE TABLE IF NOT EXISTS industry_news (
+                id INTEGER PRIMARY KEY, source TEXT, title TEXT, link TEXT,
+                pub_time TEXT, summary TEXT, created_at TEXT,
+                archived_code TEXT, archived_at TEXT)""",
+        },
+        {
             'table': 'user_settings',
             'columns': ['key', 'value', 'updated_at'],
             'pk': ['key'],

@@ -2893,6 +2893,12 @@ def _quick_update_inner(t0, today_str):
     except Exception as e: print(f"[MoneyDJ新聞] 失敗: {e}")
     try: auto_archive_old_news()
     except Exception as e: logger.warning(f"[新聞歸檔] 失敗: {e}")
+    # 產業新聞（經濟日報 + 工商時報）
+    try:
+        from app import fetch_industry_news, cleanup_old_industry_news
+        fetch_industry_news()
+        cleanup_old_industry_news()
+    except Exception as e: print(f"[產業新聞] 失敗: {e}")
     # 本機自動 push 新聞到 Render
     if not IS_CLOUD:
         try: _push_news_to_render()

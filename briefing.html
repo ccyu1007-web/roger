@@ -111,6 +111,22 @@
   .ind-title a { color: #334155; text-decoration: none; }
   .ind-title a:hover { color: #2563eb; text-decoration: underline; }
   .ind-time { font-size: .7em; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+  .ind-archive { font-size: .7em; color: #94a3b8; cursor: pointer; white-space: nowrap; flex-shrink: 0; padding: 2px 6px; border: 1px solid #e2e8f0; border-radius: 4px; }
+  .ind-archive:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+  .ind-archived { font-size: .7em; color: #16a34a; white-space: nowrap; flex-shrink: 0; }
+
+  /* Archive modal */
+  .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.4); z-index: 999; display:flex; align-items:center; justify-content:center; }
+  .modal-box { background: #fff; border-radius: 12px; padding: 24px; width: 360px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+  .modal-box h3 { font-size: .95em; margin-bottom: 12px; color: #1e3a5f; }
+  .modal-box input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: .9em; margin-bottom: 12px; }
+  .modal-box input:focus { outline: none; border-color: #2563eb; }
+  .modal-box .btn-row { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-box button { padding: 6px 16px; border-radius: 6px; font-size: .85em; cursor: pointer; border: none; }
+  .modal-box .btn-cancel { background: #f1f5f9; color: #64748b; }
+  .modal-box .btn-save { background: #2563eb; color: #fff; }
+  .modal-box .btn-save:hover { background: #1d4ed8; }
+  .modal-box .news-preview { font-size: .82em; color: #64748b; margin-bottom: 12px; padding: 8px; background: #f8fafc; border-radius: 6px; }
 
   /* ETF */
   .etf-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: .85em; }
@@ -349,10 +365,14 @@ function indNewsHtml(n) {
     const m = n.time.match(/(\d{2}:\d{2})/);
     if (m) timeStr = m[1];
   }
+  const archiveBtn = n.archived_code
+    ? `<span class="ind-archived">${n.archived_code}</span>`
+    : `<span class="ind-archive" onclick="showArchiveModal(${n.id}, '${n.title.replace(/'/g,"\\'")}')">歸檔</span>`;
   return `<div class="ind-news-item">
     <span class="ind-source ${srcCls}">${srcName} ${srcLabel}</span>
     <span class="ind-title"><a href="${n.link}" target="_blank">${n.title}</a></span>
     ${timeStr ? `<span class="ind-time">${timeStr}</span>` : ''}
+    ${archiveBtn}
   </div>`;
 }
 
@@ -394,6 +414,54 @@ function toggleGroup(divider) {
   const arrow = divider.querySelector('.arrow');
   content.classList.toggle('collapsed');
   arrow.classList.toggle('collapsed');
+}
+
+function showArchiveModal(newsId, title) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h3>歸檔到個股筆記</h3>
+      <div class="news-preview">${title}</div>
+      <input type="text" id="archiveCode" placeholder="輸入股票代碼（如 2330）" autofocus>
+      <div class="btn-row">
+        <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">取消</button>
+        <button class="btn-save" onclick="doArchive(${newsId}, this)">歸檔</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.querySelector('#archiveCode').focus(), 100);
+  overlay.querySelector('#archiveCode').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doArchive(newsId, overlay.querySelector('.btn-save'));
+  });
+}
+
+async function doArchive(newsId, btn) {
+  const code = document.getElementById('archiveCode').value.trim();
+  if (!code) return;
+  btn.textContent = '歸檔中...';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/industry-news/${newsId}/archive`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      btn.closest('.modal-overlay').remove();
+      loadData();  // 重新載入，顯示已歸檔狀態
+    } else {
+      alert(data.error || '歸檔失敗');
+      btn.textContent = '歸檔';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    alert('歸檔失敗: ' + e.message);
+    btn.textContent = '歸檔';
+    btn.disabled = false;
+  }
 }
 
 loadData();
