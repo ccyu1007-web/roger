@@ -156,7 +156,7 @@ const L2_CONFIG = {
 // 說明文字
 const INFO_TEXT = {
   shen: `<b style="color:#334155">預估/沈董評價法</b><br>
-    <b>EPS 取用順序</b>：使用者預估 > 系統估算 > 沈董EPS　｜　<b>股利取用順序</b>：使用者預估 > 系統估算 > 沈董股利<br>
+    <b>EPS 取用順序</b>：使用者預估 > min(綜合EPS, 沈董EPS)　｜　<b>股利取用順序</b>：跟隨EPS來源（綜合EPS→綜合股利，沈董EPS→沈董股利）<br>
     <span style="color:#dc2626;font-weight:700">AA</span> = min(EPS×最低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　最嚴格（PE=10, 殖利率=6%）<br>
     <span style="color:#ea580c;font-weight:700">A1</span> = min(EPS×最低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　PE嚴+殖利率寬（PE=10, 殖利率=5.5%）<br>
     <span style="color:#2563eb;font-weight:700">A2</span> = min(EPS×偏低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　PE寬+殖利率嚴（PE=12, 殖利率=6%）<br>
