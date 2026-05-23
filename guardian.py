@@ -2358,7 +2358,7 @@ def get_daily_briefing():
         with sqlite3.get_conn(row_factory=True) as conn3:
             c3 = conn3.cursor()
             try:
-                c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days, val_pe, val_yld, val_source FROM stocks")
+                c3.execute("SELECT code, volume, deepest_val_level, val_cheap_days, val_pe, val_yld, val_source, revenue_yoy, revenue_cum_yoy FROM stocks")
                 for r in c3.fetchall():
                     stock_extra[r['code']] = dict(r)
             except Exception:
@@ -2549,6 +2549,10 @@ def get_daily_briefing():
                 'val_pe': extra.get('val_pe'),
                 'val_yld': extra.get('val_yld'),
                 'val_source': extra.get('val_source'),
+                'revenue_yoy': extra.get('revenue_yoy'),
+                'revenue_cum_yoy': extra.get('revenue_cum_yoy'),
+                'rev_3m_yoy': chk.get('gi_rev_3m_yoy'),
+                'rev_12m_yoy': chk.get('gi_rev_12m_yoy'),
                 'val_aa': latest.get('val_aa'),
                 'val_a': latest.get('val_a'),
                 'chk_pass': chk.get('pass_count'),
