@@ -94,9 +94,6 @@
 </header>
 
 <div class="container">
-  <!-- 統計卡片（固定） -->
-  <div class="stat-row" id="statCards"></div>
-
   <!-- 第一層 Tab -->
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
     <div class="tab-bar-L1">
@@ -231,7 +228,6 @@ async function load() {
     });
 
     if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
-    renderStatCards();
     renderL2Tabs();
     updateCounts();
     renderTab();
@@ -241,24 +237,6 @@ async function load() {
   }
 }
 
-function renderStatCards() {
-  const dist = _data.val_dist || {};
-  const delta = _data.val_dist_delta || {};
-  const mkCard = (label, cls, val, d) => {
-    const sign = d > 0 ? '+' : '';
-    const dColor = d > 0 ? '#dc2626' : d < 0 ? '#16a34a' : '#94a3b8';
-    return `<div class="stat-card ${cls}">
-      <div class="label">${label}</div>
-      <div class="num">${val || 0}</div>
-      <div class="delta" style="color:${dColor}">${d ? sign+d : '—'}</div>
-    </div>`;
-  };
-  document.getElementById('statCards').innerHTML =
-    mkCard('≤ AA', 'sc-aa', dist.AA, delta.AA) +
-    mkCard('≤ A1', 'sc-a1', dist.A1, delta.A1) +
-    mkCard('≤ A2', 'sc-a2', dist.A2, delta.A2) +
-    mkCard('≤ A', 'sc-a', dist.A, delta.A);
-}
 
 function switchL1(l1, btn) {
   _L1 = l1;
