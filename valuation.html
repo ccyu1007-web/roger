@@ -362,6 +362,8 @@ function _cheapTableHtml(items) {
     <th style="width:50px;text-align:center">檢核</th>
     <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
     <th style="width:70px;text-align:right">股價</th>
+    <th style="width:60px;text-align:right">本益比</th>
+    <th style="width:60px;text-align:right">殖利率</th>
     <th style="width:80px;text-align:right">折價幅度</th>
     <th style="width:70px;text-align:center">新增</th>
     <th style="width:70px;text-align:center">刪除</th>
@@ -384,6 +386,10 @@ function _cheapTableHtml(items) {
       ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
       : '—';
     const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, c.growth_eps, c.growth_inv);
+    const peStr = c.shen_pe != null ? c.shen_pe.toFixed(1) : '-';
+    const peColor = c.shen_pe != null ? (c.shen_pe <= 10 ? '#dc2626' : c.shen_pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
+    const yldStr = c.shen_yld != null ? c.shen_yld.toFixed(1) + '%' : '-';
+    const yldColor = c.shen_yld != null ? (c.shen_yld >= 6 ? '#dc2626' : c.shen_yld >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
     html += `<tr${rowStyle}>
       <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
       <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
@@ -391,6 +397,8 @@ function _cheapTableHtml(items) {
       <td style="text-align:center">${chkHtml}</td>
       <td style="text-align:center">${growthHtml}</td>
       <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
+      <td style="text-align:right;color:${peColor}">${peStr}</td>
+      <td style="text-align:right;color:${yldColor}">${yldStr}</td>
       <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
       <td style="text-align:center">${addHtml}</td>
       <td style="text-align:center">${rmHtml}</td>

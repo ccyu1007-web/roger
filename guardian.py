@@ -2544,6 +2544,7 @@ def get_daily_briefing():
                 'deepest': deepest,
                 'recovering': recovering,
                 'volume': volume,
+                'shen_pe': latest.get('shen_pe'),
                 'shen_yld': latest.get('shen_yld'),
                 'val_aa': latest.get('val_aa'),
                 'val_a': latest.get('val_a'),
