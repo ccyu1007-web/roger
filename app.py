@@ -2704,6 +2704,7 @@ def sync_table():
         'quarterly_financial', 'financial_annual',
         'stocks', 'stock_checklist',
         'daily_price', 'focus_tracking', 'focus_signals',
+        'daily_notes', 'industry_news',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
