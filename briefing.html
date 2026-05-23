@@ -221,20 +221,14 @@ function render(brief, newsArr, indNews) {
   const etfChanges = (brief.etf_changes || []).slice(0, 15);
 
   el.innerHTML = `
-    <div class="summary-row">
-      ${summaryCard2('變便宜', summary.to_cheap, '#dc2626')}
-      ${summaryCard2('變貴了', summary.to_expensive, '#16a34a')}
-      ${summaryCard2('等級變動', summary.grade_change, '#d97706')}
-      ${summaryCard2('便宜清單', cheapList.length, '#2563eb')}
-    </div>
 
     ${cheaper.length > 0 ? `
     <div class="section">
       <div class="section-header header-red" onclick="toggle(this)">
         <span>今日變便宜 (${cheaper.length})</span>
-        <span class="arrow">&#9654;</span>
+        <span class="arrow collapsed">&#9654;</span>
       </div>
-      <div class="section-body">
+      <div class="section-body collapsed">
         ${cheaper.map(v => flashItemHtml(v)).join('')}
       </div>
     </div>` : ''}
@@ -256,9 +250,9 @@ function render(brief, newsArr, indNews) {
         <label style="font-size:.8rem;color:#475569;cursor:pointer;margin-right:8px;font-weight:400" onclick="event.stopPropagation()">
           <input type="checkbox" ${_qualityOnly?'checked':''} onchange="_qualityOnly=this.checked;loadData()" style="vertical-align:middle"> 僅體質佳
         </label>
-        <span class="arrow" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+        <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
-      <div class="section-body">
+      <div class="section-body collapsed">
         ${['AA','A1','A2','A'].map(lv => cheapGroupHtml(lv, cheapGroups[lv] || [])).join('')}
       </div>
     </div>
@@ -267,9 +261,9 @@ function render(brief, newsArr, indNews) {
       <div class="section-header header-purple">
         <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">產業新聞 (${indNews.length})</span>
         <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
-        <span class="arrow" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+        <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
-      <div class="section-body">
+      <div class="section-body collapsed">
         <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
           ${[1,2,3,7].map(d => `<span class="ind-archive ${_indNewsDays===d?'ind-day-active':''}" onclick="switchIndDays(${d})" style="cursor:pointer">${d===1?'今天':d===7?'近7天':'近'+d+'天'}</span>`).join('')}
         </div>
@@ -304,10 +298,11 @@ function render(brief, newsArr, indNews) {
     </div>` : ''}
 
     <div class="section">
-      <div class="section-header header-gray">
+      <div class="section-header header-gray" onclick="toggle(this)">
         <span>今日筆記</span>
+        <span class="arrow collapsed">&#9654;</span>
       </div>
-      <div class="section-body">
+      <div class="section-body collapsed">
         <textarea class="notes-textarea" id="dailyNoteText" placeholder="看完報告，寫下今天的想法..."></textarea>
         <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px;align-items:center">
           <span id="dailyNoteSaved" style="font-size:.8em;color:#16a34a;display:none">已存檔</span>

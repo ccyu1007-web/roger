@@ -273,7 +273,7 @@
   <div style="display:flex;align-items:center;gap:12px">
     <div id="statusBar">資料載入中...</div>
     <a href="/briefing.html" target="_blank" style="color:rgba(255,255,255,.9);font-size:.82rem;font-weight:600;white-space:nowrap">逍遙日報</a>
-    <a href="javascript:void(0)" onclick="openDailyNotes()" style="color:rgba(255,255,255,.9);font-size:.82rem;font-weight:600;white-space:nowrap">今日筆記</a>
+    <a href="/daily_notes.html" target="_blank" style="color:rgba(255,255,255,.9);font-size:.82rem;font-weight:600;white-space:nowrap">每日筆記</a>
     <a href="/valuation.html" target="_blank" style="color:rgba(255,255,255,.9);font-size:.82rem;font-weight:600;white-space:nowrap">評價報告</a>
     <a href="/daily.html" target="_blank" style="color:rgba(255,255,255,.9);font-size:.82rem;font-weight:600;white-space:nowrap">新聞報告</a>
     <a href="/etf_changes.html" target="_blank" style="color:rgba(255,255,255,.9);font-size:.82rem;font-weight:600;white-space:nowrap">ETF專區</a>
@@ -3167,68 +3167,6 @@ document.querySelector('.table-wrap')?.addEventListener('wheel', function(e) {
   }
 }, { passive: false });
 
-// ── 今日筆記面板 ──
-async function openDailyNotes() {
-  // 建立 overlay
-  let overlay = document.getElementById('dailyNotesOverlay');
-  if (overlay) { overlay.remove(); return; }
-  overlay = document.createElement('div');
-  overlay.id = 'dailyNotesOverlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-  overlay.innerHTML = `<div style="background:#fff;border-radius:12px;padding:24px;width:600px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 style="font-size:1.1rem;color:#1e3a5f;margin:0">每日筆記</h3>
-      <span style="cursor:pointer;font-size:1.2rem;color:#94a3b8" onclick="this.closest('#dailyNotesOverlay').remove()">&#10005;</span>
-    </div>
-    <div id="dailyNotesList" style="color:#94a3b8">載入中...</div>
-  </div>`;
-  document.body.appendChild(overlay);
-
-  // 載入筆記
-  try {
-    const res = await fetch('/api/daily-notes');
-    const notes = await res.json();
-    const container = document.getElementById('dailyNotesList');
-    if (!notes.length) {
-      container.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">尚無筆記</div>';
-      return;
-    }
-    container.innerHTML = notes.map(n => `
-      <div style="border-bottom:1px solid #f1f5f9;padding:12px 0" id="dn-${n.date}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:700;color:#1e3a5f;font-size:.9rem">${n.date}</span>
-          <span style="font-size:.78rem;color:#dc2626;cursor:pointer" onclick="deleteDailyNote('${n.date}')">刪除</span>
-        </div>
-        <div style="font-size:.88rem;color:#334155;white-space:pre-wrap;line-height:1.6">${_escHtml(n.content)}</div>
-      </div>
-    `).join('');
-  } catch(e) {
-    document.getElementById('dailyNotesList').innerHTML = '<div style="color:#dc2626">載入失敗</div>';
-  }
-}
-
-function _escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-async function deleteDailyNote(date) {
-  try {
-    const res = await fetch(`/api/daily-notes/${date}`, {method:'DELETE'});
-    const data = await res.json();
-    if (data.status === 'ok') {
-      const el = document.getElementById('dn-' + date);
-      if (el) el.remove();
-      // 檢查是否全空
-      const list = document.getElementById('dailyNotesList');
-      if (list && !list.children.length) {
-        list.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">尚無筆記</div>';
-      }
-    }
-  } catch(e) {
-    alert('刪除失敗');
-  }
-}
 </script>
 </body>
 </html>

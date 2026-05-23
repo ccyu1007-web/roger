@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日筆記</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  header a:hover { color: #fff; }
+  .container { max-width: 800px; margin: 0 auto; padding: 20px 16px; }
+
+  .note-card {
+    background: #fff; border-radius: 10px; margin-bottom: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden;
+  }
+  .note-header {
+    padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .note-date { font-weight: 700; color: #1e3a5f; font-size: .95rem; }
+  .note-delete {
+    font-size: .82rem; color: #dc2626; cursor: pointer; padding: 4px 10px;
+    border: 1px solid #fecaca; border-radius: 6px; background: #fff;
+  }
+  .note-delete:hover { background: #fef2f2; }
+  .note-body {
+    padding: 14px 20px; font-size: .9rem; color: #334155;
+    white-space: pre-wrap; line-height: 1.7;
+  }
+
+  .empty { text-align: center; padding: 60px; color: #94a3b8; font-size: .95rem; }
+  .loading { text-align: center; padding: 60px; color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>每日筆記</h1>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/">回總表</a>
+    <a href="/briefing.html">逍遙日報</a>
+  </div>
+</header>
+
+<div class="container" id="content">
+  <div class="loading">載入中...</div>
+</div>
+
+<script>
+async function load() {
+  try {
+    const res = await fetch('/api/daily-notes');
+    const notes = await res.json();
+    const el = document.getElementById('content');
+
+    if (!notes.length) {
+      el.innerHTML = '<div class="empty">尚無筆記<br><br>在逍遙日報寫下今天的想法，存檔後就會出現在這裡</div>';
+      return;
+    }
+
+    el.innerHTML = notes.map(n => `
+      <div class="note-card" id="note-${n.date}">
+        <div class="note-header">
+          <span class="note-date">${n.date}</span>
+          <button class="note-delete" onclick="deleteNote('${n.date}')">刪除</button>
+        </div>
+        <div class="note-body">${escHtml(n.content)}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('content').innerHTML = `<div class="loading" style="color:#dc2626">載入失敗：${e.message}</div>`;
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function deleteNote(date) {
+  try {
+    const res = await fetch(`/api/daily-notes/${date}`, {method:'DELETE'});
+    const data = await res.json();
+    if (data.status === 'ok') {
+      const el = document.getElementById('note-' + date);
+      if (el) el.remove();
+      const container = document.getElementById('content');
+      if (!container.querySelector('.note-card')) {
+        container.innerHTML = '<div class="empty">尚無筆記</div>';
+      }
+    }
+  } catch(e) {
+    alert('刪除失敗');
+  }
+}
+
+load();
+</script>
+</body>
+</html>
