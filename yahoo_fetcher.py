@@ -7,12 +7,12 @@ import db as sqlite3
 import time
 import random
 from datetime import datetime
+from fetcher_utils import create_session
 
 
 def _get_yahoo_session():
     """建立帶 crumb 的 Yahoo Finance session"""
-    s = requests.Session()
-    s.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+    s = create_session()
     s.get('https://fc.yahoo.com', timeout=10, allow_redirects=True)
     crumb = s.get('https://query2.finance.yahoo.com/v1/test/getcrumb', timeout=10).text
     if not crumb or len(crumb) > 50:

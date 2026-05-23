@@ -4,11 +4,25 @@ fetcher_utils.py — 爬蟲共用工具函式
 供 scraper.py / capital_fetcher.py / etf_fetcher.py 共用
 """
 
+import ssl
 import requests
+from requests.adapters import HTTPAdapter
 from datetime import datetime
 from bs4 import BeautifulSoup
 
 DB_PATH = "stocks.db"
+
+
+class _TWCASSLAdapter(HTTPAdapter):
+    """自訂 SSL adapter — 解決 TWCA Global Root CA 缺少 Subject Key Identifier
+    Python 3.13 + OpenSSL 3.0 對 SKI 驗證變嚴格，導致群益/櫃買中心連線失敗"""
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = True
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.verify_flags = ssl.VERIFY_DEFAULT  # 不啟用嚴格的 X509_V_FLAG_X509_STRICT
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
 
 
 def create_session(ua=None, extra_headers=None):
@@ -19,6 +33,9 @@ def create_session(ua=None, extra_headers=None):
     })
     if extra_headers:
         s.headers.update(extra_headers)
+    # 掛載自訂 SSL adapter 處理 TWCA 憑證問題
+    adapter = _TWCASSLAdapter()
+    s.mount('https://', adapter)
     return s
 
 

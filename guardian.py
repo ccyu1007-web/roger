@@ -17,6 +17,7 @@ import db as sqlite3
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from collections import defaultdict
+from fetcher_utils import create_session as _create_session
 
 logger = logging.getLogger(__name__)
 
@@ -1031,16 +1032,17 @@ def cross_validate(sample_size=20):
 
     # 取政府 API 的股價和營收作為比對基準
     try:
-        twse = requests.get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
-                           headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
+        _s = _create_session()
+        twse = _s.get("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+                      timeout=10).json()
         price_map = {str(r.get('Code','')).strip(): float(r.get('ClosingPrice','0').replace(',','') or 0) for r in twse}
     except Exception as e:
         print(f"[交叉校驗] TWSE 股價取得失敗: {e}")
         price_map = {}
 
     try:
-        rev_data = requests.get("https://openapi.twse.com.tw/v1/openData/t187ap05_L",
-                               headers={"User-Agent": "Mozilla/5.0"}, timeout=10).json()
+        rev_data = _s.get("https://openapi.twse.com.tw/v1/openData/t187ap05_L",
+                         timeout=10).json()
         rev_map = {}
         for r in rev_data:
             code = str(r.get('公司代號','')).strip()
@@ -1145,8 +1147,7 @@ def cross_validate_revenue():
     mismatches = []
     ok_count = 0
     checked = 0
-    session = requests.Session()
-    session.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+    session = _create_session()
 
     for code, db_data in rev_map.items():
         try:
@@ -1456,7 +1457,8 @@ def fetch_material_news():
 
         for url, ck, nk, dk, tk, sk, desc_k in apis:
             try:
-                r = requests.get(url, timeout=15)
+                _ns = _create_session()
+                r = _ns.get(url, timeout=15)
                 data = r.json()
             except Exception: continue
 
@@ -1532,14 +1534,14 @@ def fetch_moneydj_news():
             ('https://www.moneydj.com/kmdj/common/listnewarticles.aspx?svc=NW&a=X0300000', '產業分析'),
         ]
 
-        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         today_str = date.today().strftime('%m/%d')
         stats = {'new': 0}
+        _news_s = _create_session()
 
         for url, cat_name in categories:
             try:
-                r = requests.get(url, headers=headers, timeout=15)
+                r = _news_s.get(url, timeout=15)
                 r.encoding = 'utf-8'
                 soup = BeautifulSoup(r.text, 'html.parser')
             except Exception: continue

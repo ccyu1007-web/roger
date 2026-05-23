@@ -3469,8 +3469,7 @@ def _parse_inst_val(v):
 def _fetch_inst_one(code):
     try:
         url = f"https://stock.capital.com.tw/z/zc/zcl/zcl_{code}.djhtm"
-        s = requests.Session()
-        s.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+        s = create_session()
         r = s.get(url, timeout=15)
         r.encoding = 'big5'
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -3878,7 +3877,8 @@ def fetch_mops_quarterly_eps():
         quarter_key = f"{yr}Q{sn}"
         for typek, label in [('sii', '上市'), ('otc', '上櫃')]:
             try:
-                resp = requests.post(
+                _mops_s = create_session()
+                resp = _mops_s.post(
                     'https://mopsov.twse.com.tw/mops/web/ajax_t163sb19',
                     data={'encodeURIComponent': '1', 'step': '1', 'firstin': '1',
                           'off': '1', 'TYPEK': typek, 'year': str(yr), 'season': str(sn)},

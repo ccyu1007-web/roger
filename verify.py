@@ -11,13 +11,13 @@ import time
 import os
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from fetcher_utils import create_session
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'stocks.db')
 RENDER_URL = "https://tock-system.onrender.com"
 REPORT_PATH = os.path.join(os.path.dirname(__file__), 'verify_report.txt')
 
-_session = requests.Session()
-_session.headers.update({'User-Agent': 'Mozilla/5.0 (StockVerify/1.0)'})
+_session = create_session(ua='Mozilla/5.0 (StockVerify/1.0)')
 
 
 def verify_all():

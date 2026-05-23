@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 import requests
 import db as sqlite3
+from fetcher_utils import create_session as _create_session
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,8 @@ def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
     """POST with retry，最多重試 max_retries 次，間隔遞增（2s, 4s）"""
     for attempt in range(max_retries):
         try:
-            resp = requests.post(url, json=json_data, headers=SYNC_HEADERS, timeout=timeout)
+            _rs = _create_session()
+            resp = _rs.post(url, json=json_data, headers=SYNC_HEADERS, timeout=timeout)
             if resp.status_code == 200:
                 return resp
             if attempt == max_retries - 1:
@@ -177,7 +179,8 @@ def _pull_user_estimates_from_render():
         return
     import json
     from datetime import datetime
-    resp = requests.get(f'{RENDER_URL}/api/user-estimates-all', timeout=30)
+    _rs = _create_session()
+    resp = _rs.get(f'{RENDER_URL}/api/user-estimates-all', timeout=30)
     if resp.status_code != 200:
         print(f"[拉回] user_estimates API 失敗: HTTP {resp.status_code}")
         return
@@ -214,7 +217,8 @@ def _pull_user_settings_from_render():
     """從 Render 拉回 user_settings，時間戳較新的覆蓋較舊的"""
     if _is_cloud():
         return
-    resp = requests.get(f'{RENDER_URL}/api/user-settings', timeout=30)
+    _rs = _create_session()
+    resp = _rs.get(f'{RENDER_URL}/api/user-settings', timeout=30)
     if resp.status_code != 200:
         print(f"[拉回] user_settings API 失敗: HTTP {resp.status_code}")
         return

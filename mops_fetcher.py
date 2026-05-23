@@ -10,21 +10,13 @@ import re
 import time
 from datetime import date, datetime
 from bs4 import BeautifulSoup
+from fetcher_utils import create_session
 
 DB_PATH = "stocks.db"
 
-import os as _os
-
-_session = requests.Session()
-_session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+_session = create_session(extra_headers={
     'Referer': 'https://mopsov.twse.com.tw/mops/web/t163sb04',
 })
-# Render 海外環境 MOPS SSL 憑證驗證失敗（Missing Subject Key Identifier）
-if _os.environ.get('DATABASE_URL'):
-    _session.verify = False
-    import urllib3
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def _safe_float(s):
