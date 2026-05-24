@@ -467,10 +467,14 @@ def _fetch_mops_balance_sheet(code, roc_year, season):
         'co_id': code, 'year': str(roc_year), 'season': f'{int(season):02d}',
     }
     try:
-        r = _session.post(url, data=payload, timeout=15)
+        r = _session.post(url, data=payload, timeout=15, allow_redirects=False)
+        if r.status_code in (301, 302, 307):
+            return None  # 被封鎖
         r.encoding = 'utf-8'
         if r.status_code != 200:
             return None
+        if '安全性考量' in r.text or 'SECURITY REASONS' in r.text:
+            return None  # 被封鎖
         soup = BeautifulSoup(r.text, 'html.parser')
         tables = soup.find_all('table')
         if len(tables) < 2:
@@ -547,15 +551,30 @@ def fetch_mops_quarterly_bs(roc_year=None, season=None, max_workers=3):
         time.sleep(1)  # 禮貌延遲，避免 MOPS 封鎖
         return code, result
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_fetch_one, code): code for code in codes}
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # 分批處理，每 100 支回報一次，連續 20 支失敗就停
+    batch_size = 100
+    batch_updates = []
+    consecutive_fail = 0
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        batch_updates = []
-        for future in as_completed(futures):
-            code, result = future.result()
-            if result:
-                batch_updates.append((code, result))
+    for batch_start in range(0, len(codes), batch_size):
+        batch_codes = codes[batch_start:batch_start + batch_size]
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_fetch_one, code): code for code in batch_codes}
+            for future in as_completed(futures):
+                code, result = future.result()
+                if result:
+                    batch_updates.append((code, result))
+                    consecutive_fail = 0
+                else:
+                    consecutive_fail += 1
+
+        done = batch_start + len(batch_codes)
+        print(f"  [MOPS-BS] 進度 {done}/{len(codes)}，成功 {len(batch_updates)} 支")
+
+        if consecutive_fail >= 20:
+            print(f"  [MOPS-BS] 連續 {consecutive_fail} 支失敗，可能被封鎖，中斷")
+            break
 
         # 批次寫入 DB（COALESCE 不覆蓋已有值，但 MOPS 是第一優先直接覆蓋）
         if batch_updates:
