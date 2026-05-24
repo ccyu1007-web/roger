@@ -541,7 +541,7 @@ function renderIndNewsByDate(indNews) {
   // 按日期分組
   const groups = {};
   indNews.forEach(n => {
-    const date = (n.created_at || '').slice(0, 10) || '未知';
+    const date = (n.time || n.created_at || '').slice(0, 10) || '未知';
     if (!groups[date]) groups[date] = [];
     groups[date].push(n);
   });
