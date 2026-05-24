@@ -487,7 +487,12 @@ def _fetch_mops_balance_sheet(code, roc_year, season):
     try:
         r = _get_bs_session().post(url, data=payload, timeout=15, allow_redirects=False)
         if r.status_code in (301, 302, 307):
-            return None  # 被封鎖
+            _reset_bs_session()  # 立即重建 session
+            time.sleep(2)
+            # 用新 session 重試一次
+            r = _get_bs_session().post(url, data=payload, timeout=15, allow_redirects=False)
+            if r.status_code in (301, 302, 307):
+                return None
         r.encoding = 'utf-8'
         if r.status_code != 200:
             return None
@@ -572,7 +577,7 @@ def fetch_mops_quarterly_bs(roc_year=None, season=None, max_per_run=80):
     consecutive_fail = 0
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         futures = {executor.submit(_fetch_one, code): code for code in codes}
         for future in as_completed(futures):
             code, result = future.result()
