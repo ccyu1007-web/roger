@@ -455,6 +455,24 @@ def fetch_latest_mops_quarterly():
 # 季度資產負債表（MOPS t164sb03）— 存貨 + 合約負債
 # ══════════════════════════════════════════════════════════════
 
+_bs_session = None
+
+def _get_bs_session():
+    """取得或建立 BS 專用 session（被封時可重建）"""
+    global _bs_session
+    if _bs_session is None:
+        _bs_session = create_session(extra_headers={
+            'Referer': 'https://mopsov.twse.com.tw/mops/web/t164sb03',
+        })
+    return _bs_session
+
+def _reset_bs_session():
+    """重建 BS session（被封後使用）"""
+    global _bs_session
+    _bs_session = create_session(extra_headers={
+        'Referer': 'https://mopsov.twse.com.tw/mops/web/t164sb03',
+    })
+
 def _fetch_mops_balance_sheet(code, roc_year, season):
     """
     從 MOPS 個股 API（t164sb03）抓取季度資產負債表。
@@ -467,7 +485,7 @@ def _fetch_mops_balance_sheet(code, roc_year, season):
         'co_id': code, 'year': str(roc_year), 'season': f'{int(season):02d}',
     }
     try:
-        r = _session.post(url, data=payload, timeout=15, allow_redirects=False)
+        r = _get_bs_session().post(url, data=payload, timeout=15, allow_redirects=False)
         if r.status_code in (301, 302, 307):
             return None  # 被封鎖
         r.encoding = 'utf-8'
@@ -563,9 +581,10 @@ def fetch_mops_quarterly_bs(roc_year=None, season=None, max_per_run=80):
                 consecutive_fail = 0
             else:
                 consecutive_fail += 1
-            if consecutive_fail >= 15:
-                print(f"  [MOPS-BS] 連續 {consecutive_fail} 支失敗，中斷")
-                break
+            if consecutive_fail >= 10:
+                _reset_bs_session()  # 重建 session 避免被封
+                consecutive_fail = 0
+                time.sleep(3)
 
     # 寫入 DB（即使中斷也要寫入已抓到的資料）
     updated = 0
