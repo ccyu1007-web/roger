@@ -526,13 +526,11 @@ def _fetch_mops_balance_sheet(code, roc_year, season):
         return None
 
 
-def fetch_mops_quarterly_bs(roc_year=None, season=None, max_per_run=80):
+def fetch_mops_quarterly_bs(roc_year=None, season=None):
     """
-    抓取缺存貨/合約負債的股票的季度資產負債表（MOPS t164sb03）。
-    每次最多跑 max_per_run 支（避免被 MOPS 封鎖），透過 quick_update 每 30 分鐘逐批補完。
+    抓取所有缺存貨/合約負債的股票的季度資產負債表（MOPS t164sb03）。
+    一次補完：每批 60 支換 session，每支 1.5 秒延遲，每批寫入 DB。
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
     if roc_year is None or season is None:
         now = date.today()
         cur_year = now.year - 1911
@@ -556,65 +554,50 @@ def fetch_mops_quarterly_bs(roc_year=None, season=None, max_per_run=80):
                      WHERE qf.quarter = ? AND qf.revenue IS NOT NULL AND qf.inventory IS NULL
                      AND COALESCE(s.industry,'') NOT IN ('金融保險業','金融業','銀行業','保險業','證券業')""",
                   (quarter,))
-        all_codes = [r[0] for r in c.fetchall()]
+        codes = [r[0] for r in c.fetchall()]
 
-    if not all_codes:
+    if not codes:
         print(f"[MOPS-BS] {quarter} 無需補缺")
         return 0
 
-    # 每次只跑 max_per_run 支
-    codes = all_codes[:max_per_run]
-    remaining = len(all_codes) - len(codes)
-    print(f"[MOPS-BS] {quarter} 缺存貨 {len(all_codes)} 支，本次跑 {len(codes)} 支" +
-          (f"，剩餘 {remaining} 支下次補" if remaining else ""))
+    print(f"[MOPS-BS] {quarter} 缺存貨 {len(codes)} 支，開始補齊")
 
-    def _fetch_one(code):
-        result = _fetch_mops_balance_sheet(code, roc_year, season)
-        time.sleep(1.5)  # 禮貌延遲
-        return code, result
-
-    batch_updates = []
-    consecutive_fail = 0
+    total_ok = 0
+    total_no_data = 0
+    batch_size = 60
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        futures = {executor.submit(_fetch_one, code): code for code in codes}
-        for future in as_completed(futures):
-            code, result = future.result()
+    for i in range(0, len(codes), batch_size):
+        batch = codes[i:i + batch_size]
+        _reset_bs_session()
+        time.sleep(3)
+
+        batch_updates = []
+        for code in batch:
+            result = _fetch_mops_balance_sheet(code, roc_year, season)
             if result:
                 batch_updates.append((code, result))
-                consecutive_fail = 0
-            else:
-                consecutive_fail += 1
-            if consecutive_fail >= 10:
-                _reset_bs_session()  # 重建 session 避免被封
-                consecutive_fail = 0
-                time.sleep(3)
+            time.sleep(1.5)
 
-    # 寫入 DB（即使中斷也要寫入已抓到的資料）
-    updated = 0
-    if batch_updates:
-        with sqlite3.get_conn() as conn:
-            c = conn.cursor()
-            for col in ['inventory', 'contract_liability', 'current_assets', 'current_liabilities', 'accounts_receivable']:
-                try:
-                    c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} REAL")
-                except Exception:
-                    pass
-            for code, result in batch_updates:
-                sets = []
-                vals = []
-                for field, value in result.items():
-                    sets.append(f"{field}=?")
-                    vals.append(value)
-                sets.append("updated_at=?")
-                vals.append(now_str)
-                vals.extend([code, quarter])
-                c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code=? AND quarter=?", vals)
-                if c.rowcount:
-                    updated += 1
-            conn.commit()
+        # 每批寫入 DB
+        if batch_updates:
+            with sqlite3.get_conn() as conn:
+                c = conn.cursor()
+                for col in ['inventory', 'contract_liability', 'current_assets', 'current_liabilities', 'accounts_receivable']:
+                    try:
+                        c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} REAL")
+                    except Exception:
+                        pass
+                for code, result in batch_updates:
+                    sets = [f'{f}=?' for f in result.keys()] + ['updated_at=?']
+                    vals = list(result.values()) + [now_str, code, quarter]
+                    c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code=? AND quarter=?", vals)
+                conn.commit()
 
-    print(f"[MOPS-BS] {quarter} 本次完成：{updated} 支寫入" +
-          (f"，剩餘 {len(all_codes) - updated} 支待補" if len(all_codes) - updated > 0 else ""))
-    return updated
+        total_ok += len(batch_updates)
+        total_no_data += len(batch) - len(batch_updates)
+        done = min(i + batch_size, len(codes))
+        print(f"  [MOPS-BS] 進度 {done}/{len(codes)}，成功 {total_ok}，無資料 {total_no_data}")
+
+    print(f"[MOPS-BS] {quarter} 完成：{total_ok} 支寫入，{total_no_data} 支 MOPS 尚未公佈")
+    return total_ok
