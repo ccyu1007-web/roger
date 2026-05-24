@@ -2518,9 +2518,10 @@ def quick_update():
         print(f"[MOPS季報] 失敗: {e}")
 
     # ── 2b. MOPS 季度資產負債表（存貨/合約負債，第一優先）──
+    mops_bs_count = 0
     try:
         from mops_fetcher import fetch_mops_quarterly_bs
-        fetch_mops_quarterly_bs()
+        mops_bs_count = fetch_mops_quarterly_bs() or 0
     except Exception as e:
         print(f"[MOPS-BS] 失敗: {e}")
 
@@ -2539,6 +2540,12 @@ def quick_update():
             )
         except Exception as e:
             print(f"[營收同步Render] 失敗: {e}")
+        if mops_bs_count > 0:
+            try:
+                from render_sync import _push_single_table
+                _push_single_table('quarterly_financial')
+            except Exception as e:
+                print(f"[季報BS同步Render] 失敗: {e}")
 
     # ══ 可跳過步驟（需 lock，被 run() 擋住就跳過）══
     with ScraperLock('quick_update', timeout_sec=900) as lock:
