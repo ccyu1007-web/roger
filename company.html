@@ -1288,28 +1288,28 @@ function renderFinTable(data) {
       ['自由現金流',         d => d.fcf,          fmtFcfM],
       ['每股自由現金流',     d => d.fcf_per_share, fmt2],
     ]},
-    { title: '獲利效率', unit: null, color: '#f0fdf4', border: '#86efac', rows: [
+    { title: '獲利效率', unit: null, color: '#dcfce7', border: '#22c55e', rows: [
       ['毛利率',     d => d.gross_margin,      fmtP],
       ['營業利益率', d => d.operating_margin,   fmtP],
       ['稅前淨利率', d => d.pretax_margin,      fmtP],
       ['稅後淨利率', d => d.net_margin,         fmtP],
     ]},
-    { title: '資本回報', unit: null, color: '#eff6ff', border: '#93c5fd', rows: [
+    { title: '資本回報', unit: null, color: '#dbeafe', border: '#3b82f6', rows: [
       ['ROE',        d => d.roe,               fmtP],
       ['ROIC',       d => d.roic,              fmtP],
       ['ROA',        d => d.roa,               fmtP],
       ['NOPAT',      d => d.nopat,             fmtM],
       ['投入資本',   d => d.invested_capital,   fmtM],
     ]},
-    { title: '盈餘品質', unit: null, color: '#fefce8', border: '#fde68a', rows: [
+    { title: '盈餘品質', unit: null, color: '#fef3c7', border: '#f59e0b', rows: [
       ['盈餘品質率', d => d.earnings_quality,   fmtP],
     ]},
-    { title: '財務安全', unit: null, color: '#fef2f2', border: '#fca5a5', rows: [
+    { title: '財務安全', unit: null, color: '#fee2e2', border: '#ef4444', rows: [
       ['負債比率',   d => d.debt_ratio,         fmtP],
       ['金融負債比', d => d.fin_debt_ratio,     fmtP],
       ['利息保障倍數', d => d.interest_coverage, fmt2],
     ]},
-    { title: '營運效率', unit: null, color: '#faf5ff', border: '#d8b4fe', rows: [
+    { title: '營運效率', unit: null, color: '#e9d5ff', border: '#a855f7', rows: [
       ['存貨週轉天數',     d => d.inventory_days, fmt1],
       ['應收帳款週轉天數', d => d.ar_days,        fmt1],
     ]},
