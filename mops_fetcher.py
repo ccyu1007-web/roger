@@ -499,7 +499,7 @@ def _fetch_mops_balance_sheet(code, roc_year, season):
         return None
 
 
-def fetch_mops_quarterly_bs(roc_year=None, season=None, max_workers=8):
+def fetch_mops_quarterly_bs(roc_year=None, season=None, max_workers=3):
     """
     批次抓取所有缺存貨/合約負債的股票的季度資產負債表（MOPS t164sb03）。
     只補有損益表但缺存貨的股票，8 並發。
@@ -544,7 +544,7 @@ def fetch_mops_quarterly_bs(roc_year=None, season=None, max_workers=8):
 
     def _fetch_one(code):
         result = _fetch_mops_balance_sheet(code, roc_year, season)
-        time.sleep(0.2)  # 禮貌延遲
+        time.sleep(1)  # 禮貌延遲，避免 MOPS 封鎖
         return code, result
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
