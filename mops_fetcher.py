@@ -449,3 +449,141 @@ def fetch_latest_mops_quarterly():
 
     print(f"[MOPS季報] 申報期內，抓取 {target_year}Q{target_season}")
     return fetch_and_save_mops_quarterly(target_year, target_season)
+
+
+# ══════════════════════════════════════════════════════════════
+# 季度資產負債表（MOPS t164sb03）— 存貨 + 合約負債
+# ══════════════════════════════════════════════════════════════
+
+def _fetch_mops_balance_sheet(code, roc_year, season):
+    """
+    從 MOPS 個股 API（t164sb03）抓取季度資產負債表。
+    回傳 dict: {inventory, contract_liability, current_assets, current_liabilities, ...} 或 None
+    單位：千元 → 乘 1000 轉成元
+    """
+    url = 'https://mopsov.twse.com.tw/mops/web/ajax_t164sb03'
+    payload = {
+        'encodeURIComponent': '1', 'step': '1', 'firstin': '1', 'off': '1',
+        'co_id': code, 'year': str(roc_year), 'season': f'{int(season):02d}',
+    }
+    try:
+        r = _session.post(url, data=payload, timeout=15)
+        r.encoding = 'utf-8'
+        if r.status_code != 200:
+            return None
+        soup = BeautifulSoup(r.text, 'html.parser')
+        tables = soup.find_all('table')
+        if len(tables) < 2:
+            return None
+
+        result = {}
+        target_fields = {
+            '存貨': 'inventory',
+            '合約負債－流動': 'contract_liability',
+            '流動資產': 'current_assets',
+            '流動負債': 'current_liabilities',
+            '應收帳款及票據': 'accounts_receivable',
+        }
+
+        t = tables[1]
+        for row in t.find_all('tr'):
+            cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+            if len(cells) >= 2:
+                label = cells[0]
+                if label in target_fields:
+                    val = _safe_float(cells[1])
+                    if val is not None:
+                        result[target_fields[label]] = val * 1000  # 千元 → 元
+        return result if result else None
+    except Exception:
+        return None
+
+
+def fetch_mops_quarterly_bs(roc_year=None, season=None, max_workers=8):
+    """
+    批次抓取所有缺存貨/合約負債的股票的季度資產負債表（MOPS t164sb03）。
+    只補有損益表但缺存貨的股票，8 並發。
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    if roc_year is None or season is None:
+        # 自動判斷最新季度
+        now = date.today()
+        cur_year = now.year - 1911
+        cur_month = now.month
+        if cur_month >= 11:
+            roc_year, season = cur_year, 3
+        elif cur_month >= 8:
+            roc_year, season = cur_year, 2
+        elif cur_month >= 5:
+            roc_year, season = cur_year, 1
+        else:
+            roc_year, season = cur_year - 1, 4
+
+    quarter = f'{roc_year}Q{season}'
+    print(f"[MOPS-BS] 開始補 {quarter} 存貨/合約負債")
+
+    # 找缺存貨的股票（有損益表但沒存貨，排除金融股）
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("""SELECT qf.code FROM quarterly_financial qf
+                     JOIN stocks s ON qf.code = s.code
+                     WHERE qf.quarter = ? AND qf.revenue IS NOT NULL AND qf.inventory IS NULL
+                     AND COALESCE(s.industry,'') NOT IN ('金融保險業','金融業','銀行業','保險業','證券業')""",
+                  (quarter,))
+        codes = [r[0] for r in c.fetchall()]
+
+    if not codes:
+        print(f"[MOPS-BS] {quarter} 無需補缺")
+        return 0
+
+    print(f"[MOPS-BS] {quarter} 缺存貨: {len(codes)} 支，{max_workers} 並發抓取")
+
+    updated = 0
+    failed = 0
+
+    def _fetch_one(code):
+        result = _fetch_mops_balance_sheet(code, roc_year, season)
+        time.sleep(0.2)  # 禮貌延遲
+        return code, result
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_fetch_one, code): code for code in codes}
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        batch_updates = []
+        for future in as_completed(futures):
+            code, result = future.result()
+            if result:
+                batch_updates.append((code, result))
+
+        # 批次寫入 DB（COALESCE 不覆蓋已有值，但 MOPS 是第一優先直接覆蓋）
+        if batch_updates:
+            with sqlite3.get_conn() as conn:
+                c = conn.cursor()
+                # 確保欄位存在
+                for col in ['inventory', 'contract_liability', 'current_assets', 'current_liabilities', 'accounts_receivable']:
+                    try:
+                        c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} REAL")
+                    except Exception:
+                        pass
+
+                for code, result in batch_updates:
+                    sets = []
+                    vals = []
+                    for field, value in result.items():
+                        sets.append(f"{field}=?")
+                        vals.append(value)
+                    sets.append("updated_at=?")
+                    vals.append(now_str)
+                    vals.extend([code, quarter])
+                    c.execute(f"UPDATE quarterly_financial SET {', '.join(sets)} WHERE code=? AND quarter=?", vals)
+                    if c.rowcount:
+                        updated += 1
+                    else:
+                        failed += 1
+                conn.commit()
+
+    failed = len(codes) - updated
+    print(f"[MOPS-BS] {quarter} 完成：{updated}/{len(codes)} 支成功，{failed} 支無資料")
+    return updated

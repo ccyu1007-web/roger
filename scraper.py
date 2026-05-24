@@ -2517,6 +2517,13 @@ def quick_update():
     except Exception as e:
         print(f"[MOPS季報] 失敗: {e}")
 
+    # ── 2b. MOPS 季度資產負債表（存貨/合約負債，第一優先）──
+    try:
+        from mops_fetcher import fetch_mops_quarterly_bs
+        fetch_mops_quarterly_bs()
+    except Exception as e:
+        print(f"[MOPS-BS] 失敗: {e}")
+
     # ── 3. 政府 API 批次營收（補充 MOPS 缺的，COALESCE 不覆蓋已有值）──
     _quick_gov_revenue(today_str)
 
