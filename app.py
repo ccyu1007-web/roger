@@ -4823,6 +4823,7 @@ def refresh_industry_news():
 @app.route("/api/industry-news/<int:nid>/archive", methods=["POST"])
 def archive_industry_news(nid):
     """歸檔產業新聞到個股筆記"""
+    from datetime import datetime
     data = request.json or {}
     code = data.get('code', '').strip()
     if not code:
