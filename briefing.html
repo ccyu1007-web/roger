@@ -180,6 +180,7 @@
 <script>
 let _indNewsDays = 1;  // 預設只看今天
 let _qualityOnly = false;
+let _keepIndOpen = false;
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
 
@@ -269,9 +270,9 @@ function render(brief, newsArr, indNews) {
       <div class="section-header header-purple">
         <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">產業新聞 (${indNews.length})</span>
         <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
-        <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+        <span class="arrow ${_keepIndOpen?'':'collapsed'}" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
-      <div class="section-body collapsed">
+      <div class="section-body ${_keepIndOpen?'':'collapsed'}">
         <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
           ${[1,2,3,7].map(d => `<span class="ind-archive ${_indNewsDays===d?'ind-day-active':''}" onclick="switchIndDays(${d})" style="cursor:pointer">${d===1?'今天':d===7?'近7天':'近'+d+'天'}</span>`).join('')}
         </div>
@@ -565,6 +566,7 @@ function renderIndNewsByDate(indNews) {
 
 function switchIndDays(days) {
   _indNewsDays = days;
+  _keepIndOpen = true;
   loadData();
 }
 
