@@ -2910,6 +2910,10 @@ def _quick_update_inner(t0, today_str):
     if not IS_CLOUD:
         try: _push_news_to_render()
         except Exception as e: print(f"[新聞push] 失敗: {e}")
+        try:
+            from render_sync import _push_single_table
+            _push_single_table('industry_news')
+        except Exception as e: print(f"[產業新聞push] 失敗: {e}")
     # ── 5. MOPS 最新季 EPS（比政府 API 快）──
     try: fetch_mops_quarterly_eps()
     except Exception as e: print(f"[MOPS] 失敗: {e}")
