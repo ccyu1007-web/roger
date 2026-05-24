@@ -178,9 +178,7 @@
 </div>
 
 <script>
-let _indNewsDays = 1;  // 預設只看今天
 let _qualityOnly = false;
-let _keepIndOpen = false;
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
 
@@ -189,7 +187,7 @@ async function loadData() {
     const [briefRes, newsRes, indRes, listRes] = await Promise.all([
       fetch('/api/daily-briefing'),
       fetch('/api/news?limit=50'),
-      fetch(`/api/industry-news?days=${_indNewsDays}`),
+      fetch('/api/industry-news?days=7'),
       fetch('/api/user-lists')
     ]);
     const brief = await briefRes.json();
@@ -270,12 +268,9 @@ function render(brief, newsArr, indNews) {
       <div class="section-header header-purple">
         <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">產業新聞 (${indNews.length})</span>
         <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
-        <span class="arrow ${_keepIndOpen?'':'collapsed'}" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+        <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
-      <div class="section-body ${_keepIndOpen?'':'collapsed'}">
-        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-          ${[1,2,3,7].map(d => `<span class="ind-archive ${_indNewsDays===d?'ind-day-active':''}" onclick="switchIndDays(${d})" style="cursor:pointer">${d===1?'今天':d===7?'近7天':'近'+d+'天'}</span>`).join('')}
-        </div>
+      <div class="section-body collapsed">
         ${indNews.length > 0 ? renderIndNewsByDate(indNews) : '<div style="color:#94a3b8;padding:12px 0">暫無產業新聞</div>'}
       </div>
     </div>
@@ -541,33 +536,26 @@ function renderIndNewsByDate(indNews) {
   // 按日期分組
   const groups = {};
   indNews.forEach(n => {
-    const date = (n.time || n.created_at || '').slice(0, 10) || '未知';
-    if (!groups[date]) groups[date] = [];
-    groups[date].push(n);
+    const d = (n.time || n.created_at || '').slice(0, 10) || '未知';
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(n);
   });
   const dates = Object.keys(groups).sort().reverse();
-  const LIMIT = 20;
+  const today = new Date().toISOString().slice(0, 10);
 
   return dates.map(date => {
     const items = groups[date];
-    const showing = items.slice(0, LIMIT);
-    const hidden = items.slice(LIMIT);
     const dateId = 'ind-' + date.replace(/-/g, '');
+    const isToday = date === today;
     return `
-      ${dates.length > 1 ? `<div class="ind-date-header">${date}（${items.length} 則）</div>` : ''}
-      ${showing.map(n => indNewsHtml(n)).join('')}
-      ${hidden.length > 0 ? `
-        <div id="${dateId}-hidden" style="display:none">${hidden.map(n => indNewsHtml(n)).join('')}</div>
-        <div class="ind-show-more" id="${dateId}-btn" onclick="document.getElementById('${dateId}-hidden').style.display='block';this.style.display='none'">
-          顯示更多（還有 ${hidden.length} 則）
-        </div>` : ''}`;
+      <div class="group-divider" onclick="toggleGroup(this)">
+        <span>${date}${isToday ? '（今天）' : ''}</span>
+        <span class="badge-count">${items.length} 則 <span class="arrow ${isToday ? '' : 'collapsed'}">&#9654;</span></span>
+      </div>
+      <div class="group-content ${isToday ? '' : 'collapsed'}">
+        ${items.map(n => indNewsHtml(n)).join('')}
+      </div>`;
   }).join('');
-}
-
-function switchIndDays(days) {
-  _indNewsDays = days;
-  _keepIndOpen = true;
-  loadData();
 }
 
 async function refreshIndustryNews(btn) {
