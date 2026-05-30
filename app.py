@@ -4823,11 +4823,30 @@ def api_industry_news():
             if name and len(name) >= 2:
                 stock_map[name] = sr['code']
 
+    def _is_cjk(ch):
+        return '\u4e00' <= ch <= '\u9fff'
+
+    def _match_name(name, title):
+        """比對股票名稱，2字名稱需至少一側為非中文字（避免誤判）"""
+        if len(name) >= 3:
+            return name in title
+        idx = 0
+        while True:
+            pos = title.find(name, idx)
+            if pos < 0:
+                return False
+            left_ok = pos == 0 or not _is_cjk(title[pos - 1])
+            right_ok = (pos + len(name) >= len(title) or
+                        not _is_cjk(title[pos + len(name)]))
+            if left_ok or right_ok:
+                return True
+            idx = pos + 1
+
     for item in result:
         title = item.get('title', '')
         matched = []
         for name, code in stock_map.items():
-            if name in title:
+            if _match_name(name, title):
                 matched.append({'code': code, 'name': name})
         item['matched_stocks'] = matched
 
