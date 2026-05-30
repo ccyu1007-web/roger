@@ -184,6 +184,8 @@
 let _qualityOnly = false;
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
+let _watchSet = new Set();
+let _holdSet = new Set();
 
 async function loadData() {
   try {
@@ -200,6 +202,8 @@ async function loadData() {
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
     _focusTrackSet = new Set((lists.track || []).map(r => r.code));
+    _watchSet = new Set((lists.watch || []).map(r => r.code));
+    _holdSet = new Set((lists.hold || []).map(r => r.code));
     render(brief, newsData, indNews);
   } catch (e) {
     document.getElementById('content').innerHTML =
@@ -550,6 +554,86 @@ function renderIndNewsByDate(indNews) {
         ${items.map(n => indNewsHtml(n)).join('')}
       </div>`;
   }).join('');
+}
+
+function renderIndNewsSplit(indNews) {
+  // 合併所有使用者清單
+  const userCodes = new Set([..._qualitySet, ..._focusTrackSet]);
+  // 也加入觀察/持股清單（從 loadData 傳入的 lists）
+  if (window._watchSet) _watchSet.forEach(c => userCodes.add(c));
+  if (window._holdSet) _holdSet.forEach(c => userCodes.add(c));
+
+  // 分成：我的個股（matched_stocks 中有任何在使用者清單）、其他個股（有 matched 但不在清單）、總經產業（無 matched）
+  const myStockNews = [];
+  const macroNews = [];
+
+  indNews.forEach(n => {
+    const matched = n.matched_stocks || [];
+    const inList = matched.filter(m => userCodes.has(m.code));
+    if (inList.length > 0) {
+      n._matchedInList = inList;
+      myStockNews.push(n);
+    } else {
+      macroNews.push(n);
+    }
+  });
+
+  let html = '';
+
+  // 個股相關
+  html += `<div class="section">
+    <div class="section-header header-red">
+      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">個股相關新聞 (${myStockNews.length})</span>
+      <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
+      <span class="arrow${myStockNews.length > 0 ? '' : ' collapsed'}" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+    </div>
+    <div class="section-body${myStockNews.length > 0 ? '' : ' collapsed'}">
+      ${myStockNews.length > 0
+        ? myStockNews.map(n => indNewsHtmlWithTags(n, n._matchedInList)).join('')
+        : '<div style="color:#94a3b8;padding:12px 0">今日無個股相關新聞</div>'}
+    </div>
+  </div>`;
+
+  // 總經產業
+  html += `<div class="section">
+    <div class="section-header header-purple">
+      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">總經產業新聞 (${macroNews.length})</span>
+      <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+    </div>
+    <div class="section-body collapsed">
+      ${macroNews.length > 0
+        ? renderIndNewsByDate(macroNews)
+        : '<div style="color:#94a3b8;padding:12px 0">暫無總經產業新聞</div>'}
+    </div>
+  </div>`;
+
+  return html;
+}
+
+function indNewsHtmlWithTags(n, matchedInList) {
+  const isUdn = n.source.includes('經濟');
+  const srcCls = isUdn ? 'src-udn' : 'src-ct';
+  const srcName = isUdn ? '經濟' : '工商';
+  const srcLabel = n.source.includes('產業') ? '產業' : n.source.includes('股市') ? '股市' : '新聞';
+  let timeStr = '';
+  if (n.time) {
+    const m = n.time.match(/(\d{2}:\d{2})/);
+    if (m) timeStr = m[1];
+  }
+  const stockTags = matchedInList.map(m =>
+    `<span class="matched-tag in-list" style="cursor:pointer" onclick="window.open('/company.html?code=${m.code}','_blank')">${m.code} ${m.name}</span>`
+  ).join('');
+  const safeTitle = n.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+  const archiveBtn = n.archived_code
+    ? `<span class="ind-archived">${n.archived_code}</span>`
+    : `<span class="ind-archive" data-id="${n.id}" data-title="${safeTitle}" onclick="showArchiveModal(+this.dataset.id, this.dataset.title)">歸檔</span>`;
+  return `<div class="ind-news-item" style="flex-wrap:wrap">
+    <span class="ind-source ${srcCls}">${srcName} ${srcLabel}</span>
+    <span class="ind-title" style="flex:1"><a href="${n.link}" target="_blank">${n.title}</a></span>
+    ${timeStr ? `<span class="ind-time">${timeStr}</span>` : ''}
+    ${archiveBtn}
+    <div style="width:100%;padding:4px 0 0 0">${stockTags}</div>
+  </div>`;
 }
 
 async function refreshIndustryNews(btn) {
