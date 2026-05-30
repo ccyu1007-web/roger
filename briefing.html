@@ -559,38 +559,58 @@ function renderIndNewsByDate(indNews) {
 function renderIndNewsSplit(indNews) {
   // 合併所有使用者清單
   const userCodes = new Set([..._qualitySet, ..._focusTrackSet]);
-  // 也加入觀察/持股清單（從 loadData 傳入的 lists）
   if (window._watchSet) _watchSet.forEach(c => userCodes.add(c));
   if (window._holdSet) _holdSet.forEach(c => userCodes.add(c));
 
-  // 分成：我的個股（matched_stocks 中有任何在使用者清單）、其他個股（有 matched 但不在清單）、總經產業（無 matched）
-  const myStockNews = [];
-  const macroNews = [];
+  // 三區分類
+  const myStockNews = [];    // 命中使用者清單
+  const otherStockNews = []; // 有命中股票但不在清單
+  const macroNews = [];      // 無命中任何股票
 
   indNews.forEach(n => {
     const matched = n.matched_stocks || [];
+    if (matched.length === 0) {
+      macroNews.push(n);
+      return;
+    }
     const inList = matched.filter(m => userCodes.has(m.code));
+    const notInList = matched.filter(m => !userCodes.has(m.code));
     if (inList.length > 0) {
       n._matchedInList = inList;
+      n._matchedOther = notInList;
       myStockNews.push(n);
     } else {
-      macroNews.push(n);
+      n._matchedOther = notInList;
+      otherStockNews.push(n);
     }
   });
 
   let html = '';
 
-  // 個股相關
+  // 我的個股
   html += `<div class="section">
     <div class="section-header header-red">
-      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">個股相關新聞 (${myStockNews.length})</span>
+      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">我的個股新聞 (${myStockNews.length})</span>
       <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
       <span class="arrow${myStockNews.length > 0 ? '' : ' collapsed'}" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
     </div>
     <div class="section-body${myStockNews.length > 0 ? '' : ' collapsed'}">
       ${myStockNews.length > 0
-        ? myStockNews.map(n => indNewsHtmlWithTags(n, n._matchedInList)).join('')
-        : '<div style="color:#94a3b8;padding:12px 0">今日無個股相關新聞</div>'}
+        ? myStockNews.map(n => indNewsHtmlWithTags(n, n._matchedInList || [], n._matchedOther || [])).join('')
+        : '<div style="color:#94a3b8;padding:12px 0">今日無相關新聞</div>'}
+    </div>
+  </div>`;
+
+  // 其他個股
+  html += `<div class="section">
+    <div class="section-header header-yellow">
+      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">其他個股新聞 (${otherStockNews.length})</span>
+      <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
+    </div>
+    <div class="section-body collapsed">
+      ${otherStockNews.length > 0
+        ? otherStockNews.map(n => indNewsHtmlWithTags(n, [], n._matchedOther || [])).join('')
+        : '<div style="color:#94a3b8;padding:12px 0">今日無其他個股新聞</div>'}
     </div>
   </div>`;
 
@@ -610,7 +630,7 @@ function renderIndNewsSplit(indNews) {
   return html;
 }
 
-function indNewsHtmlWithTags(n, matchedInList) {
+function indNewsHtmlWithTags(n, matchedInList, matchedOther) {
   const isUdn = n.source.includes('經濟');
   const srcCls = isUdn ? 'src-udn' : 'src-ct';
   const srcName = isUdn ? '經濟' : '工商';
@@ -620,19 +640,23 @@ function indNewsHtmlWithTags(n, matchedInList) {
     const m = n.time.match(/(\d{2}:\d{2})/);
     if (m) timeStr = m[1];
   }
-  const stockTags = matchedInList.map(m =>
+  const inListTags = (matchedInList || []).map(m =>
     `<span class="matched-tag in-list" style="cursor:pointer" onclick="window.open('/company.html?code=${m.code}','_blank')">${m.code} ${m.name}</span>`
+  ).join('');
+  const otherTags = (matchedOther || []).map(m =>
+    `<span class="matched-tag not-in-list" style="cursor:pointer" onclick="window.open('/company.html?code=${m.code}','_blank')">${m.code} ${m.name}</span>`
   ).join('');
   const safeTitle = n.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
   const archiveBtn = n.archived_code
     ? `<span class="ind-archived">${n.archived_code}</span>`
     : `<span class="ind-archive" data-id="${n.id}" data-title="${safeTitle}" onclick="showArchiveModal(+this.dataset.id, this.dataset.title)">歸檔</span>`;
+  const tagsHtml = inListTags || otherTags ? `<div style="width:100%;padding:4px 0 0 0">${inListTags}${otherTags}</div>` : '';
   return `<div class="ind-news-item" style="flex-wrap:wrap">
     <span class="ind-source ${srcCls}">${srcName} ${srcLabel}</span>
     <span class="ind-title" style="flex:1"><a href="${n.link}" target="_blank">${n.title}</a></span>
     ${timeStr ? `<span class="ind-time">${timeStr}</span>` : ''}
     ${archiveBtn}
-    <div style="width:100%;padding:4px 0 0 0">${stockTags}</div>
+    ${tagsHtml}
   </div>`;
 }
 
