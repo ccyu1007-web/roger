@@ -121,6 +121,9 @@
   .ind-show-more { text-align: center; padding: 8px; color: #2563eb; font-size: .85em; cursor: pointer; border-top: 1px solid #f1f5f9; }
   .ind-show-more:hover { background: #f8fafc; }
   .ind-archived { font-size: .7em; color: #16a34a; white-space: nowrap; flex-shrink: 0; }
+  .matched-tag { font-size: .72em; padding: 1px 6px; border-radius: 4px; font-weight: 600; margin-right: 4px; }
+  .matched-tag.in-list { background: #fef2f2; color: #dc2626; }
+  .matched-tag.not-in-list { background: #f1f5f9; color: #64748b; }
 
   /* Archive modal */
   .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,.4); z-index: 999; display:flex; align-items:center; justify-content:center; }
@@ -264,16 +267,7 @@ function render(brief, newsArr, indNews) {
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-header header-purple">
-        <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">產業新聞 (${indNews.length})</span>
-        <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
-        <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
-      </div>
-      <div class="section-body collapsed">
-        ${indNews.length > 0 ? renderIndNewsByDate(indNews) : '<div style="color:#94a3b8;padding:12px 0">暫無產業新聞</div>'}
-      </div>
-    </div>
+    ${renderIndNewsSplit(indNews)}
 
     <div class="section">
       <div class="section-header header-yellow" onclick="toggle(this)">

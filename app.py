@@ -4803,7 +4803,7 @@ def cleanup_old_industry_news(days=7):
 
 @app.route("/api/industry-news")
 def api_industry_news():
-    """讀取 DB 中的產業新聞（預設最近 7 天）"""
+    """讀取 DB 中的產業新聞（預設最近 7 天），自動比對股票名稱"""
     from datetime import datetime, timedelta
     _init_industry_news_db()
     days = int(request.args.get('days', '7'))
@@ -4812,7 +4812,26 @@ def api_industry_news():
                        FROM industry_news
                        WHERE created_at >= ?
                        ORDER BY COALESCE(NULLIF(pub_time,''), created_at) DESC, id DESC""", (since,))
-    return jsonify([dict(r) for r in rows] if rows else [])
+    result = [dict(r) for r in rows] if rows else []
+
+    # 載入所有股票名稱做比對
+    stock_rows = query_db("SELECT code, name FROM stocks")
+    stock_map = {}
+    if stock_rows:
+        for sr in stock_rows:
+            name = sr['name']
+            if name and len(name) >= 2:
+                stock_map[name] = sr['code']
+
+    for item in result:
+        title = item.get('title', '')
+        matched = []
+        for name, code in stock_map.items():
+            if name in title:
+                matched.append({'code': code, 'name': name})
+        item['matched_stocks'] = matched
+
+    return jsonify(result)
 
 @app.route("/api/industry-news/refresh", methods=["POST"])
 def refresh_industry_news():
