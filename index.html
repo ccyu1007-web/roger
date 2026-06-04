@@ -1044,41 +1044,27 @@ async function loadUserLists() {
   try {
     const res = await fetch('/api/user-lists');
     const data = await res.json();
-    // DB 為主，合併 localStorage 中 DB 沒有的項目（避免 API 失敗導致資料遺失）
+    // DB 是唯一真相來源，直接覆蓋 localStorage（跨裝置同步）
     const mergeList = [
-      ['watch','watchList', watchSet],
-      ['hold','holdList', holdSet],
-      ['focus','focusList', focusSet],
-      ['quality','qualityList', qualitySet],
-      ['skip','skipList', skipSet],
-      ['track','trackList', trackSet]
+      ['watch','watchList'],
+      ['hold','holdList'],
+      ['focus','focusList'],
+      ['quality','qualityList'],
+      ['skip','skipList'],
+      ['track','trackList']
     ];
-    for (const [type, localKey, currentSet] of mergeList) {
+    for (const [type, localKey] of mergeList) {
       const dbCodes = (data[type] || []).map(r => r.code);
-      const localCodes = [...currentSet]; // 從 localStorage 初始化的
-      // 合併：DB + localStorage 聯集
-      const merged = new Set([...dbCodes, ...localCodes]);
-      // 找出 localStorage 有但 DB 沒有的，補推到 DB
       const dbSet = new Set(dbCodes);
-      const missingInDb = localCodes.filter(c => !dbSet.has(c));
-      if (missingInDb.length > 0) {
-        for (const code of missingInDb) {
-          fetch(`/api/user-lists/${type}`, {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({action: 'add', code})
-          }).catch(() => {});
-        }
-      }
-      // 更新 Set 和 localStorage
       switch(type) {
-        case 'watch': watchSet = merged; break;
-        case 'hold': holdSet = merged; break;
-        case 'focus': focusSet = merged; break;
-        case 'quality': qualitySet = merged; break;
-        case 'skip': skipSet = merged; break;
-        case 'track': trackSet = merged; break;
+        case 'watch': watchSet = dbSet; break;
+        case 'hold': holdSet = dbSet; break;
+        case 'focus': focusSet = dbSet; break;
+        case 'quality': qualitySet = dbSet; break;
+        case 'skip': skipSet = dbSet; break;
+        case 'track': trackSet = dbSet; break;
       }
-      localStorage.setItem(localKey, JSON.stringify([...merged]));
+      localStorage.setItem(localKey, JSON.stringify(dbCodes));
     }
     updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount(); updateSkipCount(); updateTrackCount();
   } catch(e) {}
