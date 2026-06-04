@@ -47,7 +47,6 @@ def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
 
 def _push_single_table(table_name):
     """按表名 push 單張表到 Render — 自動從本機 DB 讀取所有欄位。
-    stock_checklist 等 clear_first 的表會清空重推。
     用法：_push_single_table('stock_checklist')
     """
     if _is_cloud():
@@ -64,8 +63,8 @@ def _push_single_table(table_name):
     pk = [c[1] for c in cols_info if c[5] > 0]  # pk index > 0
     if not pk:
         pk = [columns[0]]  # fallback: 第一個欄位
-    # stock_checklist/material_news/etf 等需要 clear_first
-    clear_tables = {'stock_checklist', 'material_news', 'etf_holdings', 'etf_changes', 'etf_info'}
+    # material_news/etf 等需要 clear_first（stock_checklist 改用 UPSERT，避免清空時前端讀到空資料）
+    clear_tables = {'material_news', 'etf_holdings', 'etf_changes', 'etf_info'}
     _push_table_to_render(table_name, columns, pk, clear_first=(table_name in clear_tables))
 
 
