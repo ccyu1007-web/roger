@@ -403,13 +403,9 @@ def _init_audit_table():
                 new_value TEXT,
                 changed_at TEXT
             )""")
-            # 自動清理 90 天前的記錄（相容 SQLite + PostgreSQL）
-            if sqlite3.DATABASE_URL:
-                c.execute("""DELETE FROM audit_log
-                             WHERE changed_at::timestamp < CURRENT_TIMESTAMP - INTERVAL '90 days'""")
-            else:
-                c.execute("""DELETE FROM audit_log
-                             WHERE changed_at < datetime('now', '-90 days')""")
+            # 自動清理 90 天前的記錄
+            c.execute("""DELETE FROM audit_log
+                         WHERE changed_at < datetime('now', '-90 days')""")
             conn.commit()
     except Exception as e:
         print(f"[Guardian] audit table 初始化失敗: {e}")
@@ -1338,11 +1334,8 @@ def _init_news_table():
             )""")
             c.execute("""CREATE INDEX IF NOT EXISTS idx_news_code_date
                          ON material_news(code, created_at DESC)""")
-            # 90 天前自動清理（相容 SQLite + PostgreSQL）
-            if sqlite3.DATABASE_URL:
-                c.execute("DELETE FROM material_news WHERE created_at::timestamp < CURRENT_TIMESTAMP - INTERVAL '90 days'")
-            else:
-                c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-90 days')")
+            # 90 天前自動清理
+            c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-90 days')")
             conn.commit()
     except Exception as e:
         print(f"[Guardian] news table 初始化失敗: {e}")
