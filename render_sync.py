@@ -252,6 +252,77 @@ def _pull_user_settings_from_render():
         print(f"[拉回] user_settings 同步 {updated} 筆到本機")
 
 
+def _pull_user_lists_from_render():
+    """從 Render 拉回 user_lists，確保本機與 Render 同步。
+    Render 是使用者主要操作端，以 Render 為準：
+    - Render 有但本機沒有 → 加入本機
+    - 本機有但 Render 沒有 → 從本機刪除（使用者在 Render 取消的）
+    """
+    if _is_cloud():
+        return
+    _rs = _create_session()
+    try:
+        resp = _rs.get(f'{RENDER_URL}/api/user-lists', timeout=30)
+    except Exception as e:
+        print(f"[拉回] user_lists API 連線失敗: {e}")
+        return
+    if resp.status_code != 200:
+        print(f"[拉回] user_lists API 失敗: HTTP {resp.status_code}")
+        return
+    render_data = resp.json()
+
+    # 把 Render 的資料展平成 set of (list_type, code) 和 dict
+    render_items = {}  # (list_type, code) → {added_at, price_at}
+    for list_type, items in render_data.items():
+        for item in items:
+            key = (list_type, item['code'])
+            render_items[key] = {
+                'added_at': item.get('added_at'),
+                'price_at': item.get('price_at'),
+            }
+
+    added = 0
+    removed = 0
+    with sqlite3.get_conn() as conn:
+        # 讀本機現有的 user_lists
+        local_rows = conn.execute(
+            'SELECT list_type, code, added_at, price_at FROM user_lists'
+        ).fetchall()
+        local_items = {}
+        for r in local_rows:
+            local_items[(r[0], r[1])] = {'added_at': r[2], 'price_at': r[3]}
+
+        # Render 有但本機沒有 → 加入本機
+        for key, vals in render_items.items():
+            if key not in local_items:
+                conn.execute(
+                    'INSERT OR IGNORE INTO user_lists (list_type, code, added_at, price_at) VALUES (?,?,?,?)',
+                    (key[0], key[1], vals['added_at'], vals['price_at'])
+                )
+                added += 1
+
+        # 本機有但 Render 沒有 → 使用者在 Render 取消了，本機也刪除
+        # 只處理 Render 有管理的 list_type（Render 至少有一筆該 type 的資料，或曾經有過）
+        render_types = set(render_data.keys())
+        # 也把空陣列的 type 算進去（代表 Render 知道這個 type 但清空了）
+        for key in local_items:
+            if key not in render_items:
+                lt = key[0]
+                # 只刪除 Render 端也有管理的 type（避免刪除 Render API 沒回傳的 type）
+                # quality/watch 由前端 autoCheck 管理，也需要同步
+                if lt in render_types or lt in ('track', 'skip', 'watch', 'hold', 'focus', 'quality'):
+                    conn.execute(
+                        'DELETE FROM user_lists WHERE list_type=? AND code=?',
+                        (key[0], key[1])
+                    )
+                    removed += 1
+
+        conn.commit()
+
+    if added or removed:
+        print(f"[拉回] user_lists 同步: 新增 {added} 筆, 刪除 {removed} 筆")
+
+
 _LAST_SYNC_TIME_FILE = os.path.join(os.path.dirname(__file__), 'logs', '.last_sync_time')
 
 def _get_last_sync_time():
@@ -286,6 +357,10 @@ def _push_all_to_render():
         _pull_user_estimates_from_render()
     except Exception as e:
         print(f"[拉回] user_estimates 失敗: {e}")
+    try:
+        _pull_user_lists_from_render()
+    except Exception as e:
+        print(f"[拉回] user_lists 失敗: {e}")
 
     last_sync = _get_last_sync_time()
     mode = f"增量（since {last_sync}）" if last_sync else "全量（首次）"
