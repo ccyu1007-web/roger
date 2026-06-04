@@ -3352,6 +3352,7 @@ def _prefetch_revenue_and_financials(conn):
             revenue = safe_float(d.get('營業收入-當月營收'))
             if not code or not ym_str or revenue is None:
                 continue
+            revenue = revenue * 1000  # t187ap05 單位是千元，轉為元
             try:
                 roc_year = int(ym_str[:-2])
                 month = int(ym_str[-2:])
