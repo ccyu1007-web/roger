@@ -1823,10 +1823,11 @@ function previewQuality() {
   const el_ex = document.getElementById('qPreviewExclude');
   if (el_ex) el_ex.textContent = beforeExclude - afterExclude > 0 ? `排除${beforeExclude - afterExclude}支` : '';
 
-  // 等級
+  // 等級（只看最近5年）
+  const _gradeYears = _fixedY.slice(0, 5);
   pool = pool.filter(r => {
     const grades = [];
-    for (const y of _fixedY) { const g = r._fg ? r._fg[y] : null; if (g) grades.push(g); }
+    for (const y of _gradeYears) { const g = r._fg ? r._fg[y] : null; if (g) grades.push(g); }
     if (grades.length < 3) return false;
     return grades.filter(g => meetsThreshold(g)).length >= s.gradeYears;
   });
@@ -1939,7 +1940,8 @@ function autoQualityCheck(silent) {
     if (r.industry && excludeIndustries.has(r.industry)) { excluded++; return; }
 
     const grades = [];
-    for (const y of _fixedY) {
+    const _gradeYears5 = _fixedY.slice(0, 5);
+    for (const y of _gradeYears5) {
       const g = r._fg ? r._fg[y] : null;
       if (g) grades.push(g);
     }
