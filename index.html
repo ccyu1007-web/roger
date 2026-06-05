@@ -1807,7 +1807,7 @@ function toggleQualitySettings() { toggleAllSettings(); }
 function previewQuality() {
   if (!allData.length) return;
   const s = _qSettings;
-  const gradeOrder = {'AA':9,'A1':8,'A2':8,'B1A':6,'B2A':6,'A':5,'B1':4,'B2':4,'C':3,'D':2};
+  const gradeOrder = {'AA':9,'A1':8,'A2':8,'A':7,'B1A':6,'B2A':6,'B1':4,'B2':4,'C':3,'D':2};
   function gradeBase(g) { return g ? g.replace(/[+-]$/, '') : ''; }
   function meetsThreshold(g) { return (gradeOrder[gradeBase(g)] || 0) >= (gradeOrder[s.gradeThreshold] || 7); }
   const excludeIndustries = new Set();
@@ -1916,7 +1916,7 @@ function autoQualityCheck(silent) {
   const s = _qSettings;
 
   // 等級排序（用於比較門檻）— 正向：達到門檻以上才算通過
-  const gradeOrder = {'AA':9,'A1':8,'A2':8,'B1A':6,'B2A':6,'A':5,'B1':4,'B2':4,'C':3,'D':2};
+  const gradeOrder = {'AA':9,'A1':8,'A2':8,'A':7,'B1A':6,'B2A':6,'B1':4,'B2':4,'C':3,'D':2};
   function gradeBase(g) { return g ? g.replace(/[+-]$/, '') : ''; }
   function meetsThreshold(g) {
     const base = gradeBase(g);
