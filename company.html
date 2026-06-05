@@ -1796,30 +1796,30 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div class="est-val-grid" style="min-width:420px;flex-shrink:0">
           <div class="lbl">最高本益比</div>
           <div class="val"><input id="peHigh" type="text" placeholder="倍" oninput="calcPERange()"></div>
-          <div class="sys-v">18</div>
+          <div class="sys-v" id="sysPeHigh">${_peHi}</div>
           <div class="lbl">最低本益比</div>
           <div class="val"><input id="peLow" type="text" placeholder="倍" oninput="calcPERange()"></div>
-          <div class="sys-v">10</div>
+          <div class="sys-v" id="sysPeLow">${_peLo}</div>
           <div class="sep"></div>
           <div class="lbl result-label">偏高本益比</div>
           <div class="val"><div class="computed result-val" id="peAbove">-</div></div>
-          <div class="sys-v">16</div>
+          <div class="sys-v" id="sysPeAboveVal">${(_peHi * 3 + _peLo) / 4}</div>
           <div class="lbl result-label">合理本益比</div>
           <div class="val"><div class="computed result-val" id="peFair" style="color:#2563eb">-</div></div>
-          <div class="sys-v">14</div>
+          <div class="sys-v" id="sysPeFairVal">${(_peHi + _peLo) / 2}</div>
           <div class="lbl result-label">偏低本益比</div>
           <div class="val"><div class="computed result-val" id="peBelow">-</div></div>
-          <div class="sys-v">12</div>
+          <div class="sys-v" id="sysPeBelowVal">${(_peHi + _peLo * 3) / 4}</div>
           <div class="sep"></div>
           <div class="lbl result-label">偏高價格</div>
           <div class="val"><div class="computed result-val" id="priceAbove">-</div></div>
-          <div class="sys-v" id="sysPriceAbove">${ann && ann.eps > 0 ? (ann.eps * 16).toFixed(2) : '-'}</div>
+          <div class="sys-v" id="sysPriceAbove">${ann && ann.eps > 0 ? (ann.eps * (_peHi * 3 + _peLo) / 4).toFixed(2) : '-'}</div>
           <div class="lbl result-label">合理價格</div>
           <div class="val"><div class="computed result-val" id="priceFair" style="color:#2563eb">-</div></div>
-          <div class="sys-v" id="sysPriceFair" style="color:#2563eb">${ann && ann.eps > 0 ? (ann.eps * 14).toFixed(2) : '-'}</div>
+          <div class="sys-v" id="sysPriceFair" style="color:#2563eb">${ann && ann.eps > 0 ? (ann.eps * (_peHi + _peLo) / 2).toFixed(2) : '-'}</div>
           <div class="lbl result-label">偏低價格</div>
           <div class="val"><div class="computed result-val" id="priceBelow">-</div></div>
-          <div class="sys-v" id="sysPriceBelow">${ann && ann.eps > 0 ? (ann.eps * 12).toFixed(2) : '-'}</div>
+          <div class="sys-v" id="sysPriceBelow">${ann && ann.eps > 0 ? (ann.eps * (_peHi + _peLo * 3) / 4).toFixed(2) : '-'}</div>
         </div>
         <div id="peHistoryContainer" style="flex:1;min-width:300px"><div class="loading" style="padding:12px"><div class="spinner"></div></div></div>
       </div>
@@ -1828,23 +1828,23 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div class="est-val-grid" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px">
         <div class="lbl">偏高殖利率（%）</div>
         <div class="val"><input id="yldHigh" type="text" placeholder="%" oninput="calcYldRange()"></div>
-        <div class="sys-v">5.5%</div>
+        <div class="sys-v" id="sysYldHigh">${_yHigh}%</div>
         <div class="lbl">最高殖利率（%）</div>
         <div class="val"><input id="yldMax" type="text" placeholder="%" oninput="calcYldRange()"></div>
-        <div class="sys-v">6%</div>
+        <div class="sys-v" id="sysYldMax">${_yMax}%</div>
         <div class="sep"></div>
         <div class="lbl result-label">合理殖利率</div>
         <div class="val"><div class="computed result-val" id="yldFair" style="color:#2563eb">-</div></div>
-        <div class="sys-v">5.75%</div>
+        <div class="sys-v" id="sysYldFairVal">${((_yHigh + _yMax) / 2).toFixed(2)}%</div>
         <div class="lbl result-label">偏高殖利率價格</div>
         <div class="val"><div class="computed result-val" id="yldPriceHigh">-</div></div>
-        <div class="sys-v" id="sysYldPriceHigh">${ann && ann.div ? (ann.div / 5.5 * 100).toFixed(2) : '-'}</div>
+        <div class="sys-v" id="sysYldPriceHigh">${ann && ann.div ? (ann.div / _yHigh * 100).toFixed(2) : '-'}</div>
         <div class="lbl result-label">合理殖利率價格</div>
         <div class="val"><div class="computed result-val" id="yldPriceFair" style="color:#2563eb">-</div></div>
-        <div class="sys-v" id="sysYldPriceFair" style="color:#2563eb">${ann && ann.div ? (ann.div / 5.75 * 100).toFixed(2) : '-'}</div>
+        <div class="sys-v" id="sysYldPriceFair" style="color:#2563eb">${ann && ann.div ? (ann.div / ((_yHigh + _yMax) / 2) * 100).toFixed(2) : '-'}</div>
         <div class="lbl result-label">最高殖利率價格</div>
         <div class="val"><div class="computed result-val" id="yldPriceMax">-</div></div>
-        <div class="sys-v" id="sysYldPriceMax">${ann && ann.div ? (ann.div / 6 * 100).toFixed(2) : '-'}</div>
+        <div class="sys-v" id="sysYldPriceMax">${ann && ann.div ? (ann.div / _yMax * 100).toFixed(2) : '-'}</div>
       </div>
     </div>
 
@@ -2152,6 +2152,8 @@ async function initEstimator(sharesMillion) {
       if (_savedParams.yldHigh) _yHigh = parseFloat(_savedParams.yldHigh);
       if (_savedParams.yldMax) _yMax = parseFloat(_savedParams.yldMax);
     } catch(e) {}
+    // 更新右側全域參考值
+    _updateSysValLabels();
   } catch(e) { console.warn('[個股頁] 無法同步 DB 設定:', e); }
 
   // 取得目前股價
@@ -2675,6 +2677,24 @@ function calcValuation(annEps) {
   const yld = (div && _estPrice && _estPrice !== 0) ? div / _estPrice * 100 : null;
   document.getElementById('annYield').textContent = yld != null ? yld.toFixed(2) + '%' : '-';
   renderMatrix();
+}
+
+function _updateSysValLabels() {
+  const _set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const peFair = (_peHi + _peLo) / 2;
+  const peAbove = (_peHi + peFair) / 2;
+  const peBelow = (peFair + _peLo) / 2;
+  _set('sysPeHigh', _peHi);
+  _set('sysPeLow', _peLo);
+  _set('sysPeAboveVal', peAbove);
+  _set('sysPeFairVal', peFair);
+  _set('sysPeBelowVal', peBelow);
+  _set('sysYldHigh', _yHigh + '%');
+  _set('sysYldMax', _yMax + '%');
+  const yFair = (_yHigh + _yMax) / 2;
+  _set('sysYldFairVal', yFair.toFixed(2) + '%');
+  // 價格需要年度估算 EPS/股利，從 sys-v 現有值判斷是否可更新
+  // （buildEstimator 已用動態值算過，這裡只在全域設定從 DB 更新後重算）
 }
 
 function calcPERange() {
