@@ -1680,9 +1680,9 @@ function renderGradeFilters() {
     return `<div style="display:inline-flex;align-items:center;gap:3px;border:1px solid ${hasFilter?'#8b5cf6':'#e2e8f0'};border-radius:6px;padding:2px 6px;background:${hasFilter?'#f5f3ff':'#f8fafc'}">
       <span style="font-size:.78rem;font-weight:600;color:${hasFilter?'#7c3aed':'#64748b'};min-width:40px">${m.label}</span>
       <select onchange="onGradeQuickSelect('${m.key}',this.value)" style="border:none;background:none;font-size:.75rem;outline:none;color:#8b5cf6;cursor:pointer;min-width:60px">
-        <option value="" ${!hasFilter?'selected':''}>${selLabel}</option>
-        <option value="A_up" ${selected.length===4?'selected':''}>A級以上</option>
-        <option value="AA" ${selected.length===1&&selected[0]==='AA'?'selected':''}>僅AA</option>
+        <option value="" selected>${selLabel}</option>
+        ${!(selected.length===4) ? '<option value="A_up">A級以上</option>' : ''}
+        ${!(selected.length===1&&selected[0]==='AA') ? '<option value="AA">僅AA</option>' : ''}
         ${hasFilter ? '<option value="clear">清除</option>' : ''}
       </select>
     </div>`;
