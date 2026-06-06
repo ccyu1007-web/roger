@@ -240,18 +240,16 @@ async function load() {
       return {
         code: s.code, name: s.name,
         grade: usedGrade,
-        grade_src: hasEst ? '預估' : '沈董',
         price: s.close,
-        pe: hasEst ? s.est_pe : s.shen_pe,
-        yld: hasEst ? s.est_yld : s.shen_yld,
+        shen_pe: s.shen_pe, shen_yld: s.shen_yld,
+        blend_pe: s.blend_pe, blend_yld: s.blend_yld,
         revenue_yoy: s.revenue_yoy,
         revenue_cum_yoy: s.revenue_cum_yoy,
         rev_3m_yoy: gi.rev_3m_yoy,
         rev_12m_yoy: gi.rev_12m_yoy,
+        neff_d: gi.neff_d, neff_gray: gi.neff_gray,
         chk_pass: s._chk_pass,
         chk_total: s._chk_total,
-        growth_signal: s._growth_signal,
-        growth_rev: s._growth_rev,
       };
     });
 
@@ -414,7 +412,7 @@ function renderShenGradeList(mode) {
     let gItems = groups[grade] || [];
     if (!gItems.length) return;
     // 排序：PE 低的在前
-    gItems.sort((a,b) => (a.pe || 999) - (b.pe || 999));
+    gItems.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
 
     if (mode !== 'AA') {
       const gcls = GRADE_CLS(grade);
@@ -432,23 +430,26 @@ function renderShenGradeList(mode) {
   document.getElementById('content').innerHTML = html;
 }
 
-function _shenGradeTableHtml(items, growthField, growthLabel) {
-  const hasGrowthCol = !!growthField;
+function _shenGradeTableHtml(items) {
+  const _peColor = v => v != null ? (v <= 10 ? '#dc2626' : v <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
+  const _peStr = v => v != null ? v.toFixed(1) : '-';
+  const _yldColor = v => v != null ? (v >= 6 ? '#dc2626' : v >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
+  const _yldStr = v => v != null ? v.toFixed(1) + '%' : '-';
+
   let html = `<table class="val-table"><thead><tr>
     <th style="width:36px;text-align:center">追蹤</th>
     <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-    <th style="width:50px;text-align:center">來源</th>
-    <th style="width:50px;text-align:center">等級</th>
     <th style="width:50px;text-align:center">檢核</th>
-    <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
     <th style="width:70px;text-align:right">股價</th>
-    <th style="width:70px;text-align:right">PE</th>
-    <th style="width:70px;text-align:right">殖利率</th>
-    ${hasGrowthCol ? `<th style="width:70px;text-align:right">${growthLabel}</th>` : ''}
-    <th style="width:65px;text-align:right">月營收</th>
+    <th style="width:65px;text-align:right">沈董PE</th>
+    <th style="width:70px;text-align:right">沈董殖利率</th>
+    <th style="width:65px;text-align:right">綜合PE</th>
+    <th style="width:70px;text-align:right">綜合殖利率</th>
     <th style="width:65px;text-align:right">累計</th>
+    <th style="width:65px;text-align:right">月營收</th>
     <th style="width:60px;text-align:right">3M</th>
     <th style="width:60px;text-align:right">12M</th>
+    <th style="width:65px;text-align:right">Neff</th>
   </tr></thead><tbody>`;
 
   items.forEach(c => {
@@ -456,38 +457,27 @@ function _shenGradeTableHtml(items, growthField, growthLabel) {
     const chkHtml = c.chk_pass != null
       ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
       : '\u2014';
-    const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, null, null);
-    const peStr = c.pe != null ? c.pe.toFixed(1) : '-';
-    const peColor = c.pe != null ? (c.pe <= 10 ? '#dc2626' : c.pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
-    const yldStr = c.yld != null ? c.yld.toFixed(1) + '%' : '-';
-    const yldColor = c.yld != null ? (c.yld >= 6 ? '#dc2626' : c.yld >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
-    const gradeTag = `<span class="tag tag-${c.grade.toLowerCase()}">${c.grade}</span>`;
-    const srcColor = c.grade_src === '預估' ? '#2563eb' : '#64748b';
-    const srcTag = `<span style="font-size:.75rem;font-weight:600;color:${srcColor}">${c.grade_src}</span>`;
+    // Neff 比率：>= 1 紅色粗體、< 1 灰色
+    const nv = c.neff_d;
+    const neffStr = (nv != null && !c.neff_gray) ? nv.toFixed(2) : '-';
+    const neffColor = (nv != null && nv >= 1 && !c.neff_gray) ? '#dc2626' : '#94a3b8';
+    const neffWeight = (nv != null && nv >= 1 && !c.neff_gray) ? '700' : '400';
 
     html += `<tr>
       <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
       <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
       <td>${c.name}</td>
-      <td style="text-align:center">${srcTag}</td>
-      <td style="text-align:center">${gradeTag}</td>
       <td style="text-align:center">${chkHtml}</td>
-      <td style="text-align:center">${growthHtml}</td>
       <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-      <td style="text-align:right;color:${peColor}">${peStr}</td>
-      <td style="text-align:right;color:${yldColor}">${yldStr}</td>
-      ${hasGrowthCol ? (() => {
-        const gv = c._growth_val;
-        const gSrc = c._growth_src || '';
-        const isNeff = growthField === 'neff_d' || (growthField === '_combo' && gSrc === 'Neff');
-        const gvColor = isNeff ? (gv >= 2 ? '#dc2626' : '#334155') : (gv != null && gv <= 0.5 ? '#dc2626' : '#334155');
-        const srcMark = growthField === '_combo' && gSrc ? `<span style="color:#94a3b8;margin-left:3px">${gSrc[0]}</span>` : '';
-        return `<td style="text-align:right;font-weight:700;color:${gvColor};white-space:nowrap">${gv != null ? gv.toFixed(2) : '-'}${srcMark}</td>`;
-      })() : ''}
-      <td style="text-align:right;color:${_revColor(c.revenue_yoy)}">${_revStr(c.revenue_yoy)}</td>
+      <td style="text-align:right;color:${_peColor(c.shen_pe)}">${_peStr(c.shen_pe)}</td>
+      <td style="text-align:right;color:${_yldColor(c.shen_yld)}">${_yldStr(c.shen_yld)}</td>
+      <td style="text-align:right;color:${_peColor(c.blend_pe)}">${_peStr(c.blend_pe)}</td>
+      <td style="text-align:right;color:${_yldColor(c.blend_yld)}">${_yldStr(c.blend_yld)}</td>
       <td style="text-align:right;color:${_revColor(c.revenue_cum_yoy)}">${_revStr(c.revenue_cum_yoy)}</td>
+      <td style="text-align:right;color:${_revColor(c.revenue_yoy)}">${_revStr(c.revenue_yoy)}</td>
       <td style="text-align:right;color:${_revColor(c.rev_3m_yoy)}">${_revStr(c.rev_3m_yoy)}</td>
       <td style="text-align:right;color:${_revColor(c.rev_12m_yoy)}">${_revStr(c.rev_12m_yoy)}</td>
+      <td style="text-align:right;color:${neffColor};font-weight:${neffWeight}">${neffStr}</td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -509,11 +499,7 @@ function renderShenComboList(mode) {
   let items = (mode === 'AA'
     ? _shenGradeList.filter(s => s.grade === 'AA')
     : _shenGradeList.filter(s => ['A1','A2','A'].includes(s.grade))
-  ).filter(s => growthMap[s.code])
-   .map(s => {
-     const g = growthMap[s.code];
-     return {...s, _growth_val: g.val, _growth_src: g.src};
-   });
+  ).filter(s => growthMap[s.code]);
 
   if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
@@ -542,7 +528,7 @@ function renderShenComboList(mode) {
       html += '<div style="padding:0 20px">';
     }
 
-    html += _shenGradeTableHtml(gItems, '_combo', 'Neff/PEG');
+    html += _shenGradeTableHtml(gItems);
     html += '</div>';
   });
 
