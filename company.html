@@ -192,6 +192,29 @@
   }
   .notes-area:focus { border-color: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,.1); }
   .notes-area::placeholder { color: #cbd5e1; }
+  .notes-preview {
+    width: 100%; min-height: 200px; padding: 14px 16px;
+    border: 1px solid #d1d5db; border-radius: 8px;
+    font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+    font-size: .9rem; line-height: 1.7; color: #1a202c;
+    overflow-y: auto; cursor: text;
+  }
+  .notes-preview h1,.notes-preview h2,.notes-preview h3 { margin: 12px 0 6px; color: #1e3a5f; }
+  .notes-preview h1 { font-size: 1.1rem; }
+  .notes-preview h2 { font-size: 1rem; }
+  .notes-preview h3 { font-size: .92rem; }
+  .notes-preview table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: .84rem; }
+  .notes-preview th,.notes-preview td { border: 1px solid #d1d5db; padding: 5px 10px; text-align: left; }
+  .notes-preview th { background: #f1f5f9; font-weight: 600; color: #334155; }
+  .notes-preview ul,.notes-preview ol { padding-left: 20px; margin: 6px 0; }
+  .notes-preview p { margin: 6px 0; }
+  .notes-preview strong { color: #1e3a5f; }
+  .notes-preview blockquote { border-left: 3px solid #059669; padding-left: 12px; color: #64748b; margin: 8px 0; }
+  .notes-preview code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; }
+  .notes-preview pre { background: #f8fafc; padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .notes-preview pre code { background: none; padding: 0; }
+  .notes-mode-btn { padding: 3px 10px; border: 1px solid #059669; border-radius: 5px; background: #fff; cursor: pointer; font-size: .75rem; color: #059669; font-weight: 600; }
+  .notes-mode-btn.active { background: #059669; color: #fff; }
 
   /* ── 年度彙總 & 估值 ── */
   .est-annual {
@@ -604,6 +627,7 @@
   }
   #printDate { display: none; font-size: .85rem; color: #64748b; margin-bottom: 12px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -1973,13 +1997,16 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="notes-wrap">
       <div class="notes-header">
         <span class="notes-title">質性研究筆記</span>
+        <button class="notes-mode-btn active" id="btnNotesPreview" onclick="switchNotesMode('preview')">預覽</button>
+        <button class="notes-mode-btn" id="btnNotesEdit" onclick="switchNotesMode('edit')">編輯</button>
         <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
         <button onclick="togglePromptPreview()" style="padding:3px 10px;border:1px solid #94a3b8;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#94a3b8;font-weight:600">查看指令內容</button>
         <span class="notes-status" id="notesStatus"></span>
       </div>
       <div id="promptPreview" style="display:none;margin:0 12px 12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;color:#475569;line-height:1.7;white-space:pre-wrap">
       </div>
-      <textarea class="notes-area" id="notesArea" oninput="onNotesInput()"
+      <div class="notes-preview" id="notesPreview" onclick="switchNotesMode('edit')"></div>
+      <textarea class="notes-area" id="notesArea" oninput="onNotesInput()" style="display:none"
         placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點..."></textarea>
     </div>
 
@@ -2381,6 +2408,7 @@ async function initEstimator(sharesMillion) {
     const notesArea = document.getElementById('notesArea');
     if (notesArea) notesArea.value = savedNotes;
   }
+  _renderNotesPreview();
   // 從 DB 載入筆記（跨瀏覽器同步）
   fetch(`/api/user-notes/${CODE}`).then(r => r.json()).then(data => {
     if (data && data.content) {
@@ -2390,6 +2418,7 @@ async function initEstimator(sharesMillion) {
         localStorage.setItem('notes_' + CODE, data.content);
       }
     }
+    _renderNotesPreview();
   }).catch(() => {});
 }
 
@@ -2466,6 +2495,43 @@ function togglePromptPreview() {
     el.style.display = 'block';
   } else {
     el.style.display = 'none';
+  }
+}
+
+function switchNotesMode(mode) {
+  const textarea = document.getElementById('notesArea');
+  const preview = document.getElementById('notesPreview');
+  const btnEdit = document.getElementById('btnNotesEdit');
+  const btnPreview = document.getElementById('btnNotesPreview');
+  if (mode === 'edit') {
+    textarea.style.display = '';
+    preview.style.display = 'none';
+    btnEdit.classList.add('active');
+    btnPreview.classList.remove('active');
+    textarea.focus();
+  } else {
+    const text = textarea.value || '';
+    if (text.trim()) {
+      preview.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text.replace(/\n/g, '<br>');
+    } else {
+      preview.innerHTML = '<span style="color:#cbd5e1">無筆記內容，點擊編輯</span>';
+    }
+    textarea.style.display = 'none';
+    preview.style.display = '';
+    btnPreview.classList.add('active');
+    btnEdit.classList.remove('active');
+  }
+}
+
+function _renderNotesPreview() {
+  const textarea = document.getElementById('notesArea');
+  const preview = document.getElementById('notesPreview');
+  if (!textarea || !preview) return;
+  const text = textarea.value || '';
+  if (text.trim()) {
+    preview.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text.replace(/\n/g, '<br>');
+  } else {
+    preview.innerHTML = '<span style="color:#cbd5e1">無筆記內容，點擊編輯</span>';
   }
 }
 
