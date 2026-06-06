@@ -972,6 +972,8 @@ async function loadUserSettings() {
     _globalVal = JSON.parse(localStorage.getItem('global_val_params') || 'null') || {...DEFAULT_GLOBAL_VAL};
     sortCol = localStorage.getItem('sort_col') || 'code';
     sortAsc = localStorage.getItem('sort_asc') !== 'false';
+    _gradeFilters = JSON.parse(localStorage.getItem('grade_filters') || '{}');
+    renderGradeFilters();
   } catch(e) {}
 }
 
