@@ -506,11 +506,15 @@ function _shenGradeTableHtml(items) {
     const neffStr = (nv != null && !c.neff_gray) ? nv.toFixed(2) : '-';
     const neffColor = (nv != null && nv >= 1 && !c.neff_gray) ? '#dc2626' : '#94a3b8';
     const neffWeight = (nv != null && nv >= 1 && !c.neff_gray) ? '700' : '400';
-    // 新增/刪除標記
+    // 新增/刪除標記（支援等級變動和門檻穿越兩種情境）
     const addHtml = c._chg_new
-      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c._chg_from||'—'}→${c._chg_to}</span>` : '';
+      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c._chg_from||'—'}→${c._chg_to||'—'}</span>`
+      : (c._chg_direction === 'cheaper' && c._chg_from)
+      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">突破 ${c._chg_from}→${c._chg_to}</span>`
+      : (c._chg_direction === 'lateral' && c._chg_from)
+      ? `<span style="color:#2563eb;font-weight:600;font-size:.75rem">平移 ${c._chg_from}→${c._chg_to}</span>` : '';
     const rmHtml = isRemoved
-      ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c._chg_from}→${c._chg_to||'—'}</span>` : '';
+      ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c._chg_from||'—'}→${c._chg_to||'—'}</span>` : '';
     const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
     html += `<tr${rowStyle}>
@@ -589,131 +593,8 @@ function renderShenComboList(mode) {
   document.getElementById('content').innerHTML = html;
 }
 
-function renderList(mode) {
-  let items = mode === 'AA'
-    ? _cheapList.filter(s => s.level === 'AA')
-    : _cheapList.filter(s => ['A1','A2','A'].includes(s.level));
-  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-
-  const normal = items.filter(s => !s._removed);
-  const removed = items.filter(s => s._removed);
-
-  const groups = {};
-  normal.forEach(c => { const g=c.level; if(!groups[g])groups[g]=[]; groups[g].push(c); });
-  const removedByGrade = {};
-  removed.forEach(c => { const g=c.level; if(!removedByGrade[g])removedByGrade[g]=[]; removedByGrade[g].push(c); });
-
-  const gradeOrder = ['AA','A1','A2','A'];
-  const allGrades = new Set([...Object.keys(groups), ...Object.keys(removedByGrade)]);
-  const sortedGrades = [...allGrades].sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
-
-  const title = mode === 'AA' ? 'AA 級' : 'A1 / A2 / A 級';
-  const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
-
-  let html = `<div class="section">
-    <div class="section-header" style="${headerColor}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${normal.length} 支</span>
-    </div>`;
-
-  sortedGrades.forEach(grade => {
-    let gItems = groups[grade] || [];
-    let gRemoved = removedByGrade[grade] || [];
-    if (!gItems.length && !gRemoved.length) return;
-    gItems.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
-
-    if (mode !== 'AA') {
-      const gcls = GRADE_CLS(grade);
-      html += `<div style="padding:0 20px"><div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0"><span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span><span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span></div>`;
-    } else {
-      html += '<div style="padding:0 20px">';
-    }
-
-    html += _cheapTableHtml([...gItems, ...gRemoved]);
-    html += '</div>';
-  });
-
-  if (!normal.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
-  html += '</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
 function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '-'; }
 function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
-
-function _cheapTableHtml(items, growthField, growthLabel) {
-  const hasGrowthCol = !!growthField;
-  let html = `<table class="val-table"><thead><tr>
-    <th style="width:36px;text-align:center">追蹤</th>
-    <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-    <th style="width:50px;text-align:center">檢核</th>
-    <th style="width:50px;text-align:center;cursor:help" title="成長＝營收加速且EPS同比成長&#10;持平＝介於成長與衰退之間&#10;衰退＝營收連續衰退 或 EPS衰退+存貨堆積">趨勢</th>
-    <th style="width:70px;text-align:right">股價</th>
-    <th style="width:65px;text-align:right">月營收</th>
-    <th style="width:65px;text-align:right">累計</th>
-    <th style="width:60px;text-align:right">3M</th>
-    <th style="width:60px;text-align:right">12M</th>
-    <th style="width:80px;text-align:right">本益比</th>
-    <th style="width:60px;text-align:right">殖利率</th>
-    ${hasGrowthCol ? `<th style="width:70px;text-align:right">${growthLabel}</th>` : ''}
-    <th style="width:80px;text-align:right">折價幅度</th>
-    <th style="width:70px;text-align:center">新增</th>
-    <th style="width:70px;text-align:center">刪除</th>
-  </tr></thead><tbody>`;
-
-  items.forEach(c => {
-    const isRemoved = !!c._removed;
-    const dp = (!isRemoved && c.discount_pct != null) ? c.discount_pct : null;
-    const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
-    const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-    const addHtml = (c._chg_direction === 'cheaper' && c._chg_from)
-      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">突破 ${c._chg_from||'above'}→${c._chg_to}</span>`
-      : (c._chg_direction === 'lateral' && c._chg_from)
-      ? `<span style="color:#2563eb;font-weight:600;font-size:.75rem">平移 ${c._chg_from}→${c._chg_to}</span>` : '';
-    const rmHtml = isRemoved
-      ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">跌破 ${c._chg_from}→${c._chg_to||'above'}</span>` : '';
-    const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
-    const isFocused = _focusTrackSet.has(c.code);
-    const chkHtml = c.chk_pass != null
-      ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
-      : '—';
-    const growthHtml = _growthBadge(c.growth_signal, c.growth_rev, c.growth_eps, c.growth_inv);
-    const _pe = c.val_pe != null ? c.val_pe : c.shen_pe;
-    const _yld = c.val_yld != null ? c.val_yld : c.shen_yld;
-    const _src = c.val_source || '沈董';
-    const srcTag = `<span style="color:#94a3b8;margin-left:3px" title="${_src}法">${_src[0]}</span>`;
-    const peStr = _pe != null ? _pe.toFixed(1) : '-';
-    const peColor = _pe != null ? (_pe <= 10 ? '#dc2626' : _pe <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
-    const yldStr = _yld != null ? _yld.toFixed(1) + '%' : '-';
-    const yldColor = _yld != null ? (_yld >= 6 ? '#dc2626' : _yld >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
-    html += `<tr${rowStyle}>
-      <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
-      <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-      <td>${c.name}</td>
-      <td style="text-align:center">${chkHtml}</td>
-      <td style="text-align:center">${growthHtml}</td>
-      <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-      <td style="text-align:right;color:${_revColor(c.revenue_yoy)}">${_revStr(c.revenue_yoy)}</td>
-      <td style="text-align:right;color:${_revColor(c.revenue_cum_yoy)}">${_revStr(c.revenue_cum_yoy)}</td>
-      <td style="text-align:right;color:${_revColor(c.rev_3m_yoy)}">${_revStr(c.rev_3m_yoy)}</td>
-      <td style="text-align:right;color:${_revColor(c.rev_12m_yoy)}">${_revStr(c.rev_12m_yoy)}</td>
-      <td style="text-align:right;color:${peColor};white-space:nowrap">${peStr}${srcTag}</td>
-      <td style="text-align:right;color:${yldColor}">${yldStr}</td>
-      ${hasGrowthCol ? (() => {
-        const gv = c._growth_val;
-        const gSrc = c._growth_src || '';
-        const isNeff = growthField === 'neff_d' || (growthField === '_combo' && gSrc === 'Neff');
-        const gvColor = isNeff ? (gv >= 2 ? '#dc2626' : '#334155') : (gv != null && gv <= 0.5 ? '#dc2626' : '#334155');
-        const srcMark = growthField === '_combo' && gSrc ? `<span style="color:#94a3b8;margin-left:3px">${gSrc[0]}</span>` : '';
-        return `<td style="text-align:right;font-weight:700;color:${gvColor};white-space:nowrap">${gv != null ? gv.toFixed(2) : '-'}${srcMark}</td>`;
-      })() : ''}
-      <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
-      <td style="text-align:center">${addHtml}</td>
-      <td style="text-align:center">${rmHtml}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  return html;
-}
 
 function _enrichFromStockMap(c) {
   const s = _stockMap[c.code] || {};
@@ -722,16 +603,19 @@ function _enrichFromStockMap(c) {
   if (c.revenue_cum_yoy == null) c.revenue_cum_yoy = s.revenue_cum_yoy;
   if (c.rev_3m_yoy == null) c.rev_3m_yoy = gi.rev_3m_yoy;
   if (c.rev_12m_yoy == null) c.rev_12m_yoy = gi.rev_12m_yoy;
-  if (c.val_pe == null) c.val_pe = s.val_pe;
-  if (c.val_yld == null) c.val_yld = s.val_yld;
-  if (c.val_source == null) c.val_source = s.val_source;
   if (c.shen_pe == null) c.shen_pe = s.shen_pe;
   if (c.shen_yld == null) c.shen_yld = s.shen_yld;
+  if (c.blend_pe == null) c.blend_pe = s.blend_pe;
+  if (c.blend_yld == null) c.blend_yld = s.blend_yld;
+  if (c.neff_d == null) c.neff_d = gi.neff_d;
+  if (c.neff_gray == null) c.neff_gray = gi.neff_gray;
   if (c.chk_pass == null) c.chk_pass = s._chk_pass;
   if (c.chk_total == null) c.chk_total = s._chk_total;
-  if (c.growth_signal == null) {
-    c.growth_signal = gi.rev_3m_yoy > gi.rev_12m_yoy && gi.rev_3m_yoy > 0 ? 'green' : (gi.rev_3m_yoy < gi.rev_12m_yoy && gi.rev_3m_yoy < 0 && gi.rev_12m_yoy < 0 ? 'red' : 'yellow');
-    c.growth_rev = gi.rev_3m_yoy;
+  // 門檻穿越 → 統一新增標記
+  if (c.cross === 'below' && !c._chg_new) {
+    c._chg_new = true;
+    c._chg_from = c.from_th || 'above';
+    c._chg_to = c.to_th;
   }
   return c;
 }
@@ -761,8 +645,8 @@ function renderThresholdList(thNames) {
     if (!normal.length) {
       html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
     } else {
-      normal.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
-      html += '<div style="padding:0 20px">' + _cheapTableHtml(normal) + '</div>';
+      normal.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
+      html += '<div style="padding:0 20px">' + _shenGradeTableHtml(normal) + '</div>';
     }
     html += '</div>';
   });
@@ -865,15 +749,7 @@ function renderComboList(thNames) {
   thNames.forEach(th => {
     let items = (_byThreshold[th] || [])
       .filter(s => !s._removed && growthCodes.has(s.code))
-      .map(s => {
-        const enriched = _enrichFromStockMap({...s});
-        // 加上 Neff/PEG 值供顯示
-        const st = _stockMap[s.code] || {};
-        const gi = st._gi || {};
-        enriched._growth_val = gi.neff_d >= 1 ? gi.neff_d : gi.lynch_d;
-        enriched._growth_src = gi.neff_d >= 1 ? 'Neff' : 'PEG';
-        return enriched;
-      });
+      .map(s => _enrichFromStockMap({...s}));
     if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
     const st = thStyle[th];
 
@@ -886,9 +762,8 @@ function renderComboList(thNames) {
     if (!items.length) {
       html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無同時符合的股票</div>';
     } else {
-      items.sort((a,b) => (b.discount_pct||-999) - (a.discount_pct||-999));
-      // 用共用表格，多加 Neff/PEG 欄
-      html += '<div style="padding:0 20px">' + _cheapTableHtml(items, '_combo', 'Neff/PEG') + '</div>';
+      items.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
+      html += '<div style="padding:0 20px">' + _shenGradeTableHtml(items) + '</div>';
     }
     html += '</div>';
   });
@@ -922,23 +797,18 @@ function renderGrowthList(type) {
     filterLabel = 'PE / EPS成長率 <= 1，股價相對成長便宜';
   }
 
-  // 轉成 cheapList 格式
   const newSet = new Set(type === 'neff' ? (_growthChanges.neff_new||[]) : (_growthChanges.peg_new||[]));
   let items = rawItems.map(s => {
     const gi = s._gi || {};
     return {
       code: s.code, name: s.name, price: s.close,
       chk_pass: s._chk_pass, chk_total: s._chk_total,
-      growth_signal: gi.rev_3m_yoy > gi.rev_12m_yoy && gi.rev_3m_yoy > 0 ? 'green' : (gi.rev_3m_yoy < gi.rev_12m_yoy && gi.rev_3m_yoy < 0 && gi.rev_12m_yoy < 0 ? 'red' : 'yellow'),
-      growth_rev: gi.rev_3m_yoy,
+      shen_pe: s.shen_pe, shen_yld: s.shen_yld,
+      blend_pe: s.blend_pe, blend_yld: s.blend_yld,
       revenue_yoy: s.revenue_yoy, revenue_cum_yoy: s.revenue_cum_yoy,
       rev_3m_yoy: gi.rev_3m_yoy, rev_12m_yoy: gi.rev_12m_yoy,
-      val_pe: s.val_pe, val_yld: s.val_yld, val_source: s.val_source,
-      shen_pe: s.shen_pe, shen_yld: s.shen_yld,
-      discount_pct: s.discount_pct,
-      _growth_val: gi[sortField],
-      _growth_label: sortLabel,
-      _chg_direction: newSet.has(s.code) ? 'cheaper' : null,
+      neff_d: gi.neff_d, neff_gray: gi.neff_gray,
+      _chg_new: newSet.has(s.code),
       _chg_from: newSet.has(s.code) ? 'above' : null,
       _chg_to: newSet.has(s.code) ? sortLabel : null,
     };
@@ -946,12 +816,8 @@ function renderGrowthList(type) {
 
   if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
-  // 排序
-  if (type === 'neff') {
-    items.sort((a,b) => (b._growth_val||0) - (a._growth_val||0));
-  } else {
-    items.sort((a,b) => (a._growth_val||999) - (b._growth_val||999));
-  }
+  // 排序：沈董PE低的在前
+  items.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
 
   let html = `<div class="section">
     <div class="section-header" style="${headerStyle}">${title}
@@ -961,7 +827,7 @@ function renderGrowthList(type) {
   if (!items.length) {
     html += '<div style="text-align:center;padding:40px;color:#94a3b8">目前無符合條件的股票</div>';
   } else {
-    html += '<div style="padding:0 20px">' + _cheapTableHtml(items, sortField, sortLabel) + '</div>';
+    html += '<div style="padding:0 20px">' + _shenGradeTableHtml(items) + '</div>';
   }
   html += '</div>';
   document.getElementById('content').innerHTML = html;
