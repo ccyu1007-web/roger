@@ -227,13 +227,15 @@ async function load() {
     _stocks.forEach(s => { _stockMap[s.code] = s; });
 
     // 預估/沈董評價法：從 stocks 表讀取 est_grade / shen_grade（DB 資料）
+    // 優先順序：有預估等級（非null/非X）用預估，否則用沈董
     const _A_GRADES = new Set(['AA','A1','A2','A']);
-    _shenGradeList = _stocks.filter(s => {
-      const used = s.est_grade || s.shen_grade;
-      return _A_GRADES.has(used);
-    }).map(s => {
+    const _usedGrade = s => {
+      const eg = s.est_grade;
+      return (eg && eg !== 'X') ? eg : s.shen_grade;
+    };
+    _shenGradeList = _stocks.filter(s => _A_GRADES.has(_usedGrade(s))).map(s => {
       const hasEst = !!s.est_grade && s.est_grade !== 'X';
-      const usedGrade = hasEst ? s.est_grade : s.shen_grade;
+      const usedGrade = _usedGrade(s);
       const gi = s._gi || {};
       return {
         code: s.code, name: s.name,
