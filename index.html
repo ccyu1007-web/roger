@@ -624,8 +624,8 @@ function gradeHtml(g) {
   if (!g) return '－';
   const base = g.replace(/[+-]$/, '');
   const cls = base === 'AA' ? 'aa' : base === 'X' ? 'x'
-    : ['A','A1','A2','B1A','B2A'].includes(base) ? 'a'
-    : ['BA1','BA2'].includes(base) ? 'ba'
+    : ['A','A1','A2'].includes(base) ? 'a'
+    : ['B1A','B2A'].includes(base) ? 'ba'
     : ['B1','B2'].includes(base) ? 'b'
     : base === '觀察' ? 'watch'
     : base === '臨界點' ? 'crit'
@@ -1663,7 +1663,7 @@ const GRADE_METHODS = [
   { key: 'weighted_grade', label: '加權' },
   { key: 'trailing_grade', label: '近四季' },
 ];
-const GRADE_LEVELS = ['AA','A1','A2','A','BA1','BA2','B1','B2','觀察','臨界點'];
+const GRADE_LEVELS = ['AA','A1','A2','A','B1A','B2A','B1','B2','觀察','臨界點'];
 
 let _gradeFilters = JSON.parse(localStorage.getItem('grade_filters') || '{}');
 
@@ -2205,7 +2205,7 @@ function _calcMatrixGrade(curPE, curYld, code, ue) {
   const peBelow = (peFair + peLo) / 2;
   const peCols = [[-Infinity,peLo],[peLo,peBelow],[peBelow,peFair],[peFair,peAbove],[peAbove,peHi],[peHi,Infinity]];
   const yRows = [[yMax,Infinity],[yHigh,yMax],[yFloor,yHigh],[-Infinity,yFloor]];
-  const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
+  const grades = [['AA','A2','B2A','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['B1A','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
   const col = peCols.findIndex(c => curPE >= c[0] && curPE < c[1]);
   const row = yRows.findIndex(y => curYld >= y[0] && curYld < y[1]);
   return (col >= 0 && row >= 0) ? grades[row][col] : null;

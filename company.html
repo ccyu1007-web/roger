@@ -2831,14 +2831,14 @@ function _buildSysGradeBadge() {
   const peAbove = (peHi + peFair) / 2;
   const peBelow = (peFair + peLo) / 2;
 
-  const grades = [['AA','A2','BA2','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['BA1','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
+  const grades = [['AA','A2','B2A','觀察','臨界點','X'],['A1','A','B2','臨界點','X','X'],['B1A','B1','臨界點','X','X','X'],['觀察','臨界點','X','X','X','X']];
   const sPeCols = [{lo:-Infinity,hi:peLo},{lo:peLo,hi:peBelow},{lo:peBelow,hi:peFair},{lo:peFair,hi:peAbove},{lo:peAbove,hi:peHi},{lo:peHi,hi:Infinity}];
   const sYRows = [{lo:yMax,hi:Infinity},{lo:yHigh,hi:yMax},{lo:yFloor,hi:yHigh},{lo:-Infinity,hi:yFloor}];
   const sRow = sYRows.findIndex(r => sYld >= r.lo && sYld < r.hi);
   const sCol = sPeCols.findIndex(c => sPE >= c.lo && sPE < c.hi);
   if (sRow < 0 || sCol < 0) return '';
   const sg = grades[sRow][sCol];
-  const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a' : (sg==='BA1'||sg==='BA2') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b' : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
+  const sBadge = sg === 'AA' ? 'gb-aa' : (sg==='A'||sg==='A1'||sg==='A2') ? 'gb-a' : (sg==='B1A'||sg==='B2A') ? 'gb-ba' : (sg==='B1'||sg==='B2') ? 'gb-b' : sg==='觀察' ? 'gb-watch' : sg==='臨界點' ? 'gb-crit' : 'gb-x';
   return `<div><div class="grade-badge ${sBadge}"><span class="grade-label">系統評估等級：</span>${sg}</div>`
     + `<div style="margin-top:4px;font-size:.82rem;color:#0369a1">系統本益比 ${sPE.toFixed(2)} / 系統殖利率 ${sYld}%</div></div>`;
 }
@@ -2878,15 +2878,15 @@ function renderMatrix() {
 
   // 矩陣評級（行=殖利率由高到低，列=本益比由低到高）
   const grades = [
-    ['AA','A2','BA2','觀察','臨界點','X'],
+    ['AA','A2','B2A','觀察','臨界點','X'],
     ['A1','A','B2','臨界點','X','X'],
-    ['BA1','B1','臨界點','X','X','X'],
+    ['B1A','B1','臨界點','X','X','X'],
     ['觀察','臨界點','X','X','X','X'],
   ];
   const gradeClass = g => {
     if (g === 'AA') return 'g-aa';
     if (g === 'A' || g === 'A1' || g === 'A2') return 'g-a';
-    if (g === 'BA1' || g === 'BA2') return 'g-ba';
+    if (g === 'B1A' || g === 'B2A') return 'g-ba';
     if (g === 'B1' || g === 'B2') return 'g-b';
     if (g === '觀察') return 'g-watch';
     if (g === '臨界點') return 'g-crit';
@@ -2911,7 +2911,7 @@ function renderMatrix() {
   if (curRow >= 0 && curCol >= 0) {
     const g = grades[curRow][curCol];
     const badgeCls = g === 'AA' ? 'gb-aa' : (g==='A'||g==='A1'||g==='A2') ? 'gb-a'
-      : (g==='BA1'||g==='BA2') ? 'gb-ba' : (g==='B1'||g==='B2') ? 'gb-b'
+      : (g==='B1A'||g==='B2A') ? 'gb-ba' : (g==='B1'||g==='B2') ? 'gb-b'
       : g==='觀察' ? 'gb-watch' : g==='臨界點' ? 'gb-crit' : 'gb-x';
     const peStr = curPE != null ? curPE.toFixed(2) : '-';
     const yldStr = curYld != null ? curYld.toFixed(2) + '%' : '-';

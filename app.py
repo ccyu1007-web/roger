@@ -276,7 +276,7 @@ def _calc_shen_fields(r, cur_roc, global_settings=None):
 
 # ── 矩陣等級計算（與 guardian.py 一致）─────────────────────────
 def _calc_matrix_grade(pe, yld, pe_high=18, pe_low=10, yld_max=6.0, yld_high=5.5, yld_floor=5.0):
-    """矩陣等級：AA/A1/A2/A/BA1/BA2/B1/B2/觀察/臨界點/X"""
+    """矩陣等級：AA/A1/A2/A/B1A/B2A/B1/B2/觀察/臨界點/X"""
     if pe is None or pe <= 0 or yld is None or yld <= 0:
         return 'X'
     pe_fair = (pe_high + pe_low) / 2
@@ -286,9 +286,9 @@ def _calc_matrix_grade(pe, yld, pe_high=18, pe_low=10, yld_max=6.0, yld_high=5.5
                (pe_fair, pe_above), (pe_above, pe_high), (pe_high, 9999)]
     y_rows = [(yld_max, 9999), (yld_high, yld_max), (yld_floor, yld_high), (-9999, yld_floor)]
     grades = [
-        ['AA', 'A2', 'BA2', '觀察', '臨界點', 'X'],
+        ['AA', 'A2', 'B2A', '觀察', '臨界點', 'X'],
         ['A1', 'A', 'B2', '臨界點', 'X', 'X'],
-        ['BA1', 'B1', '臨界點', 'X', 'X', 'X'],
+        ['B1A', 'B1', '臨界點', 'X', 'X', 'X'],
         ['觀察', '臨界點', 'X', 'X', 'X', 'X'],
     ]
     col = next((i for i, (lo, hi) in enumerate(pe_cols) if pe >= lo and pe < hi), -1)
@@ -817,7 +817,7 @@ def _is_grade_above_b(g):
     if g.endswith('-'):
         return False
     base = g.replace('+', '').replace('-', '')
-    return base in ('AA','A1','A2','A','B2A','B1A','B1','B2','BA1','BA2')
+    return base in ('AA','A1','A2','A','B1A','B2A','B1','B2')
 
 def _is_grade_a_level(g):
     """財務等級是否 A級（AA/A1/A2/B1A/B2A），即值得深入研究的等級"""
@@ -851,9 +851,9 @@ def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor
                (pe_fair, pe_above), (pe_above, pe_hi), (pe_hi, 999999)]
     y_rows = [(y_max, 999999), (y_high, y_max), (y_floor, y_high), (-999999, y_floor)]
     grades = [
-        ['AA','A2','BA2','觀察','臨界點','X'],
+        ['AA','A2','B2A','觀察','臨界點','X'],
         ['A1','A','B2','臨界點','X','X'],
-        ['BA1','B1','臨界點','X','X','X'],
+        ['B1A','B1','臨界點','X','X','X'],
         ['觀察','臨界點','X','X','X','X'],
     ]
     col = next((i for i, c in enumerate(pe_cols) if pe >= c[0] and pe < c[1]), -1)

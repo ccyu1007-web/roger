@@ -1699,7 +1699,7 @@ DEFAULT_YLD_FLOOR = 5.0
 def _calc_matrix_grade(pe, yld, pe_high=None, pe_low=None, yld_max=None, yld_high=None, yld_floor=None):
     """
     矩陣等級計算（與前端 _calcMatrixGrade 一致）。
-    回傳: AA/A1/A2/A/BA1/BA2/B1/B2/觀察/臨界點/X
+    回傳: AA/A1/A2/A/B1A/B2A/B1/B2/觀察/臨界點/X
     """
     if pe is None or pe <= 0 or yld is None or yld <= 0:
         return 'X'
@@ -1716,9 +1716,9 @@ def _calc_matrix_grade(pe, yld, pe_high=None, pe_low=None, yld_max=None, yld_hig
                (pe_fair, pe_above), (pe_above, pe_high), (pe_high, 9999)]
     y_rows = [(yld_max, 9999), (yld_high, yld_max), (yld_floor, yld_high), (-9999, yld_floor)]
     grades = [
-        ['AA', 'A2', 'BA2', '觀察', '臨界點', 'X'],
+        ['AA', 'A2', 'B2A', '觀察', '臨界點', 'X'],
         ['A1', 'A', 'B2', '臨界點', 'X', 'X'],
-        ['BA1', 'B1', '臨界點', 'X', 'X', 'X'],
+        ['B1A', 'B1', '臨界點', 'X', 'X', 'X'],
         ['觀察', '臨界點', 'X', 'X', 'X', 'X'],
     ]
     col = next((i for i, (lo, hi) in enumerate(pe_cols) if pe >= lo and pe < hi), -1)
@@ -2297,7 +2297,7 @@ def get_daily_briefing():
     # 矩陣等級深度
     LEVEL_DEPTH = {
         'AA': 10, 'A1': 9, 'A2': 9, 'A': 7,
-        'BA1': 6, 'BA2': 5, 'B1': 4, 'B2': 3,
+        'B1A': 6, 'B2A': 5, 'B1': 4, 'B2': 3,
         '觀察': 2, '臨界點': 1, 'X': 0,
         'above': 0, None: 0,
     }
