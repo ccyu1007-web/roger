@@ -3885,7 +3885,7 @@ def _calc_growth_indicators(_json, _dt):
 
     # ── 2. 抓 stocks 表（股價、沈董估算）
     st_rows = query_db(
-        "SELECT code, close, sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld FROM stocks"
+        "SELECT code, close, sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, blend_eps, blend_div FROM stocks"
     )
     st_map = {r['code']: r for r in st_rows}
 
