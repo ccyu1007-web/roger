@@ -2187,7 +2187,8 @@ def _push_snapshot_to_render(data_date):
         # 撈完整快照（含 price 等欄位）
         full_rows = conn2.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                                            shen_eps, shen_pe, shen_yld, fin_grade,
-                                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct
+                                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                                           neff_d, lynch_d, shen_grade, est_grade
                                     FROM stock_state WHERE date=?""", (data_date,)).fetchall()
 
     if not full_rows:
@@ -2201,6 +2202,7 @@ def _push_snapshot_to_render(data_date):
             'fl': r[4], 'fm': r[5], 'fh': r[6],
             'se': r[7], 'sp': r[8], 'sy': r[9], 'fg': r[10],
             'vl': r[11], 'aa': r[12], 'a1': r[13], 'a2': r[14], 'a': r[15], 'lt6': r[16], 'dp': r[17],
+            'nd': r[18], 'ld': r[19], 'sg': r[20], 'eg': r[21],
             'deepest': ex[0], 'cheap_days': ex[1],
         })
 
