@@ -3090,12 +3090,13 @@ def calc_dorsey_roic(row, prev_row=None):
     return roic, round(nopat, 2), round(ic, 2)
 
 
-def _calc_fin_grade(roic, operating_margin, fcf, revenue):
+def _calc_fin_grade(roic, operating_margin, fcf, revenue, is_financial=False):
     """計算財務體質等級（縱軸改用 ROIC，門檻 7%/10%/15% 不變）"""
     if roic is None:
         return None
-    # FCF 無資料時預設中間值（0-5% 區間）
-    if fcf is None or revenue is None or revenue == 0:
+    # 金融業不適用 FCF 判斷（capex 對金融業無意義），固定用中間欄位
+    # FCF 無資料時也預設中間值（0-5% 區間）
+    if is_financial or fcf is None or revenue is None or revenue == 0:
         fcf_r = 2.5
     else:
         fcf_r = fcf / revenue * 100
@@ -3135,9 +3136,10 @@ def _refresh_fin_grades():
         else:
             max_year = today.year - 2  # 4/15 前：只能納入前年
 
-        # 找所有有 financial_annual 資料的公司
-        c.execute("SELECT DISTINCT code FROM financial_annual")
-        codes = [r[0] for r in c.fetchall()]
+        # 找所有有 financial_annual 資料的公司，並讀取產業
+        c.execute("SELECT DISTINCT fa.code, COALESCE(s.industry, '') FROM financial_annual fa LEFT JOIN stocks s ON s.code = fa.code")
+        code_industry = {r[0]: r[1] for r in c.fetchall()}
+        codes = list(code_industry.keys())
         if not codes:
             return
 
@@ -3150,6 +3152,8 @@ def _refresh_fin_grades():
 
         updated = 0
         for code in codes:
+            industry = code_industry.get(code, '')
+            is_financial = '金融' in industry
             c.execute("""SELECT year, revenue, cost, operating_income, pretax_income, tax, net_income,
                                 total_equity, total_assets, operating_cf, capex,
                                 cash_and_equivalents, short_term_debt, short_term_notes,
@@ -3183,7 +3187,7 @@ def _refresh_fin_grades():
                 prev_row = rows[i + 1] if i + 1 < len(rows) else None
                 roic, nopat, ic = calc_dorsey_roic(row, prev_row)
 
-                grade = _calc_fin_grade(roic, opm, fcf, rev)
+                grade = _calc_fin_grade(roic, opm, fcf, rev, is_financial=is_financial)
 
                 # 存貨週轉天數 = 平均存貨 / 成本 × 365
                 inv = row['inventory']
