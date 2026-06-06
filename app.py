@@ -4100,7 +4100,7 @@ def _calc_growth_indicators(_json, _dt):
             if s_start and s_start > 0:
                 shares_change = (s_end - s_start) / s_start * 100
 
-        # ── 殖利率：預估 > 沈董
+        # ── 殖利率：預估 > 綜合
         ue = ue_map.get(code, {})
         div_val = None
         # 優先用 user_estimates 的預估股利
@@ -4110,13 +4110,13 @@ def _calc_growth_indicators(_json, _dt):
                 div_val = float(vm_div)
             except Exception:
                 pass
-        # fallback: 沈董股利
-        if not div_val and st.get('sys_ann_div'):
-            div_val = st['sys_ann_div']
+        # fallback: 綜合股利
+        if not div_val and st.get('blend_div'):
+            div_val = st['blend_div']
 
         yld = (div_val / close * 100) if div_val and close > 0 else 0
 
-        # ── PE：預估 > 沈董
+        # ── PE：預估 > 綜合
         pe = None
         # 優先用 user_estimates 的預估EPS算PE
         vm_eps = ue.get('vmEps')
@@ -4127,9 +4127,9 @@ def _calc_growth_indicators(_json, _dt):
                     pe = close / est_eps
             except Exception:
                 pass
-        # fallback: 沈董EPS
-        if pe is None and st.get('sys_ann_eps') and st['sys_ann_eps'] > 0:
-            pe = close / st['sys_ann_eps']
+        # fallback: 綜合EPS
+        if pe is None and st.get('blend_eps') and st['blend_eps'] > 0:
+            pe = close / st['blend_eps']
 
         if pe is None or pe <= 0:
             # PE 無值，但營收 CAGR 和部分指標仍輸出
