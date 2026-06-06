@@ -100,6 +100,7 @@
       <button class="tab-L1 active" onclick="switchL1('shen',this)">預估/沈董評價法</button>
       <button class="tab-L1" onclick="switchL1('xiaoyao',this)">逍遙評價系統</button>
       <button class="tab-L1" onclick="switchL1('growth',this)">成長評價</button>
+      <button class="tab-L1" onclick="switchL1('shenCombo',this)">預估/沈董+成長</button>
       <button class="tab-L1" onclick="switchL1('combo',this)">逍遙+成長</button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
@@ -147,6 +148,10 @@ const L2_CONFIG = {
     {id:'neff', label:'約翰聶夫', badge:'#fef3c7', badgeColor:'#92400e'},
     {id:'peg',  label:'PEG',     badge:'#dbeafe', badgeColor:'#1d4ed8'},
   ],
+  shenCombo: [
+    {id:'scAA',    label:'AA',       badge:'#fecaca', badgeColor:'#991b1b'},
+    {id:'scOther', label:'A1/A2/A',  badge:'#fef3c7', badgeColor:'#92400e'},
+  ],
   combo: [
     {id:'comboAA',    label:'門檻AA',       badge:'#fecaca', badgeColor:'#991b1b'},
     {id:'comboOther', label:'門檻A1/A2/A',  badge:'#e0e7ff', badgeColor:'#3730a3'},
@@ -175,6 +180,9 @@ const INFO_TEXT = {
     <b>約翰聶夫比率</b> = (EPS成長率 + 殖利率) / 本益比　←　Neff Ratio >= 1 表示成長性被低估<br>
     <b>PEG</b> = 本益比 / EPS成長率　←　PEG <= 1 表示股價相對成長性便宜<br>
     <span style="color:#94a3b8">* 使用 neff_d（Neff比率）和 lynch_d（PEG），灰名單股票已排除</span>`,
+  shenCombo: `<b style="color:#334155">預估/沈董+成長</b><br>
+    同時符合預估/沈董等級為 A 級以上（AA/A1/A2/A）<b>且</b>成長評價通過（Neff >= 1 或 PEG <= 1）的股票。<br>
+    <span style="color:#94a3b8">* 兩個條件都滿足才會列入</span>`,
   combo: `<b style="color:#334155">逍遙+成長</b><br>
     同時符合門檻便宜（股價低於門檻）<b>且</b>成長評價通過（Neff >= 1 或 PEG <= 1）的股票。<br>
     <span style="color:#94a3b8">* 兩個條件都滿足才會列入，是最嚴格的篩選</span>`,
@@ -338,8 +346,18 @@ function updateCounts() {
   setCnt('neff', _qualityOnly ? neffList.filter(s => _qualitySet.has(s.code)).length : neffList.length);
   setCnt('peg', _qualityOnly ? pegList.filter(s => _qualitySet.has(s.code)).length : pegList.length);
 
-  // 逍遙+成長
+  // 成長合格 set（Neff >= 1 或 PEG <= 1）
   const growthCodes = new Set([...neffList.map(s=>s.code), ...pegList.map(s=>s.code)]);
+
+  // 預估/沈董+成長
+  const scFilter = grade => {
+    let items = _shenGradeList.filter(s => s.grade === grade && growthCodes.has(s.code));
+    return _qualityOnly ? items.filter(s => _qualitySet.has(s.code)) : items;
+  };
+  setCnt('scAA', scFilter('AA').length);
+  setCnt('scOther', ['A1','A2','A'].reduce((s,g) => s + scFilter(g).length, 0));
+
+  // 逍遙+成長
   const comboFilter = (thItems) => {
     let items = thItems.filter(s => !s._removed && growthCodes.has(s.code));
     return _qualityOnly ? items.filter(s => _qualitySet.has(s.code)) : items;
@@ -360,6 +378,9 @@ function renderTab() {
   } else if (_L1 === 'growth') {
     if (_L2 === 'neff') renderGrowthList('neff');
     else if (_L2 === 'peg') renderGrowthList('peg');
+  } else if (_L1 === 'shenCombo') {
+    if (_L2 === 'scAA') renderShenComboList('AA');
+    else if (_L2 === 'scOther') renderShenComboList('cheap');
   } else if (_L1 === 'combo') {
     if (_L2 === 'comboAA') renderComboList(['AA']);
     else if (_L2 === 'comboOther') renderComboList(['A1','A2','A']);
@@ -409,7 +430,8 @@ function renderShenGradeList(mode) {
   document.getElementById('content').innerHTML = html;
 }
 
-function _shenGradeTableHtml(items) {
+function _shenGradeTableHtml(items, growthField, growthLabel) {
+  const hasGrowthCol = !!growthField;
   let html = `<table class="val-table"><thead><tr>
     <th style="width:36px;text-align:center">追蹤</th>
     <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
@@ -420,6 +442,7 @@ function _shenGradeTableHtml(items) {
     <th style="width:70px;text-align:right">股價</th>
     <th style="width:70px;text-align:right">PE</th>
     <th style="width:70px;text-align:right">殖利率</th>
+    ${hasGrowthCol ? `<th style="width:70px;text-align:right">${growthLabel}</th>` : ''}
     <th style="width:65px;text-align:right">月營收</th>
     <th style="width:65px;text-align:right">累計</th>
     <th style="width:60px;text-align:right">3M</th>
@@ -451,6 +474,14 @@ function _shenGradeTableHtml(items) {
       <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
       <td style="text-align:right;color:${peColor}">${peStr}</td>
       <td style="text-align:right;color:${yldColor}">${yldStr}</td>
+      ${hasGrowthCol ? (() => {
+        const gv = c._growth_val;
+        const gSrc = c._growth_src || '';
+        const isNeff = growthField === 'neff_d' || (growthField === '_combo' && gSrc === 'Neff');
+        const gvColor = isNeff ? (gv >= 2 ? '#dc2626' : '#334155') : (gv != null && gv <= 0.5 ? '#dc2626' : '#334155');
+        const srcMark = growthField === '_combo' && gSrc ? `<span style="color:#94a3b8;margin-left:3px">${gSrc[0]}</span>` : '';
+        return `<td style="text-align:right;font-weight:700;color:${gvColor};white-space:nowrap">${gv != null ? gv.toFixed(2) : '-'}${srcMark}</td>`;
+      })() : ''}
       <td style="text-align:right;color:${_revColor(c.revenue_yoy)}">${_revStr(c.revenue_yoy)}</td>
       <td style="text-align:right;color:${_revColor(c.revenue_cum_yoy)}">${_revStr(c.revenue_cum_yoy)}</td>
       <td style="text-align:right;color:${_revColor(c.rev_3m_yoy)}">${_revStr(c.rev_3m_yoy)}</td>
@@ -459,6 +490,63 @@ function _shenGradeTableHtml(items) {
   });
   html += '</tbody></table>';
   return html;
+}
+
+function renderShenComboList(mode) {
+  // 成長合格 set
+  const growthMap = {};
+  _stocks.forEach(s => {
+    const gi = s._gi || {};
+    if (gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray) {
+      growthMap[s.code] = {val: gi.neff_d, src: 'Neff'};
+    } else if (gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray) {
+      growthMap[s.code] = {val: gi.lynch_d, src: 'PEG'};
+    }
+  });
+
+  let items = (mode === 'AA'
+    ? _shenGradeList.filter(s => s.grade === 'AA')
+    : _shenGradeList.filter(s => ['A1','A2','A'].includes(s.grade))
+  ).filter(s => growthMap[s.code])
+   .map(s => {
+     const g = growthMap[s.code];
+     return {...s, _growth_val: g.val, _growth_src: g.src};
+   });
+
+  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
+
+  const groups = {};
+  items.forEach(c => { const g = c.grade; if(!groups[g]) groups[g] = []; groups[g].push(c); });
+  const gradeOrder = ['AA','A1','A2','A'];
+  const sortedGrades = Object.keys(groups).sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+
+  const title = mode === 'AA' ? 'AA 級 + 成長評價' : 'A1 / A2 / A 級 + 成長評價';
+  const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
+
+  let html = `<div class="section">
+    <div class="section-header" style="${headerColor}">${title}
+      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
+    </div>`;
+
+  sortedGrades.forEach(grade => {
+    let gItems = groups[grade] || [];
+    if (!gItems.length) return;
+    gItems.sort((a,b) => (a.pe || 999) - (b.pe || 999));
+
+    if (mode !== 'AA') {
+      const gcls = GRADE_CLS(grade);
+      html += `<div style="padding:0 20px"><div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0"><span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span><span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span></div>`;
+    } else {
+      html += '<div style="padding:0 20px">';
+    }
+
+    html += _shenGradeTableHtml(gItems, '_combo', 'Neff/PEG');
+    html += '</div>';
+  });
+
+  if (!items.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">目前無同時符合的股票</div>';
+  html += '</div>';
+  document.getElementById('content').innerHTML = html;
 }
 
 function renderList(mode) {
