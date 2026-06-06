@@ -1728,17 +1728,27 @@ def _calc_matrix_grade(pe, yld, pe_high=None, pe_low=None, yld_max=None, yld_hig
     return 'X'
 
 
-def _calc_priority_grade(row, close, uvp=None, est_eps=None, est_div=None):
+def _calc_priority_grade(row, close, uvp=None, est_eps=None, est_div=None, global_settings=None):
     """
     等級優先順序：預估等級 → 沈董等級 → X
     預估等級：使用者在季估計表輸入的 vmEps/vmDiv（存在 user_estimates）
     沈董等級：從季度 EPS 推算的沈董 EPS + 配息率推算股利
     uvp: 個股自訂估值參數 dict（pe_high, pe_low, yld_high, yld_max）
+    global_settings: 全域估值參數（從 user_settings 讀取）
     est_eps/est_div: 使用者預估 EPS/股利（從 user_estimates 的 vmEps/vmDiv）
     回傳: (grade, source)
     """
     if uvp is None:
         uvp = {}
+    if global_settings is None:
+        global_settings = {}
+
+    # 合併參數：個股自訂 > 全域設定 > 硬編碼預設
+    _pe_high = uvp.get('pe_high') or global_settings.get('pe_high')
+    _pe_low = uvp.get('pe_low') or global_settings.get('pe_low')
+    _yld_high = uvp.get('yld_high') or global_settings.get('yld_high')
+    _yld_max = uvp.get('yld_max') or global_settings.get('yld_max')
+    _yld_floor = global_settings.get('yld_floor')
 
     # 1. 預估等級（使用者手動輸入的 vmEps/vmDiv）
     if est_eps and est_eps > 0 and close and close > 0:
@@ -1748,8 +1758,8 @@ def _calc_priority_grade(row, close, uvp=None, est_eps=None, est_div=None):
             est_yld = round(est_div / close * 100, 2)
         if est_pe > 0 and est_yld > 0:
             g = _calc_matrix_grade(est_pe, est_yld,
-                                   pe_high=uvp.get('pe_high'), pe_low=uvp.get('pe_low'),
-                                   yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'))
+                                   pe_high=_pe_high, pe_low=_pe_low,
+                                   yld_high=_yld_high, yld_max=_yld_max, yld_floor=_yld_floor)
             if g:
                 return g, 'est'
 
@@ -1766,8 +1776,8 @@ def _calc_priority_grade(row, close, uvp=None, est_eps=None, est_div=None):
             shen_yld = round(shen_div / close * 100, 2)
         if shen_pe > 0 and shen_yld > 0:
             g = _calc_matrix_grade(shen_pe, shen_yld,
-                                   pe_high=uvp.get('pe_high'), pe_low=uvp.get('pe_low'),
-                                   yld_high=uvp.get('yld_high'), yld_max=uvp.get('yld_max'))
+                                   pe_high=_pe_high, pe_low=_pe_low,
+                                   yld_high=_yld_high, yld_max=_yld_max, yld_floor=_yld_floor)
             if g:
                 return g, 'shen'
 
@@ -1949,6 +1959,24 @@ def snapshot_stock_states():
             try: c.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
             except Exception: pass
 
+        # 載入全域估值參數（從 user_settings 表，與 app.py _get_global_settings 一致）
+        _gs = {
+            'pe_high': DEFAULT_PE_HIGH, 'pe_low': DEFAULT_PE_LOW,
+            'yld_high': DEFAULT_YLD_HIGH, 'yld_max': DEFAULT_YLD_MAX,
+            'yld_floor': DEFAULT_YLD_FLOOR,
+        }
+        try:
+            gs_rows = c.execute("SELECT key, value FROM user_settings WHERE key='global_val_params'").fetchall()
+            for _k, _v in gs_rows:
+                d = json.loads(_v)
+                if d.get('peHigh') is not None: _gs['pe_high'] = float(d['peHigh'])
+                if d.get('peLow') is not None: _gs['pe_low'] = float(d['peLow'])
+                if d.get('yldHigh') is not None: _gs['yld_high'] = float(d['yldHigh'])
+                if d.get('yldMax') is not None: _gs['yld_max'] = float(d['yldMax'])
+                if d.get('yldFloor') is not None: _gs['yld_floor'] = float(d['yldFloor'])
+        except Exception as e:
+            print(f"[評價快照] 全域設定讀取失敗，使用預設值: {e}")
+
         # 載入所有個股自訂估值參數（PE/殖利率）+ 預估 EPS/股利
         user_val_params = {}
         user_est_values = {}  # code → {eps, div}
@@ -2017,7 +2045,11 @@ def snapshot_stock_states():
             code = row['code']
             close = row['close']
             shen_eps = _calc_shen_eps(row)
-            price_pos, fair_low, fair_mid, fair_high = _calc_price_pos(close, shen_eps)
+            # 個股自訂參數優先，沒有就用全域設定
+            _uvp = user_val_params.get(code, {})
+            _pe_hi = _uvp.get('pe_high') or _gs['pe_high']
+            _pe_lo = _uvp.get('pe_low') or _gs['pe_low']
+            price_pos, fair_low, fair_mid, fair_high = _calc_price_pos(close, shen_eps, pe_high=_pe_hi, pe_low=_pe_lo)
 
             # 沈董殖利率
             shen_yld = None
@@ -2086,7 +2118,8 @@ def snapshot_stock_states():
             uvp = user_val_params.get(code, {})
             matrix_grade, grade_source = _calc_priority_grade(
                 row, close, uvp,
-                est_eps=ue.get('eps'), est_div=ue.get('div'))
+                est_eps=ue.get('eps'), est_div=ue.get('div'),
+                global_settings=_gs)
 
             _gm = _growth_map.get(code, {})
             _neff_d = _gm.get('neff_d')
