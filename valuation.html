@@ -253,6 +253,40 @@ async function load() {
       };
     });
 
+    // 預估/沈董等級變動（從 stock_state 快照比對）
+    const _shenGradeChanges = _data.shen_grade_changes || [];
+    const _sgChangeMap = {};
+    _shenGradeChanges.forEach(c => { _sgChangeMap[c.code] = c; });
+    // 標記新增到 _shenGradeList
+    _shenGradeList.forEach(item => {
+      const chg = _sgChangeMap[item.code];
+      if (chg && chg.direction === 'new') {
+        item._chg_new = true;
+        item._chg_from = chg.from_grade;
+        item._chg_to = chg.to_grade;
+      }
+    });
+    // 刪除的也加入（淡顯）
+    _shenGradeChanges.filter(c => c.direction === 'removed').forEach(c => {
+      if (!_shenGradeList.some(s => s.code === c.code)) {
+        const st = _stockMap[c.code] || {};
+        const gi = st._gi || {};
+        _shenGradeList.push({
+          code: c.code, name: c.name,
+          grade: c.from_grade,
+          price: st.close,
+          shen_pe: st.shen_pe, shen_yld: st.shen_yld,
+          blend_pe: st.blend_pe, blend_yld: st.blend_yld,
+          revenue_yoy: st.revenue_yoy, revenue_cum_yoy: st.revenue_cum_yoy,
+          rev_3m_yoy: gi.rev_3m_yoy, rev_12m_yoy: gi.rev_12m_yoy,
+          neff_d: gi.neff_d, neff_gray: gi.neff_gray,
+          chk_pass: st._chk_pass, chk_total: st._chk_total,
+          _removed: true,
+          _chg_from: c.from_grade, _chg_to: c.to_grade,
+        });
+      }
+    });
+
     _cheapList = _data.val_cheap_list || [];
     _changes = _data.val_level_changes || [];
     _byThreshold = _data.val_by_threshold || {};
@@ -324,7 +358,7 @@ function updateCounts() {
 
   // 預估/沈董（從 stocks 表的 est_grade / shen_grade）
   const setCnt = (id, v) => { const el = document.getElementById('cnt_'+id); if(el) el.textContent = v; };
-  const shenPool = _qualityOnly ? _shenGradeList.filter(s => _qualitySet.has(s.code)) : _shenGradeList;
+  const shenPool = (_qualityOnly ? _shenGradeList.filter(s => _qualitySet.has(s.code)) : _shenGradeList).filter(s => !s._removed);
   setCnt('aa', shenPool.filter(s => s.grade === 'AA').length);
   setCnt('cheap', shenPool.filter(s => ['A1','A2','A'].includes(s.grade)).length);
 
@@ -394,23 +428,30 @@ function renderShenGradeList(mode) {
     : _shenGradeList.filter(s => ['A1','A2','A'].includes(s.grade));
   if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
 
+  const normal = items.filter(s => !s._removed);
+  const removed = items.filter(s => s._removed);
+
   const groups = {};
-  items.forEach(c => { const g = c.grade; if(!groups[g]) groups[g] = []; groups[g].push(c); });
+  normal.forEach(c => { const g = c.grade; if(!groups[g]) groups[g] = []; groups[g].push(c); });
+  const removedByGrade = {};
+  removed.forEach(c => { const g = c.grade; if(!removedByGrade[g]) removedByGrade[g] = []; removedByGrade[g].push(c); });
 
   const gradeOrder = ['AA','A1','A2','A'];
-  const sortedGrades = Object.keys(groups).sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+  const allGrades = new Set([...Object.keys(groups), ...Object.keys(removedByGrade)]);
+  const sortedGrades = [...allGrades].sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
 
   const title = mode === 'AA' ? 'AA 級' : 'A1 / A2 / A 級';
   const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
 
   let html = `<div class="section">
     <div class="section-header" style="${headerColor}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
+      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${normal.length} 支</span>
     </div>`;
 
   sortedGrades.forEach(grade => {
     let gItems = groups[grade] || [];
-    if (!gItems.length) return;
+    let gRemoved = removedByGrade[grade] || [];
+    if (!gItems.length && !gRemoved.length) return;
     // 排序：PE 低的在前
     gItems.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
 
@@ -421,11 +462,11 @@ function renderShenGradeList(mode) {
       html += '<div style="padding:0 20px">';
     }
 
-    html += _shenGradeTableHtml(gItems);
+    html += _shenGradeTableHtml([...gItems, ...gRemoved]);
     html += '</div>';
   });
 
-  if (!items.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
+  if (!normal.length && !removed.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
   html += '</div>';
   document.getElementById('content').innerHTML = html;
 }
@@ -450,9 +491,12 @@ function _shenGradeTableHtml(items) {
     <th style="width:60px;text-align:right">3M</th>
     <th style="width:60px;text-align:right">12M</th>
     <th style="width:65px;text-align:right">Neff</th>
+    <th style="width:70px;text-align:center">新增</th>
+    <th style="width:70px;text-align:center">刪除</th>
   </tr></thead><tbody>`;
 
   items.forEach(c => {
+    const isRemoved = !!c._removed;
     const isFocused = _focusTrackSet.has(c.code);
     const chkHtml = c.chk_pass != null
       ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
@@ -462,8 +506,14 @@ function _shenGradeTableHtml(items) {
     const neffStr = (nv != null && !c.neff_gray) ? nv.toFixed(2) : '-';
     const neffColor = (nv != null && nv >= 1 && !c.neff_gray) ? '#dc2626' : '#94a3b8';
     const neffWeight = (nv != null && nv >= 1 && !c.neff_gray) ? '700' : '400';
+    // 新增/刪除標記
+    const addHtml = c._chg_new
+      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c._chg_from||'—'}→${c._chg_to}</span>` : '';
+    const rmHtml = isRemoved
+      ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c._chg_from}→${c._chg_to||'—'}</span>` : '';
+    const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
 
-    html += `<tr>
+    html += `<tr${rowStyle}>
       <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
       <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
       <td>${c.name}</td>
@@ -478,6 +528,8 @@ function _shenGradeTableHtml(items) {
       <td style="text-align:right;color:${_revColor(c.rev_3m_yoy)}">${_revStr(c.rev_3m_yoy)}</td>
       <td style="text-align:right;color:${_revColor(c.rev_12m_yoy)}">${_revStr(c.rev_12m_yoy)}</td>
       <td style="text-align:right;color:${neffColor};font-weight:${neffWeight}">${neffStr}</td>
+      <td style="text-align:center">${addHtml}</td>
+      <td style="text-align:center">${rmHtml}</td>
     </tr>`;
   });
   html += '</tbody></table>';
