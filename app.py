@@ -730,9 +730,8 @@ CHECKLIST_ITEMS = [
     {'key': 'qinv_4v20',      'category': 'safety', 'label': '近4季存貨週轉天數 < 近20季平均', 'threshold': '是', 'weight': '輔助', 'hint': '用季度資料捕捉更即時的存貨變化趨勢'},
     {'key': 'ar_days_avg',    'category': 'safety', 'label': '應收帳款週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要', 'hint': '收款速度正常，沒有客戶賴帳風險'},
     {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助', 'hint': '應收天數創新高可能代表客戶還款能力變差'},
-    # ── C 價值評估檢核（14項）──
+    # ── C 價值評估檢核（13項）──
     {'key': 'grade_a_ok',     'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '矩陣等級A以上代表PE和殖利率都在合理範圍'},
-    {'key': 'blend_grade_ok', 'category': 'value', 'label': '綜合等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '綜合EPS(沈董+加權混合)的矩陣等級A以上，確認雙重角度都便宜'},
     {'key': 'eps_vs_multi',   'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認EPS不是異常偏低，估值基礎可靠'},
     {'key': 'eps_vs_10y',     'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法', 'hint': '長期視角確認EPS水準，排除短期高低波動'},
     {'key': 'core_ratio',     'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 80%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
@@ -1078,18 +1077,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     if _used_yld is not None:
         _grade_parts.append(f'殖利率={_used_yld:.2f}%')
     detail['grade_a_ok'] = '　'.join(_grade_parts)
-
-    # 綜合等級為A級以上
-    _blend_grade = r.get('blend_grade')
-    _blend_pe = r.get('blend_pe')
-    _blend_yld = r.get('blend_yld')
-    checks['blend_grade_ok'] = 1 if _blend_grade in ('A', 'A1', 'A2', 'AA') else 0
-    _bg_parts = [f'綜合等級={_blend_grade or "無"}']
-    if _blend_pe is not None:
-        _bg_parts.append(f'PE={_blend_pe:.2f}倍')
-    if _blend_yld is not None:
-        _bg_parts.append(f'殖利率={_blend_yld:.2f}%')
-    detail['blend_grade_ok'] = '　'.join(_bg_parts)
 
     # EPS 來源判斷：有預估EPS用預估，沒有用沈董
     _est_eps_val = r.get('est_eps')
@@ -2492,8 +2479,7 @@ def sync_snapshot():
     c = conn.cursor()
     # 確保欄位存在
     for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
-                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),('discount_pct','REAL'),
-                     ('neff_d','REAL'),('lynch_d','REAL'),('shen_grade','TEXT'),('est_grade','TEXT')]:
+                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),('discount_pct','REAL')]:
         try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
         except Exception: pass
     try: c.execute("ALTER TABLE stocks ADD COLUMN deepest_val_level TEXT")
@@ -2510,9 +2496,8 @@ def sync_snapshot():
             c.execute("""INSERT INTO stock_state
                          (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                           shen_eps, shen_pe, shen_yld, fin_grade,
-                          val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
-                          neff_d, lynch_d, shen_grade, est_grade, updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                          val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
                          price=excluded.price, price_pos=excluded.price_pos,
                          fair_low=excluded.fair_low, fair_mid=excluded.fair_mid, fair_high=excluded.fair_high,
@@ -2520,16 +2505,12 @@ def sync_snapshot():
                          fin_grade=excluded.fin_grade,
                          val_level=excluded.val_level, val_aa=excluded.val_aa, val_a1=excluded.val_a1,
                          val_a2=excluded.val_a2, val_a=excluded.val_a, val_lt6=excluded.val_lt6,
-                         discount_pct=excluded.discount_pct,
-                         neff_d=excluded.neff_d, lynch_d=excluded.lynch_d,
-                         shen_grade=excluded.shen_grade, est_grade=excluded.est_grade,
-                         updated_at=excluded.updated_at""",
+                         discount_pct=excluded.discount_pct, updated_at=excluded.updated_at""",
                       (r['code'], r['date'], r.get('price'), r.get('pp'),
                        r.get('fl'), r.get('fm'), r.get('fh'),
                        r.get('se'), r.get('sp'), r.get('sy'), r.get('fg'),
                        r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'),
-                       r.get('a'), r.get('lt6'), r.get('dp'),
-                       r.get('nd'), r.get('ld'), r.get('sg'), r.get('eg'), now))
+                       r.get('a'), r.get('lt6'), r.get('dp'), now))
             updated += 1
             # 更新 stocks 表
             c.execute("UPDATE stocks SET deepest_val_level=?, val_cheap_days=? WHERE code=?",
