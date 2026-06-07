@@ -260,9 +260,9 @@ function render(brief, newsArr, indNews) {
         <label style="font-size:.8rem;color:#475569;cursor:pointer;font-weight:400;margin-right:8px" onclick="event.stopPropagation()">
           <input type="checkbox" ${_qualityOnly?'checked':''} onchange="_qualityOnly=this.checked;loadData()" style="vertical-align:middle"> 僅體質佳
         </label>
-        <span class="arrow">&#9654;</span>
+        <span class="arrow collapsed">&#9654;</span>
       </div>
-      <div class="section-body" style="padding-top:0">
+      <div class="section-body collapsed" style="padding-top:0">
         <div class="val-tabs">
           <div class="val-tab active" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-expensive')">今日變貴<span class="tab-count">(${expensive.length})</span><span class="tab-arrow">&#9654;</span></div>
@@ -544,9 +544,9 @@ function renderNewsByDate(news) {
   return `<div class="section">
     <div class="section-header header-yellow" onclick="toggle(this)">
       <span style="flex:1">個股重大訊息 (${news.length})</span>
-      <span class="arrow">&#9654;</span>
+      <span class="arrow collapsed">&#9654;</span>
     </div>
-    <div class="section-body" style="padding-top:0">
+    <div class="section-body collapsed" style="padding-top:0">
       <div class="val-tabs" style="flex-wrap:wrap">${tabsHtml}</div>
       ${panelsHtml}
     </div>
@@ -638,9 +638,9 @@ function _renderIndNewsTabs(title, newsList, headerCls, idPrefix, showRefresh) {
     <div class="section-header ${headerCls}" onclick="toggle(this)">
       <span style="flex:1">${title} (${newsList.length})</span>
       ${refreshBtn}
-      <span class="arrow">&#9654;</span>
+      <span class="arrow collapsed">&#9654;</span>
     </div>
-    <div class="section-body" style="padding-top:0">
+    <div class="section-body collapsed" style="padding-top:0">
       <div class="val-tabs" style="flex-wrap:wrap">${tabsHtml}</div>
       ${panelsHtml}
     </div>
