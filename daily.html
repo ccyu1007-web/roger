@@ -16,8 +16,15 @@
   header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
   .container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
   .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
-  .section-header { padding: 14px 20px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
+  .section-header {
+    padding: 14px 20px; font-weight: 700; font-size: .95rem;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .section-header .arrow { font-size: .7em; color: #94a3b8; transition: transform .2s; }
+  .section-header .arrow.collapsed { transform: rotate(-90deg); }
   .section-body { padding: 0 20px 16px; }
+  .section-body.collapsed { display: none; }
   .yellow-header { background: #fffbeb; color: #92400e; border-bottom: 2px solid #fcd34d; }
   .gray-header { background: #f8fafc; color: #475569; border-bottom: 2px solid #e2e8f0; }
   .stock-row {
@@ -31,16 +38,28 @@
   .tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: .78rem; font-weight: 700; }
   .metric { font-size: .84rem; color: #64748b; }
   .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
-  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; }
-  .tab-btn {
-    padding: 10px 20px; font-size: .9rem; font-weight: 600; cursor: pointer;
-    border: 1px solid #e2e8f0; background: #fff; color: #64748b;
-    transition: all .15s;
+
+  /* Tabs (same as briefing.html) */
+  .val-tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; flex-wrap: wrap; }
+  .val-tab {
+    padding: 10px 20px; font-size: .88rem; font-weight: 600; cursor: pointer;
+    border: none; background: none; color: #94a3b8; position: relative;
+    white-space: nowrap;
   }
-  .tab-btn:first-child { border-radius: 8px 0 0 8px; }
-  .tab-btn:last-child { border-radius: 0 8px 8px 0; }
-  .tab-btn.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
-  .count-badge { font-size: .75rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }
+  .val-tab:hover { color: #475569; }
+  .val-tab.active { color: #2563eb; }
+  .val-tab.active::after {
+    content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
+    height: 2px; background: #2563eb;
+  }
+  .val-tab .tab-count { font-size: .8em; color: #94a3b8; font-weight: 400; margin-left: 4px; }
+  .val-tab.active .tab-count { color: #2563eb; }
+  .val-tab .tab-arrow { font-size: .6em; color: #94a3b8; margin-left: 4px; transition: transform .2s; display: inline-block; }
+  .val-tab.active .tab-arrow { color: #2563eb; }
+  .val-tab.active.collapsed .tab-arrow { transform: rotate(-90deg); }
+  .val-tab-panel { display: none; padding: 12px 0 4px; }
+  .val-tab-panel.active { display: block; }
+  .val-tab-panel.collapsed { display: none; }
 </style>
 </head>
 <body>
@@ -59,155 +78,127 @@
   </div>
 </header>
 
-<div class="container">
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('today',this)">今日<span class="count-badge" id="todayCount" style="background:#fef3c7;color:#92400e"></span></button>
-    <button class="tab-btn" onclick="switchTab('history',this)">歷史<span class="count-badge" id="histCount" style="background:#f1f5f9;color:#64748b"></span></button>
-    <button class="tab-btn" onclick="switchTab('filtered',this)">被過濾<span class="count-badge" id="filteredCount" style="background:#f1f5f9;color:#94a3b8"></span></button>
-  </div>
-  <div id="content">
-    <div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div>
-  </div>
+<div class="container" id="content">
+  <div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div>
 </div>
 
 <script>
 let _news = [];
-let _currentTab = 'today';
 
 async function load() {
   try {
     const [briefRes, newsRes] = await Promise.all([
       fetch('/api/daily-briefing'),
-      fetch('/api/news?tier=0&limit=500'),
+      fetch('/api/news?tier=0&days=5'),
     ]);
     const d = await briefRes.json();
     _news = await newsRes.json();
     if (d.data_date) {
       document.getElementById('dateLabel').textContent = `資料日期：${d.data_date}`;
     }
-    updateCounts();
-    renderTab();
+    render();
   } catch(e) {
     document.getElementById('content').innerHTML =
       '<div style="text-align:center;padding:60px;color:#ef4444">無法載入，請確認系統已啟動</div>';
   }
 }
 
-const todayISO = new Date().toISOString().slice(0,10);
-const isToday = n => (n.date || '').slice(0,10) === todayISO || (n.created_at || '').slice(0,10) === todayISO;
-
-function updateCounts() {
-  const t2today = _news.filter(n => n.tier >= 1 && isToday(n) && !n.cooled);
-  const t2hist = _news.filter(n => n.tier >= 1 && !isToday(n) && !n.cooled);
-  const t0 = _news.filter(n => n.tier === 0);
-  const t2tPending = t2today.filter(n => !n.status).length;
-  const t2hPending = t2hist.filter(n => !n.status).length;
-  const t0Pending = t0.filter(n => !n.status).length;
-  document.getElementById('todayCount').textContent = t2tPending || '';
-  document.getElementById('histCount').textContent = t2hPending || '';
-  document.getElementById('filteredCount').textContent = t0Pending || '';
+function toggle(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.arrow');
+  body.classList.toggle('collapsed');
+  arrow.classList.toggle('collapsed');
 }
 
-function switchTab(tab, btn) {
-  _currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderTab();
+function switchValTab(tabEl, panelId) {
+  const panel = document.getElementById(panelId);
+  if (tabEl.classList.contains('active')) {
+    tabEl.classList.toggle('collapsed');
+    panel.classList.toggle('collapsed');
+    return;
+  }
+  tabEl.parentElement.querySelectorAll('.val-tab').forEach(t => { t.classList.remove('active'); t.classList.remove('collapsed'); });
+  tabEl.classList.add('active');
+  tabEl.closest('.section-body').querySelectorAll('.val-tab-panel').forEach(p => { p.classList.remove('active'); p.classList.remove('collapsed'); });
+  panel.classList.add('active');
 }
 
-function renderTab() {
-  if (_currentTab === 'today') renderToday();
-  else if (_currentTab === 'history') renderHistory();
-  else renderFiltered();
-}
+function render() {
+  const el = document.getElementById('content');
+  const normal = _news.filter(n => n.tier >= 1 && !n.cooled);
+  const filtered = _news.filter(n => n.tier === 0);
+  const cooled = _news.filter(n => n.cooled);
 
-function renderToday() {
-  const items = _news.filter(n => n.tier >= 1 && isToday(n) && !n.cooled);
-  const tier2 = items.filter(n => n.tier === 2);
-  const tier1 = items.filter(n => n.tier === 1);
-  const cooled = _news.filter(n => n.tier === 2 && isToday(n) && n.cooled);
+  // 按日期分組（tier>=1）
+  const groups = {};
+  normal.forEach(n => {
+    const date = (n.created_at || n.date || '').slice(0, 10);
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(n);
+  });
+  const dates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
-  let html = '';
+  // 日期 tabs
+  const tabsHtml = dates.map((d, i) => {
+    const label = d.slice(5).replace('-', '/');
+    const cnt = groups[d].length;
+    return `<div class="val-tab ${i===0?'active collapsed':''}" onclick="switchValTab(this,'daily-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
+  }).join('');
 
-  // 重大訊息 (Tier 2)
-  if (tier2.length) {
-    const pending = tier2.filter(n => !n.status);
-    const done = tier2.filter(n => n.status);
-    html += renderSection('今日重大訊息', 'yellow-header', pending, done, true);
-  }
+  // 被過濾 tab
+  const filteredTabHtml = filtered.length > 0
+    ? `<div class="val-tab" onclick="switchValTab(this,'daily-filtered')">被過濾<span class="tab-count">(${filtered.length})</span><span class="tab-arrow">&#9654;</span></div>`
+    : '';
 
-  // 一般訊息 (Tier 1)
-  if (tier1.length) {
-    const pending = tier1.filter(n => !n.status);
-    const done = tier1.filter(n => n.status);
-    html += renderSection('今日一般訊息', 'gray-header', pending, done, false);
-  }
+  // 日期 panels
+  const panelsHtml = dates.map((d, i) => {
+    const items = groups[d];
+    const tier2 = items.filter(n => n.tier === 2);
+    const tier1 = items.filter(n => n.tier === 1);
+    let content = '';
+    if (tier2.length) {
+      const pending = tier2.filter(n => !n.status);
+      const done = tier2.filter(n => n.status);
+      content += renderSection('重大訊息', 'yellow-header', pending, done, true);
+    }
+    if (tier1.length) {
+      const pending = tier1.filter(n => !n.status);
+      const done = tier1.filter(n => n.status);
+      content += renderSection('一般訊息', 'gray-header', pending, done, false);
+    }
+    // 該日冷卻中
+    const dayCooled = cooled.filter(n => (n.created_at || n.date || '').slice(0,10) === d);
+    if (dayCooled.length) {
+      content += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">同公司重複訊息（${dayCooled.length} 則）</summary>
+      <div style="margin-top:6px">${dayCooled.map(n => newsRow(n, '#f8fafc', '#94a3b8')).join('')}</div></details>`;
+    }
+    return `<div id="daily-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${content || '<div style="color:#94a3b8;padding:16px 0">該日無新聞</div>'}</div>`;
+  }).join('');
 
-  // 冷卻中
-  if (cooled.length) {
-    html += `<div class="section"><div class="section-body" style="padding-top:12px">
-      <details><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">同公司重複訊息（${cooled.length} 則）</summary>
-      <div style="margin-top:6px">`;
-    cooled.forEach(n => html += newsRow(n, '#f8fafc', '#94a3b8'));
-    html += '</div></details></div></div>';
-  }
+  // 被過濾 panel
+  const filteredPanelHtml = filtered.length > 0
+    ? `<div id="daily-filtered" class="val-tab-panel">${renderFilteredContent(filtered)}</div>`
+    : '';
 
-  if (!html) html = '<div style="text-align:center;padding:60px;color:#94a3b8">今日暫無新聞</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
-function renderHistory() {
-  const items = _news.filter(n => n.tier >= 1 && !isToday(n) && !n.cooled);
-  const tier2 = items.filter(n => n.tier === 2);
-  const tier1 = items.filter(n => n.tier === 1);
-
-  let html = '';
-
-  if (tier2.length) {
-    const pending = tier2.filter(n => !n.status);
-    const done = tier2.filter(n => n.status);
-    html += renderSection('歷史重大訊息', 'yellow-header', pending, done, true);
-  }
-
-  if (tier1.length) {
-    const pending = tier1.filter(n => !n.status);
-    const done = tier1.filter(n => n.status);
-    html += renderSection('歷史一般訊息', 'gray-header', pending, done, false);
-  }
-
-  if (!html) html = '<div style="text-align:center;padding:60px;color:#94a3b8">暫無歷史新聞</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
-function renderFiltered() {
-  const items = _news.filter(n => n.tier === 0);
-  const pending = items.filter(n => !n.status);
-  const done = items.filter(n => n.status);
-
-  let html = '';
-  if (pending.length) {
-    html += '<div class="section"><div class="section-header" style="background:#f8fafc;color:#94a3b8;border-bottom:1px solid #e2e8f0">被過濾訊息（覺得重要可按「升級」）</div><div class="section-body">';
-    pending.forEach(n => html += renderT0Row(n));
-    html += '</div></div>';
-  }
-  if (done.length) {
-    html += `<div class="section"><div class="section-body" style="padding-top:12px">
-      <details><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${done.length} 則）</summary>
-      <div style="margin-top:6px;opacity:.5">`;
-    done.forEach(n => html += renderT0Row(n));
-    html += '</div></details></div></div>';
-  }
-
-  if (!html) html = '<div style="text-align:center;padding:60px;color:#94a3b8">暫無被過濾訊息</div>';
-  document.getElementById('content').innerHTML = html;
+  el.innerHTML = `
+    <div class="section">
+      <div class="section-header" style="background:#eff6ff;color:#1e40af;border-bottom:2px solid #93c5fd" onclick="toggle(this)">
+        <span style="flex:1">個股重大訊息 (${normal.length})</span>
+        <span class="arrow collapsed">&#9654;</span>
+      </div>
+      <div class="section-body collapsed" style="padding-top:0">
+        <div class="val-tabs">${tabsHtml}${filteredTabHtml}</div>
+        ${panelsHtml}
+        ${filteredPanelHtml}
+      </div>
+    </div>`;
 }
 
 function renderSection(title, headerClass, pending, done, isTier2) {
-  const total = pending.length + done.length;
-  let html = `<div class="section">
-    <div class="section-header ${headerClass}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:4px">（未處理 ${pending.length} / 已處理 ${done.length}）</span>
-    </div><div class="section-body">`;
+  let html = `<div style="margin-bottom:12px">
+    <div style="font-weight:700;font-size:.9rem;padding:8px 0;color:${headerClass==='yellow-header'?'#92400e':'#475569'};border-bottom:1px solid #e2e8f0">${title}
+      <span style="font-weight:400;font-size:.82rem;margin-left:4px">(未處理 ${pending.length} / 已處理 ${done.length})</span>
+    </div>`;
 
   if (isTier2) {
     html += renderT2Group(pending);
@@ -226,8 +217,23 @@ function renderSection(title, headerClass, pending, done, isTier2) {
     html += '</div></details>';
   }
 
-  html += '</div></div>';
+  html += '</div>';
   return html;
+}
+
+function renderFilteredContent(items) {
+  const pending = items.filter(n => !n.status);
+  const done = items.filter(n => n.status);
+  let html = '';
+  if (pending.length) {
+    html += `<div style="font-size:.82rem;color:#94a3b8;padding:8px 0;border-bottom:1px solid #e2e8f0">被過濾訊息（覺得重要可按「升級」）</div>`;
+    pending.forEach(n => html += renderT0Row(n));
+  }
+  if (done.length) {
+    html += `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.82rem;color:#94a3b8">已處理（${done.length} 則）</summary>
+    <div style="margin-top:6px;opacity:.5">${done.map(n => renderT0Row(n)).join('')}</div></details>`;
+  }
+  return html || '<div style="color:#94a3b8;padding:16px 0">暫無被過濾訊息</div>';
 }
 
 function renderT2Group(items) {
@@ -259,7 +265,6 @@ function newsRow(n, bg, color) {
     <span class="tag" style="background:${color};color:#fff">${n.matched_rule}</span>
     <span class="metric" style="flex:1;font-size:.82rem">${(n.subject||'').replace(/\r?\n/g,' ').substring(0, 80)}</span>
     ${linkHtml}
-    <span class="metric" style="font-size:.76rem;color:#94a3b8">${n.date}</span>
     ${buttons}
   </div>`;
 }
@@ -310,8 +315,9 @@ async function upgradeNews(id, el) {
   try {
     const resp = await fetch(`/api/news/${id}/upgrade`, {method:'POST'});
     if (!resp.ok) throw new Error(resp.statusText);
-    el.closest('.stock-row').style.opacity = '1';
-    el.closest('.stock-row').innerHTML = '<span style="color:#059669;font-size:.82rem">已升級到一般訊息</span>';
+    const item = _news.find(n => n.id === id);
+    if (item) { item.tier = 1; }
+    render();
   } catch(e) { console.error('升級失敗:', e); }
 }
 
@@ -321,8 +327,7 @@ async function markNews(id, status, el) {
     if (!resp.ok) throw new Error(resp.statusText);
     const item = _news.find(n => n.id === id);
     if (item) item.status = status;
-    updateCounts();
-    renderTab();
+    render();
   } catch(e) { console.error('標記失敗:', e); }
 }
 
@@ -332,8 +337,7 @@ async function undoNews(id, el) {
     if (!resp.ok) throw new Error(resp.statusText);
     const item = _news.find(n => n.id === id);
     if (item) item.status = null;
-    updateCounts();
-    renderTab();
+    render();
   } catch(e) { console.error('撤銷失敗:', e); }
 }
 
