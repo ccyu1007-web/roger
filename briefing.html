@@ -794,7 +794,19 @@ async function doArchive(newsId, btn) {
     const data = await res.json();
     if (data.status === 'ok') {
       btn.closest('.modal-overlay').remove();
-      loadData();  // 重新載入，顯示已歸檔狀態
+      // 移除已歸檔的新聞項目，不重載頁面（保留展開狀態）
+      const newsEl = document.querySelector(`.ind-archive[data-id="${newsId}"]`);
+      if (newsEl) {
+        const item = newsEl.closest('.ind-news-item');
+        if (item) {
+          item.style.opacity = '0.3';
+          item.querySelector('.ind-archive')?.replaceWith(
+            Object.assign(document.createElement('span'), {
+              textContent: '已歸檔', style: 'font-size:.76rem;color:#16a34a'
+            })
+          );
+        }
+      }
     } else {
       alert(data.error || '歸檔失敗');
       btn.textContent = '歸檔';
