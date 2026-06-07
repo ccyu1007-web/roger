@@ -121,7 +121,7 @@ def _get_global_settings():
         'div_weights': [30, 30, 20, 10, 10],
         'blend_ratio': {'shen': 50, 'wt': 50},
         'pe_high': 18, 'pe_low': 10,
-        'yld_floor': 5, 'yld_high': 5.5, 'yld_max': 6,
+        'yld_floor': 5, 'yld_high': 5.5, 'yld_max': 6, 'lt_yld': 6,
     }
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -136,6 +136,7 @@ def _get_global_settings():
                     if d.get('yldFloor') is not None: defaults['yld_floor'] = float(d['yldFloor'])
                     if d.get('yldHigh') is not None: defaults['yld_high'] = float(d['yldHigh'])
                     if d.get('yldMax') is not None: defaults['yld_max'] = float(d['yldMax'])
+                    if d.get('ltYld') is not None: defaults['lt_yld'] = float(d['ltYld'])
                 elif key == 'blend_ratio':
                     defaults['blend_ratio'] = d
                 elif key == 'global_div_weights':
@@ -509,15 +510,17 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         v1 = val_eps * pe_val
         v2 = val_div / (yld_val / 100)
         candidates = [v1, v2]
-        if val_bdiv and val_bdiv > 0:
-            candidates.append(val_bdiv / 0.06 + val_div)
+        lt_yld_r = gs.get('lt_yld', 6) / 100
+        if val_bdiv and val_bdiv > 0 and lt_yld_r > 0:
+            candidates.append(val_bdiv / lt_yld_r + val_div)
         return round(min(candidates), 2)
 
     r['val_aa'] = _calc_val_threshold(pe_lo, y_max)
     r['val_a1'] = _calc_val_threshold(pe_lo, y_high)
     r['val_a2'] = _calc_val_threshold(pe_lo_bias_v, y_max)
     r['val_a']  = _calc_val_threshold(pe_lo_bias_v, y_high)
-    r['val_lt6'] = round(val_bdiv / 0.06, 2) if val_bdiv and val_bdiv > 0 else None
+    _lt_yld_r = gs.get('lt_yld', 6) / 100
+    r['val_lt6'] = round(val_bdiv / _lt_yld_r, 2) if val_bdiv and val_bdiv > 0 and _lt_yld_r > 0 else None
 
     # ── 預估 EPS/股利/PE/殖利率/等級 ──
     import json as _json_est
@@ -897,9 +900,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     val_a = r.get('val_a')
     val_lt6 = r.get('val_lt6')
     lt_div = blend_div
-    lt_yld = 6
+    _lt_yld_pct = global_settings.get('lt_yld', 6)
+    lt_yld = _lt_yld_pct
+    _lt_r = _lt_yld_pct / 100
     lt5 = round(lt_div / 0.05, 2) if lt_div and lt_div > 0 else None
-    lt6 = round(lt_div / 0.06, 2) if lt_div and lt_div > 0 else None
+    lt6 = round(lt_div / _lt_r, 2) if lt_div and lt_div > 0 and _lt_r > 0 else None
     lt7 = round(lt_div / 0.07, 2) if lt_div and lt_div > 0 else None
 
     # === 獲利性檢核（12項） ===

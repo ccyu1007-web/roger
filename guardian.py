@@ -1797,7 +1797,7 @@ def _calc_priority_grade(row, close, uvp=None, est_eps=None, est_div=None, globa
 
 
 def _calc_val_levels(close, shen_eps, shen_div, blend_div,
-                     pe_low=None, pe_high=None, yld_high=None, yld_max=None,
+                     pe_low=None, pe_high=None, yld_high=None, yld_max=None, lt_yld=None,
                      est_eps=None, est_div=None):
     """
     計算評價門檻（AA/A1/A2/A/長期6%）和當前等級。
@@ -1821,7 +1821,8 @@ def _calc_val_levels(close, shen_eps, shen_div, blend_div,
             return None
         v1 = eps * pe_val
         v2 = div / (yld_val / 100)
-        v3 = blend_div / 0.06 + div if blend_div and blend_div > 0 else None
+        _lt_r = (lt_yld or 6) / 100
+        v3 = blend_div / _lt_r + div if blend_div and blend_div > 0 and _lt_r > 0 else None
         candidates = [v1, v2]
         if v3 is not None: candidates.append(v3)
         return round(min(candidates), 2)
@@ -1830,7 +1831,8 @@ def _calc_val_levels(close, shen_eps, shen_div, blend_div,
     val_a1 = _calc_val(pe_low, yld_high)
     val_a2 = _calc_val(pe_lo_bias, yld_max)
     val_a  = _calc_val(pe_lo_bias, yld_high)
-    val_lt6 = round(blend_div / 0.06, 2) if blend_div and blend_div > 0 else None
+    _lt_r = (lt_yld or 6) / 100
+    val_lt6 = round(blend_div / _lt_r, 2) if blend_div and blend_div > 0 and _lt_r > 0 else None
 
     # 判定等級
     val_level = None
@@ -1974,7 +1976,7 @@ def snapshot_stock_states():
         _gs = {
             'pe_high': DEFAULT_PE_HIGH, 'pe_low': DEFAULT_PE_LOW,
             'yld_high': DEFAULT_YLD_HIGH, 'yld_max': DEFAULT_YLD_MAX,
-            'yld_floor': DEFAULT_YLD_FLOOR,
+            'yld_floor': DEFAULT_YLD_FLOOR, 'lt_yld': 6,
         }
         try:
             gs_rows = c.execute("SELECT key, value FROM user_settings WHERE key='global_val_params'").fetchall()
@@ -1985,6 +1987,7 @@ def snapshot_stock_states():
                 if d.get('yldHigh') is not None: _gs['yld_high'] = float(d['yldHigh'])
                 if d.get('yldMax') is not None: _gs['yld_max'] = float(d['yldMax'])
                 if d.get('yldFloor') is not None: _gs['yld_floor'] = float(d['yldFloor'])
+                if d.get('ltYld') is not None: _gs['lt_yld'] = float(d['ltYld'])
         except Exception as e:
             print(f"[評價快照] 全域設定讀取失敗，使用預設值: {e}")
 

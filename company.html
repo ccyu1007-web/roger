@@ -2017,7 +2017,7 @@ let _estSharesMillion = null;
 let _estPrice = null;
 const _estYear = new Date().getFullYear() - 1911;  // 115
 let _yldFloor = parseFloat(localStorage.getItem('global_yld_floor') || '5');
-let _ltYld = parseFloat(localStorage.getItem('global_lt_yld') || '6');
+let _ltYld = parseFloat((JSON.parse(localStorage.getItem('global_val_params') || '{}') || {}).ltYld || localStorage.getItem('global_lt_yld') || '6');
 
 // DB 預算好的評價門檻（與總表同源）
 let _dbValThresholds = null;  // { val_aa, val_a1, val_a2, val_a, val_lt6 }
@@ -3479,7 +3479,7 @@ function calcValMethod() {
     gradeAA = Math.min(eps * peLo,    div / yMaxR,  ...(ltTerm != null ? [ltTerm] : []));
 
     lt5 = ltDiv != null ? ltDiv / 0.05 : null;
-    lt6 = ltDiv != null ? ltDiv / 0.06 : null;
+    lt6 = ltDiv != null && ltYldR > 0 ? ltDiv / ltYldR : null;
     lt7 = ltDiv != null ? ltDiv / 0.07 : null;
   }
 

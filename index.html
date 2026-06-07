@@ -480,6 +480,8 @@
       <div class="wb-item"><label>殖利率下限</label><input id="gYldFloor" type="text" oninput="onGlobalValChange()">%</div>
       <div class="wb-item"><label>偏高殖利率</label><input id="gYldHigh" type="text" oninput="onGlobalValChange()">%</div>
       <div class="wb-item"><label>最高殖利率</label><input id="gYldMax" type="text" oninput="onGlobalValChange()">%</div>
+      <span style="color:#cbd5e1">|</span>
+      <div class="wb-item"><label>長期殖利率</label><input id="gLtYld" type="text" oninput="onGlobalValChange()">%</div>
       <button onclick="resetGlobalVal()" style="padding:3px 10px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;cursor:pointer;font-size:.78rem;color:#64748b">預設值</button>
       <span style="font-size:.76rem;color:#94a3b8">未設定個股參數時套用</span>
     </div>
@@ -2230,7 +2232,7 @@ function _calcMatrixGrade(curPE, curYld, code, ue) {
 }
 
 // ── 全域估值參數 ─────────────────────────────────────────
-const DEFAULT_GLOBAL_VAL = { peHigh: 18, peLow: 10, yldFloor: 5, yldHigh: 5.5, yldMax: 6 };
+const DEFAULT_GLOBAL_VAL = { peHigh: 18, peLow: 10, yldFloor: 5, yldHigh: 5.5, yldMax: 6, ltYld: 6 };
 let _globalVal = JSON.parse(localStorage.getItem('global_val_params') || 'null') || {...DEFAULT_GLOBAL_VAL};
 
 function initGlobalVal() {
@@ -2239,6 +2241,7 @@ function initGlobalVal() {
   document.getElementById('gYldFloor').value = _globalVal.yldFloor;
   document.getElementById('gYldHigh').value = _globalVal.yldHigh;
   document.getElementById('gYldMax').value = _globalVal.yldMax;
+  document.getElementById('gLtYld').value = _globalVal.ltYld || 6;
   if (!localStorage.getItem('global_val_params')) {
     localStorage.setItem('global_val_params', JSON.stringify(_globalVal));
     syncUserSettings();
@@ -2251,6 +2254,7 @@ function onGlobalValChange() {
   _globalVal.yldFloor = parseFloat(document.getElementById('gYldFloor').value) || 5;
   _globalVal.yldHigh = parseFloat(document.getElementById('gYldHigh').value) || 5.5;
   _globalVal.yldMax = parseFloat(document.getElementById('gYldMax').value) || 6;
+  _globalVal.ltYld = parseFloat(document.getElementById('gLtYld').value) || 6;
   localStorage.setItem('global_val_params', JSON.stringify(_globalVal));
   syncUserSettings();
   localStorage.setItem('global_yld_floor', String(_globalVal.yldFloor));
