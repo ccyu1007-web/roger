@@ -267,13 +267,13 @@ function render(brief, newsArr, indNews) {
       </div>
       <div class="section-body collapsed" style="padding-top:0">
         <div class="val-tabs">
-          <div class="val-tab active" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab active collapsed" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-expensive')">今日變貴<span class="tab-count">(${expensive.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-cheap')">便宜清單<span class="tab-count">(${cheapList.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-shen')">沈董等級變化<span class="tab-count">(${shenGradeChanges.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-blend')">綜合等級變化<span class="tab-count">(${blendGradeChanges.length})</span><span class="tab-arrow">&#9654;</span></div>
         </div>
-        <div id="vt-cheaper" class="val-tab-panel active">
+        <div id="vt-cheaper" class="val-tab-panel active collapsed">
           ${cheaper.length > 0 ? cheaper.map(v => flashItemHtml(v)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日無變便宜的股票</div>'}
         </div>
         <div id="vt-expensive" class="val-tab-panel">
