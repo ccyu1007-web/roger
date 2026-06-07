@@ -2186,20 +2186,32 @@ function updateBlendTotal() {
   }
 }
 
-// ── 背景呼叫後端重算衍生欄位 ────────────────────────────
+// ── 背景呼叫後端重算衍生欄位（先存 DB 再重算，確保 DB 是唯一真實來源）────
 let _recalcTimer = null;
 function _triggerRecalcDerived() {
-  // 防抖：連續調整時只觸發一次（500ms 後）
+  // 防抖：連續調整時只觸發一次（800ms 後）
   if (_recalcTimer) clearTimeout(_recalcTimer);
-  _recalcTimer = setTimeout(() => {
-    fetch('/api/recalc-derived', { method: 'POST' })
-      .then(r => r.json())
-      .then(d => {
-        console.log('[Derived] 後端重算完成:', d);
-        reloadStocks();
-      })
-      .catch(e => console.warn('[Derived] 重算失敗:', e));
-  }, 500);
+  _recalcTimer = setTimeout(async () => {
+    try {
+      // 1. 先把所有參數存到 DB
+      const payload = {};
+      SYNC_KEYS.forEach(key => {
+        const val = localStorage.getItem(key);
+        if (val) payload[key] = val;
+      });
+      await fetch('/api/user-settings', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      // 2. save_user_settings 已觸發背景 recalc + push，等完成後 reload
+      //    等 1 秒讓背景重算完成（約 0.7 秒）
+      await new Promise(r => setTimeout(r, 1000));
+      reloadStocks();
+      console.log('[Derived] 參數已存 DB + 重算完成');
+    } catch(e) {
+      console.warn('[Derived] 失敗:', e);
+    }
+  }, 800);
 }
 
 // ── 矩陣等級計算（共用）────────────────────────────────
