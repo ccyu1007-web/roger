@@ -601,6 +601,52 @@ function renderIndNewsByDate(indNews) {
   }).join('');
 }
 
+function _renderIndNewsTabs(title, newsList, headerCls, idPrefix, showRefresh) {
+  if (!newsList.length) {
+    return `<div class="section">
+      <div class="section-header ${headerCls}" onclick="toggle(this)">
+        <span style="flex:1">${title} (0)</span>
+        <span class="arrow collapsed">&#9654;</span>
+      </div>
+      <div class="section-body collapsed"><div style="color:#94a3b8;padding:12px 0">暫無相關新聞</div></div>
+    </div>`;
+  }
+  // 按日期分組
+  const groups = {};
+  newsList.forEach(n => {
+    const date = (n.created_at || n.time || '').slice(0, 10);
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(n);
+  });
+  const dates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  const tabsHtml = dates.map((d, i) => {
+    const label = d.slice(5).replace('-', '/');
+    const cnt = groups[d].length;
+    return `<div class="val-tab ${i===0?'active':''}" onclick="switchValTab(this,'${idPrefix}-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
+  }).join('');
+  const panelsHtml = dates.map((d, i) => {
+    const items = groups[d];
+    const content = items.map(n =>
+      n._matchedInList || n._matchedOther
+        ? indNewsHtmlWithTags(n, n._matchedInList || [], n._matchedOther || [])
+        : indNewsHtmlWithTags(n, [], n._matchedOther || [])
+    ).join('');
+    return `<div id="${idPrefix}-${d}" class="val-tab-panel ${i===0?'active':''}">${content}</div>`;
+  }).join('');
+  const refreshBtn = showRefresh ? `<span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>` : '';
+  return `<div class="section">
+    <div class="section-header ${headerCls}" onclick="toggle(this)">
+      <span style="flex:1">${title} (${newsList.length})</span>
+      ${refreshBtn}
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body" style="padding-top:0">
+      <div class="val-tabs" style="flex-wrap:wrap">${tabsHtml}</div>
+      ${panelsHtml}
+    </div>
+  </div>`;
+}
+
 function renderIndNewsSplit(indNews) {
   // 合併所有使用者清單
   const userCodes = new Set([..._qualitySet, ..._focusTrackSet]);
@@ -632,45 +678,14 @@ function renderIndNewsSplit(indNews) {
 
   let html = '';
 
-  // 我的個股
-  html += `<div class="section">
-    <div class="section-header header-red">
-      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">我的個股新聞 (${myStockNews.length})</span>
-      <span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>
-      <span class="arrow${myStockNews.length > 0 ? '' : ' collapsed'}" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
-    </div>
-    <div class="section-body${myStockNews.length > 0 ? '' : ' collapsed'}">
-      ${myStockNews.length > 0
-        ? myStockNews.map(n => indNewsHtmlWithTags(n, n._matchedInList || [], n._matchedOther || [])).join('')
-        : '<div style="color:#94a3b8;padding:12px 0">今日無相關新聞</div>'}
-    </div>
-  </div>`;
+  // 我的個股（按日期 tab）
+  html += _renderIndNewsTabs('我的個股新聞', myStockNews, 'header-red', 'mystock', true);
 
-  // 其他個股
-  html += `<div class="section">
-    <div class="section-header header-yellow">
-      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">其他個股新聞 (${otherStockNews.length})</span>
-      <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
-    </div>
-    <div class="section-body collapsed">
-      ${otherStockNews.length > 0
-        ? otherStockNews.map(n => indNewsHtmlWithTags(n, [], n._matchedOther || [])).join('')
-        : '<div style="color:#94a3b8;padding:12px 0">今日無其他個股新聞</div>'}
-    </div>
-  </div>`;
+  // 其他個股（按日期 tab）
+  html += _renderIndNewsTabs('其他個股新聞', otherStockNews, 'header-yellow', 'otherstock', false);
 
-  // 總經產業
-  html += `<div class="section">
-    <div class="section-header header-purple">
-      <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">總經產業新聞 (${macroNews.length})</span>
-      <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
-    </div>
-    <div class="section-body collapsed">
-      ${macroNews.length > 0
-        ? renderIndNewsByDate(macroNews)
-        : '<div style="color:#94a3b8;padding:12px 0">暫無總經產業新聞</div>'}
-    </div>
-  </div>`;
+  // 總經產業（按日期 tab）
+  html += _renderIndNewsTabs('總經產業新聞', macroNews, 'header-purple', 'macro', false);
 
   return html;
 }
