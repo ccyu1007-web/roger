@@ -251,11 +251,12 @@ function render(brief, newsArr, indNews) {
   el.innerHTML = `
 
     <div class="section">
-      <div class="section-header header-purple" style="cursor:default">
+      <div class="section-header header-purple" onclick="toggle(this)">
         <span style="flex:1">逍遙評價法變化</span>
-        <label style="font-size:.8rem;color:#475569;cursor:pointer;font-weight:400" onclick="event.stopPropagation()">
+        <label style="font-size:.8rem;color:#475569;cursor:pointer;font-weight:400;margin-right:8px" onclick="event.stopPropagation()">
           <input type="checkbox" ${_qualityOnly?'checked':''} onchange="_qualityOnly=this.checked;loadData()" style="vertical-align:middle"> 僅體質佳
         </label>
+        <span class="arrow">&#9654;</span>
       </div>
       <div class="section-body" style="padding-top:0">
         <div class="val-tabs">
