@@ -52,19 +52,62 @@
   </div>
 </header>
 
-<div class="container" id="content">
-  <div class="loading">載入中...</div>
+<div class="container">
+  <div class="note-card" style="margin-bottom:20px">
+    <div class="note-header">
+      <span class="note-date" id="writeDate"></span>
+    </div>
+    <div style="padding:14px 20px">
+      <textarea id="dailyNoteText" placeholder="寫下今天的想法..." style="width:100%;min-height:100px;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:.88rem;font-family:inherit;resize:vertical"></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px;align-items:center">
+        <span id="dailyNoteSaved" style="font-size:.8em;color:#16a34a;display:none">已存檔</span>
+        <button onclick="saveDailyNote()" style="padding:6px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:.85em;cursor:pointer">存檔</button>
+      </div>
+    </div>
+  </div>
+  <div id="content">
+    <div class="loading">載入中...</div>
+  </div>
 </div>
 
 <script>
+const _today = new Date().toISOString().slice(0, 10);
+document.getElementById('writeDate').textContent = _today;
+
+async function saveDailyNote() {
+  const content = document.getElementById('dailyNoteText').value.trim();
+  if (!content) return;
+  try {
+    const res = await fetch('/api/daily-notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date: _today, content})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      const msg = document.getElementById('dailyNoteSaved');
+      msg.style.display = 'inline';
+      setTimeout(() => msg.style.display = 'none', 2000);
+      load();
+    }
+  } catch(e) {
+    alert('存檔失敗: ' + e.message);
+  }
+}
+
 async function load() {
   try {
     const res = await fetch('/api/daily-notes');
     const notes = await res.json();
     const el = document.getElementById('content');
 
+    // 載入今天的筆記到編輯區
+    const todayNote = notes.find(n => n.date === _today);
+    const textEl = document.getElementById('dailyNoteText');
+    if (textEl && todayNote) textEl.value = todayNote.content;
+
     if (!notes.length) {
-      el.innerHTML = '<div class="empty">尚無筆記<br><br>在逍遙日報寫下今天的想法，存檔後就會出現在這裡</div>';
+      el.innerHTML = '<div class="empty">尚無筆記</div>';
       return;
     }
 
