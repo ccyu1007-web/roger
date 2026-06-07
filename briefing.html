@@ -92,6 +92,24 @@
   .group-divider:first-child { margin-top: 0; }
   .group-content.collapsed { display: none; }
 
+  /* Valuation tabs */
+  .val-tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; }
+  .val-tab {
+    padding: 10px 20px; font-size: .88rem; font-weight: 600; cursor: pointer;
+    border: none; background: none; color: #94a3b8; position: relative;
+    white-space: nowrap;
+  }
+  .val-tab:hover { color: #475569; }
+  .val-tab.active { color: #2563eb; }
+  .val-tab.active::after {
+    content: ''; position: absolute; bottom: -2px; left: 0; right: 0;
+    height: 2px; background: #2563eb;
+  }
+  .val-tab .tab-count { font-size: .8em; color: #94a3b8; font-weight: 400; margin-left: 4px; }
+  .val-tab.active .tab-count { color: #2563eb; }
+  .val-tab-panel { display: none; padding: 12px 0 4px; }
+  .val-tab-panel.active { display: block; }
+
   /* News */
   .news-item { padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
   .news-item:last-child { border-bottom: none; }
@@ -232,42 +250,32 @@ function render(brief, newsArr, indNews) {
 
   el.innerHTML = `
 
-    ${cheaper.length > 0 ? `
     <div class="section">
-      <div class="section-header header-red" onclick="toggle(this)">
-        <span>今日變便宜 (${cheaper.length})</span>
-        <span class="arrow collapsed">&#9654;</span>
-      </div>
-      <div class="section-body collapsed">
-        ${cheaper.map(v => flashItemHtml(v)).join('')}
-      </div>
-    </div>` : ''}
-
-    ${expensive.length > 0 ? `
-    <div class="section">
-      <div class="section-header header-gray" onclick="toggle(this)">
-        <span>今日變貴了 (${expensive.length})</span>
-        <span class="arrow collapsed">&#9654;</span>
-      </div>
-      <div class="section-body collapsed">
-        ${expensive.map(v => flashItemHtml(v)).join('')}
-      </div>
-    </div>` : ''}
-
-    <div class="section">
-      <div class="section-header header-blue">
-        <span onclick="toggle(this.parentElement)" style="flex:1;cursor:pointer">便宜清單 (${cheapList.length})</span>
-        <label style="font-size:.8rem;color:#475569;cursor:pointer;margin-right:8px;font-weight:400" onclick="event.stopPropagation()">
+      <div class="section-header header-purple" style="cursor:default">
+        <span style="flex:1">逍遙評價法變化</span>
+        <label style="font-size:.8rem;color:#475569;cursor:pointer;font-weight:400" onclick="event.stopPropagation()">
           <input type="checkbox" ${_qualityOnly?'checked':''} onchange="_qualityOnly=this.checked;loadData()" style="vertical-align:middle"> 僅體質佳
         </label>
-        <span class="arrow collapsed" onclick="toggle(this.parentElement)" style="cursor:pointer">&#9654;</span>
       </div>
-      <div class="section-body collapsed">
-        <div style="font-size:.78rem;color:#64748b;padding:8px 0 12px;line-height:1.7;border-bottom:1px solid #f1f5f9;margin-bottom:8px">
-          <b>EPS 取用順序</b>：使用者預估 > min(綜合EPS, 沈董EPS)｜<b>股利</b>：跟隨EPS來源<br>
-          <b>本益比</b> = 股價 / 取用EPS｜<b>殖利率</b> = 取用股利 / 股價 × 100%｜來源標記：<b>預</b>=預估 <b>綜</b>=綜合 <b>沈</b>=沈董
+      <div class="section-body" style="padding-top:0">
+        <div class="val-tabs">
+          <div class="val-tab active" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'vt-expensive')">今日變貴<span class="tab-count">(${expensive.length})</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'vt-cheap')">便宜清單<span class="tab-count">(${cheapList.length})</span></div>
         </div>
-        ${['AA','A1','A2','A'].map(lv => cheapGroupHtml(lv, cheapGroups[lv] || [])).join('')}
+        <div id="vt-cheaper" class="val-tab-panel active">
+          ${cheaper.length > 0 ? cheaper.map(v => flashItemHtml(v)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日無變便宜的股票</div>'}
+        </div>
+        <div id="vt-expensive" class="val-tab-panel">
+          ${expensive.length > 0 ? expensive.map(v => flashItemHtml(v)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日無變貴的股票</div>'}
+        </div>
+        <div id="vt-cheap" class="val-tab-panel">
+          <div style="font-size:.78rem;color:#64748b;padding:8px 0 12px;line-height:1.7;border-bottom:1px solid #f1f5f9;margin-bottom:8px">
+            <b>EPS 取用順序</b>：使用者預估 > min(綜合EPS, 沈董EPS)｜<b>股利</b>：跟隨EPS來源<br>
+            <b>本益比</b> = 股價 / 取用EPS｜<b>殖利率</b> = 取用股利 / 股價 × 100%｜來源標記：<b>預</b>=預估 <b>綜</b>=綜合 <b>沈</b>=沈董
+          </div>
+          ${['AA','A1','A2','A'].map(lv => cheapGroupHtml(lv, cheapGroups[lv] || [])).join('')}
+        </div>
       </div>
     </div>
 
@@ -521,6 +529,13 @@ function toggle(header) {
   const arrow = header.querySelector('.arrow');
   body.classList.toggle('collapsed');
   arrow.classList.toggle('collapsed');
+}
+
+function switchValTab(tabEl, panelId) {
+  tabEl.parentElement.querySelectorAll('.val-tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+  tabEl.closest('.section-body').querySelectorAll('.val-tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(panelId).classList.add('active');
 }
 
 function toggleGroup(divider) {
