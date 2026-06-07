@@ -736,6 +736,7 @@ CHECKLIST_ITEMS = [
     {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助', 'hint': '應收天數創新高可能代表客戶還款能力變差'},
     # ── C 價值評估檢核（13項）──
     {'key': 'grade_a_ok',     'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '矩陣等級A以上代表PE和殖利率都在合理範圍'},
+    {'key': 'blend_grade_ok', 'category': 'value', 'label': '綜合等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '綜合EPS加權後的矩陣等級，A以上代表整體評價合理'},
     {'key': 'eps_vs_multi',   'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認EPS不是異常偏低，估值基礎可靠'},
     {'key': 'eps_vs_10y',     'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法', 'hint': '長期視角確認EPS水準，排除短期高低波動'},
     {'key': 'core_ratio',     'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 80%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
@@ -1083,6 +1084,18 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     if _used_yld is not None:
         _grade_parts.append(f'殖利率={_used_yld:.2f}%')
     detail['grade_a_ok'] = '　'.join(_grade_parts)
+
+    # 綜合等級為A級以上
+    _blend_grade = r.get('blend_grade')
+    _blend_pe = r.get('blend_pe')
+    _blend_yld = r.get('blend_yld')
+    checks['blend_grade_ok'] = 1 if _blend_grade in ('A', 'A1', 'A2', 'AA') else 0
+    _bg_parts = [f'綜合等級={_blend_grade or "無"}']
+    if _blend_pe is not None:
+        _bg_parts.append(f'PE={_blend_pe:.2f}倍')
+    if _blend_yld is not None:
+        _bg_parts.append(f'殖利率={_blend_yld:.2f}%')
+    detail['blend_grade_ok'] = '　'.join(_bg_parts)
 
     # EPS 來源判斷：有預估EPS用預估，沒有用沈董
     _est_eps_val = r.get('est_eps')
