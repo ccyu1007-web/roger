@@ -315,7 +315,8 @@ DERIVED_COLS = [
 def _calc_derived_fields(r, global_settings=None, user_params=None):
     """
     根據 row dict 裡已有的基礎欄位，計算所有衍生欄位並寫回 row。
-    呼叫前需先跑過 _calc_shen_fields()（提供 shen_eps/shen_div/weighted_div/blend_div/weighted_payout 等）。
+    僅由 recalc_all_derived() 呼叫，計算結果存入 DB。
+    API 端直接從 DB SELECT 讀取，不呼叫此函式。
     """
     if global_settings is None:
         global_settings = _get_global_settings()
@@ -332,7 +333,7 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         if user_params.get('yldHigh'): y_high = float(user_params['yldHigh'])
         if user_params.get('yldMax'): y_max = float(user_params['yldMax'])
 
-    # ── 沈董 PE / 殖利率 / 等級 ──
+    # ── 沈董 PE / 殖利率（即時算，等級讀 DB）──
     shen_eps = r.get('shen_eps')
     shen_div = r.get('shen_div')
     r['shen_pe'] = round(close / shen_eps, 2) if close and shen_eps and shen_eps > 0 else None
