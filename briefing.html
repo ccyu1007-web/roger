@@ -286,20 +286,7 @@ function render(brief, newsArr, indNews) {
 
     ${renderIndNewsSplit(indNews)}
 
-    <div class="section">
-      <div class="section-header header-yellow" onclick="toggle(this)">
-        <span>個股重大訊息 (${news.length})</span>
-        <span class="arrow collapsed">&#9654;</span>
-      </div>
-      <div class="section-body collapsed">
-        ${news.slice(0, 20).map(n => newsHtml(n)).join('')}
-        ${news.length > 20 ? `
-          <div id="news-hidden" style="display:none">${news.slice(20).map(n => newsHtml(n)).join('')}</div>
-          <div class="ind-show-more" onclick="document.getElementById('news-hidden').style.display='block';this.style.display='none'">
-            顯示更多（還有 ${news.length - 20} 則）
-          </div>` : ''}
-      </div>
-    </div>
+    ${renderNewsByDate(news)}
 
     ${etfChanges.length > 0 ? `
     <div class="section">
@@ -534,6 +521,36 @@ function toggle(header) {
   const arrow = header.querySelector('.arrow');
   body.classList.toggle('collapsed');
   arrow.classList.toggle('collapsed');
+}
+
+function renderNewsByDate(news) {
+  if (!news.length) return '';
+  // 按日期分組
+  const groups = {};
+  news.forEach(n => {
+    const date = (n.created_at || '').slice(0, 10);
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(n);
+  });
+  const dates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  const tabsHtml = dates.map((d, i) => {
+    const label = d.slice(5).replace('-', '/');
+    const cnt = groups[d].length;
+    return `<div class="val-tab ${i===0?'active':''}" onclick="switchValTab(this,'news-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
+  }).join('');
+  const panelsHtml = dates.map((d, i) =>
+    `<div id="news-${d}" class="val-tab-panel ${i===0?'active':''}">${groups[d].map(n => newsHtml(n)).join('')}</div>`
+  ).join('');
+  return `<div class="section">
+    <div class="section-header header-yellow" onclick="toggle(this)">
+      <span style="flex:1">個股重大訊息 (${news.length})</span>
+      <span class="arrow">&#9654;</span>
+    </div>
+    <div class="section-body" style="padding-top:0">
+      <div class="val-tabs" style="flex-wrap:wrap">${tabsHtml}</div>
+      ${panelsHtml}
+    </div>
+  </div>`;
 }
 
 function switchValTab(tabEl, panelId) {
