@@ -61,6 +61,7 @@
       <textarea id="dailyNoteText" placeholder="寫下今天的想法..." style="width:100%;min-height:100px;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:.88rem;font-family:inherit;resize:vertical"></textarea>
       <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px;align-items:center">
         <span id="dailyNoteSaved" style="font-size:.8em;color:#16a34a;display:none">已存檔</span>
+        <button onclick="document.getElementById('dailyNoteText').value=''" style="padding:6px 16px;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;border-radius:6px;font-size:.85em;cursor:pointer">清空</button>
         <button onclick="saveDailyNote()" style="padding:6px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:.85em;cursor:pointer">存檔</button>
       </div>
     </div>
@@ -85,6 +86,7 @@ async function saveDailyNote() {
     });
     const data = await res.json();
     if (data.status === 'ok') {
+      document.getElementById('dailyNoteText').value = '';
       const msg = document.getElementById('dailyNoteSaved');
       msg.style.display = 'inline';
       setTimeout(() => msg.style.display = 'none', 2000);
@@ -101,11 +103,6 @@ async function load() {
     const notes = await res.json();
     const el = document.getElementById('content');
 
-    // 載入今天的筆記到編輯區
-    const todayNote = notes.find(n => n.date === _today);
-    const textEl = document.getElementById('dailyNoteText');
-    if (textEl && todayNote) textEl.value = todayNote.content;
-
     if (!notes.length) {
       el.innerHTML = '<div class="empty">尚無筆記</div>';
       return;
@@ -115,9 +112,12 @@ async function load() {
       <div class="note-card" id="note-${n.date}">
         <div class="note-header">
           <span class="note-date">${n.date}</span>
-          <button class="note-delete" onclick="deleteNote('${n.date}')">刪除</button>
+          <div style="display:flex;gap:8px">
+            <button onclick="editNote('${n.date}')" style="font-size:.82rem;color:#2563eb;cursor:pointer;padding:4px 10px;border:1px solid #93c5fd;border-radius:6px;background:#fff">修改</button>
+            <button class="note-delete" onclick="deleteNote('${n.date}')">刪除</button>
+          </div>
         </div>
-        <div class="note-body">${escHtml(n.content)}</div>
+        <div class="note-body" id="note-body-${n.date}">${escHtml(n.content)}</div>
       </div>
     `).join('');
   } catch(e) {
@@ -127,6 +127,34 @@ async function load() {
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function editNote(date) {
+  const bodyEl = document.getElementById('note-body-' + date);
+  if (!bodyEl) return;
+  const content = bodyEl.textContent;
+  bodyEl.innerHTML = `
+    <textarea id="edit-${date}" style="width:100%;min-height:100px;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:.88rem;font-family:inherit;resize:vertical">${escHtml(content)}</textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;gap:8px">
+      <button onclick="load()" style="padding:4px 14px;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;border-radius:6px;font-size:.82em;cursor:pointer">取消</button>
+      <button onclick="saveEditNote('${date}')" style="padding:4px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:.82em;cursor:pointer">儲存修改</button>
+    </div>`;
+}
+
+async function saveEditNote(date) {
+  const content = document.getElementById('edit-' + date).value.trim();
+  if (!content) return;
+  try {
+    const res = await fetch('/api/daily-notes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date, content})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') load();
+  } catch(e) {
+    alert('儲存失敗: ' + e.message);
+  }
 }
 
 async function deleteNote(date) {
