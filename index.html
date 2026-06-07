@@ -1676,13 +1676,21 @@ function renderGradeFilters() {
       `<label style="font-size:.75rem;cursor:pointer;white-space:nowrap"><input type="checkbox" value="${g}" ${selected.includes(g)?'checked':''} onchange="onGradeFilterChange('${m.key}')" style="width:12px;height:12px;vertical-align:middle">${g}</label>`
     ).join(' ');
     const hasFilter = selected.length > 0;
-    const selLabel = selected.length === 4 ? 'A級以上' : selected.length === 1 && selected[0] === 'AA' ? '僅AA' : selected.length > 0 ? selected.join(',') : '選擇';
+    const GRADE_PRESETS = [
+      {value:'AA_up', label:'AA級以上', grades:['AA']},
+      {value:'A1_up', label:'A1級以上', grades:['AA','A1','A2']},
+      {value:'A_up',  label:'A級以上',  grades:['AA','A1','A2','A']},
+      {value:'B1A_up',label:'B1A/B2A級以上', grades:['AA','A1','A2','A','B1A','B2A']},
+      {value:'B1_up', label:'B1/B2級以上', grades:['AA','A1','A2','A','B1A','B2A','B1','B2']},
+    ];
+    const matchedPreset = GRADE_PRESETS.find(p => p.grades.length === selected.length && p.grades.every(g => selected.includes(g)));
+    const selLabel = matchedPreset ? matchedPreset.label : selected.length > 0 ? selected.join(',') : '選擇';
+    const presetOpts = GRADE_PRESETS.filter(p => p !== matchedPreset).map(p => `<option value="${p.value}">${p.label}</option>`).join('');
     return `<div style="display:inline-flex;align-items:center;gap:3px;border:1px solid ${hasFilter?'#8b5cf6':'#e2e8f0'};border-radius:6px;padding:2px 6px;background:${hasFilter?'#f5f3ff':'#f8fafc'}">
       <span style="font-size:.78rem;font-weight:600;color:${hasFilter?'#7c3aed':'#64748b'};min-width:40px">${m.label}</span>
       <select onchange="onGradeQuickSelect('${m.key}',this.value)" style="border:none;background:none;font-size:.75rem;outline:none;color:#8b5cf6;cursor:pointer;min-width:60px">
         <option value="" selected>${selLabel}</option>
-        ${!(selected.length===4) ? '<option value="A_up">A級以上</option>' : ''}
-        ${!(selected.length===1&&selected[0]==='AA') ? '<option value="AA">僅AA</option>' : ''}
+        ${presetOpts}
         ${hasFilter ? '<option value="clear">清除</option>' : ''}
       </select>
     </div>`;
@@ -1690,10 +1698,15 @@ function renderGradeFilters() {
 }
 
 function onGradeQuickSelect(key, action) {
-  if (action === 'A_up') {
-    _gradeFilters[key] = ['AA','A1','A2','A'];
-  } else if (action === 'AA') {
-    _gradeFilters[key] = ['AA'];
+  const GRADE_PRESETS = {
+    'AA_up': ['AA'],
+    'A1_up': ['AA','A1','A2'],
+    'A_up':  ['AA','A1','A2','A'],
+    'B1A_up':['AA','A1','A2','A','B1A','B2A'],
+    'B1_up': ['AA','A1','A2','A','B1A','B2A','B1','B2'],
+  };
+  if (GRADE_PRESETS[action]) {
+    _gradeFilters[key] = GRADE_PRESETS[action];
   } else if (action === 'clear') {
     delete _gradeFilters[key];
   }
