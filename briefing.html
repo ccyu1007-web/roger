@@ -107,8 +107,12 @@
   }
   .val-tab .tab-count { font-size: .8em; color: #94a3b8; font-weight: 400; margin-left: 4px; }
   .val-tab.active .tab-count { color: #2563eb; }
+  .val-tab .tab-arrow { font-size: .6em; color: #94a3b8; margin-left: 4px; transition: transform .2s; display: inline-block; }
+  .val-tab.active .tab-arrow { color: #2563eb; }
+  .val-tab.active.collapsed .tab-arrow { transform: rotate(-90deg); }
   .val-tab-panel { display: none; padding: 12px 0 4px; }
   .val-tab-panel.active { display: block; }
+  .val-tab-panel.collapsed { display: none; }
 
   /* News */
   .news-item { padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
@@ -260,9 +264,9 @@ function render(brief, newsArr, indNews) {
       </div>
       <div class="section-body" style="padding-top:0">
         <div class="val-tabs">
-          <div class="val-tab active" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span></div>
-          <div class="val-tab" onclick="switchValTab(this,'vt-expensive')">今日變貴<span class="tab-count">(${expensive.length})</span></div>
-          <div class="val-tab" onclick="switchValTab(this,'vt-cheap')">便宜清單<span class="tab-count">(${cheapList.length})</span></div>
+          <div class="val-tab active" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'vt-expensive')">今日變貴<span class="tab-count">(${expensive.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'vt-cheap')">便宜清單<span class="tab-count">(${cheapList.length})</span><span class="tab-arrow">&#9654;</span></div>
         </div>
         <div id="vt-cheaper" class="val-tab-panel active">
           ${cheaper.length > 0 ? cheaper.map(v => flashItemHtml(v)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日無變便宜的股票</div>'}
@@ -533,10 +537,18 @@ function toggle(header) {
 }
 
 function switchValTab(tabEl, panelId) {
-  tabEl.parentElement.querySelectorAll('.val-tab').forEach(t => t.classList.remove('active'));
+  const panel = document.getElementById(panelId);
+  // 點擊已選中的 tab → 收合/展開
+  if (tabEl.classList.contains('active')) {
+    tabEl.classList.toggle('collapsed');
+    panel.classList.toggle('collapsed');
+    return;
+  }
+  // 切換到其他 tab
+  tabEl.parentElement.querySelectorAll('.val-tab').forEach(t => { t.classList.remove('active'); t.classList.remove('collapsed'); });
   tabEl.classList.add('active');
-  tabEl.closest('.section-body').querySelectorAll('.val-tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(panelId).classList.add('active');
+  tabEl.closest('.section-body').querySelectorAll('.val-tab-panel').forEach(p => { p.classList.remove('active'); p.classList.remove('collapsed'); });
+  panel.classList.add('active');
 }
 
 function toggleGroup(divider) {
