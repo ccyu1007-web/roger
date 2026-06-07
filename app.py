@@ -4404,7 +4404,9 @@ def news():
         except Exception:
             rows = []
         return jsonify(rows)
-    return jsonify(get_recent_news(code, tier, limit))
+    days = request.args.get("days")
+    days = int(days) if days else None
+    return jsonify(get_recent_news(code, tier, limit, days=days))
 
 @app.route("/api/news/<int:nid>/upgrade", methods=["POST"])
 def upgrade_news(nid):

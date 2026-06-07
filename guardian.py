@@ -1334,8 +1334,8 @@ def _init_news_table():
             )""")
             c.execute("""CREATE INDEX IF NOT EXISTS idx_news_code_date
                          ON material_news(code, created_at DESC)""")
-            # 90 天前自動清理
-            c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-90 days')")
+            # 5 天前自動清理（歸檔的 status='important' 不刪）
+            c.execute("DELETE FROM material_news WHERE created_at < datetime('now', '-5 days') AND (status IS NULL OR status != 'important')")
             conn.commit()
     except Exception as e:
         print(f"[Guardian] news table 初始化失敗: {e}")
@@ -1609,15 +1609,26 @@ def fetch_moneydj_news():
     return stats
 
 
-def get_recent_news(code=None, tier_min=1, limit=50):
+def get_recent_news(code=None, tier_min=1, limit=50, days=None):
     """
     取得最近的重大訊息（預設只取 Tier 1+2）。
+    days: 指定天數時用日期篩選取代 LIMIT。
     含冷卻機制：同公司 Tier 2 訊息 7 天內第二則起標記 cooled=True。
     """
     try:
         with sqlite3.get_conn(row_factory=True) as conn:
             c = conn.cursor()
-            if code:
+            if days:
+                cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d 00:00:00')
+                if code:
+                    c.execute("""SELECT * FROM material_news
+                                 WHERE code=? AND tier >= ? AND created_at >= ?
+                                 ORDER BY created_at DESC""", (code, tier_min, cutoff))
+                else:
+                    c.execute("""SELECT * FROM material_news
+                                 WHERE tier >= ? AND created_at >= ?
+                                 ORDER BY created_at DESC""", (tier_min, cutoff))
+            elif code:
                 c.execute("""SELECT * FROM material_news
                              WHERE code=? AND tier >= ?
                              ORDER BY created_at DESC LIMIT ?""", (code, tier_min, limit))

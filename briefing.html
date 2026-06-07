@@ -213,7 +213,7 @@ async function loadData() {
   try {
     const [briefRes, newsRes, indRes, listRes] = await Promise.all([
       fetch('/api/daily-briefing'),
-      fetch('/api/news?limit=200'),
+      fetch('/api/news?days=5'),
       fetch('/api/industry-news?days=7'),
       fetch('/api/user-lists')
     ]);
