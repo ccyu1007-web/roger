@@ -1618,17 +1618,20 @@ function addCondition() {
   _customConditions.push({field:'close', op:'<=', value:'100'});
   saveCustomConditions();
   renderConditions();
+  previewWatch();
 }
 
 function removeCondition(idx) {
   _customConditions.splice(idx, 1);
   saveCustomConditions();
   renderConditions();
+  previewWatch();
 }
 
 function updateCondition(idx, prop, val) {
   _customConditions[idx][prop] = val;
   saveCustomConditions();
+  previewWatch();
 }
 
 function saveCustomConditions() {
@@ -1713,6 +1716,7 @@ function onGradeQuickSelect(key, action) {
   localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
   syncUserSettings();
   renderGradeFilters();
+  previewWatch();
   applyFilter();
 }
 
@@ -1729,6 +1733,7 @@ function onGradeFilterChange(key) {
   localStorage.setItem('grade_filters', JSON.stringify(_gradeFilters));
   syncUserSettings();
   renderGradeFilters();
+  previewWatch();
   applyFilter();
 }
 
