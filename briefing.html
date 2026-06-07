@@ -249,6 +249,9 @@ function render(brief, newsArr, indNews) {
   const cheapGroups = { AA: [], A1: [], A2: [], A: [] };
   cheapList.forEach(s => { if (cheapGroups[s.level]) cheapGroups[s.level].push(s); });
 
+  const shenGradeChanges = brief.shen_grade_changes || [];
+  const blendGradeChanges = brief.blend_grade_changes || [];
+
   const news = newsArr.filter(n => n.tier >= 1);
   const etfChanges = (brief.etf_changes || []).slice(0, 15);
 
@@ -267,12 +270,20 @@ function render(brief, newsArr, indNews) {
           <div class="val-tab active" onclick="switchValTab(this,'vt-cheaper')">今日變便宜<span class="tab-count">(${cheaper.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-expensive')">今日變貴<span class="tab-count">(${expensive.length})</span><span class="tab-arrow">&#9654;</span></div>
           <div class="val-tab" onclick="switchValTab(this,'vt-cheap')">便宜清單<span class="tab-count">(${cheapList.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'vt-shen')">沈董等級<span class="tab-count">(${shenGradeChanges.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'vt-blend')">綜合等級<span class="tab-count">(${blendGradeChanges.length})</span><span class="tab-arrow">&#9654;</span></div>
         </div>
         <div id="vt-cheaper" class="val-tab-panel active">
           ${cheaper.length > 0 ? cheaper.map(v => flashItemHtml(v)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日無變便宜的股票</div>'}
         </div>
         <div id="vt-expensive" class="val-tab-panel">
           ${expensive.length > 0 ? expensive.map(v => flashItemHtml(v)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日無變貴的股票</div>'}
+        </div>
+        <div id="vt-shen" class="val-tab-panel">
+          ${shenGradeChanges.length > 0 ? shenGradeChanges.map(g => gradeChangeHtml(g)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日沈董等級無變化</div>'}
+        </div>
+        <div id="vt-blend" class="val-tab-panel">
+          ${blendGradeChanges.length > 0 ? blendGradeChanges.map(g => gradeChangeHtml(g)).join('') : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">今日綜合等級無變化</div>'}
         </div>
         <div id="vt-cheap" class="val-tab-panel">
           <div style="font-size:.78rem;color:#64748b;padding:8px 0 12px;line-height:1.7;border-bottom:1px solid #f1f5f9;margin-bottom:8px">
@@ -521,6 +532,20 @@ function toggle(header) {
   const arrow = header.querySelector('.arrow');
   body.classList.toggle('collapsed');
   arrow.classList.toggle('collapsed');
+}
+
+function gradeChangeHtml(g) {
+  const badgeCls = ['AA','A1','A2','A'].includes(g.to_grade) ? 'badge-a' : 'badge-count';
+  return `<div class="flash-item" onclick="window.open('/company.html?code=${g.code}','_blank')">
+    <div class="stock-info">
+      <span class="code">${g.code}</span>
+      <span class="name">${g.name}</span>
+      <span class="badge ${badgeCls}">${g.to_grade}</span>
+    </div>
+    <div class="right-info">
+      <div class="direction">${g.from_grade || 'X'} → ${g.to_grade}</div>
+    </div>
+  </div>`;
 }
 
 function renderNewsByDate(news) {
