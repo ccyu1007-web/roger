@@ -3110,7 +3110,8 @@ function goPage(p) {
   const pages = PAGE_SIZE > 0 ? Math.ceil(filtered.length / PAGE_SIZE) : 1;
   page = Math.max(1, Math.min(p, pages));
   render();
-  window.scrollTo(0, 0);
+  const tbl = document.getElementById('stockTable');
+  if (tbl) tbl.scrollIntoView({behavior: 'instant', block: 'start'});
 }
 
 function changePageSize() {
