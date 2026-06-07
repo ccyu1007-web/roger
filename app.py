@@ -2479,7 +2479,9 @@ def sync_snapshot():
     c = conn.cursor()
     # 確保欄位存在
     for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
-                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),('discount_pct','REAL')]:
+                     ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),('discount_pct','REAL'),
+                     ('neff_d','REAL'),('lynch_d','REAL'),
+                     ('shen_grade','TEXT'),('est_grade','TEXT'),('blend_grade','TEXT')]:
         try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
         except Exception: pass
     try: c.execute("ALTER TABLE stocks ADD COLUMN deepest_val_level TEXT")
@@ -2496,8 +2498,9 @@ def sync_snapshot():
             c.execute("""INSERT INTO stock_state
                          (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                           shen_eps, shen_pe, shen_yld, fin_grade,
-                          val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct, updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                          val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                          neff_d, lynch_d, shen_grade, est_grade, blend_grade, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
                          price=excluded.price, price_pos=excluded.price_pos,
                          fair_low=excluded.fair_low, fair_mid=excluded.fair_mid, fair_high=excluded.fair_high,
@@ -2505,12 +2508,17 @@ def sync_snapshot():
                          fin_grade=excluded.fin_grade,
                          val_level=excluded.val_level, val_aa=excluded.val_aa, val_a1=excluded.val_a1,
                          val_a2=excluded.val_a2, val_a=excluded.val_a, val_lt6=excluded.val_lt6,
-                         discount_pct=excluded.discount_pct, updated_at=excluded.updated_at""",
+                         discount_pct=excluded.discount_pct,
+                         neff_d=excluded.neff_d, lynch_d=excluded.lynch_d,
+                         shen_grade=excluded.shen_grade, est_grade=excluded.est_grade,
+                         blend_grade=excluded.blend_grade, updated_at=excluded.updated_at""",
                       (r['code'], r['date'], r.get('price'), r.get('pp'),
                        r.get('fl'), r.get('fm'), r.get('fh'),
                        r.get('se'), r.get('sp'), r.get('sy'), r.get('fg'),
                        r.get('vl'), r.get('aa'), r.get('a1'), r.get('a2'),
-                       r.get('a'), r.get('lt6'), r.get('dp'), now))
+                       r.get('a'), r.get('lt6'), r.get('dp'),
+                       r.get('neff_d'), r.get('lynch_d'),
+                       r.get('shen_grade'), r.get('est_grade'), r.get('blend_grade'), now))
             updated += 1
             # 更新 stocks 表
             c.execute("UPDATE stocks SET deepest_val_level=?, val_cheap_days=? WHERE code=?",
