@@ -5190,6 +5190,22 @@ def save_user_settings():
     _bg_push_table('user_settings', ['key','value','updated_at'], ['key'],
                    create_sql="""CREATE TABLE IF NOT EXISTS user_settings (
                        key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
+    # 背景重算所有衍生欄位（全域參數變更後門檻/等級需更新）
+    if not IS_CLOUD:
+        def _bg_recalc():
+            global _stocks_cache_time, _global_settings_cache, _global_settings_time
+            try:
+                # 清快取讓 API 讀到新的全域設定
+                with _cache_lock:
+                    _stocks_cache_time = 0
+                _global_settings_cache = None
+                _global_settings_time = 0
+                cnt = recalc_all_derived()
+                print(f"[user-settings] recalc_all_derived 完成：{cnt} 支")
+                _bg_push_table('stocks', ['code'] + DERIVED_COLS, 'code')
+            except Exception as e:
+                print(f"[user-settings] recalc 失敗: {e}")
+        threading.Thread(target=_bg_recalc, daemon=True).start()
     return jsonify({"status": "ok"})
 
 
