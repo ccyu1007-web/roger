@@ -561,10 +561,10 @@ function renderNewsByDate(news) {
   const tabsHtml = dates.map((d, i) => {
     const label = d.slice(5).replace('-', '/');
     const cnt = groups[d].length;
-    return `<div class="val-tab ${i===0?'active':''}" onclick="switchValTab(this,'news-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
+    return `<div class="val-tab ${i===0?'active collapsed':''}" onclick="switchValTab(this,'news-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
   }).join('');
   const panelsHtml = dates.map((d, i) =>
-    `<div id="news-${d}" class="val-tab-panel ${i===0?'active':''}">${groups[d].map(n => newsHtml(n)).join('')}</div>`
+    `<div id="news-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${groups[d].map(n => newsHtml(n)).join('')}</div>`
   ).join('');
   return `<div class="section">
     <div class="section-header header-yellow" onclick="toggle(this)">
@@ -647,7 +647,7 @@ function _renderIndNewsTabs(title, newsList, headerCls, idPrefix, showRefresh) {
   const tabsHtml = dates.map((d, i) => {
     const label = d.slice(5).replace('-', '/');
     const cnt = groups[d].length;
-    return `<div class="val-tab ${i===0?'active':''}" onclick="switchValTab(this,'${idPrefix}-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
+    return `<div class="val-tab ${i===0?'active collapsed':''}" onclick="switchValTab(this,'${idPrefix}-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
   }).join('');
   const panelsHtml = dates.map((d, i) => {
     const items = groups[d];
@@ -656,7 +656,7 @@ function _renderIndNewsTabs(title, newsList, headerCls, idPrefix, showRefresh) {
         ? indNewsHtmlWithTags(n, n._matchedInList || [], n._matchedOther || [])
         : indNewsHtmlWithTags(n, [], n._matchedOther || [])
     ).join('');
-    return `<div id="${idPrefix}-${d}" class="val-tab-panel ${i===0?'active':''}">${content}</div>`;
+    return `<div id="${idPrefix}-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${content}</div>`;
   }).join('');
   const refreshBtn = showRefresh ? `<span class="ind-archive" onclick="event.stopPropagation();refreshIndustryNews(this)" style="margin-right:8px">更新</span>` : '';
   return `<div class="section">
