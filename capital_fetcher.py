@@ -190,14 +190,19 @@ def fetch_capital_quarterly_full(code):
         label = texts[i]
         # 匹配行標籤
         matched_field = None
+        is_exact = False
         for row_label, db_field in _ZCQ_ROW_MAP.items():
-            if label == row_label or label.startswith(row_label):
+            if label == row_label:
                 matched_field = db_field
+                is_exact = True
                 break
+            elif label.startswith(row_label):
+                matched_field = db_field
         if not matched_field:
             continue
-        # 已經有更精確的匹配就跳過（避免「營業收入毛額」先匹配到「營業收入」）
-        if matched_field in data_rows:
+        # 精確匹配（合計行）可覆蓋先前的 startswith 匹配（子項）
+        # 例：「營業外收入及支出－其他」(子項) 先匹配，「營業外收入及支出」(合計) 後到 → 覆蓋
+        if matched_field in data_rows and not is_exact:
             continue
 
         vals = []
