@@ -5608,8 +5608,10 @@ def save_user_estimate(code):
     # 即時重算該股衍生欄位（評價門檻等）+ 檢核表
     try: recalc_all_derived(codes=[code])
     except Exception: pass
-    try: _recalc_checklist_single(code)
-    except Exception: pass
+    # Render 不跑 checklist 重算（financial_annual 欄位不完整會算出 null，蓋掉本機推過去的正確資料）
+    if not os.environ.get('DATABASE_URL'):
+        try: _recalc_checklist_single(code)
+        except Exception: pass
     # 拍全量快照（更新便宜清單）+ 推 Render
     if not os.environ.get('DATABASE_URL'):
         def _snapshot_and_push():
