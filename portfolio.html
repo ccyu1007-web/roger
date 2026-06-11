@@ -170,6 +170,14 @@
   .total-summary-card .summary-value.positive { color: #fca5a5; }
   .total-summary-card .summary-value.negative { color: #86efac; }
   .total-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
+
+  /* 類型分組 */
+  .type-section { margin-bottom: 32px; }
+  .type-subtotal {
+    background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-top: 8px; margin-bottom: 8px;
+    padding-left: 16px;
+  }
+  .subtotal-label { font-size: .85rem; font-weight: 700; color: #475569; }
 </style>
 </head>
 <body>
@@ -205,6 +213,14 @@
   <div class="modal-box">
     <h3 id="modalTitle">編輯組合</h3>
     <div class="modal-field"><label>組合名稱</label><input type="text" id="mName"></div>
+    <div class="modal-field">
+      <label>類型</label>
+      <select id="mType" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:.9rem">
+        <option value="personal">個人/家人</option>
+        <option value="venture">創業</option>
+        <option value="managed">代操</option>
+      </select>
+    </div>
     <div class="modal-field"><label>分紅條件</label><input type="text" id="mDivCond" placeholder="例：保利2%，超過後70/30分"></div>
     <div class="modal-field"><label>保利利率 (%)</label><input type="number" id="mInterestRate" step="0.1" placeholder="例：2"></div>
     <div class="modal-field"><label>分紅比例</label><input type="number" id="mDivRatio" step="0.01" placeholder="例：0.3"></div>
@@ -221,7 +237,6 @@
 const API = '';
 let TOKEN = sessionStorage.getItem('portfolio_token') || '';
 let portfolios = [];
-let activeTab = 0;
 let editingPid = null;
 
 function headers() {
@@ -282,42 +297,75 @@ async function loadData() {
     if (!r.ok) { sessionStorage.removeItem('portfolio_token'); location.reload(); return; }
     portfolios = await r.json();
   } catch(e) { return; }
-  renderTabs();
-  renderPortfolio();
-  renderTotalSummary();
+  renderAll();
 }
 
-// ── Tab 列 ──
-function renderTabs() {
+const TYPE_ORDER = ['personal', 'venture', 'managed'];
+const TYPE_LABELS = { personal: '個人/家人', venture: '創業', managed: '代操' };
+const TYPE_COLORS = { personal: '#2563eb', venture: '#7c3aed', managed: '#059669' };
+
+function renderAll() {
   const bar = document.getElementById('tabBar');
-  let html = '';
-  portfolios.forEach((p, i) => {
-    html += `<button class="tab-btn ${i===activeTab?'active':''}" onclick="switchTab(${i})">${p.name}</button>`;
-  });
-  html += `<button class="tab-add" onclick="createPortfolio()">+ 新增組合</button>`;
-  bar.innerHTML = html;
-}
+  bar.innerHTML = `<button class="tab-add" onclick="createPortfolio()">+ 新增組合</button>`;
 
-function switchTab(i) {
-  activeTab = i;
-  renderTabs();
-  renderPortfolio();
-}
-
-// ── 組合內容 ──
-function renderPortfolio() {
   const box = document.getElementById('portfolioContent');
   if (portfolios.length === 0) {
     box.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8">尚無投資組合，點擊上方「+ 新增組合」建立</div>';
+    document.getElementById('totalSummary').innerHTML = '';
     return;
   }
-  const p = portfolios[activeTab];
-  if (!p) { activeTab = 0; renderTabs(); renderPortfolio(); return; }
 
+  // 按類型分組
+  const grouped = {};
+  TYPE_ORDER.forEach(t => grouped[t] = []);
+  portfolios.forEach(p => {
+    const t = p.portfolio_type || 'personal';
+    if (!grouped[t]) grouped[t] = [];
+    grouped[t].push(p);
+  });
+
+  let html = '';
+  TYPE_ORDER.forEach(type => {
+    const list = grouped[type];
+    if (list.length === 0) return;
+    const color = TYPE_COLORS[type];
+    html += `<div class="type-section">`;
+    html += `<div class="type-header" style="border-left:4px solid ${color}; padding-left:12px; margin-bottom:16px">
+      <span style="font-size:1.1rem;font-weight:700;color:${color}">${TYPE_LABELS[type]}</span>
+    </div>`;
+
+    list.forEach(p => { html += renderOnePortfolio(p, type); });
+
+    // 類型小計（有分紅的類型才顯示）
+    if (list.length >= 1 && (type === 'managed' || type === 'venture')) {
+      let sCapital=0, sMV=0, sCash=0, sValue=0, sPnl=0, sBonus=0;
+      list.forEach(p => { sCapital+=p.invested_capital||0; sMV+=p.total_market_value||0; sCash+=p.cash_balance||0; sValue+=p.total_value||0; sPnl+=p.pnl||0; sBonus+=p.bonus||0; });
+      const sPct = sCapital > 0 ? (sPnl/sCapital*100) : 0;
+      const sc = sPnl > 0 ? 'positive' : sPnl < 0 ? 'negative' : '';
+      html += `<div class="type-subtotal" style="border-left:4px solid ${color}">
+        <span class="subtotal-label">${TYPE_LABELS[type]} 小計</span>
+        <div class="summary-bar" style="margin-top:8px;padding-top:8px;border-top:none">
+          <div class="summary-item"><div class="summary-label">投入本金</div><div class="summary-value">${fmt(sCapital)}</div></div>
+          <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(sValue)}</div></div>
+          <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${sc}">${fmt(sPnl)}</div></div>
+          <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${sc}">${fmtPct(sPct)}</div></div>
+          <div class="summary-item"><div class="summary-label">分紅小計</div><div class="summary-value" style="color:#d97706;font-weight:700">${fmt(sBonus)}</div></div>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  });
+  box.innerHTML = html;
+
+  // 全組合總計
+  renderTotalSummary();
+}
+
+function renderOnePortfolio(p, type) {
   const pnlClass = p.pnl > 0 ? 'positive' : p.pnl < 0 ? 'negative' : '';
+  const showBonus = type === 'managed' || type === 'venture';
 
-  let html = `<div class="portfolio-card">`;
-  // header
+  let html = `<div class="portfolio-card" style="margin-bottom:16px">`;
   html += `<div class="portfolio-header">`;
   html += `<div class="ph-item"><span class="ph-label">組合：</span><span class="ph-value">${p.name}</span></div>`;
   if (p.dividend_condition) html += `<div class="ph-item"><span class="ph-label">分紅條件：</span><span class="ph-value">${p.dividend_condition}</span></div>`;
@@ -328,12 +376,10 @@ function renderPortfolio() {
   html += `<button class="danger" onclick="deletePortfolio(${p.id})">刪除</button>`;
   html += `</div></div>`;
 
-  // table
   html += `<table class="holdings-table"><thead><tr>
     <th>股票代碼</th><th>股票名稱</th><th>股價</th><th>張數</th>
     <th>市值</th><th>持股比重</th><th></th>
   </tr></thead><tbody>`;
-
   p.holdings.forEach(h => {
     html += `<tr>
       <td class="code-col">${h.code}</td>
@@ -348,13 +394,11 @@ function renderPortfolio() {
   });
   html += `</tbody></table>`;
 
-  // add row
   html += `<div class="add-row">
     <input type="text" id="addCode_${p.id}" placeholder="股票代碼">
     <button onclick="addHolding(${p.id})">新增持股</button>
   </div>`;
 
-  // summary
   html += `<div class="summary-bar">
     <div class="summary-item"><div class="summary-label">投入本金</div><div class="summary-value">${fmt(p.invested_capital)}</div></div>
     <div class="summary-item"><div class="summary-label">總市值</div><div class="summary-value">${fmt(p.total_market_value)}</div></div>
@@ -362,17 +406,17 @@ function renderPortfolio() {
     <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(p.total_value)}</div></div>
     <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${pnlClass}">${fmt(p.pnl)}</div></div>
     <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${pnlClass}">${fmtPct(p.pnl_pct)}</div></div>
-    <div class="summary-item"><div class="summary-label">分紅</div><div class="summary-value">${fmt(p.bonus)}</div></div>
+    ${showBonus ? `<div class="summary-item"><div class="summary-label">分紅</div><div class="summary-value" style="color:#d97706">${fmt(p.bonus)}</div></div>` : ''}
   </div>`;
 
   html += `</div>`;
-  box.innerHTML = html;
+  return html;
 }
 
-// ── 全組合分紅總計 ──
+// ── 全組合總計 ──
 function renderTotalSummary() {
   const box = document.getElementById('totalSummary');
-  if (portfolios.length < 2) { box.innerHTML = ''; return; }
+  if (portfolios.length === 0) { box.innerHTML = ''; return; }
   let totalCapital = 0, totalMV = 0, totalCash = 0, totalValue = 0, totalPnl = 0, totalBonus = 0;
   portfolios.forEach(p => {
     totalCapital += p.invested_capital || 0;
@@ -400,14 +444,17 @@ function renderTotalSummary() {
 
 // ── CRUD ──
 async function createPortfolio() {
-  const name = prompt('組合名稱：');
-  if (!name) return;
-  await fetch(API + '/api/portfolio/create', {
-    method: 'POST', headers: headers(),
-    body: JSON.stringify({name})
-  });
-  activeTab = portfolios.length; // 切到新建的
-  await loadData();
+  // 用 modal 建立
+  editingPid = 'new';
+  document.getElementById('modalTitle').textContent = '新增組合';
+  document.getElementById('mName').value = '';
+  document.getElementById('mType').value = 'personal';
+  document.getElementById('mDivCond').value = '';
+  document.getElementById('mInterestRate').value = '';
+  document.getElementById('mDivRatio').value = '';
+  document.getElementById('mCapital').value = 0;
+  document.getElementById('mCash').value = 0;
+  document.getElementById('editModal').classList.add('show');
 }
 
 function editPortfolio(pid) {
@@ -416,6 +463,7 @@ function editPortfolio(pid) {
   editingPid = pid;
   document.getElementById('modalTitle').textContent = '編輯組合 — ' + p.name;
   document.getElementById('mName').value = p.name;
+  document.getElementById('mType').value = p.portfolio_type || 'personal';
   document.getElementById('mDivCond').value = p.dividend_condition || '';
   document.getElementById('mInterestRate').value = p.interest_rate || '';
   document.getElementById('mDivRatio').value = p.dividend_ratio || '';
@@ -433,16 +481,24 @@ async function saveModal() {
   if (!editingPid) return;
   const data = {
     name: document.getElementById('mName').value,
+    portfolio_type: document.getElementById('mType').value,
     dividend_condition: document.getElementById('mDivCond').value,
     interest_rate: parseFloat(document.getElementById('mInterestRate').value) || 0,
     dividend_ratio: parseFloat(document.getElementById('mDivRatio').value) || 0,
     invested_capital: parseFloat(document.getElementById('mCapital').value) || 0,
     cash_balance: parseFloat(document.getElementById('mCash').value) || 0,
   };
-  await fetch(API + `/api/portfolio/${editingPid}`, {
-    method: 'PUT', headers: headers(),
-    body: JSON.stringify(data)
-  });
+  if (editingPid === 'new') {
+    await fetch(API + '/api/portfolio/create', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify(data)
+    });
+  } else {
+    await fetch(API + `/api/portfolio/${editingPid}`, {
+      method: 'PUT', headers: headers(),
+      body: JSON.stringify(data)
+    });
+  }
   closeModal();
   await loadData();
 }

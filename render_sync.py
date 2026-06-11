@@ -545,12 +545,12 @@ def _push_all_to_render():
         },
         {
             'table': 'portfolios',
-            'columns': ['id','name','dividend_condition','dividend_ratio','interest_rate',
+            'columns': ['id','name','portfolio_type','dividend_condition','dividend_ratio','interest_rate',
                         'invested_capital','cash_balance','sort_order','created_at','updated_at'],
             'pk': ['id'],
             'create_sql': """CREATE TABLE IF NOT EXISTS portfolios (
-                id SERIAL PRIMARY KEY, name TEXT NOT NULL, dividend_condition TEXT,
-                dividend_ratio REAL, interest_rate REAL DEFAULT 0,
+                id SERIAL PRIMARY KEY, name TEXT NOT NULL, portfolio_type TEXT DEFAULT 'personal',
+                dividend_condition TEXT, dividend_ratio REAL, interest_rate REAL DEFAULT 0,
                 invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0,
                 sort_order INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)""",
         },

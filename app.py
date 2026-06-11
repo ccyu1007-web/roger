@@ -5639,6 +5639,7 @@ def _init_portfolio_db():
     c.execute("""CREATE TABLE IF NOT EXISTS portfolios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        portfolio_type TEXT DEFAULT 'personal',
         dividend_condition TEXT,
         dividend_ratio REAL,
         interest_rate REAL DEFAULT 0,
@@ -5649,6 +5650,8 @@ def _init_portfolio_db():
         updated_at TEXT
     )""")
     try: c.execute("ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0")
+    except Exception: pass
+    try: c.execute("ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'")
     except Exception: pass
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
@@ -5739,11 +5742,12 @@ def portfolio_set_password():
 
 def _push_portfolios():
     _bg_push_table('portfolios',
-        ['id','name','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order','created_at','updated_at'],
+        ['id','name','portfolio_type','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order','created_at','updated_at'],
         ['id'],
         """CREATE TABLE IF NOT EXISTS portfolios (
-            id SERIAL PRIMARY KEY, name TEXT NOT NULL, dividend_condition TEXT, dividend_ratio REAL,
-            interest_rate REAL DEFAULT 0, invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0,
+            id SERIAL PRIMARY KEY, name TEXT NOT NULL, portfolio_type TEXT DEFAULT 'personal',
+            dividend_condition TEXT, dividend_ratio REAL, interest_rate REAL DEFAULT 0,
+            invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0,
             sort_order INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)""")
 
 def _push_holdings():
@@ -5759,10 +5763,10 @@ def _push_holdings():
 def portfolio_list():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate FROM portfolios ORDER BY sort_order, id")
+    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate, portfolio_type FROM portfolios ORDER BY portfolio_type, sort_order, id")
     portfolios = []
     for row in c.fetchall():
-        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate = row
+        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate, ptype = row
         c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close
                      FROM portfolio_holdings h LEFT JOIN stocks s ON h.stock_code = s.code
                      WHERE h.portfolio_id = ? ORDER BY h.stock_code""", (pid,))
@@ -5789,6 +5793,7 @@ def portfolio_list():
         bonus = max(0, pnl - interest) * (div_ratio or 0) if pnl > interest else 0
         portfolios.append({
             'id': pid, 'name': name,
+            'portfolio_type': ptype or 'personal',
             'dividend_condition': div_cond, 'dividend_ratio': div_ratio,
             'interest_rate': ir,
             'invested_capital': capital, 'cash_balance': cash,
@@ -5807,9 +5812,10 @@ def portfolio_create():
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""INSERT INTO portfolios (name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, created_at, updated_at)
-                 VALUES (?,?,?,?,?,?,?,?)""",
-              (data.get('name','新組合'), data.get('dividend_condition',''), data.get('dividend_ratio',0),
+    c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, sort_order, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)""",
+              (data.get('name','新組合'), data.get('portfolio_type','personal'),
+               data.get('dividend_condition',''), data.get('dividend_ratio',0), data.get('interest_rate',0),
                data.get('invested_capital',0), data.get('cash_balance',0), data.get('sort_order',0), now, now))
     new_id = c.lastrowid
     conn.commit()
@@ -5824,7 +5830,7 @@ def portfolio_update(pid):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     fields = []
     vals = []
-    for k in ['name','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order']:
+    for k in ['name','portfolio_type','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order']:
         if k in data:
             fields.append(f"{k}=?")
             vals.append(data[k])
