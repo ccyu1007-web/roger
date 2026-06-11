@@ -184,6 +184,7 @@
   .subtotal-table td { padding: 5px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; }
   .subtotal-table .positive { color: #dc2626; }
   .subtotal-table .negative { color: #16a34a; }
+  .subtotal-total-row td { border-top: 2px solid #94a3b8; font-weight: 700; font-size: .88rem; padding-top: 8px; }
 </style>
 </head>
 <body>
@@ -351,38 +352,34 @@ function renderAll() {
       const sc = sPnl > 0 ? 'positive' : sPnl < 0 ? 'negative' : '';
       const showBonus = type === 'managed' || type === 'venture';
       html += `<div class="type-subtotal" style="border-left:4px solid ${color}">
-        <span class="subtotal-label">${TYPE_LABELS[type]} 小計</span>`;
-      // 各帳戶明細表
-      if (list.length > 1) {
-        html += `<table class="subtotal-table"><thead><tr>
+        <span class="subtotal-label">${TYPE_LABELS[type]} 小計</span>
+        <table class="subtotal-table"><thead><tr>
           <th>帳戶</th><th>投入本金</th><th>總市值</th><th>現金餘額</th><th>總值</th><th>當年度損益</th><th>損益率</th>`;
-        if (showBonus) html += `<th>分紅</th>`;
-        html += `</tr></thead><tbody>`;
-        list.forEach(p => {
-          const pc = p.pnl > 0 ? 'positive' : p.pnl < 0 ? 'negative' : '';
-          html += `<tr>
-            <td style="font-weight:600">${p.name}</td>
-            <td class="num-col">${fmt(p.invested_capital)}</td>
-            <td class="num-col">${fmt(p.total_market_value)}</td>
-            <td class="num-col">${fmt(p.cash_balance)}</td>
-            <td class="num-col">${fmt(p.total_value)}</td>
-            <td class="num-col ${pc}">${fmt(p.pnl)}</td>
-            <td class="num-col ${pc}">${fmtPct(p.pnl_pct)}</td>`;
-          if (showBonus) html += `<td class="num-col" style="color:#d97706">${fmt(p.bonus)}</td>`;
-          html += `</tr>`;
-        });
-        html += `</tbody></table>`;
-      }
-      // 合計列
-      html += `<div class="summary-bar" style="margin-top:8px;padding-top:8px;border-top:none">
-          <div class="summary-item"><div class="summary-label">投入本金</div><div class="summary-value">${fmt(sCapital)}</div></div>
-          <div class="summary-item"><div class="summary-label">總市值</div><div class="summary-value">${fmt(sMV)}</div></div>
-          <div class="summary-item"><div class="summary-label">現金餘額</div><div class="summary-value">${fmt(sCash)}</div></div>
-          <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(sValue)}</div></div>
-          <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${sc}">${fmt(sPnl)}</div></div>
-          <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${sc}">${fmtPct(sPct)}</div></div>
-          ${showBonus ? `<div class="summary-item"><div class="summary-label">分紅小計</div><div class="summary-value" style="color:#d97706;font-weight:700">${fmt(sBonus)}</div></div>` : ''}
-        </div>
+      if (showBonus) html += `<th>分紅</th>`;
+      html += `</tr></thead><tbody>`;
+      list.forEach(p => {
+        const pc = p.pnl > 0 ? 'positive' : p.pnl < 0 ? 'negative' : '';
+        html += `<tr>
+          <td style="font-weight:600">${p.name}</td>
+          <td class="num-col">${fmt(p.invested_capital)}</td>
+          <td class="num-col">${fmt(p.total_market_value)}</td>
+          <td class="num-col">${fmt(p.cash_balance)}</td>
+          <td class="num-col">${fmt(p.total_value)}</td>
+          <td class="num-col ${pc}">${fmt(p.pnl)}</td>
+          <td class="num-col ${pc}">${fmtPct(p.pnl_pct)}</td>`;
+        if (showBonus) html += `<td class="num-col" style="color:#d97706">${fmt(p.bonus)}</td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody><tfoot><tr class="subtotal-total-row">
+          <td style="font-weight:700">合計</td>
+          <td class="num-col">${fmt(sCapital)}</td>
+          <td class="num-col">${fmt(sMV)}</td>
+          <td class="num-col">${fmt(sCash)}</td>
+          <td class="num-col">${fmt(sValue)}</td>
+          <td class="num-col ${sc}">${fmt(sPnl)}</td>
+          <td class="num-col ${sc}">${fmtPct(sPct)}</td>`;
+      if (showBonus) html += `<td class="num-col" style="color:#d97706;font-weight:700">${fmt(sBonus)}</td>`;
+      html += `</tr></tfoot></table>
       </div>`;
     }
     html += `</div>`;
