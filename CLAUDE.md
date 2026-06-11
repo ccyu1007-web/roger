@@ -23,6 +23,8 @@
 | `daily.html` | 每日新聞報告 |
 | `valuation.html` | 每日評價報告（閃電機會/市場體感/深度挖寶）|
 | `health.html` | 系統監控 |
+| `portfolio.html` | 持股專區（密碼保護，多組投資組合）|
+| `startup_catchup.py` | 開機補跑腳本（等網路/清lock/補資料）|
 
 ---
 
@@ -166,6 +168,8 @@
 | daily_price | 每日收盤價歷史 | code, date |
 | focus_tracking | 重點追蹤清單 | code |
 | focus_signals | 重點追蹤訊號 | code, date, signal_type |
+| portfolios | 投資組合 | id |
+| portfolio_holdings | 組合持股明細 | portfolio_id, stock_code |
 
 ---
 
@@ -181,6 +185,7 @@
 | com.stock.backfill | 每天 04:00 | 補缺資料 |
 | com.stock.dbguard | 每天 03:00 | DB 備份到 iCloud |
 | com.stock.webapp | 開機啟動 | Flask |
+| com.stock.startup | 開機啟動 | 補跑腳本（等網路/清lock/檢查缺漏/補資料）|
 
 #### 雲端（Render）
 - **無排程** — Render 不跑任何排程，所有資料由本機排程抓取後 push 到 Render
@@ -401,6 +406,35 @@ Render 上群益被擋、公開資訊觀測站也不穩，所以**所有資料�
 - 006208 富邦台50：同步自 0050（同指數）
 - 非元大系列：MoneyDJ 前 10 大（fallback）
 - 排程更新時自動偵測異動，記入 etf_changes 表
+
+---
+
+### 持股專區（portfolio.html）
+
+#### 密碼保護
+- 密碼 hash 存在 `user_settings` 表（key=`portfolio_password`），SHA-256
+- 首次進入時設定密碼，之後每次需驗證
+- Token 存在後端記憶體（`_portfolio_tokens`），24 小時過期，重啟 webapp 需重新登入
+- 所有 portfolio API 需 `Authorization: Bearer <token>` header
+
+#### 多組投資組合
+- `portfolios` 表：名稱、分紅條件(文字備註)、保利利率(%)、分紅比例、投入本金、現金餘額
+- `portfolio_holdings` 表：portfolio_id + stock_code，張數
+- 股價/名稱從 stocks 表即時連動
+
+#### 分紅計算
+- 利息 = 投入本金 x 保利利率%
+- 分紅 = (當年度損益 - 利息) x 分紅比例（損益未超過利息時為 0）
+
+---
+
+### 開機補跑機制（startup_catchup.py）
+- `com.stock.startup`（RunAtLoad）：開機自動執行
+- 流程：等網路(120s) → 清殘留 lock → 確認 webapp → 檢查 stock_state 快照 → 補跑
+- 盤後：quick_update + run_prices；盤前：只跑 quick_update
+- 週末自動跳過
+- webapp 啟動失敗時 fallback 用 nohup 直接拉起
+- app.py 啟動時等 port 5000 釋放（防 AirPlay 搶 port）
 
 ---
 
