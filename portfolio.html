@@ -338,20 +338,23 @@ function renderAll() {
 
     list.forEach(p => { html += renderOnePortfolio(p, type); });
 
-    // 類型小計（有分紅的類型才顯示）
-    if (list.length >= 1 && (type === 'managed' || type === 'venture')) {
+    // 類型小計
+    if (list.length >= 1) {
       let sCapital=0, sMV=0, sCash=0, sValue=0, sPnl=0, sBonus=0;
       list.forEach(p => { sCapital+=p.invested_capital||0; sMV+=p.total_market_value||0; sCash+=p.cash_balance||0; sValue+=p.total_value||0; sPnl+=p.pnl||0; sBonus+=p.bonus||0; });
       const sPct = sCapital > 0 ? (sPnl/sCapital*100) : 0;
       const sc = sPnl > 0 ? 'positive' : sPnl < 0 ? 'negative' : '';
+      const showBonus = type === 'managed' || type === 'venture';
       html += `<div class="type-subtotal" style="border-left:4px solid ${color}">
         <span class="subtotal-label">${TYPE_LABELS[type]} 小計</span>
         <div class="summary-bar" style="margin-top:8px;padding-top:8px;border-top:none">
           <div class="summary-item"><div class="summary-label">投入本金</div><div class="summary-value">${fmt(sCapital)}</div></div>
+          <div class="summary-item"><div class="summary-label">總市值</div><div class="summary-value">${fmt(sMV)}</div></div>
+          <div class="summary-item"><div class="summary-label">現金餘額</div><div class="summary-value">${fmt(sCash)}</div></div>
           <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(sValue)}</div></div>
           <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${sc}">${fmt(sPnl)}</div></div>
           <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${sc}">${fmtPct(sPct)}</div></div>
-          <div class="summary-item"><div class="summary-label">分紅小計</div><div class="summary-value" style="color:#d97706;font-weight:700">${fmt(sBonus)}</div></div>
+          ${showBonus ? `<div class="summary-item"><div class="summary-label">分紅小計</div><div class="summary-value" style="color:#d97706;font-weight:700">${fmt(sBonus)}</div></div>` : ''}
         </div>
       </div>`;
     }
