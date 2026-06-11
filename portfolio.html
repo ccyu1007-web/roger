@@ -379,24 +379,32 @@ function renderOnePortfolio(p, type) {
   html += `</div></div>`;
 
   const accts = p.accounts || [];
+  const hasAccts = accts.length > 0;
   html += `<table class="holdings-table"><thead><tr>
     <th>股票代碼</th><th>股票名稱</th><th>股價</th><th>張數</th>
     <th>市值</th><th>持股比重</th>`;
-  accts.forEach(a => { html += `<th style="background:#475569">${a}</th>`; });
+  if (hasAccts) accts.forEach(a => { html += `<th style="background:#475569">${a}</th>`; });
   html += `<th></th></tr></thead><tbody>`;
   p.holdings.forEach(h => {
     html += `<tr>
       <td class="code-col">${h.code}</td>
       <td class="name-col">${h.name}</td>
-      <td class="num-col">${fmtPrice(h.price)}</td>
-      <td class="num-col fmt-num">${h.lots}</td>
-      <td class="num-col fmt-num">${fmt(h.market_value)}</td>
+      <td class="num-col">${fmtPrice(h.price)}</td>`;
+    if (hasAccts) {
+      html += `<td class="num-col fmt-num">${h.lots}</td>`;
+    } else {
+      html += `<td><input type="number" value="${h.lots}" min="0" step="0.1"
+           onchange="updateLots(${p.id},'${h.code}','',this.value)"></td>`;
+    }
+    html += `<td class="num-col fmt-num">${fmt(h.market_value)}</td>
       <td class="num-col">${fmtPct(h.weight)}</td>`;
-    accts.forEach(a => {
-      const val = (h.accounts && h.accounts[a]) || 0;
-      html += `<td><input type="number" value="${val}" min="0" step="0.1" style="width:60px"
-           onchange="updateLots(${p.id},'${h.code}','${a.replace(/'/g,"\\'")}',this.value)"></td>`;
-    });
+    if (hasAccts) {
+      accts.forEach(a => {
+        const val = (h.accounts && h.accounts[a]) || 0;
+        html += `<td><input type="number" value="${val}" min="0" step="0.1" style="width:60px"
+             onchange="updateLots(${p.id},'${h.code}','${a.replace(/'/g,"\\'")}',this.value)"></td>`;
+      });
+    }
     html += `<td><button class="del-btn" onclick="deleteHolding(${p.id},'${h.code}')" title="刪除">&#x2715;</button></td>
     </tr>`;
   });
@@ -526,15 +534,15 @@ async function addHolding(pid) {
   const codeInput = document.getElementById('addCode_' + pid);
   const code = codeInput.value.trim();
   if (!code) return;
-  // 新增時每個帳戶都建一筆（張數 0）
   const p = portfolios.find(x => x.id === pid);
   const accts = (p && p.accounts && p.accounts.length) ? p.accounts : [''];
-  for (const a of accts) {
-    await fetch(API + `/api/portfolio/${pid}/holdings`, {
+  // 用 Promise.all 一次建完
+  await Promise.all(accts.map(a =>
+    fetch(API + `/api/portfolio/${pid}/holdings`, {
       method: 'POST', headers: headers(),
       body: JSON.stringify({code, account: a, lots: 0})
-    });
-  }
+    })
+  ));
   codeInput.value = '';
   await loadData();
 }
@@ -549,15 +557,15 @@ async function updateLots(pid, code, account, val) {
 }
 
 async function deleteHolding(pid, code) {
-  // 刪除該股票所有帳戶的記錄
+  // 刪除該股票所有帳戶的記錄（包含 account=""）
   const p = portfolios.find(x => x.id === pid);
-  const accts = (p && p.accounts && p.accounts.length) ? p.accounts : [''];
-  for (const a of accts) {
-    const acctParam = encodeURIComponent(a);
-    await fetch(API + `/api/portfolio/${pid}/holdings/${code}?account=${acctParam}`, {
+  const allAccts = [''];
+  if (p && p.accounts) p.accounts.forEach(a => allAccts.push(a));
+  await Promise.all(allAccts.map(a =>
+    fetch(API + `/api/portfolio/${pid}/holdings/${code}?account=${encodeURIComponent(a)}`, {
       method: 'DELETE', headers: headers()
-    });
-  }
+    })
+  ));
   await loadData();
 }
 

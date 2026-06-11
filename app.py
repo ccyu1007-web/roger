@@ -5859,9 +5859,28 @@ def portfolio_update(pid):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(f"UPDATE portfolios SET {','.join(fields)} WHERE id=?", vals)
+    # 設定帳戶後，把舊的 account="" 持股搬到第一個帳戶
+    if 'accounts' in data and data['accounts']:
+        first_acct = data['accounts'][0]
+        c.execute("SELECT stock_code, shares_lot FROM portfolio_holdings WHERE portfolio_id=? AND account=''", (pid,))
+        old_rows = c.fetchall()
+        for code, lots in old_rows:
+            if lots and lots > 0:
+                # 搬到第一個帳戶（合併）
+                c.execute("SELECT shares_lot FROM portfolio_holdings WHERE portfolio_id=? AND stock_code=? AND account=?",
+                          (pid, code, first_acct))
+                existing = c.fetchone()
+                if existing:
+                    c.execute("UPDATE portfolio_holdings SET shares_lot=?, updated_at=? WHERE portfolio_id=? AND stock_code=? AND account=?",
+                              (lots + (existing[0] or 0), now, pid, code, first_acct))
+                else:
+                    c.execute("INSERT INTO portfolio_holdings (portfolio_id, stock_code, account, shares_lot, added_at, updated_at) VALUES (?,?,?,?,?,?)",
+                              (pid, code, first_acct, lots, now, now))
+            c.execute("DELETE FROM portfolio_holdings WHERE portfolio_id=? AND stock_code=? AND account=''", (pid, code))
     conn.commit()
     conn.close()
     _push_portfolios()
+    _push_holdings()
     return jsonify({"status": "ok"})
 
 @app.route("/api/portfolio/<int:pid>", methods=["DELETE"])
