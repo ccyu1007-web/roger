@@ -5641,12 +5641,15 @@ def _init_portfolio_db():
         name TEXT NOT NULL,
         dividend_condition TEXT,
         dividend_ratio REAL,
+        interest_rate REAL DEFAULT 0,
         invested_capital REAL DEFAULT 0,
         cash_balance REAL DEFAULT 0,
         sort_order INTEGER DEFAULT 0,
         created_at TEXT,
         updated_at TEXT
     )""")
+    try: c.execute("ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0")
+    except Exception: pass
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
         stock_code TEXT NOT NULL,
@@ -5736,12 +5739,12 @@ def portfolio_set_password():
 
 def _push_portfolios():
     _bg_push_table('portfolios',
-        ['id','name','dividend_condition','dividend_ratio','invested_capital','cash_balance','sort_order','created_at','updated_at'],
+        ['id','name','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order','created_at','updated_at'],
         ['id'],
         """CREATE TABLE IF NOT EXISTS portfolios (
             id SERIAL PRIMARY KEY, name TEXT NOT NULL, dividend_condition TEXT, dividend_ratio REAL,
-            invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0, sort_order INTEGER DEFAULT 0,
-            created_at TEXT, updated_at TEXT)""")
+            interest_rate REAL DEFAULT 0, invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0,
+            sort_order INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)""")
 
 def _push_holdings():
     _bg_push_table('portfolio_holdings',
@@ -5756,10 +5759,10 @@ def _push_holdings():
 def portfolio_list():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order FROM portfolios ORDER BY sort_order, id")
+    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate FROM portfolios ORDER BY sort_order, id")
     portfolios = []
     for row in c.fetchall():
-        pid, name, div_cond, div_ratio, capital, cash, sort = row
+        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate = row
         c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close
                      FROM portfolio_holdings h LEFT JOIN stocks s ON h.stock_code = s.code
                      WHERE h.portfolio_id = ? ORDER BY h.stock_code""", (pid,))
@@ -5780,13 +5783,19 @@ def portfolio_list():
         total_value = total_mv + (cash or 0)
         pnl = total_value - (capital or 0) if capital else 0
         pnl_pct = round(pnl / capital * 100, 2) if capital else 0
+        # 分紅計算：(損益 - 利息) × 比例，損益不超過利息時為 0
+        ir = interest_rate or 0
+        interest = (capital or 0) * ir / 100
+        bonus = max(0, pnl - interest) * (div_ratio or 0) if pnl > interest else 0
         portfolios.append({
             'id': pid, 'name': name,
             'dividend_condition': div_cond, 'dividend_ratio': div_ratio,
+            'interest_rate': ir,
             'invested_capital': capital, 'cash_balance': cash,
             'sort_order': sort, 'holdings': holdings,
             'total_market_value': total_mv, 'total_value': total_value,
-            'pnl': pnl, 'pnl_pct': pnl_pct
+            'pnl': pnl, 'pnl_pct': pnl_pct,
+            'interest': interest, 'bonus': round(bonus)
         })
     conn.close()
     return jsonify(portfolios)
@@ -5815,7 +5824,7 @@ def portfolio_update(pid):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     fields = []
     vals = []
-    for k in ['name','dividend_condition','dividend_ratio','invested_capital','cash_balance','sort_order']:
+    for k in ['name','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order']:
         if k in data:
             fields.append(f"{k}=?")
             vals.append(data[k])

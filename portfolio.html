@@ -193,6 +193,7 @@
     <h3 id="modalTitle">編輯組合</h3>
     <div class="modal-field"><label>組合名稱</label><input type="text" id="mName"></div>
     <div class="modal-field"><label>分紅條件</label><input type="text" id="mDivCond" placeholder="例：保利2%，超過後70/30分"></div>
+    <div class="modal-field"><label>保利利率 (%)</label><input type="number" id="mInterestRate" step="0.1" placeholder="例：2"></div>
     <div class="modal-field"><label>分紅比例</label><input type="number" id="mDivRatio" step="0.01" placeholder="例：0.3"></div>
     <div class="modal-field"><label>投入本金</label><input type="number" id="mCapital" step="1"></div>
     <div class="modal-field"><label>現金餘額</label><input type="number" id="mCash" step="1"></div>
@@ -347,6 +348,7 @@ function renderPortfolio() {
     <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(p.total_value)}</div></div>
     <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${pnlClass}">${fmt(p.pnl)}</div></div>
     <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${pnlClass}">${fmtPct(p.pnl_pct)}</div></div>
+    <div class="summary-item"><div class="summary-label">分紅</div><div class="summary-value">${fmt(p.bonus)}</div></div>
   </div>`;
 
   html += `</div>`;
@@ -372,6 +374,7 @@ function editPortfolio(pid) {
   document.getElementById('modalTitle').textContent = '編輯組合 — ' + p.name;
   document.getElementById('mName').value = p.name;
   document.getElementById('mDivCond').value = p.dividend_condition || '';
+  document.getElementById('mInterestRate').value = p.interest_rate || '';
   document.getElementById('mDivRatio').value = p.dividend_ratio || '';
   document.getElementById('mCapital').value = p.invested_capital || 0;
   document.getElementById('mCash').value = p.cash_balance || 0;
@@ -388,6 +391,7 @@ async function saveModal() {
   const data = {
     name: document.getElementById('mName').value,
     dividend_condition: document.getElementById('mDivCond').value,
+    interest_rate: parseFloat(document.getElementById('mInterestRate').value) || 0,
     dividend_ratio: parseFloat(document.getElementById('mDivRatio').value) || 0,
     invested_capital: parseFloat(document.getElementById('mCapital').value) || 0,
     cash_balance: parseFloat(document.getElementById('mCash').value) || 0,
