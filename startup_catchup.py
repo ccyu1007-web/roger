@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""
+開機補跑腳本：確保電腦重開機後自動補齊缺漏資料。
+
+流程：
+1. 等待網路就緒（最多 120 秒）
+2. 清理殘留的 scraper.lock
+3. 確認 webapp 有在跑，沒有就重啟 launchd job
+4. 檢查今天是否有 stock_state 快照，沒有就補跑
+"""
+
+import os
+import sys
+import time
+import socket
+import subprocess
+import sqlite3
+from datetime import datetime, date
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+LOCK_FILE = os.path.join(LOG_DIR, 'scraper.lock')
+DB_PATH = os.path.join(BASE_DIR, 'stocks.db')
+LOG_FILE = os.path.join(LOG_DIR, 'startup_catchup.log')
+
+
+def log(msg):
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    line = f"[{ts}] {msg}"
+    print(line, flush=True)
+    try:
+        with open(LOG_FILE, 'a') as f:
+            f.write(line + '\n')
+    except Exception:
+        pass
+
+
+def wait_for_network(timeout=120):
+    """等待網路就緒，測試 DNS 解析"""
+    start = time.time()
+    hosts = ['openapi.twse.com.tw', 'www.google.com']
+    while time.time() - start < timeout:
+        for host in hosts:
+            try:
+                socket.setdefaulttimeout(5)
+                socket.getaddrinfo(host, 443)
+                log(f"網路就緒（{host} 可解析），等待 {time.time()-start:.0f} 秒")
+                return True
+            except (socket.gaierror, socket.timeout, OSError):
+                pass
+        time.sleep(5)
+    log(f"等待網路超時（{timeout} 秒），放棄本次補跑")
+    return False
+
+
+def clean_stale_lock():
+    """清理殘留的 lock 檔（重開機後舊 PID 不存在）"""
+    if not os.path.exists(LOCK_FILE):
+        return
+    try:
+        with open(LOCK_FILE, 'r') as f:
+            content = f.read().strip()
+        if content:
+            pid = int(content.split()[0])
+            # 檢查 PID 是否還活著
+            try:
+                os.kill(pid, 0)
+                log(f"Lock 檔的 PID {pid} 仍在執行，不清理")
+                return
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                log(f"Lock 檔的 PID {pid} 存在但無權限檢查，不清理")
+                return
+        os.remove(LOCK_FILE)
+        log(f"已清理殘留的 scraper.lock（舊 PID: {content}）")
+    except Exception as e:
+        log(f"清理 lock 失敗: {e}")
+
+
+def ensure_webapp():
+    """確認 webapp (port 5000) 有在跑"""
+    try:
+        result = subprocess.run(
+            ['lsof', '-i', ':5000', '-t'],
+            capture_output=True, text=True, timeout=5
+        )
+        pids = result.stdout.strip().split('\n') if result.stdout.strip() else []
+
+        # 檢查是否有 python 在用 5000
+        for pid in pids:
+            if not pid:
+                continue
+            ps = subprocess.run(
+                ['ps', '-p', pid, '-o', 'comm='],
+                capture_output=True, text=True, timeout=5
+            )
+            comm = ps.stdout.strip()
+            if 'python' in comm.lower() or 'Python' in comm:
+                log(f"webapp 正在執行（PID {pid}）")
+                return
+
+        # 沒有 python 在跑 5000，重載 webapp
+        log("webapp 未執行，重新載入 launchd job...")
+        plist = os.path.expanduser('~/Library/LaunchAgents/com.stock.webapp.plist')
+        subprocess.run(['launchctl', 'unload', plist],
+                      capture_output=True, timeout=10)
+        time.sleep(2)
+        subprocess.run(['launchctl', 'load', plist],
+                      capture_output=True, timeout=10)
+        log("webapp launchd job 已重新載入")
+        # 等待啟動
+        time.sleep(5)
+    except Exception as e:
+        log(f"檢查 webapp 失敗: {e}")
+
+
+def needs_catchup():
+    """檢查今天是否需要補跑"""
+    today = date.today()
+    # 週六日不需要（台股休市）
+    if today.weekday() >= 5:
+        log(f"今天是{'週六' if today.weekday() == 5 else '週日'}，不需要補跑")
+        return False
+
+    today_str = today.strftime('%Y-%m-%d')
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        row = conn.execute(
+            "SELECT COUNT(*) FROM stock_state WHERE date = ?",
+            (today_str,)
+        ).fetchone()
+        conn.close()
+        count = row[0] if row else 0
+        if count > 0:
+            log(f"今天({today_str})已有 {count} 筆快照，不需要補跑")
+            return False
+        else:
+            log(f"今天({today_str})沒有快照資料，需要補跑")
+            return True
+    except Exception as e:
+        log(f"檢查 DB 失敗: {e}，預設需要補跑")
+        return True
+
+
+def run_catchup():
+    """執行補跑：先 quick_update 再 run_prices"""
+    python = sys.executable
+    now = datetime.now()
+
+    # 判斷現在時間決定跑什麼
+    # 盤後（13:35 之後）：跑 run_prices（含股價+評價+push）
+    # 盤前或盤中：只跑 quick_update（MOPS 營收/季報）
+    if now.hour >= 14 or (now.hour == 13 and now.minute >= 35):
+        log("盤後時段，執行 run_prices + quick_update...")
+        # 先跑 quick_update 更新營收
+        log("步驟 1/2：quick_update（MOPS 營收/季報）...")
+        r1 = subprocess.run(
+            [python, '-u', os.path.join(BASE_DIR, 'scraper.py'), '--quick'],
+            cwd=BASE_DIR, timeout=1800,
+            capture_output=False
+        )
+        log(f"quick_update 完成，exit code: {r1.returncode}")
+
+        # 再跑 run_prices 更新股價+評價
+        log("步驟 2/2：run_prices（股價+評價+push）...")
+        r2 = subprocess.run(
+            [python, '-u', os.path.join(BASE_DIR, 'scraper.py'), '--prices'],
+            cwd=BASE_DIR, timeout=600,
+            capture_output=False
+        )
+        log(f"run_prices 完成，exit code: {r2.returncode}")
+    else:
+        log("盤前/盤中時段，只執行 quick_update...")
+        r = subprocess.run(
+            [python, '-u', os.path.join(BASE_DIR, 'scraper.py'), '--quick'],
+            cwd=BASE_DIR, timeout=1800,
+            capture_output=False
+        )
+        log(f"quick_update 完成，exit code: {r.returncode}")
+
+
+def main():
+    log("=" * 50)
+    log("開機補跑腳本啟動")
+    log("=" * 50)
+
+    # 1. 等待網路
+    if not wait_for_network():
+        return
+
+    # 2. 清理殘留 lock
+    clean_stale_lock()
+
+    # 3. 確認 webapp
+    ensure_webapp()
+
+    # 4. 檢查是否需要補跑
+    if needs_catchup():
+        run_catchup()
+
+    log("開機補跑腳本結束")
+
+
+if __name__ == "__main__":
+    main()
