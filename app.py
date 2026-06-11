@@ -5653,6 +5653,8 @@ def _init_portfolio_db():
     except Exception: pass
     try: c.execute("ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'")
     except Exception: pass
+    try: c.execute("ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'")
+    except Exception: pass
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
         stock_code TEXT NOT NULL,
@@ -5765,23 +5767,30 @@ def _push_holdings():
 def portfolio_list():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate, portfolio_type FROM portfolios ORDER BY portfolio_type, sort_order, id")
+    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate, portfolio_type, accounts FROM portfolios ORDER BY portfolio_type, sort_order, id")
     portfolios = []
     for row in c.fetchall():
-        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate, ptype = row
+        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate, ptype, accts_json = row
         c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close, h.account
                      FROM portfolio_holdings h LEFT JOIN stocks s ON h.stock_code = s.code
                      WHERE h.portfolio_id = ? ORDER BY h.stock_code, h.account""", (pid,))
-        holdings = []
-        total_mv = 0
+        # 按股票代碼分組，各帳戶張數拆分
+        stock_map = {}
         for h in c.fetchall():
             code, lots, sname, price, acct = h
-            price = price or 0
-            mv = lots * 1000 * price
+            if code not in stock_map:
+                stock_map[code] = {'code': code, 'name': sname or '', 'price': price or 0, 'accounts': {}}
+            stock_map[code]['accounts'][acct or ''] = lots
+        holdings = []
+        total_mv = 0
+        for code in sorted(stock_map.keys()):
+            s = stock_map[code]
+            total_lots = sum(s['accounts'].values())
+            mv = total_lots * 1000 * s['price']
             total_mv += mv
             holdings.append({
-                'code': code, 'name': sname or '', 'price': price,
-                'lots': lots, 'market_value': mv, 'account': acct or ''
+                'code': s['code'], 'name': s['name'], 'price': s['price'],
+                'lots': total_lots, 'market_value': mv, 'accounts': s['accounts']
             })
         # 計算比重
         for h in holdings:
@@ -5793,11 +5802,13 @@ def portfolio_list():
         ir = interest_rate or 0
         interest = (capital or 0) * ir / 100
         bonus = max(0, pnl - interest) * (div_ratio or 0) if pnl > interest else 0
+        try: accts = json.loads(accts_json) if accts_json else []
+        except Exception: accts = []
         portfolios.append({
             'id': pid, 'name': name,
             'portfolio_type': ptype or 'personal',
             'dividend_condition': div_cond, 'dividend_ratio': div_ratio,
-            'interest_rate': ir,
+            'interest_rate': ir, 'accounts': accts,
             'invested_capital': capital, 'cash_balance': cash,
             'sort_order': sort, 'holdings': holdings,
             'total_market_value': total_mv, 'total_value': total_value,
@@ -5814,11 +5825,12 @@ def portfolio_create():
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, sort_order, created_at, updated_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)""",
+    accts = json.dumps(data.get('accounts', []), ensure_ascii=False)
+    c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, sort_order, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
               (data.get('name','新組合'), data.get('portfolio_type','personal'),
                data.get('dividend_condition',''), data.get('dividend_ratio',0), data.get('interest_rate',0),
-               data.get('invested_capital',0), data.get('cash_balance',0), data.get('sort_order',0), now, now))
+               data.get('invested_capital',0), data.get('cash_balance',0), accts, data.get('sort_order',0), now, now))
     new_id = c.lastrowid
     conn.commit()
     conn.close()
@@ -5836,6 +5848,9 @@ def portfolio_update(pid):
         if k in data:
             fields.append(f"{k}=?")
             vals.append(data[k])
+    if 'accounts' in data:
+        fields.append("accounts=?")
+        vals.append(json.dumps(data['accounts'], ensure_ascii=False))
     if not fields:
         return jsonify({"status": "ok"})
     fields.append("updated_at=?")
