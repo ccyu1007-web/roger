@@ -158,6 +158,18 @@
   .btn-cancel:hover { background: #e2e8f0; }
 
   .fmt-num { font-variant-numeric: tabular-nums; }
+
+  /* 全組合總計 */
+  .total-summary-card {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; border-radius: 12px; padding: 20px 24px; margin-top: 24px;
+  }
+  .total-summary-card .summary-bar { border-top: 1px solid rgba(255,255,255,.2); }
+  .total-summary-card .summary-label { color: rgba(255,255,255,.7); }
+  .total-summary-card .summary-value { color: #fff; }
+  .total-summary-card .summary-value.positive { color: #fca5a5; }
+  .total-summary-card .summary-value.negative { color: #86efac; }
+  .total-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -185,6 +197,7 @@
 <div id="mainScreen" class="container">
   <div class="tab-bar" id="tabBar"></div>
   <div id="portfolioContent"></div>
+  <div id="totalSummary"></div>
 </div>
 
 <!-- 編輯組合 modal -->
@@ -271,6 +284,7 @@ async function loadData() {
   } catch(e) { return; }
   renderTabs();
   renderPortfolio();
+  renderTotalSummary();
 }
 
 // ── Tab 列 ──
@@ -353,6 +367,35 @@ function renderPortfolio() {
 
   html += `</div>`;
   box.innerHTML = html;
+}
+
+// ── 全組合分紅總計 ──
+function renderTotalSummary() {
+  const box = document.getElementById('totalSummary');
+  if (portfolios.length < 2) { box.innerHTML = ''; return; }
+  let totalCapital = 0, totalMV = 0, totalCash = 0, totalValue = 0, totalPnl = 0, totalBonus = 0;
+  portfolios.forEach(p => {
+    totalCapital += p.invested_capital || 0;
+    totalMV += p.total_market_value || 0;
+    totalCash += p.cash_balance || 0;
+    totalValue += p.total_value || 0;
+    totalPnl += p.pnl || 0;
+    totalBonus += p.bonus || 0;
+  });
+  const totalPnlPct = totalCapital > 0 ? (totalPnl / totalCapital * 100) : 0;
+  const pnlClass = totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '';
+  box.innerHTML = `<div class="total-summary-card">
+    <div class="total-title">全組合總計</div>
+    <div class="summary-bar">
+      <div class="summary-item"><div class="summary-label">投入本金</div><div class="summary-value">${fmt(totalCapital)}</div></div>
+      <div class="summary-item"><div class="summary-label">總市值</div><div class="summary-value">${fmt(totalMV)}</div></div>
+      <div class="summary-item"><div class="summary-label">現金餘額</div><div class="summary-value">${fmt(totalCash)}</div></div>
+      <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(totalValue)}</div></div>
+      <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${pnlClass}">${fmt(totalPnl)}</div></div>
+      <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${pnlClass}">${fmtPct(totalPnlPct)}</div></div>
+      <div class="summary-item"><div class="summary-label">分紅總計</div><div class="summary-value" style="color:#d97706;font-size:1.2rem">${fmt(totalBonus)}</div></div>
+    </div>
+  </div>`;
 }
 
 // ── CRUD ──
