@@ -5922,8 +5922,8 @@ def portfolio_update_holding(pid, code):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE portfolio_holdings SET shares_lot=?, updated_at=? WHERE portfolio_id=? AND stock_code=? AND account=?",
-              (data.get('lots', 0), now, pid, code, acct))
+    c.execute("INSERT OR REPLACE INTO portfolio_holdings (portfolio_id, stock_code, account, shares_lot, added_at, updated_at) VALUES (?,?,?,?,?,?)",
+              (pid, code, acct, data.get('lots', 0), now, now))
     conn.commit()
     conn.close()
     _push_holdings()
