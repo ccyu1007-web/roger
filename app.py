@@ -5629,6 +5629,28 @@ def save_user_estimate(code):
     return jsonify({"status": "ok"})
 
 # ── 啟動 ────────────────────────────────────────────────────
+def _wait_for_port(port, timeout=90):
+    """等待 port 釋放（AirPlay 開機時可能短暫佔用 5000）"""
+    import socket as _sock
+    import time as _time
+    start = _time.time()
+    while _time.time() - start < timeout:
+        s = _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM)
+        try:
+            s.bind(('0.0.0.0', port))
+            s.close()
+            return True
+        except OSError:
+            s.close()
+            _time.sleep(3)
+    return False
+
 if __name__ == "__main__":
     is_local = not os.environ.get('DATABASE_URL')
-    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=is_local)
+    # launchd KeepAlive 環境下關閉 reloader，避免子程序佔 port 導致重啟失敗
+    under_launchd = bool(os.environ.get('XPC_SERVICE_NAME'))
+    use_reloader = is_local and not under_launchd
+    if is_local and not _wait_for_port(5000):
+        print("Port 5000 持續被佔用超過 90 秒，放棄啟動", flush=True)
+        import sys; sys.exit(1)
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=use_reloader)

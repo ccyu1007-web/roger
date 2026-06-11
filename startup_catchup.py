@@ -78,6 +78,21 @@ def clean_stale_lock():
         log(f"清理 lock 失敗: {e}")
 
 
+def _wait_port_free(port, timeout=30):
+    """等待 port 釋放"""
+    start = time.time()
+    while time.time() - start < timeout:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(('0.0.0.0', port))
+            s.close()
+            return True
+        except OSError:
+            s.close()
+            time.sleep(2)
+    return False
+
+
 def ensure_webapp():
     """確認 webapp (port 5000) 有在跑"""
     try:
@@ -100,17 +115,45 @@ def ensure_webapp():
                 log(f"webapp 正在執行（PID {pid}）")
                 return
 
-        # 沒有 python 在跑 5000，重載 webapp
-        log("webapp 未執行，重新載入 launchd job...")
+        # 等待 port 5000 釋放（AirPlay 可能佔著）
+        if not _wait_port_free(5000, timeout=60):
+            log("port 5000 持續被佔用，無法啟動 webapp")
+            return
+
+        # 沒有 python 在跑 5000，重置 launchd throttle 再啟動
+        log("webapp 未執行，重置 launchd job...")
+        uid = os.getuid()
         plist = os.path.expanduser('~/Library/LaunchAgents/com.stock.webapp.plist')
-        subprocess.run(['launchctl', 'unload', plist],
+        # bootout 清除 throttle 記錄
+        subprocess.run(['launchctl', 'bootout', f'gui/{uid}/com.stock.webapp'],
                       capture_output=True, timeout=10)
         time.sleep(2)
-        subprocess.run(['launchctl', 'load', plist],
+        # bootstrap 重新載入
+        subprocess.run(['launchctl', 'bootstrap', f'gui/{uid}', plist],
                       capture_output=True, timeout=10)
-        log("webapp launchd job 已重新載入")
-        # 等待啟動
-        time.sleep(5)
+        # kickstart 強制立即啟動（不等 throttle）
+        subprocess.run(['launchctl', 'kickstart', f'gui/{uid}/com.stock.webapp'],
+                      capture_output=True, timeout=10)
+        log("webapp launchd job 已重置並啟動")
+        time.sleep(8)
+
+        # 確認是否啟動成功，失敗則 nohup 直接拉起
+        result2 = subprocess.run(
+            ['lsof', '-i', ':5000', '-t'],
+            capture_output=True, text=True, timeout=5
+        )
+        if not result2.stdout.strip():
+            log("launchd 啟動失敗（可能 throttle），改用 nohup 直接啟動...")
+            log_dir = os.path.join(BASE_DIR, 'logs')
+            subprocess.Popen(
+                [sys.executable, '-u', os.path.join(BASE_DIR, 'app.py')],
+                cwd=BASE_DIR,
+                stdout=open(os.path.join(log_dir, 'webapp_stdout.log'), 'a'),
+                stderr=open(os.path.join(log_dir, 'webapp_stderr.log'), 'a'),
+                start_new_session=True
+            )
+            log("webapp 已用 nohup 啟動")
+            time.sleep(5)
     except Exception as e:
         log(f"檢查 webapp 失敗: {e}")
 
