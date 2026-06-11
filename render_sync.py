@@ -556,12 +556,12 @@ def _push_all_to_render():
         },
         {
             'table': 'portfolio_holdings',
-            'columns': ['portfolio_id','stock_code','shares_lot','added_at','updated_at'],
-            'pk': ['portfolio_id','stock_code'],
+            'columns': ['portfolio_id','stock_code','account','shares_lot','added_at','updated_at'],
+            'pk': ['portfolio_id','stock_code','account'],
             'create_sql': """CREATE TABLE IF NOT EXISTS portfolio_holdings (
-                portfolio_id INTEGER NOT NULL, stock_code TEXT NOT NULL,
+                portfolio_id INTEGER NOT NULL, stock_code TEXT NOT NULL, account TEXT NOT NULL DEFAULT '',
                 shares_lot REAL DEFAULT 0, added_at TEXT, updated_at TEXT,
-                PRIMARY KEY (portfolio_id, stock_code))""",
+                PRIMARY KEY (portfolio_id, stock_code, account))""",
         },
     ]
 

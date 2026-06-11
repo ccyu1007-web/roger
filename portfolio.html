@@ -377,24 +377,27 @@ function renderOnePortfolio(p, type) {
   html += `</div></div>`;
 
   html += `<table class="holdings-table"><thead><tr>
-    <th>股票代碼</th><th>股票名稱</th><th>股價</th><th>張數</th>
+    <th>帳戶</th><th>股票代碼</th><th>股票名稱</th><th>股價</th><th>張數</th>
     <th>市值</th><th>持股比重</th><th></th>
   </tr></thead><tbody>`;
   p.holdings.forEach(h => {
+    const acctEsc = (h.account||'').replace(/'/g,"\\'");
     html += `<tr>
+      <td style="font-size:.8rem;color:#64748b">${h.account||''}</td>
       <td class="code-col">${h.code}</td>
       <td class="name-col">${h.name}</td>
       <td class="num-col">${fmtPrice(h.price)}</td>
-      <td><input type="number" value="${h.lots}" min="0" step="1"
-           onchange="updateLots(${p.id},'${h.code}',this.value)"></td>
+      <td><input type="number" value="${h.lots}" min="0" step="0.1"
+           onchange="updateLots(${p.id},'${h.code}','${acctEsc}',this.value)"></td>
       <td class="num-col fmt-num">${fmt(h.market_value)}</td>
       <td class="num-col">${fmtPct(h.weight)}</td>
-      <td><button class="del-btn" onclick="deleteHolding(${p.id},'${h.code}')" title="刪除">&#x2715;</button></td>
+      <td><button class="del-btn" onclick="deleteHolding(${p.id},'${h.code}','${acctEsc}')" title="刪除">&#x2715;</button></td>
     </tr>`;
   });
   html += `</tbody></table>`;
 
   html += `<div class="add-row">
+    <input type="text" id="addAcct_${p.id}" placeholder="帳戶（選填）" style="width:100px">
     <input type="text" id="addCode_${p.id}" placeholder="股票代碼">
     <button onclick="addHolding(${p.id})">新增持股</button>
   </div>`;
@@ -512,28 +515,31 @@ async function deletePortfolio(pid) {
 }
 
 async function addHolding(pid) {
-  const input = document.getElementById('addCode_' + pid);
-  const code = input.value.trim();
+  const codeInput = document.getElementById('addCode_' + pid);
+  const acctInput = document.getElementById('addAcct_' + pid);
+  const code = codeInput.value.trim();
   if (!code) return;
+  const account = acctInput ? acctInput.value.trim() : '';
   await fetch(API + `/api/portfolio/${pid}/holdings`, {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({code, lots: 0})
+    body: JSON.stringify({code, account, lots: 0})
   });
-  input.value = '';
+  codeInput.value = '';
   await loadData();
 }
 
-async function updateLots(pid, code, val) {
+async function updateLots(pid, code, account, val) {
   const lots = parseFloat(val) || 0;
   await fetch(API + `/api/portfolio/${pid}/holdings/${code}`, {
     method: 'PUT', headers: headers(),
-    body: JSON.stringify({lots})
+    body: JSON.stringify({lots, account})
   });
   await loadData();
 }
 
-async function deleteHolding(pid, code) {
-  await fetch(API + `/api/portfolio/${pid}/holdings/${code}`, {
+async function deleteHolding(pid, code, account) {
+  const acctParam = encodeURIComponent(account || '');
+  await fetch(API + `/api/portfolio/${pid}/holdings/${code}?account=${acctParam}`, {
     method: 'DELETE', headers: headers()
   });
   await loadData();

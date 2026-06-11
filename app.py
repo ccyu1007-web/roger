@@ -5656,10 +5656,11 @@ def _init_portfolio_db():
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
         stock_code TEXT NOT NULL,
+        account TEXT NOT NULL DEFAULT '',
         shares_lot REAL DEFAULT 0,
         added_at TEXT,
         updated_at TEXT,
-        PRIMARY KEY (portfolio_id, stock_code)
+        PRIMARY KEY (portfolio_id, stock_code, account)
     )""")
     try: conn.commit()
     except Exception: pass
@@ -5752,11 +5753,12 @@ def _push_portfolios():
 
 def _push_holdings():
     _bg_push_table('portfolio_holdings',
-        ['portfolio_id','stock_code','shares_lot','added_at','updated_at'],
-        ['portfolio_id','stock_code'],
+        ['portfolio_id','stock_code','account','shares_lot','added_at','updated_at'],
+        ['portfolio_id','stock_code','account'],
         """CREATE TABLE IF NOT EXISTS portfolio_holdings (
-            portfolio_id INTEGER NOT NULL, stock_code TEXT NOT NULL, shares_lot REAL DEFAULT 0,
-            added_at TEXT, updated_at TEXT, PRIMARY KEY (portfolio_id, stock_code))""")
+            portfolio_id INTEGER NOT NULL, stock_code TEXT NOT NULL, account TEXT NOT NULL DEFAULT '',
+            shares_lot REAL DEFAULT 0, added_at TEXT, updated_at TEXT,
+            PRIMARY KEY (portfolio_id, stock_code, account))""")
 
 @app.route("/api/portfolio/list")
 @require_portfolio_auth
@@ -5767,19 +5769,19 @@ def portfolio_list():
     portfolios = []
     for row in c.fetchall():
         pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate, ptype = row
-        c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close
+        c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close, h.account
                      FROM portfolio_holdings h LEFT JOIN stocks s ON h.stock_code = s.code
-                     WHERE h.portfolio_id = ? ORDER BY h.stock_code""", (pid,))
+                     WHERE h.portfolio_id = ? ORDER BY h.stock_code, h.account""", (pid,))
         holdings = []
         total_mv = 0
         for h in c.fetchall():
-            code, lots, sname, price = h
+            code, lots, sname, price, acct = h
             price = price or 0
             mv = lots * 1000 * price
             total_mv += mv
             holdings.append({
                 'code': code, 'name': sname or '', 'price': price,
-                'lots': lots, 'market_value': mv
+                'lots': lots, 'market_value': mv, 'account': acct or ''
             })
         # 計算比重
         for h in holdings:
@@ -5867,11 +5869,12 @@ def portfolio_add_holding(pid):
     code = str(data.get('code', '')).strip()
     if not code:
         return jsonify({"error": "code required"}), 400
+    acct = str(data.get('account', '')).strip()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO portfolio_holdings (portfolio_id, stock_code, shares_lot, added_at, updated_at) VALUES (?,?,?,?,?)",
-              (pid, code, data.get('lots', 0), now, now))
+    c.execute("INSERT OR REPLACE INTO portfolio_holdings (portfolio_id, stock_code, account, shares_lot, added_at, updated_at) VALUES (?,?,?,?,?,?)",
+              (pid, code, acct, data.get('lots', 0), now, now))
     conn.commit()
     conn.close()
     _push_holdings()
@@ -5881,11 +5884,12 @@ def portfolio_add_holding(pid):
 @require_portfolio_auth
 def portfolio_update_holding(pid, code):
     data = request.get_json() or {}
+    acct = str(data.get('account', '')).strip()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE portfolio_holdings SET shares_lot=?, updated_at=? WHERE portfolio_id=? AND stock_code=?",
-              (data.get('lots', 0), now, pid, code))
+    c.execute("UPDATE portfolio_holdings SET shares_lot=?, updated_at=? WHERE portfolio_id=? AND stock_code=? AND account=?",
+              (data.get('lots', 0), now, pid, code, acct))
     conn.commit()
     conn.close()
     _push_holdings()
@@ -5894,9 +5898,10 @@ def portfolio_update_holding(pid, code):
 @app.route("/api/portfolio/<int:pid>/holdings/<code>", methods=["DELETE"])
 @require_portfolio_auth
 def portfolio_delete_holding(pid, code):
+    acct = str(request.args.get('account', '')).strip()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("DELETE FROM portfolio_holdings WHERE portfolio_id=? AND stock_code=?", (pid, code))
+    c.execute("DELETE FROM portfolio_holdings WHERE portfolio_id=? AND stock_code=? AND account=?", (pid, code, acct))
     conn.commit()
     conn.close()
     _push_holdings()

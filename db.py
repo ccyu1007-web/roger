@@ -33,7 +33,7 @@ TABLE_PK = {
     'user_estimates':       ['code'],
     'user_settings':        ['key'],
     'portfolios':           ['id'],
-    'portfolio_holdings':   ['portfolio_id', 'stock_code'],
+    'portfolio_holdings':   ['portfolio_id', 'stock_code', 'account'],
 }
 
 
