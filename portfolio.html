@@ -185,6 +185,33 @@
   .subtotal-table .positive { color: #dc2626; }
   .subtotal-table .negative { color: #16a34a; }
   .subtotal-total-row td { border-top: 2px solid #94a3b8; font-weight: 700; font-size: .88rem; padding-top: 8px; }
+
+  /* Dashboard 總覽卡片 */
+  .dashboard { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+  .dash-card {
+    border-radius: 10px; padding: 16px 20px; cursor: pointer; transition: box-shadow .15s;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  }
+  .dash-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+  .dash-card-title { font-weight: 700; font-size: .95rem; min-width: 100px; }
+  .dash-card .dash-item { text-align: center; }
+  .dash-card .dash-label { font-size: .7rem; color: rgba(0,0,0,.5); }
+  .dash-card .dash-val { font-size: .95rem; font-weight: 700; }
+  .dash-card-grand {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: #fff;
+  }
+  .dash-card-grand .dash-label { color: rgba(255,255,255,.7); }
+  .dash-card-grand .dash-val { color: #fff; }
+  .dash-card-grand .positive { color: #fca5a5; }
+  .dash-card-grand .negative { color: #86efac; }
+  .dash-card-type {
+    background: #fff; border: 2px solid #e2e8f0;
+  }
+  .dash-card-type .positive { color: #dc2626; }
+  .dash-card-type .negative { color: #16a34a; }
+  .dash-card-type .bonus-val { color: #d97706; }
+  .dash-arrow { margin-left: auto; font-size: 1.2rem; color: #94a3b8; transition: transform .2s; }
+  .dash-arrow.open { transform: rotate(90deg); }
 </style>
 </head>
 <body>
@@ -211,8 +238,8 @@
 <!-- 主畫面 -->
 <div id="mainScreen" class="container">
   <div class="tab-bar" id="tabBar"></div>
+  <div id="dashboardSection"></div>
   <div id="portfolioContent"></div>
-  <div id="totalSummary"></div>
 </div>
 
 <!-- 編輯組合 modal -->
@@ -312,14 +339,29 @@ const TYPE_ORDER = ['personal', 'venture', 'managed'];
 const TYPE_LABELS = { personal: '個人/家人', venture: '創業', managed: '代操' };
 const TYPE_COLORS = { personal: '#2563eb', venture: '#7c3aed', managed: '#059669' };
 
+let openSections = {};
+
+function calcTypeStats(list) {
+  let c=0,mv=0,ca=0,v=0,pnl=0,b=0;
+  list.forEach(p => { c+=p.invested_capital||0; mv+=p.total_market_value||0; ca+=p.cash_balance||0; v+=p.total_value||0; pnl+=p.pnl||0; b+=p.bonus||0; });
+  return { capital:c, mv, cash:ca, value:v, pnl, pnlPct: c>0?(pnl/c*100):0, bonus:b };
+}
+
+function toggleSection(type) {
+  openSections[type] = !openSections[type];
+  renderAll();
+}
+
 function renderAll() {
   const bar = document.getElementById('tabBar');
   bar.innerHTML = `<button class="tab-add" onclick="createPortfolio()">+ 新增組合</button>`;
 
+  const dash = document.getElementById('dashboardSection');
   const box = document.getElementById('portfolioContent');
+
   if (portfolios.length === 0) {
+    dash.innerHTML = '';
     box.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8">尚無投資組合，點擊上方「+ 新增組合」建立</div>';
-    document.getElementById('totalSummary').innerHTML = '';
     return;
   }
 
@@ -332,11 +374,46 @@ function renderAll() {
     grouped[t].push(p);
   });
 
-  let html = '';
+  // === Dashboard 總覽 ===
+  const grand = calcTypeStats(portfolios);
+  const gc = grand.pnl > 0 ? 'positive' : grand.pnl < 0 ? 'negative' : '';
+  let dHtml = '<div class="dashboard">';
+  dHtml += `<div class="dash-card dash-card-grand">
+    <div class="dash-card-title">全組合總計</div>
+    <div class="dash-item"><div class="dash-label">投入本金</div><div class="dash-val">${fmt(grand.capital)}</div></div>
+    <div class="dash-item"><div class="dash-label">總值</div><div class="dash-val">${fmt(grand.value)}</div></div>
+    <div class="dash-item"><div class="dash-label">當年度損益</div><div class="dash-val ${gc}">${fmt(grand.pnl)}</div></div>
+    <div class="dash-item"><div class="dash-label">損益率</div><div class="dash-val ${gc}">${fmtPct(grand.pnlPct)}</div></div>
+    <div class="dash-item"><div class="dash-label">分紅總計</div><div class="dash-val" style="color:#fbbf24">${fmt(grand.bonus)}</div></div>
+  </div>`;
   TYPE_ORDER.forEach(type => {
     const list = grouped[type];
     if (list.length === 0) return;
+    const s = calcTypeStats(list);
     const color = TYPE_COLORS[type];
+    const pc = s.pnl > 0 ? 'positive' : s.pnl < 0 ? 'negative' : '';
+    const showBonus = type === 'managed' || type === 'venture';
+    const isOpen = openSections[type];
+    dHtml += `<div class="dash-card dash-card-type" style="border-left:4px solid ${color}" onclick="toggleSection('${type}')">
+      <div class="dash-card-title" style="color:${color}">${TYPE_LABELS[type]}</div>
+      <div class="dash-item"><div class="dash-label">投入本金</div><div class="dash-val">${fmt(s.capital)}</div></div>
+      <div class="dash-item"><div class="dash-label">總值</div><div class="dash-val">${fmt(s.value)}</div></div>
+      <div class="dash-item"><div class="dash-label">當年度損益</div><div class="dash-val ${pc}">${fmt(s.pnl)}</div></div>
+      <div class="dash-item"><div class="dash-label">損益率</div><div class="dash-val ${pc}">${fmtPct(s.pnlPct)}</div></div>
+      ${showBonus ? `<div class="dash-item"><div class="dash-label">分紅</div><div class="dash-val bonus-val">${fmt(s.bonus)}</div></div>` : ''}
+      <div class="dash-arrow ${isOpen?'open':''}">&#9654;</div>
+    </div>`;
+  });
+  dHtml += '</div>';
+  dash.innerHTML = dHtml;
+
+  // === 展開的類型區塊 ===
+  let html = '';
+  TYPE_ORDER.forEach(type => {
+    const list = grouped[type];
+    if (list.length === 0 || !openSections[type]) return;
+    const color = TYPE_COLORS[type];
+    const showBonus = type === 'managed' || type === 'venture';
     html += `<div class="type-section">`;
     html += `<div class="type-header" style="border-left:4px solid ${color}; padding-left:12px; margin-bottom:16px">
       <span style="font-size:1.1rem;font-weight:700;color:${color}">${TYPE_LABELS[type]}</span>
@@ -344,50 +421,44 @@ function renderAll() {
 
     list.forEach(p => { html += renderOnePortfolio(p, type); });
 
-    // 類型小計（含各帳戶明細）
-    if (list.length >= 1) {
-      let sCapital=0, sMV=0, sCash=0, sValue=0, sPnl=0, sBonus=0;
-      list.forEach(p => { sCapital+=p.invested_capital||0; sMV+=p.total_market_value||0; sCash+=p.cash_balance||0; sValue+=p.total_value||0; sPnl+=p.pnl||0; sBonus+=p.bonus||0; });
-      const sPct = sCapital > 0 ? (sPnl/sCapital*100) : 0;
-      const sc = sPnl > 0 ? 'positive' : sPnl < 0 ? 'negative' : '';
-      const showBonus = type === 'managed' || type === 'venture';
-      html += `<div class="type-subtotal" style="border-left:4px solid ${color}">
-        <span class="subtotal-label">${TYPE_LABELS[type]} 小計</span>
-        <table class="subtotal-table"><thead><tr>
-          <th>帳戶</th><th>投入本金</th><th>總市值</th><th>現金餘額</th><th>總值</th><th>當年度損益</th><th>損益率</th>`;
-      if (showBonus) html += `<th>分紅</th>`;
-      html += `</tr></thead><tbody>`;
-      list.forEach(p => {
-        const pc = p.pnl > 0 ? 'positive' : p.pnl < 0 ? 'negative' : '';
-        html += `<tr>
-          <td style="font-weight:600">${p.name}</td>
-          <td class="num-col">${fmt(p.invested_capital)}</td>
-          <td class="num-col">${fmt(p.total_market_value)}</td>
-          <td class="num-col">${fmt(p.cash_balance)}</td>
-          <td class="num-col">${fmt(p.total_value)}</td>
-          <td class="num-col ${pc}">${fmt(p.pnl)}</td>
-          <td class="num-col ${pc}">${fmtPct(p.pnl_pct)}</td>`;
-        if (showBonus) html += `<td class="num-col" style="color:#d97706">${fmt(p.bonus)}</td>`;
-        html += `</tr>`;
-      });
-      html += `</tbody><tfoot><tr class="subtotal-total-row">
-          <td style="font-weight:700">合計</td>
-          <td class="num-col">${fmt(sCapital)}</td>
-          <td class="num-col">${fmt(sMV)}</td>
-          <td class="num-col">${fmt(sCash)}</td>
-          <td class="num-col">${fmt(sValue)}</td>
-          <td class="num-col ${sc}">${fmt(sPnl)}</td>
-          <td class="num-col ${sc}">${fmtPct(sPct)}</td>`;
-      if (showBonus) html += `<td class="num-col" style="color:#d97706;font-weight:700">${fmt(sBonus)}</td>`;
-      html += `</tr></tfoot></table>
-      </div>`;
-    }
+    // 類型小計表格
+    let sCapital=0, sMV=0, sCash=0, sValue=0, sPnl=0, sBonus=0;
+    list.forEach(p => { sCapital+=p.invested_capital||0; sMV+=p.total_market_value||0; sCash+=p.cash_balance||0; sValue+=p.total_value||0; sPnl+=p.pnl||0; sBonus+=p.bonus||0; });
+    const sPct = sCapital > 0 ? (sPnl/sCapital*100) : 0;
+    const sc = sPnl > 0 ? 'positive' : sPnl < 0 ? 'negative' : '';
+    html += `<div class="type-subtotal" style="border-left:4px solid ${color}">
+      <span class="subtotal-label">${TYPE_LABELS[type]} 小計</span>
+      <table class="subtotal-table"><thead><tr>
+        <th>帳戶</th><th>投入本金</th><th>總市值</th><th>現金餘額</th><th>總值</th><th>當年度損益</th><th>損益率</th>`;
+    if (showBonus) html += `<th>分紅</th>`;
+    html += `</tr></thead><tbody>`;
+    list.forEach(p => {
+      const pc = p.pnl > 0 ? 'positive' : p.pnl < 0 ? 'negative' : '';
+      html += `<tr>
+        <td style="font-weight:600">${p.name}</td>
+        <td class="num-col">${fmt(p.invested_capital)}</td>
+        <td class="num-col">${fmt(p.total_market_value)}</td>
+        <td class="num-col">${fmt(p.cash_balance)}</td>
+        <td class="num-col">${fmt(p.total_value)}</td>
+        <td class="num-col ${pc}">${fmt(p.pnl)}</td>
+        <td class="num-col ${pc}">${fmtPct(p.pnl_pct)}</td>`;
+      if (showBonus) html += `<td class="num-col" style="color:#d97706">${fmt(p.bonus)}</td>`;
+      html += `</tr>`;
+    });
+    html += `</tbody><tfoot><tr class="subtotal-total-row">
+        <td style="font-weight:700">合計</td>
+        <td class="num-col">${fmt(sCapital)}</td>
+        <td class="num-col">${fmt(sMV)}</td>
+        <td class="num-col">${fmt(sCash)}</td>
+        <td class="num-col">${fmt(sValue)}</td>
+        <td class="num-col ${sc}">${fmt(sPnl)}</td>
+        <td class="num-col ${sc}">${fmtPct(sPct)}</td>`;
+    if (showBonus) html += `<td class="num-col" style="color:#d97706;font-weight:700">${fmt(sBonus)}</td>`;
+    html += `</tr></tfoot></table>
+    </div>`;
     html += `</div>`;
   });
   box.innerHTML = html;
-
-  // 全組合總計
-  renderTotalSummary();
 }
 
 function renderOnePortfolio(p, type) {
@@ -454,35 +525,6 @@ function renderOnePortfolio(p, type) {
 
   html += `</div>`;
   return html;
-}
-
-// ── 全組合總計 ──
-function renderTotalSummary() {
-  const box = document.getElementById('totalSummary');
-  if (portfolios.length === 0) { box.innerHTML = ''; return; }
-  let totalCapital = 0, totalMV = 0, totalCash = 0, totalValue = 0, totalPnl = 0, totalBonus = 0;
-  portfolios.forEach(p => {
-    totalCapital += p.invested_capital || 0;
-    totalMV += p.total_market_value || 0;
-    totalCash += p.cash_balance || 0;
-    totalValue += p.total_value || 0;
-    totalPnl += p.pnl || 0;
-    totalBonus += p.bonus || 0;
-  });
-  const totalPnlPct = totalCapital > 0 ? (totalPnl / totalCapital * 100) : 0;
-  const pnlClass = totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '';
-  box.innerHTML = `<div class="total-summary-card">
-    <div class="total-title">全組合總計</div>
-    <div class="summary-bar">
-      <div class="summary-item"><div class="summary-label">投入本金</div><div class="summary-value">${fmt(totalCapital)}</div></div>
-      <div class="summary-item"><div class="summary-label">總市值</div><div class="summary-value">${fmt(totalMV)}</div></div>
-      <div class="summary-item"><div class="summary-label">現金餘額</div><div class="summary-value">${fmt(totalCash)}</div></div>
-      <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(totalValue)}</div></div>
-      <div class="summary-item"><div class="summary-label">當年度損益</div><div class="summary-value ${pnlClass}">${fmt(totalPnl)}</div></div>
-      <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${pnlClass}">${fmtPct(totalPnlPct)}</div></div>
-      <div class="summary-item"><div class="summary-label">分紅總計</div><div class="summary-value" style="color:#d97706;font-size:1.2rem">${fmt(totalBonus)}</div></div>
-    </div>
-  </div>`;
 }
 
 // ── CRUD ──
