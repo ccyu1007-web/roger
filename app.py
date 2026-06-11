@@ -2733,6 +2733,7 @@ def sync_table():
         'stocks', 'stock_checklist',
         'daily_price', 'focus_tracking', 'focus_signals',
         'daily_notes', 'industry_news',
+        'portfolios', 'portfolio_holdings',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
@@ -5626,6 +5627,264 @@ def save_user_estimate(code):
             except Exception as e:
                 print(f"[Push] 儲存後同步失敗: {e}")
         threading.Thread(target=_snapshot_and_push, daemon=True).start()
+    return jsonify({"status": "ok"})
+
+# ── 持股專區 ────────────────────────────────────────────────
+import hashlib, secrets, functools, time, json
+from datetime import datetime
+
+def _init_portfolio_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS portfolios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        dividend_condition TEXT,
+        dividend_ratio REAL,
+        invested_capital REAL DEFAULT 0,
+        cash_balance REAL DEFAULT 0,
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
+        portfolio_id INTEGER NOT NULL,
+        stock_code TEXT NOT NULL,
+        shares_lot REAL DEFAULT 0,
+        added_at TEXT,
+        updated_at TEXT,
+        PRIMARY KEY (portfolio_id, stock_code)
+    )""")
+    try: conn.commit()
+    except Exception: pass
+    conn.close()
+
+_init_portfolio_db()
+
+# 密碼驗證
+_portfolio_tokens = {}
+
+def _hash_pw(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def require_portfolio_auth(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token or token not in _portfolio_tokens or _portfolio_tokens[token] < time.time():
+            return jsonify({"error": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+@app.route("/api/portfolio/auth", methods=["POST"])
+def portfolio_auth():
+    data = request.get_json() or {}
+    pw = data.get('password', '')
+    if not pw:
+        return jsonify({"error": "password required"}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT value FROM user_settings WHERE key='portfolio_password'")
+    row = c.fetchone()
+    conn.close()
+
+    pw_hash = _hash_pw(pw)
+    if row is None:
+        # 首次設定密碼
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?,?,?)",
+                  ('portfolio_password', pw_hash, now))
+        conn.commit()
+        conn.close()
+        _bg_push_table('user_settings', ['key','value','updated_at'], ['key'],
+                       "CREATE TABLE IF NOT EXISTS user_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+    elif row[0] != pw_hash:
+        return jsonify({"error": "wrong password"}), 401
+
+    token = secrets.token_hex(32)
+    _portfolio_tokens[token] = time.time() + 86400
+    return jsonify({"token": token, "expires_in": 86400})
+
+@app.route("/api/portfolio/set-password", methods=["POST"])
+@require_portfolio_auth
+def portfolio_set_password():
+    data = request.get_json() or {}
+    old_pw = data.get('old_password', '')
+    new_pw = data.get('new_password', '')
+    if not new_pw:
+        return jsonify({"error": "new_password required"}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT value FROM user_settings WHERE key='portfolio_password'")
+    row = c.fetchone()
+    if row and row[0] != _hash_pw(old_pw):
+        conn.close()
+        return jsonify({"error": "wrong old password"}), 401
+
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    c.execute("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?,?,?)",
+              ('portfolio_password', _hash_pw(new_pw), now))
+    conn.commit()
+    conn.close()
+    _bg_push_table('user_settings', ['key','value','updated_at'], ['key'],
+                   "CREATE TABLE IF NOT EXISTS user_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)")
+    return jsonify({"status": "ok"})
+
+def _push_portfolios():
+    _bg_push_table('portfolios',
+        ['id','name','dividend_condition','dividend_ratio','invested_capital','cash_balance','sort_order','created_at','updated_at'],
+        ['id'],
+        """CREATE TABLE IF NOT EXISTS portfolios (
+            id SERIAL PRIMARY KEY, name TEXT NOT NULL, dividend_condition TEXT, dividend_ratio REAL,
+            invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0, sort_order INTEGER DEFAULT 0,
+            created_at TEXT, updated_at TEXT)""")
+
+def _push_holdings():
+    _bg_push_table('portfolio_holdings',
+        ['portfolio_id','stock_code','shares_lot','added_at','updated_at'],
+        ['portfolio_id','stock_code'],
+        """CREATE TABLE IF NOT EXISTS portfolio_holdings (
+            portfolio_id INTEGER NOT NULL, stock_code TEXT NOT NULL, shares_lot REAL DEFAULT 0,
+            added_at TEXT, updated_at TEXT, PRIMARY KEY (portfolio_id, stock_code))""")
+
+@app.route("/api/portfolio/list")
+@require_portfolio_auth
+def portfolio_list():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order FROM portfolios ORDER BY sort_order, id")
+    portfolios = []
+    for row in c.fetchall():
+        pid, name, div_cond, div_ratio, capital, cash, sort = row
+        c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close
+                     FROM portfolio_holdings h LEFT JOIN stocks s ON h.stock_code = s.code
+                     WHERE h.portfolio_id = ? ORDER BY h.stock_code""", (pid,))
+        holdings = []
+        total_mv = 0
+        for h in c.fetchall():
+            code, lots, sname, price = h
+            price = price or 0
+            mv = lots * 1000 * price
+            total_mv += mv
+            holdings.append({
+                'code': code, 'name': sname or '', 'price': price,
+                'lots': lots, 'market_value': mv
+            })
+        # 計算比重
+        for h in holdings:
+            h['weight'] = round(h['market_value'] / total_mv * 100, 2) if total_mv > 0 else 0
+        total_value = total_mv + (cash or 0)
+        pnl = total_value - (capital or 0) if capital else 0
+        pnl_pct = round(pnl / capital * 100, 2) if capital else 0
+        portfolios.append({
+            'id': pid, 'name': name,
+            'dividend_condition': div_cond, 'dividend_ratio': div_ratio,
+            'invested_capital': capital, 'cash_balance': cash,
+            'sort_order': sort, 'holdings': holdings,
+            'total_market_value': total_mv, 'total_value': total_value,
+            'pnl': pnl, 'pnl_pct': pnl_pct
+        })
+    conn.close()
+    return jsonify(portfolios)
+
+@app.route("/api/portfolio/create", methods=["POST"])
+@require_portfolio_auth
+def portfolio_create():
+    data = request.get_json() or {}
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""INSERT INTO portfolios (name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?)""",
+              (data.get('name','新組合'), data.get('dividend_condition',''), data.get('dividend_ratio',0),
+               data.get('invested_capital',0), data.get('cash_balance',0), data.get('sort_order',0), now, now))
+    new_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    _push_portfolios()
+    return jsonify({"status": "ok", "id": new_id})
+
+@app.route("/api/portfolio/<int:pid>", methods=["PUT"])
+@require_portfolio_auth
+def portfolio_update(pid):
+    data = request.get_json() or {}
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    fields = []
+    vals = []
+    for k in ['name','dividend_condition','dividend_ratio','invested_capital','cash_balance','sort_order']:
+        if k in data:
+            fields.append(f"{k}=?")
+            vals.append(data[k])
+    if not fields:
+        return jsonify({"status": "ok"})
+    fields.append("updated_at=?")
+    vals.append(now)
+    vals.append(pid)
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(f"UPDATE portfolios SET {','.join(fields)} WHERE id=?", vals)
+    conn.commit()
+    conn.close()
+    _push_portfolios()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/portfolio/<int:pid>", methods=["DELETE"])
+@require_portfolio_auth
+def portfolio_delete(pid):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM portfolio_holdings WHERE portfolio_id=?", (pid,))
+    c.execute("DELETE FROM portfolios WHERE id=?", (pid,))
+    conn.commit()
+    conn.close()
+    _push_portfolios()
+    _push_holdings()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/portfolio/<int:pid>/holdings", methods=["POST"])
+@require_portfolio_auth
+def portfolio_add_holding(pid):
+    data = request.get_json() or {}
+    code = str(data.get('code', '')).strip()
+    if not code:
+        return jsonify({"error": "code required"}), 400
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO portfolio_holdings (portfolio_id, stock_code, shares_lot, added_at, updated_at) VALUES (?,?,?,?,?)",
+              (pid, code, data.get('lots', 0), now, now))
+    conn.commit()
+    conn.close()
+    _push_holdings()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/portfolio/<int:pid>/holdings/<code>", methods=["PUT"])
+@require_portfolio_auth
+def portfolio_update_holding(pid, code):
+    data = request.get_json() or {}
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE portfolio_holdings SET shares_lot=?, updated_at=? WHERE portfolio_id=? AND stock_code=?",
+              (data.get('lots', 0), now, pid, code))
+    conn.commit()
+    conn.close()
+    _push_holdings()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/portfolio/<int:pid>/holdings/<code>", methods=["DELETE"])
+@require_portfolio_auth
+def portfolio_delete_holding(pid, code):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM portfolio_holdings WHERE portfolio_id=? AND stock_code=?", (pid, code))
+    conn.commit()
+    conn.close()
+    _push_holdings()
     return jsonify({"status": "ok"})
 
 # ── 啟動 ────────────────────────────────────────────────────

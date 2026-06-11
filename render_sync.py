@@ -543,6 +543,26 @@ def _push_all_to_render():
                 detail TEXT, PRIMARY KEY (code, date, signal_type))""",
             'where': "WHERE date >= date('now', '-30 days')",
         },
+        {
+            'table': 'portfolios',
+            'columns': ['id','name','dividend_condition','dividend_ratio',
+                        'invested_capital','cash_balance','sort_order','created_at','updated_at'],
+            'pk': ['id'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS portfolios (
+                id SERIAL PRIMARY KEY, name TEXT NOT NULL, dividend_condition TEXT,
+                dividend_ratio REAL, invested_capital REAL DEFAULT 0,
+                cash_balance REAL DEFAULT 0, sort_order INTEGER DEFAULT 0,
+                created_at TEXT, updated_at TEXT)""",
+        },
+        {
+            'table': 'portfolio_holdings',
+            'columns': ['portfolio_id','stock_code','shares_lot','added_at','updated_at'],
+            'pk': ['portfolio_id','stock_code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS portfolio_holdings (
+                portfolio_id INTEGER NOT NULL, stock_code TEXT NOT NULL,
+                shares_lot REAL DEFAULT 0, added_at TEXT, updated_at TEXT,
+                PRIMARY KEY (portfolio_id, stock_code))""",
+        },
     ]
 
     from datetime import datetime

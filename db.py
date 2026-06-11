@@ -32,6 +32,8 @@ TABLE_PK = {
     'user_notes':           ['code'],
     'user_estimates':       ['code'],
     'user_settings':        ['key'],
+    'portfolios':           ['id'],
+    'portfolio_holdings':   ['portfolio_id', 'stock_code'],
 }
 
 

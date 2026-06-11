@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>持股專區 — 逍遙投資系統</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f8fafc; color: #1a202c; }
+
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.9); font-size: .82rem; font-weight: 600; text-decoration: none; }
+  header a:hover { color: #fff; text-decoration: underline; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+  /* 密碼畫面 */
+  #authScreen {
+    display: flex; justify-content: center; align-items: center; min-height: 60vh;
+  }
+  .auth-box {
+    background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 2px 20px rgba(0,0,0,.1);
+    text-align: center; max-width: 360px; width: 100%;
+  }
+  .auth-box h2 { margin-bottom: 20px; color: #1e3a5f; }
+  .auth-box input {
+    width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;
+    font-size: 1rem; text-align: center; letter-spacing: 4px; outline: none;
+  }
+  .auth-box input:focus { border-color: #2563eb; }
+  .auth-box button {
+    margin-top: 16px; width: 100%; padding: 12px; border: none; border-radius: 8px;
+    background: #2563eb; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+  .auth-box button:hover { background: #1d4ed8; }
+  .auth-error { color: #dc2626; font-size: .85rem; margin-top: 10px; display: none; }
+
+  /* 主畫面 */
+  #mainScreen { display: none; }
+
+  /* Tab 列 */
+  .tab-bar {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .tab-btn {
+    padding: 8px 20px; border: 2px solid #e2e8f0; border-radius: 8px;
+    background: #fff; cursor: pointer; font-size: .9rem; font-weight: 600; color: #64748b;
+  }
+  .tab-btn.active { border-color: #2563eb; background: #2563eb; color: #fff; }
+  .tab-btn:hover:not(.active) { border-color: #94a3b8; }
+  .tab-add {
+    padding: 8px 16px; border: 2px dashed #cbd5e1; border-radius: 8px;
+    background: transparent; cursor: pointer; font-size: .9rem; color: #94a3b8;
+  }
+  .tab-add:hover { border-color: #2563eb; color: #2563eb; }
+
+  /* 組合卡片 */
+  .portfolio-card {
+    background: #fff; border-radius: 12px; padding: 24px;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
+  }
+
+  /* 組合資訊列 */
+  .portfolio-header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9;
+  }
+  .ph-item { font-size: .85rem; }
+  .ph-label { color: #64748b; }
+  .ph-value { font-weight: 700; color: #1e3a5f; }
+  .ph-value.positive { color: #dc2626; }
+  .ph-value.negative { color: #16a34a; }
+  .ph-actions { margin-left: auto; display: flex; gap: 6px; }
+  .ph-actions button {
+    padding: 4px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: .78rem; color: #64748b;
+  }
+  .ph-actions button:hover { background: #f1f5f9; }
+  .ph-actions button.danger:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+  /* 持股表 */
+  .holdings-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .holdings-table th {
+    background: #1e3a5f; color: #fff; padding: 8px 12px; text-align: center;
+    font-weight: 600; white-space: nowrap;
+  }
+  .holdings-table td {
+    padding: 7px 12px; text-align: center; border-bottom: 1px solid #f1f5f9;
+  }
+  .holdings-table tr:hover td { background: #f8fafc; }
+  .holdings-table .code-col { font-weight: 700; color: #1e3a5f; }
+  .holdings-table .name-col { text-align: left; }
+  .holdings-table .num-col { text-align: right; font-variant-numeric: tabular-nums; }
+  .holdings-table input[type="number"] {
+    width: 70px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px;
+    text-align: right; font-size: .85rem;
+  }
+  .holdings-table input:focus { border-color: #2563eb; outline: none; }
+  .del-btn {
+    background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 1rem;
+  }
+  .del-btn:hover { color: #dc2626; }
+
+  /* 新增持股列 */
+  .add-row { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+  .add-row input[type="text"] {
+    width: 120px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: .85rem;
+  }
+  .add-row button {
+    padding: 6px 16px; border: none; border-radius: 6px;
+    background: #2563eb; color: #fff; font-size: .85rem; cursor: pointer;
+  }
+  .add-row button:hover { background: #1d4ed8; }
+
+  /* 摘要列 */
+  .summary-bar {
+    display: flex; gap: 24px; margin-top: 16px; padding-top: 16px;
+    border-top: 2px solid #f1f5f9; flex-wrap: wrap;
+  }
+  .summary-item { text-align: center; }
+  .summary-label { font-size: .75rem; color: #94a3b8; }
+  .summary-value { font-size: 1.1rem; font-weight: 700; color: #1e3a5f; }
+  .summary-value.positive { color: #dc2626; }
+  .summary-value.negative { color: #16a34a; }
+
+  /* 編輯 modal */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 12px; padding: 28px; max-width: 420px; width: 90%;
+    box-shadow: 0 4px 30px rgba(0,0,0,.15);
+  }
+  .modal-box h3 { margin-bottom: 16px; color: #1e3a5f; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { display: block; font-size: .82rem; color: #64748b; margin-bottom: 4px; }
+  .modal-field input, .modal-field textarea {
+    width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+    font-size: .9rem; outline: none;
+  }
+  .modal-field input:focus, .modal-field textarea:focus { border-color: #2563eb; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal-actions button {
+    padding: 8px 20px; border-radius: 6px; font-size: .9rem; cursor: pointer; border: none;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-cancel { background: #f1f5f9; color: #64748b; }
+  .btn-cancel:hover { background: #e2e8f0; }
+
+  .fmt-num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1>持股專區</h1>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/">總表</a>
+    <a href="/briefing.html">逍遙日報</a>
+    <a href="/valuation.html">評價報告</a>
+  </div>
+</header>
+
+<!-- 密碼畫面 -->
+<div id="authScreen">
+  <div class="auth-box">
+    <h2>持股專區</h2>
+    <p style="color:#64748b;margin-bottom:20px;font-size:.9rem">請輸入密碼</p>
+    <input type="password" id="pwInput" placeholder="密碼" autofocus>
+    <button onclick="doAuth()">進入</button>
+    <div class="auth-error" id="authError">密碼錯誤</div>
+  </div>
+</div>
+
+<!-- 主畫面 -->
+<div id="mainScreen" class="container">
+  <div class="tab-bar" id="tabBar"></div>
+  <div id="portfolioContent"></div>
+</div>
+
+<!-- 編輯組合 modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <h3 id="modalTitle">編輯組合</h3>
+    <div class="modal-field"><label>組合名稱</label><input type="text" id="mName"></div>
+    <div class="modal-field"><label>分紅條件</label><input type="text" id="mDivCond" placeholder="例：保利2%，超過後70/30分"></div>
+    <div class="modal-field"><label>分紅比例</label><input type="number" id="mDivRatio" step="0.01" placeholder="例：0.3"></div>
+    <div class="modal-field"><label>投入本金</label><input type="number" id="mCapital" step="1"></div>
+    <div class="modal-field"><label>現金餘額</label><input type="number" id="mCash" step="1"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-primary" onclick="saveModal()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let TOKEN = sessionStorage.getItem('portfolio_token') || '';
+let portfolios = [];
+let activeTab = 0;
+let editingPid = null;
+
+function headers() {
+  return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+}
+
+function fmt(n) {
+  if (n == null) return '—';
+  return Math.round(n).toLocaleString('zh-TW');
+}
+function fmtPrice(n) {
+  if (n == null) return '—';
+  return n.toLocaleString('zh-TW', {minimumFractionDigits: 1, maximumFractionDigits: 2});
+}
+function fmtPct(n) {
+  if (n == null) return '—';
+  return n.toFixed(2) + '%';
+}
+
+// ── 認證 ──
+async function doAuth() {
+  const pw = document.getElementById('pwInput').value;
+  const err = document.getElementById('authError');
+  err.style.display = 'none';
+  try {
+    const r = await fetch(API + '/api/portfolio/auth', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error === 'wrong password' ? '密碼錯誤' : d.error; err.style.display = 'block'; return; }
+    TOKEN = d.token;
+    sessionStorage.setItem('portfolio_token', TOKEN);
+    showMain();
+  } catch(e) { err.textContent = '連線失敗'; err.style.display = 'block'; }
+}
+
+document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+
+async function checkAuth() {
+  if (!TOKEN) return false;
+  try {
+    const r = await fetch(API + '/api/portfolio/list', { headers: headers() });
+    if (r.ok) { portfolios = await r.json(); return true; }
+  } catch(e) {}
+  return false;
+}
+
+async function showMain() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'block';
+  await loadData();
+}
+
+async function loadData() {
+  try {
+    const r = await fetch(API + '/api/portfolio/list', { headers: headers() });
+    if (!r.ok) { sessionStorage.removeItem('portfolio_token'); location.reload(); return; }
+    portfolios = await r.json();
+  } catch(e) { return; }
+  renderTabs();
+  renderPortfolio();
+}
+
+// ── Tab 列 ──
+function renderTabs() {
+  const bar = document.getElementById('tabBar');
+  let html = '';
+  portfolios.forEach((p, i) => {
+    html += `<button class="tab-btn ${i===activeTab?'active':''}" onclick="switchTab(${i})">${p.name}</button>`;
+  });
+  html += `<button class="tab-add" onclick="createPortfolio()">+ 新增組合</button>`;
+  bar.innerHTML = html;
+}
+
+function switchTab(i) {
+  activeTab = i;
+  renderTabs();
+  renderPortfolio();
+}
+
+// ── 組合內容 ──
+function renderPortfolio() {
+  const box = document.getElementById('portfolioContent');
+  if (portfolios.length === 0) {
+    box.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8">尚無投資組合，點擊上方「+ 新增組合」建立</div>';
+    return;
+  }
+  const p = portfolios[activeTab];
+  if (!p) { activeTab = 0; renderTabs(); renderPortfolio(); return; }
+
+  const pnlClass = p.pnl > 0 ? 'positive' : p.pnl < 0 ? 'negative' : '';
+
+  let html = `<div class="portfolio-card">`;
+  // header
+  html += `<div class="portfolio-header">`;
+  html += `<div class="ph-item"><span class="ph-label">組合：</span><span class="ph-value">${p.name}</span></div>`;
+  if (p.dividend_condition) html += `<div class="ph-item"><span class="ph-label">分紅條件：</span><span class="ph-value">${p.dividend_condition}</span></div>`;
+  if (p.dividend_ratio) html += `<div class="ph-item"><span class="ph-label">比例：</span><span class="ph-value">${p.dividend_ratio}</span></div>`;
+  html += `<div class="ph-item"><span class="ph-label">投入本金：</span><span class="ph-value">${fmt(p.invested_capital)}</span></div>`;
+  html += `<div class="ph-actions">`;
+  html += `<button onclick="editPortfolio(${p.id})">編輯</button>`;
+  html += `<button class="danger" onclick="deletePortfolio(${p.id})">刪除</button>`;
+  html += `</div></div>`;
+
+  // table
+  html += `<table class="holdings-table"><thead><tr>
+    <th>股票代碼</th><th>股票名稱</th><th>股價</th><th>張數</th>
+    <th>市值</th><th>持股比重</th><th></th>
+  </tr></thead><tbody>`;
+
+  p.holdings.forEach(h => {
+    html += `<tr>
+      <td class="code-col">${h.code}</td>
+      <td class="name-col">${h.name}</td>
+      <td class="num-col">${fmtPrice(h.price)}</td>
+      <td><input type="number" value="${h.lots}" min="0" step="1"
+           onchange="updateLots(${p.id},'${h.code}',this.value)"></td>
+      <td class="num-col fmt-num">${fmt(h.market_value)}</td>
+      <td class="num-col">${fmtPct(h.weight)}</td>
+      <td><button class="del-btn" onclick="deleteHolding(${p.id},'${h.code}')" title="刪除">&#x2715;</button></td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+
+  // add row
+  html += `<div class="add-row">
+    <input type="text" id="addCode_${p.id}" placeholder="股票代碼">
+    <button onclick="addHolding(${p.id})">新增持股</button>
+  </div>`;
+
+  // summary
+  html += `<div class="summary-bar">
+    <div class="summary-item"><div class="summary-label">總市值</div><div class="summary-value">${fmt(p.total_market_value)}</div></div>
+    <div class="summary-item"><div class="summary-label">現金餘額</div><div class="summary-value">${fmt(p.cash_balance)}</div></div>
+    <div class="summary-item"><div class="summary-label">總值</div><div class="summary-value">${fmt(p.total_value)}</div></div>
+    <div class="summary-item"><div class="summary-label">損益</div><div class="summary-value ${pnlClass}">${fmt(p.pnl)}</div></div>
+    <div class="summary-item"><div class="summary-label">損益率</div><div class="summary-value ${pnlClass}">${fmtPct(p.pnl_pct)}</div></div>
+  </div>`;
+
+  html += `</div>`;
+  box.innerHTML = html;
+}
+
+// ── CRUD ──
+async function createPortfolio() {
+  const name = prompt('組合名稱：');
+  if (!name) return;
+  await fetch(API + '/api/portfolio/create', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({name})
+  });
+  activeTab = portfolios.length; // 切到新建的
+  await loadData();
+}
+
+function editPortfolio(pid) {
+  const p = portfolios.find(x => x.id === pid);
+  if (!p) return;
+  editingPid = pid;
+  document.getElementById('modalTitle').textContent = '編輯組合 — ' + p.name;
+  document.getElementById('mName').value = p.name;
+  document.getElementById('mDivCond').value = p.dividend_condition || '';
+  document.getElementById('mDivRatio').value = p.dividend_ratio || '';
+  document.getElementById('mCapital').value = p.invested_capital || 0;
+  document.getElementById('mCash').value = p.cash_balance || 0;
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingPid = null;
+}
+
+async function saveModal() {
+  if (!editingPid) return;
+  const data = {
+    name: document.getElementById('mName').value,
+    dividend_condition: document.getElementById('mDivCond').value,
+    dividend_ratio: parseFloat(document.getElementById('mDivRatio').value) || 0,
+    invested_capital: parseFloat(document.getElementById('mCapital').value) || 0,
+    cash_balance: parseFloat(document.getElementById('mCash').value) || 0,
+  };
+  await fetch(API + `/api/portfolio/${editingPid}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify(data)
+  });
+  closeModal();
+  await loadData();
+}
+
+async function deletePortfolio(pid) {
+  const p = portfolios.find(x => x.id === pid);
+  if (!confirm(`確定刪除「${p.name}」？所有持股資料都會一併刪除。`)) return;
+  await fetch(API + `/api/portfolio/${pid}`, { method: 'DELETE', headers: headers() });
+  activeTab = 0;
+  await loadData();
+}
+
+async function addHolding(pid) {
+  const input = document.getElementById('addCode_' + pid);
+  const code = input.value.trim();
+  if (!code) return;
+  await fetch(API + `/api/portfolio/${pid}/holdings`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({code, lots: 0})
+  });
+  input.value = '';
+  await loadData();
+}
+
+async function updateLots(pid, code, val) {
+  const lots = parseFloat(val) || 0;
+  await fetch(API + `/api/portfolio/${pid}/holdings/${code}`, {
+    method: 'PUT', headers: headers(),
+    body: JSON.stringify({lots})
+  });
+  await loadData();
+}
+
+async function deleteHolding(pid, code) {
+  await fetch(API + `/api/portfolio/${pid}/holdings/${code}`, {
+    method: 'DELETE', headers: headers()
+  });
+  await loadData();
+}
+
+// ── 初始化 ──
+(async () => {
+  if (await checkAuth()) { showMain(); }
+})();
+</script>
+</body>
+</html>
