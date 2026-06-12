@@ -5676,6 +5676,18 @@ def _init_portfolio_db():
     try: conn.commit()
     except Exception: pass
     conn.close()
+    # portfolio_holdings 補 account 欄位（早期建表可能沒有）
+    for col_sql in [
+        "ALTER TABLE portfolio_holdings ADD COLUMN account TEXT NOT NULL DEFAULT ''",
+    ]:
+        try:
+            cn = sqlite3.connect(DB_PATH)
+            cn.cursor().execute(col_sql)
+            cn.commit()
+            cn.close()
+        except Exception:
+            try: cn.close()
+            except: pass
 
 _init_portfolio_db()
 
