@@ -534,7 +534,7 @@ Render 上群益被擋、公開資訊觀測站也不穩，所以**所有資料�
 33. `_push_table_to_render()`：通用函式，可同步任意資料表到 Render
 34. `_push_all_to_render()` 裡用 `SYNC_TABLES` 設定清單，新增資料表只要加一筆設定
 35. Render 端 `/api/sync/table` 萬用接收 API（白名單控管），支援自動建表 + UPSERT
-36. 目前同步的表：stocks/quarterly_financial/financial_annual/pe_history/monthly_revenue/stock_state/material_news/etf_holdings/etf_changes/user_lists
+36. 目前同步的表：stocks/quarterly_financial/financial_annual/pe_history/monthly_revenue/stock_state/material_news/etf_holdings/etf_changes/user_lists/user_notes/daily_notes/industry_news/user_settings/user_estimates/stock_checklist/daily_price/focus_tracking/focus_signals/portfolios/portfolio_holdings
 
 ---
 
