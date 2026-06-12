@@ -5646,15 +5646,24 @@ def _init_portfolio_db():
         invested_capital REAL DEFAULT 0,
         cash_balance REAL DEFAULT 0,
         sort_order INTEGER DEFAULT 0,
+        accounts TEXT DEFAULT '[]',
         created_at TEXT,
         updated_at TEXT
     )""")
-    try: c.execute("ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0")
-    except Exception: pass
-    try: c.execute("ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'")
-    except Exception: pass
-    try: c.execute("ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'")
-    except Exception: pass
+    # PostgreSQL: ALTER TABLE 失敗會 abort transaction，每次都要重新連線
+    for col_sql in [
+        "ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0",
+        "ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'",
+        "ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'",
+    ]:
+        try:
+            cn = sqlite3.connect(DB_PATH)
+            cn.cursor().execute(col_sql)
+            cn.commit()
+            cn.close()
+        except Exception:
+            try: cn.close()
+            except: pass
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
         stock_code TEXT NOT NULL,
@@ -5765,6 +5774,7 @@ def _push_holdings():
 @app.route("/api/portfolio/list")
 @require_portfolio_auth
 def portfolio_list():
+  try:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate, portfolio_type, accounts FROM portfolios ORDER BY portfolio_type, sort_order, id")
@@ -5817,6 +5827,8 @@ def portfolio_list():
         })
     conn.close()
     return jsonify(portfolios)
+  except Exception as e:
+    return jsonify({"error": str(e)}), 500
 
 @app.route("/api/portfolio/create", methods=["POST"])
 @require_portfolio_auth
