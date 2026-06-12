@@ -641,19 +641,12 @@ async function deleteHolding(pid, code) {
 // 用 document 層級 capture 確保不被擴充功能攔截
 document.addEventListener('click', function(e) {
   if (e.target && (e.target.id === 'authBtn' || e.target.closest('#authBtn'))) {
-    console.log('[DEBUG] 按鈕被點擊(capture)');
     doAuth();
-  }
-}, true);
-document.addEventListener('mousedown', function(e) {
-  if (e.target && (e.target.id === 'authBtn' || e.target.closest('#authBtn'))) {
-    console.log('[DEBUG] mousedown on button');
   }
 }, true);
 document.getElementById('pwInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') doAuth();
 });
-console.log('[DEBUG] 事件綁定完成 v2');
 
 (async () => {
   if (await checkAuth()) { showMain(); }
