@@ -52,6 +52,7 @@ from render_sync import (
     _push_annual_to_render, _push_prices_to_render,
     _push_institutional_to_render, _push_estimates_to_render
 )
+from industry_news_fetcher import fetch_industry_news, cleanup_old_industry_news
 from estimation import (
     estimate_system_eps, estimate_system_eps_multi, estimate_annual_eps,
     _batch_system_estimate, _batch_annual_estimate, _backfill_actual_eps,
@@ -2909,7 +2910,6 @@ def _quick_update_inner(t0, today_str):
     except Exception as e: logger.warning(f"[新聞歸檔] 失敗: {e}")
     # 產業新聞（經濟日報 + 工商時報）— 獨立模組，不依賴 Flask
     try:
-        from industry_news_fetcher import fetch_industry_news, cleanup_old_industry_news
         fetch_industry_news()
         cleanup_old_industry_news()
     except Exception as e: print(f"[產業新聞] 失敗: {e}")
