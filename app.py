@@ -2611,6 +2611,38 @@ def sync_news():
     conn.close()
     return jsonify({"status": "ok", "inserted": inserted})
 
+@app.route("/api/sync/industry-news", methods=["POST"])
+def sync_industry_news():
+    """接收本機 push 過來的產業新聞（與 /api/sync/news 同樣模式）"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    data = request.json
+    if not data or 'rows' not in data:
+        return jsonify({"error": "missing rows"}), 400
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS industry_news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT, title TEXT, link TEXT, pub_time TEXT,
+        summary TEXT, created_at TEXT, archived_code TEXT, archived_at TEXT
+    )""")
+    inserted = 0
+    for r in data['rows']:
+        try:
+            c.execute("SELECT id FROM industry_news WHERE title=? AND source=?",
+                      (r.get('title'), r.get('source')))
+            if not c.fetchone():
+                c.execute("""INSERT INTO industry_news
+                             (source, title, link, pub_time, summary, created_at)
+                             VALUES (?,?,?,?,?,?)""",
+                          (r.get('source'), r.get('title'), r.get('link'),
+                           r.get('pub_time'), r.get('summary'), r.get('created_at')))
+            inserted += c.rowcount
+        except Exception: pass
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "inserted": inserted})
+
 # ── 更新三大法人 ────────────────────────────────────────────
 @app.route("/api/refresh/institutional", methods=["POST"])
 def refresh_institutional():

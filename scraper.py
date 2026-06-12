@@ -47,7 +47,7 @@ from guardian import (backup_raw_response, cleanup_old_backups,
                       focus_signal_check)
 from render_sync import (
     _push_table_to_render, _push_all_to_render, _push_news_to_render,
-    _push_pe_history_to_render,
+    _push_industry_news_to_render, _push_pe_history_to_render,
     _push_financial_annual_to_render, _push_quarterly_to_render,
     _push_annual_to_render, _push_prices_to_render,
     _push_institutional_to_render, _push_estimates_to_render
@@ -2913,13 +2913,11 @@ def _quick_update_inner(t0, today_str):
         fetch_industry_news()
         cleanup_old_industry_news()
     except Exception as e: print(f"[產業新聞] 失敗: {e}")
-    # 本機自動 push 新聞到 Render
+    # 本機自動 push 新聞到 Render（material_news + industry_news 用同樣方式）
     if not IS_CLOUD:
         try: _push_news_to_render()
         except Exception as e: print(f"[新聞push] 失敗: {e}")
-        try:
-            from render_sync import _push_single_table
-            _push_single_table('industry_news')
+        try: _push_industry_news_to_render()
         except Exception as e: print(f"[產業新聞push] 失敗: {e}")
     # ── 5. MOPS 最新季 EPS（比政府 API 快）──
     try: fetch_mops_quarterly_eps()

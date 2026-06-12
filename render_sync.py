@@ -637,6 +637,25 @@ def _push_news_to_render():
         print(f"[新聞同步] 失敗: {e}")
 
 
+def _push_industry_news_to_render():
+    """把本機今天的產業新聞 push 到 Render（與 _push_news_to_render 同樣模式）"""
+    if _is_cloud():
+        return
+    try:
+        with sqlite3.get_conn(row_factory=True) as conn:
+            rows = conn.execute("""SELECT source, title, link, pub_time, summary, created_at
+                                   FROM industry_news WHERE created_at > datetime('now', '-1 day')""").fetchall()
+        if not rows:
+            return
+        data = [dict(r) for r in rows]
+        for i in range(0, len(data), 200):
+            batch = data[i:i+200]
+            _post_with_retry(f'{RENDER_URL}/api/sync/industry-news', {'rows': batch}, timeout=30, label='產業新聞同步')
+        print(f"[產業新聞同步] 已 push {len(data)} 筆到 Render")
+    except Exception as e:
+        print(f"[產業新聞同步] 失敗: {e}")
+
+
 def _push_pe_history_to_render():
     """本機歷史本益比 push 到 Render"""
     if _is_cloud():
