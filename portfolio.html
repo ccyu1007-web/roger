@@ -229,10 +229,9 @@
   <div class="auth-box">
     <h2>持股專區</h2>
     <p style="color:#64748b;margin-bottom:20px;font-size:.9rem">請輸入密碼</p>
-    <form id="authForm" onsubmit="event.preventDefault(); doAuth();">
-      <input type="password" id="pwInput" placeholder="密碼" autocomplete="current-password" autofocus>
-      <button type="submit">進入</button>
-    </form>
+    <input type="password" id="pwInput" placeholder="密碼" autocomplete="off"
+           onkeydown="if(event.key==='Enter')document.getElementById('authBtn').click()">
+    <button type="button" id="authBtn" onclick="doAuth()">進入</button>
     <div class="auth-error" id="authError">密碼錯誤</div>
   </div>
 </div>
@@ -296,6 +295,7 @@ function fmtPct(n) {
 // ── 認證 ──
 async function doAuth() {
   const pw = document.getElementById('pwInput').value;
+  if (!pw) { alert('請輸入密碼'); return; }
   const err = document.getElementById('authError');
   err.style.display = 'none';
   try {
