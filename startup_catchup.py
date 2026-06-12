@@ -158,6 +158,26 @@ def ensure_webapp():
         log(f"檢查 webapp 失敗: {e}")
 
 
+def reload_all_schedules():
+    """重載所有排程（bootout+bootstrap 清除 throttle），確保重啟後排程恢復"""
+    uid = os.getuid()
+    schedules = ['com.stock.quick', 'com.stock.scraper', 'com.stock.maintenance',
+                 'com.stock.institutional', 'com.stock.backfill', 'com.stock.dbguard']
+    for name in schedules:
+        plist = os.path.expanduser(f'~/Library/LaunchAgents/{name}.plist')
+        if not os.path.exists(plist):
+            continue
+        try:
+            subprocess.run(['launchctl', 'bootout', f'gui/{uid}/{name}'],
+                          capture_output=True, timeout=10)
+            time.sleep(0.5)
+            subprocess.run(['launchctl', 'bootstrap', f'gui/{uid}', plist],
+                          capture_output=True, timeout=10)
+        except Exception as e:
+            log(f"重載 {name} 失敗: {e}")
+    log(f"已重載 {len(schedules)} 個排程")
+
+
 def needs_catchup():
     """檢查今天是否需要補跑"""
     today = date.today()
@@ -237,6 +257,9 @@ def main():
 
     # 3. 確認 webapp
     ensure_webapp()
+
+    # 3.5 重載所有排程（清除 throttle，確保重啟後恢復）
+    reload_all_schedules()
 
     # 4. 檢查是否需要補跑
     if needs_catchup():
