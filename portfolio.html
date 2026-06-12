@@ -229,8 +229,10 @@
   <div class="auth-box">
     <h2>持股專區</h2>
     <p style="color:#64748b;margin-bottom:20px;font-size:.9rem">請輸入密碼</p>
-    <input type="password" id="pwInput" placeholder="密碼" autofocus>
-    <button onclick="doAuth()">進入</button>
+    <form id="authForm" onsubmit="event.preventDefault(); doAuth();">
+      <input type="password" id="pwInput" placeholder="密碼" autocomplete="current-password" autofocus>
+      <button type="submit">進入</button>
+    </form>
     <div class="auth-error" id="authError">密碼錯誤</div>
   </div>
 </div>
@@ -306,10 +308,8 @@ async function doAuth() {
     TOKEN = d.token;
     sessionStorage.setItem('portfolio_token', TOKEN);
     showMain();
-  } catch(e) { err.textContent = '連線失敗'; err.style.display = 'block'; }
+  } catch(e) { err.textContent = '連線失敗：' + e.message; err.style.display = 'block'; }
 }
-
-document.getElementById('pwInput').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
 
 async function checkAuth() {
   if (!TOKEN) return false;
