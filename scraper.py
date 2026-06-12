@@ -2958,10 +2958,10 @@ def _quick_update_inner(t0, today_str):
     if not IS_CLOUD:
         try:
             _today_start = date.today().strftime('%Y-%m-%d') + ' 00:00:00'
-            # push stocks 表（含營收/EPS/等級等核心欄位）
-            _push_prices_to_render()
-            _push_annual_to_render()
-            _push_estimates_to_render()
+            # push stocks 表（增量：只推今天更新的）
+            _push_prices_to_render(since=_today_start)
+            _push_annual_to_render(since=_today_start)
+            _push_estimates_to_render(since=_today_start)
             # push monthly_revenue（增量：只推今天更新的）
             _push_table_to_render(
                 table='monthly_revenue',

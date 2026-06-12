@@ -773,13 +773,14 @@ def _push_quarterly_to_render():
         print(f"[季報同步] 失敗: {e}")
 
 
-def _push_annual_to_render():
-    """本機年度 EPS + 股利 + 財務等級 push 到 Render"""
+def _push_annual_to_render(since=None):
+    """本機年度 EPS + 股利 + 財務等級 push 到 Render。since: 增量同步時間門檻"""
     if _is_cloud():
         return
     try:
+        _where = f" AND updated_at >= '{since}'" if since else ""
         with sqlite3.get_conn() as conn:
-            rows = conn.execute("""SELECT code, eps_date,
+            rows = conn.execute(f"""SELECT code, eps_date,
                 eps_1, eps_1q, eps_2, eps_2q, eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
                 eps_y1, eps_y1_label, eps_y2, eps_y2_label, eps_y3, eps_y3_label,
                 eps_y4, eps_y4_label, eps_y5, eps_y5_label, eps_y6, eps_y6_label,
@@ -802,7 +803,7 @@ def _push_annual_to_render():
                 est_eps, est_div, est_pe, est_yld, est_grade,
                 sys_pe, sys_yld, sys_grade,
                 gb_roic, gb_ey, gb_roic_rank, gb_ey_rank, gb_total_rank
-                FROM stocks WHERE close IS NOT NULL""").fetchall()
+                FROM stocks WHERE close IS NOT NULL{_where}""").fetchall()
 
         cols = ['code', 'eps_date',
             'eps_1','eps_1q','eps_2','eps_2q','eps_3','eps_3q','eps_4','eps_4q','eps_5','eps_5q',
@@ -844,16 +845,17 @@ def _push_annual_to_render():
         print(f"[年度同步] 失敗: {e}")
 
 
-def _push_prices_to_render():
-    """本機股價+營收欄位 push 到 Render"""
+def _push_prices_to_render(since=None):
+    """本機股價+營收欄位 push 到 Render。since: 增量同步時間門檻"""
     if _is_cloud():
         return
     try:
+        _where = f" AND updated_at >= '{since}'" if since else ""
         with sqlite3.get_conn() as conn:
-            rows = conn.execute("""SELECT code, close, change, open, high, low, volume,
+            rows = conn.execute(f"""SELECT code, close, change, open, high, low, volume,
                                   revenue_date, revenue_year, revenue_month,
                                   revenue_yoy, revenue_mom, revenue_cum_yoy
-                                  FROM stocks WHERE close IS NOT NULL""").fetchall()
+                                  FROM stocks WHERE close IS NOT NULL{_where}""").fetchall()
         cols = ['code', 'close', 'change', 'open', 'high', 'low', 'volume',
                 'revenue_date', 'revenue_year', 'revenue_month',
                 'revenue_yoy', 'revenue_mom', 'revenue_cum_yoy']
@@ -897,16 +899,17 @@ def _push_institutional_to_render():
         print(f"[法人同步] 失敗: {e}")
 
 
-def _push_estimates_to_render():
-    """將本機估算結果 push 到 Render"""
+def _push_estimates_to_render(since=None):
+    """將本機估算結果 push 到 Render。since: 增量同步時間門檻"""
     if _is_cloud():
         return
     try:
+        _where = f" AND updated_at >= '{since}'" if since else ""
         with sqlite3.get_conn(row_factory=True) as conn:
-            rows = conn.execute("""SELECT code, sys_ann_eps, sys_ann_div, sys_ann_pe,
+            rows = conn.execute(f"""SELECT code, sys_ann_eps, sys_ann_div, sys_ann_pe,
                                    sys_ann_yld, sys_ann_confidence,
                                    sys_est_eps, sys_est_quarter, sys_est_confidence
-                                   FROM stocks WHERE sys_ann_eps IS NOT NULL""").fetchall()
+                                   FROM stocks WHERE sys_ann_eps IS NOT NULL{_where}""").fetchall()
         data = [dict(r) for r in rows]
         if not data:
             return
