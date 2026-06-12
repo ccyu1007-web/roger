@@ -2705,6 +2705,26 @@ def sync_quarterly():
     return jsonify({"status": "ok", "updated": updated})
 
 
+@app.route("/api/sync/rebuild-table", methods=["POST"])
+def sync_rebuild_table():
+    """重建表結構（修復主鍵等問題）"""
+    if not check_sync_token():
+        return jsonify({"status": "error", "msg": "unauthorized"}), 403
+    table = request.json.get('table', '')
+    create_sql = request.json.get('create_sql', '')
+    if not table or not create_sql:
+        return jsonify({"status": "error", "msg": "table and create_sql required"}), 400
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute(f"DROP TABLE IF EXISTS {table}")
+        c.execute(create_sql)
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok", "msg": f"{table} rebuilt"})
+    except Exception as e:
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
 @app.route("/api/sync/table", methods=["POST"])
 def sync_table():
     """
