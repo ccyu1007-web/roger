@@ -5702,21 +5702,27 @@ def _init_portfolio_db():
         created_at TEXT,
         updated_at TEXT
     )""")
-    # PostgreSQL: ALTER TABLE 失敗會 abort transaction，每次都要重新連線
+    # PostgreSQL: ALTER TABLE 失敗會 abort transaction，每次都要重新連線並 rollback
     for col_sql in [
         "ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0",
         "ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'",
         "ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'",
         "ALTER TABLE portfolios ADD COLUMN notes TEXT DEFAULT ''",
     ]:
+        cn = None
         try:
             cn = sqlite3.connect(DB_PATH)
             cn.cursor().execute(col_sql)
             cn.commit()
-            cn.close()
         except Exception:
-            try: cn.close()
-            except: pass
+            # PostgreSQL 需要 rollback 才能釋放連線
+            if cn and hasattr(cn, '_conn'):
+                try: cn._conn.rollback()
+                except Exception: pass
+        finally:
+            if cn:
+                try: cn.close()
+                except: pass
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
         stock_code TEXT NOT NULL,
@@ -5840,13 +5846,13 @@ def portfolio_set_password():
 
 def _push_portfolios():
     _bg_push_table('portfolios',
-        ['id','name','portfolio_type','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order','created_at','updated_at'],
+        ['id','name','portfolio_type','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order','accounts','notes','created_at','updated_at'],
         ['id'],
         """CREATE TABLE IF NOT EXISTS portfolios (
             id SERIAL PRIMARY KEY, name TEXT NOT NULL, portfolio_type TEXT DEFAULT 'personal',
             dividend_condition TEXT, dividend_ratio REAL, interest_rate REAL DEFAULT 0,
             invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0,
-            sort_order INTEGER DEFAULT 0, notes TEXT DEFAULT '', created_at TEXT, updated_at TEXT)""")
+            sort_order INTEGER DEFAULT 0, accounts TEXT DEFAULT '[]', notes TEXT DEFAULT '', created_at TEXT, updated_at TEXT)""")
 
 def _push_holdings():
     _bg_push_table('portfolio_holdings',
