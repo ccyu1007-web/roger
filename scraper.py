@@ -3787,7 +3787,8 @@ def refresh_prices():
             elapsed = time.time() - t0
             print(f"[股價更新-即時修正] {rt_count} 支，耗時 {elapsed:.1f} 秒")
             return rt_count
-        print("[股價更新] 即時 API 也無回傳，使用批次 API 資料（可能非當日）")
+        print("[股價更新] 即時 API 也無回傳，不寫入舊日期的批次資料")
+        return 0
 
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
@@ -3832,7 +3833,7 @@ def _refresh_realtime():
         def _fetch_batch(ex_codes):
             try:
                 url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ex_codes)}"
-                r = _session.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+                r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
                 return r.json().get("msgArray", [])
             except Exception as e:
                 logger.warning(f"[即時股價] 批次請求失敗: {e}")
@@ -4280,9 +4281,10 @@ def _run_prices_inner(scheduled=True):
     all_rows = twse_rows + tpex_rows
     print(f"[1.股價] {len(all_rows)} 支，{time.time()-t1:.1f}s")
 
-    # 2. 直接寫入股價（不走 save_to_db，避免 audit lock）
+    # 2. 寫入股價（批次日期不對時只新增新股，不覆蓋股價）
     t1 = time.time()
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    batch_date_ok = not (_twse_batch_date and _twse_batch_date != _today_roc() and datetime.now().weekday() < 5)
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
         new_count = 0
@@ -4296,25 +4298,31 @@ def _run_prices_inner(scheduled=True):
                 c.execute("INSERT INTO stocks (code, name, market) VALUES (?,?,?)",
                           (code, r.get('name'), r.get('market')))
                 new_count += 1
-            # UPDATE 股價欄位
-            c.execute("""UPDATE stocks SET
-                close=?, change=?, volume=?, open=?, high=?, low=?,
-                updated_at=?
-                WHERE code=?""",
-                (r.get('close'), r.get('change'), r.get('volume'),
-                 r.get('open'), r.get('high'), r.get('low'),
-                 now_str, code))
+            # UPDATE 股價欄位（批次日期正確才寫入）
+            if batch_date_ok:
+                c.execute("""UPDATE stocks SET
+                    close=?, change=?, volume=?, open=?, high=?, low=?,
+                    updated_at=?
+                    WHERE code=?""",
+                    (r.get('close'), r.get('change'), r.get('volume'),
+                     r.get('open'), r.get('high'), r.get('low'),
+                     now_str, code))
         conn.commit()
-    if new_count:
+    if not batch_date_ok:
+        print(f"[2.批次日期] {_twse_batch_date} ≠ 今天，跳過批次股價寫入（新股 {new_count} 支）")
+    elif new_count:
         print(f"[2.寫入DB] {len(all_rows)} 筆（{new_count} 支新股），{time.time()-t1:.1f}s")
     else:
         print(f"[2.寫入DB] {len(all_rows)} 筆，{time.time()-t1:.1f}s")
 
     # 3. 股價修正：批次 API 日期不對 → 即時 API 覆蓋
-    if _twse_batch_date and _twse_batch_date != _today_roc() and datetime.now().weekday() < 5:
+    if not batch_date_ok:
         t1 = time.time()
         rt_count = _refresh_realtime()
-        print(f"[3.股價修正] 即時API {rt_count} 支，{time.time()-t1:.1f}s")
+        if rt_count > 0:
+            print(f"[3.股價修正] 即時API {rt_count} 支，{time.time()-t1:.1f}s")
+        else:
+            print(f"[3.股價修正] 即時API也失敗，本次不更新股價")
 
     # 4. 每日價量 + 評價快照（等級重算由 quick_update / run_maintenance 負責）
     t1 = time.time()

@@ -179,8 +179,9 @@ def reload_all_schedules():
 
 
 def needs_catchup():
-    """檢查今天是否需要補跑"""
+    """檢查今天是否需要補跑（以股價 updated_at 為準，避免被 quick_update 的快照騙過）"""
     today = date.today()
+    now = datetime.now()
     # 週六日不需要（台股休市）
     if today.weekday() >= 5:
         log(f"今天是{'週六' if today.weekday() == 5 else '週日'}，不需要補跑")
@@ -189,18 +190,35 @@ def needs_catchup():
     today_str = today.strftime('%Y-%m-%d')
     try:
         conn = sqlite3.connect(DB_PATH)
+        # 檢查股價是否已更新（updated_at 只被股價更新函式設定）
         row = conn.execute(
-            "SELECT COUNT(*) FROM stock_state WHERE date = ?",
-            (today_str,)
+            "SELECT MAX(updated_at) FROM stocks WHERE close IS NOT NULL"
         ).fetchone()
         conn.close()
-        count = row[0] if row else 0
-        if count > 0:
-            log(f"今天({today_str})已有 {count} 筆快照，不需要補跑")
-            return False
-        else:
-            log(f"今天({today_str})沒有快照資料，需要補跑")
+
+        if row and row[0]:
+            last_update = datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
+            if last_update.date() == today and last_update.hour >= 14:
+                log(f"股價已在 {row[0]} 更新，不需要補跑")
+                return False
+
+        # 盤前（14:00 前）：股價尚未收盤，不需要補跑 run_prices
+        if now.hour < 13 or (now.hour == 13 and now.minute <= 35):
+            # 但如果連快照都沒有，跑 quick_update
+            conn2 = sqlite3.connect(DB_PATH)
+            snap = conn2.execute(
+                "SELECT COUNT(*) FROM stock_state WHERE date = ?", (today_str,)
+            ).fetchone()
+            conn2.close()
+            if snap and snap[0] > 0:
+                log(f"盤前，快照已存在 {snap[0]} 筆，不需要補跑")
+                return False
+            log(f"盤前，無快照，需要補跑 quick_update")
             return True
+
+        # 盤後但股價尚未更新
+        log(f"盤後但股價尚未更新（最後更新: {row[0] if row and row[0] else '無'}），需要補跑")
+        return True
     except Exception as e:
         log(f"檢查 DB 失敗: {e}，預設需要補跑")
         return True
