@@ -180,7 +180,7 @@
 |------|------|------|
 | com.stock.scraper | 週一~五 14:30 | 股價更新 run_prices()（股價+等級+評價+push，2~3 分鐘） |
 | com.stock.maintenance | 每天 06:00 | 每日維護 run_maintenance()（補缺+股利+BWIBBU+ETF+驗證+全量push） |
-| com.stock.quick | 每 30 分鐘 | 快速更新 quick_update()（MOPS營收/季報+政府API+評價快照） |
+| com.stock.quick | 每 60 分鐘 | 快速更新 quick_update()（MOPS營收/季報+政府API+評價快照） |
 | com.stock.institutional | 週一~五 17:10 | 法人買賣超（群益 zcl） |
 | com.stock.backfill | 每天 04:00 | 補缺資料 |
 | com.stock.dbguard | 每天 03:00 | DB 備份到 iCloud |
@@ -196,7 +196,7 @@
 | 層級 | 函式 | 時間敏感度 | 頻率 | 預估耗時 |
 |------|------|-----------|------|---------|
 | 即時 | run_prices() | 分鐘級 | 14:30 收盤後 | 2~3 分鐘 |
-| 定期 | quick_update() | 小時級 | 每 30 分鐘 | 3~5 分鐘 |
+| 定期 | quick_update() | 小時級 | 每 60 分鐘 | 3~5 分鐘 |
 | 維護 | run_maintenance() | 天級 | 06:00 凌晨 | 慢慢跑，不趕時間 |
 
 **為什麼拆成三層？**
@@ -244,7 +244,7 @@
 - SQLite WAL 模式：讀寫不互擋，消除大部分 database is locked
 - SQLite busy_timeout=5000ms：遇鎖等 5 秒再失敗
 
-**關鍵**：MOPS 營收和季報是每 30 分鐘自動檢查，營收申報密集期（每月 1~10 日）會持續更新。即使其他排程在執行中，MOPS 資料仍會即時更新。
+**關鍵**：MOPS 營收和季報是每 60 分鐘自動檢查，營收申報密集期（每月 1~10 日）會持續更新。即使其他排程在執行中，MOPS 資料仍會即時更新。
 
 #### 本機→Render 自動同步（關鍵！）
 Render 上群益被擋、公開資訊觀測站也不穩，所以**所有資料由本機抓取後自動 push 到 Render**。
