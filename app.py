@@ -5686,6 +5686,7 @@ import hashlib, secrets, functools, time, json
 from datetime import datetime
 
 def _init_portfolio_db():
+    # 建表（用完立即 commit + close，避免 PostgreSQL 鎖衝突）
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS portfolios (
@@ -5699,30 +5700,10 @@ def _init_portfolio_db():
         cash_balance REAL DEFAULT 0,
         sort_order INTEGER DEFAULT 0,
         accounts TEXT DEFAULT '[]',
+        notes TEXT DEFAULT '',
         created_at TEXT,
         updated_at TEXT
     )""")
-    # PostgreSQL: ALTER TABLE 失敗會 abort transaction，每次都要重新連線並 rollback
-    for col_sql in [
-        "ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0",
-        "ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'",
-        "ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'",
-        "ALTER TABLE portfolios ADD COLUMN notes TEXT DEFAULT ''",
-    ]:
-        cn = None
-        try:
-            cn = sqlite3.connect(DB_PATH)
-            cn.cursor().execute(col_sql)
-            cn.commit()
-        except Exception:
-            # PostgreSQL 需要 rollback 才能釋放連線
-            if cn and hasattr(cn, '_conn'):
-                try: cn._conn.rollback()
-                except Exception: pass
-        finally:
-            if cn:
-                try: cn.close()
-                except: pass
     c.execute("""CREATE TABLE IF NOT EXISTS portfolio_holdings (
         portfolio_id INTEGER NOT NULL,
         stock_code TEXT NOT NULL,
@@ -5735,6 +5716,26 @@ def _init_portfolio_db():
     try: conn.commit()
     except Exception: pass
     conn.close()
+    # 補欄位（每個 ALTER TABLE 獨立連線，失敗就 rollback + close）
+    for col_sql in [
+        "ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0",
+        "ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'",
+        "ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'",
+        "ALTER TABLE portfolios ADD COLUMN notes TEXT DEFAULT ''",
+    ]:
+        cn = None
+        try:
+            cn = sqlite3.connect(DB_PATH)
+            cn.cursor().execute(col_sql)
+            cn.commit()
+        except Exception:
+            if cn and hasattr(cn, '_conn'):
+                try: cn._conn.rollback()
+                except Exception: pass
+        finally:
+            if cn:
+                try: cn.close()
+                except: pass
     # portfolio_holdings 補 account 欄位 + 修正主鍵（早期建表主鍵不含 account）
     try:
         cn = sqlite3.connect(DB_PATH)
