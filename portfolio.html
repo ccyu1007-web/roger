@@ -261,6 +261,7 @@
     <div class="modal-field"><label>分紅比例</label><input type="number" id="mDivRatio" step="0.01" placeholder="例：0.3"></div>
     <div class="modal-field"><label>投入本金</label><input type="number" id="mCapital" step="1"></div>
     <div class="modal-field"><label>現金餘額</label><input type="number" id="mCash" step="1"></div>
+    <div class="modal-field"><label>註記</label><textarea id="mNotes" rows="3" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:.9rem;resize:vertical" placeholder="帳戶備註..."></textarea></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">取消</button>
       <button class="btn-primary" onclick="saveModal()">儲存</button>
@@ -470,6 +471,7 @@ function renderOnePortfolio(p, type) {
   if (p.dividend_condition) html += `<div class="ph-item"><span class="ph-label">分紅條件：</span><span class="ph-value">${p.dividend_condition}</span></div>`;
   if (p.dividend_ratio) html += `<div class="ph-item"><span class="ph-label">比例：</span><span class="ph-value">${p.dividend_ratio}</span></div>`;
   html += `<div class="ph-item"><span class="ph-label">投入本金：</span><span class="ph-value">${fmt(p.invested_capital)}</span></div>`;
+  if (p.notes) html += `<div class="ph-item" style="flex-basis:100%"><span class="ph-label">註記：</span><span class="ph-value" style="color:#64748b">${p.notes}</span></div>`;
   html += `<div class="ph-actions">`;
   html += `<button onclick="editPortfolio(${p.id})">編輯</button>`;
   html += `<button class="danger" onclick="deletePortfolio(${p.id})">刪除</button>`;
@@ -555,6 +557,7 @@ function editPortfolio(pid) {
   document.getElementById('mDivRatio').value = p.dividend_ratio || '';
   document.getElementById('mCapital').value = p.invested_capital || 0;
   document.getElementById('mCash').value = p.cash_balance || 0;
+  document.getElementById('mNotes').value = p.notes || '';
   document.getElementById('editModal').classList.add('show');
 }
 
@@ -574,6 +577,7 @@ async function saveModal() {
     dividend_ratio: parseFloat(document.getElementById('mDivRatio').value) || 0,
     invested_capital: parseFloat(document.getElementById('mCapital').value) || 0,
     cash_balance: parseFloat(document.getElementById('mCash').value) || 0,
+    notes: document.getElementById('mNotes').value,
   };
   if (editingPid === 'new') {
     await fetch(API + '/api/portfolio/create', {

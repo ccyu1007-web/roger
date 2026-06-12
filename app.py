@@ -5707,6 +5707,7 @@ def _init_portfolio_db():
         "ALTER TABLE portfolios ADD COLUMN interest_rate REAL DEFAULT 0",
         "ALTER TABLE portfolios ADD COLUMN portfolio_type TEXT DEFAULT 'personal'",
         "ALTER TABLE portfolios ADD COLUMN accounts TEXT DEFAULT '[]'",
+        "ALTER TABLE portfolios ADD COLUMN notes TEXT DEFAULT ''",
     ]:
         try:
             cn = sqlite3.connect(DB_PATH)
@@ -5845,7 +5846,7 @@ def _push_portfolios():
             id SERIAL PRIMARY KEY, name TEXT NOT NULL, portfolio_type TEXT DEFAULT 'personal',
             dividend_condition TEXT, dividend_ratio REAL, interest_rate REAL DEFAULT 0,
             invested_capital REAL DEFAULT 0, cash_balance REAL DEFAULT 0,
-            sort_order INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT)""")
+            sort_order INTEGER DEFAULT 0, notes TEXT DEFAULT '', created_at TEXT, updated_at TEXT)""")
 
 def _push_holdings():
     _bg_push_table('portfolio_holdings',
@@ -5923,11 +5924,11 @@ def portfolio_create():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     accts = json.dumps(data.get('accounts', []), ensure_ascii=False)
-    c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, sort_order, created_at, updated_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+    c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, notes, sort_order, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
               (data.get('name','新組合'), data.get('portfolio_type','personal'),
                data.get('dividend_condition',''), data.get('dividend_ratio',0), data.get('interest_rate',0),
-               data.get('invested_capital',0), data.get('cash_balance',0), accts, data.get('sort_order',0), now, now))
+               data.get('invested_capital',0), data.get('cash_balance',0), accts, data.get('notes',''), data.get('sort_order',0), now, now))
     new_id = c.lastrowid
     conn.commit()
     conn.close()
@@ -5941,7 +5942,7 @@ def portfolio_update(pid):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     fields = []
     vals = []
-    for k in ['name','portfolio_type','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','sort_order']:
+    for k in ['name','portfolio_type','dividend_condition','dividend_ratio','interest_rate','invested_capital','cash_balance','notes','sort_order']:
         if k in data:
             fields.append(f"{k}=?")
             vals.append(data[k])
