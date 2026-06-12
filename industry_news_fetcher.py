@@ -1,9 +1,6 @@
 """產業新聞爬蟲（經濟日報 RSS + 工商時報）— 獨立模組，不依賴 Flask"""
-import os
 import logging
 import db as sqlite3
-
-DB_PATH = os.environ.get('DATABASE_URL', 'stocks.db')
 logger = logging.getLogger(__name__)
 
 
@@ -77,17 +74,16 @@ def fetch_industry_news():
         return 0
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    inserted = 0
-    for source, title, link, pub_time, summary in items:
-        c.execute("SELECT id FROM industry_news WHERE title=? AND source=?", (title, source))
-        if not c.fetchone():
-            c.execute("INSERT INTO industry_news (source, title, link, pub_time, summary, created_at) VALUES (?,?,?,?,?,?)",
-                      (source, title, link, pub_time, summary, now))
-            inserted += 1
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        inserted = 0
+        for source, title, link, pub_time, summary in items:
+            c.execute("SELECT id FROM industry_news WHERE title=? AND source=?", (title, source))
+            if not c.fetchone():
+                c.execute("INSERT INTO industry_news (source, title, link, pub_time, summary, created_at) VALUES (?,?,?,?,?,?)",
+                          (source, title, link, pub_time, summary, now))
+                inserted += 1
+        conn.commit()
     print(f"[產業新聞] 抓取 {len(items)} 則，新增 {inserted} 則")
     return inserted
 
@@ -97,11 +93,10 @@ def cleanup_old_industry_news(days=7):
     from datetime import datetime, timedelta
     _init_industry_news_db()
     cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("DELETE FROM industry_news WHERE created_at < ? AND archived_code IS NULL", (cutoff,))
-    deleted = c.rowcount
-    conn.commit()
-    conn.close()
+    with sqlite3.get_conn() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM industry_news WHERE created_at < ? AND archived_code IS NULL", (cutoff,))
+        deleted = c.rowcount
+        conn.commit()
     if deleted:
         print(f"[產業新聞] 清理 {deleted} 則過期新聞")

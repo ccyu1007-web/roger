@@ -1553,53 +1553,53 @@ def fetch_moneydj_news():
                 if not title:
                     continue
 
-            # 取連結
-            href = a.get('href', '')
-            if href and not href.startswith('http'):
-                href = 'https://www.moneydj.com' + href
+                # 取連結
+                href = a.get('href', '')
+                if href and not href.startswith('http'):
+                    href = 'https://www.moneydj.com' + href
 
-            # 取日期（從同一行的 td）
-            tr = a.find_parent('tr')
-            tds = tr.find_all('td') if tr else []
-            news_date = tds[0].get_text(strip=True) if tds else ''
+                # 取日期（從同一行的 td）
+                tr = a.find_parent('tr')
+                tds = tr.find_all('td') if tr else []
+                news_date = tds[0].get_text(strip=True) if tds else ''
 
-            # 比對股票名稱（長名優先 + 短名邊界檢查）
-            matched_code = None
-            matched_name = None
-            for name in stock_names_sorted:
-                idx = title.find(name)
-                if idx < 0:
-                    continue
-                # 2 字短名才做邊界檢查（避免「精華」配到「精華生醫」）
-                if len(name) <= 2:
-                    after = idx + len(name)
-                    if after < len(title) and '\u4e00' <= title[after] <= '\u9fff':
+                # 比對股票名稱（長名優先 + 短名邊界檢查）
+                matched_code = None
+                matched_name = None
+                for name in stock_names_sorted:
+                    idx = title.find(name)
+                    if idx < 0:
                         continue
-                matched_code = stock_map[name]
-                matched_name = name
-                break
+                    # 2 字短名才做邊界檢查（避免「精華」配到「精華生醫」）
+                    if len(name) <= 2:
+                        after = idx + len(name)
+                        if after < len(title) and '\u4e00' <= title[after] <= '\u9fff':
+                            continue
+                    matched_code = stock_map[name]
+                    matched_name = name
+                    break
 
-            if not matched_code or matched_code not in tracked:
-                continue
+                if not matched_code or matched_code not in tracked:
+                    continue
 
-            # 分類（用跟重大訊息同一套規則）
-            tier, rule, direction = classify_news(title, '')
+                # 分類（用跟重大訊息同一套規則）
+                tier, rule, direction = classify_news(title, '')
 
-            # Tier 0 的新聞也存，因為 MoneyDJ 的新聞格式跟公開資訊不同
-            # 但把被 Tier 0 規則命中的降為 Tier 1（MoneyDJ 新聞本身有編輯價值）
-            if tier == 0:
-                tier = 1
-                rule = cat_name
+                # Tier 0 的新聞也存，因為 MoneyDJ 的新聞格式跟公開資訊不同
+                # 但把被 Tier 0 規則命中的降為 Tier 1（MoneyDJ 新聞本身有編輯價值）
+                if tier == 0:
+                    tier = 1
+                    rule = cat_name
 
-            # 存入
-            try:
-                c.execute("""INSERT INTO material_news
-                    (code, name, date, time, subject, description, tier, matched_rule, direction, link, created_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    (matched_code, matched_name, news_date, '', title, f'[MoneyDJ {cat_name}]',
-                     tier, rule, direction, href, now_str))
-                stats['new'] += 1
-            except Exception: pass  # UNIQUE 衝突
+                # 存入
+                try:
+                    c.execute("""INSERT INTO material_news
+                        (code, name, date, time, subject, description, tier, matched_rule, direction, link, created_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                        (matched_code, matched_name, news_date, '', title, f'[MoneyDJ {cat_name}]',
+                         tier, rule, direction, href, now_str))
+                    stats['new'] += 1
+                except Exception: pass  # UNIQUE 衝突
 
         conn.commit()
 
