@@ -229,9 +229,8 @@
   <div class="auth-box">
     <h2>持股專區</h2>
     <p style="color:#64748b;margin-bottom:20px;font-size:.9rem">請輸入密碼</p>
-    <input type="password" id="pwInput" placeholder="密碼" autocomplete="off"
-           onkeydown="if(event.key==='Enter')document.getElementById('authBtn').click()">
-    <button type="button" id="authBtn" onclick="doAuth()">進入</button>
+    <input type="password" id="pwInput" placeholder="密碼" autocomplete="off">
+    <button type="button" id="authBtn">進入</button>
     <div class="auth-error" id="authError">密碼錯誤</div>
   </div>
 </div>
@@ -639,6 +638,15 @@ async function deleteHolding(pid, code) {
 }
 
 // ── 初始化 ──
+document.getElementById('authBtn').addEventListener('click', function() {
+  console.log('[DEBUG] 按鈕被點擊');
+  doAuth();
+});
+document.getElementById('pwInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doAuth();
+});
+console.log('[DEBUG] 事件綁定完成');
+
 (async () => {
   if (await checkAuth()) { showMain(); }
 })();
