@@ -5676,13 +5676,34 @@ def _init_portfolio_db():
     try: conn.commit()
     except Exception: pass
     conn.close()
-    # portfolio_holdings 補 account 欄位（早期建表可能沒有）
-    for col_sql in [
-        "ALTER TABLE portfolio_holdings ADD COLUMN account TEXT NOT NULL DEFAULT ''",
-    ]:
+    # portfolio_holdings 補 account 欄位 + 修正主鍵（早期建表主鍵不含 account）
+    try:
+        cn = sqlite3.connect(DB_PATH)
+        cc = cn.cursor()
+        # 檢查 account 欄位是否存在
+        cc.execute("SELECT account FROM portfolio_holdings LIMIT 1")
+        cn.close()
+    except Exception:
+        try: cn.close()
+        except: pass
+        # account 不存在或主鍵不對 → 重建表
         try:
             cn = sqlite3.connect(DB_PATH)
-            cn.cursor().execute(col_sql)
+            cc = cn.cursor()
+            cc.execute("ALTER TABLE portfolio_holdings RENAME TO portfolio_holdings_old")
+            cc.execute("""CREATE TABLE portfolio_holdings (
+                portfolio_id INTEGER NOT NULL,
+                stock_code TEXT NOT NULL,
+                account TEXT NOT NULL DEFAULT '',
+                shares_lot REAL DEFAULT 0,
+                added_at TEXT,
+                updated_at TEXT,
+                PRIMARY KEY (portfolio_id, stock_code, account)
+            )""")
+            cc.execute("""INSERT INTO portfolio_holdings (portfolio_id, stock_code, account, shares_lot, added_at, updated_at)
+                          SELECT portfolio_id, stock_code, '', shares_lot, added_at, updated_at
+                          FROM portfolio_holdings_old""")
+            cc.execute("DROP TABLE portfolio_holdings_old")
             cn.commit()
             cn.close()
         except Exception:
