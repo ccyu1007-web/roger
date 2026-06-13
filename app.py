@@ -5886,10 +5886,10 @@ def portfolio_list():
   try:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate, portfolio_type, accounts FROM portfolios ORDER BY portfolio_type, sort_order, id")
+    c.execute("SELECT id, name, dividend_condition, dividend_ratio, invested_capital, cash_balance, sort_order, interest_rate, portfolio_type, accounts, notes FROM portfolios ORDER BY portfolio_type, sort_order, id")
     portfolios = []
     for row in c.fetchall():
-        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate, ptype, accts_json = row
+        pid, name, div_cond, div_ratio, capital, cash, sort, interest_rate, ptype, accts_json, notes = row
         c.execute("""SELECT h.stock_code, h.shares_lot, s.name, s.close, h.account
                      FROM portfolio_holdings h LEFT JOIN stocks s ON h.stock_code = s.code
                      WHERE h.portfolio_id = ? ORDER BY h.stock_code, h.account""", (pid,))
@@ -5927,7 +5927,7 @@ def portfolio_list():
             'id': pid, 'name': name,
             'portfolio_type': ptype or 'personal',
             'dividend_condition': div_cond, 'dividend_ratio': div_ratio,
-            'interest_rate': ir, 'accounts': accts,
+            'interest_rate': ir, 'accounts': accts, 'notes': notes or '',
             'invested_capital': capital, 'cash_balance': cash,
             'sort_order': sort, 'holdings': holdings,
             'total_market_value': total_mv, 'total_value': total_value,
