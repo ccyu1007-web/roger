@@ -580,17 +580,19 @@ async function saveModal() {
     cash_balance: parseFloat(document.getElementById('mCash').value) || 0,
     notes: document.getElementById('mNotes').value,
   };
+  let r;
   if (editingPid === 'new') {
-    await fetch(API + '/api/portfolio/create', {
+    r = await fetch(API + '/api/portfolio/create', {
       method: 'POST', headers: headers(),
       body: JSON.stringify(data)
     });
   } else {
-    await fetch(API + `/api/portfolio/${editingPid}`, {
+    r = await fetch(API + `/api/portfolio/${editingPid}`, {
       method: 'PUT', headers: headers(),
       body: JSON.stringify(data)
     });
   }
+  if (!r.ok) { const e = await r.json().catch(()=>({})); alert('儲存失敗：' + (e.error||r.status)); return; }
   closeModal();
   await loadData();
 }
