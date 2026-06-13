@@ -2786,6 +2786,7 @@ def sync_table():
         'daily_price', 'focus_tracking', 'focus_signals',
         'daily_notes', 'industry_news',
         'portfolios', 'portfolio_holdings',
+        'investment_reports',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
@@ -5396,6 +5397,43 @@ def save_user_note(code):
     conn.close()
     _bg_push_table('user_notes', ['code','content','updated_at'], ['code'],
                    create_sql="""CREATE TABLE IF NOT EXISTS user_notes (
+                       code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
+    return jsonify({"status": "ok"})
+
+# ── 投資報告書 API ──────────────────────────────────────────
+def _init_investment_reports():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS investment_reports (
+        code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
+    conn.commit()
+    conn.close()
+
+@app.route("/api/investment-report/<code>", methods=["GET"])
+def get_investment_report(code):
+    _init_investment_reports()
+    rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code=?", (code,))
+    if rows:
+        return jsonify(rows[0])
+    return jsonify({"content": "", "updated_at": None})
+
+@app.route("/api/investment-report/<code>", methods=["POST"])
+def save_investment_report(code):
+    _init_investment_reports()
+    from datetime import datetime
+    content = request.json.get('content', '')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if content.strip():
+        c.execute("INSERT OR REPLACE INTO investment_reports (code, content, updated_at) VALUES (?,?,?)",
+                  (code, content, now))
+    else:
+        c.execute("DELETE FROM investment_reports WHERE code=?", (code,))
+    conn.commit()
+    conn.close()
+    _bg_push_table('investment_reports', ['code','content','updated_at'], ['code'],
+                   create_sql="""CREATE TABLE IF NOT EXISTS investment_reports (
                        code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
     return jsonify({"status": "ok"})
 

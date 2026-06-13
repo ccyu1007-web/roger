@@ -563,6 +563,13 @@ def _push_all_to_render():
                 shares_lot REAL DEFAULT 0, added_at TEXT, updated_at TEXT,
                 PRIMARY KEY (portfolio_id, stock_code, account))""",
         },
+        {
+            'table': 'investment_reports',
+            'columns': ['code','content','updated_at'],
+            'pk': ['code'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS investment_reports (
+                code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""",
+        },
     ]
 
     from datetime import datetime
