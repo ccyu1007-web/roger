@@ -481,6 +481,10 @@ Render 上群益被擋、公開資訊觀測站也不穩，所以**所有資料�
 17e. 任何資料更新（營收/季報/股價/EPS 等）完成後都要 push 到 Render，不能只更新本機
 17f. **程式碼修改影響 DB schema 或資料格式時**（如新增欄位、改欄位名、重算資料），push 程式碼後要手動 push 受影響的資料表到 Render，不能等排程
 18. PostgreSQL `ALTER TABLE ADD COLUMN` 後的 transaction 可能 abort → 查詢要容錯（try/except + 重新連線）
+18a. **PostgreSQL ALTER TABLE 會死鎖**：`CREATE TABLE IF NOT EXISTS` 持有 ShareLock 未 commit 時，同 thread 的 ALTER TABLE 需要 AccessExclusiveLock → 死鎖。必須先 commit+close 建表連線，再用獨立連線跑 ALTER TABLE。PG 用 `ADD COLUMN IF NOT EXISTS` + `autocommit=True` 最安全
+18b. **新增 DB 欄位時必須檢查所有 CRUD 路徑**：SELECT（list API）、INSERT（create API）、UPDATE（update API）、push columns（render_sync + _push_xxx）、CREATE TABLE（render_sync + _init_xxx）全部都要加新欄位，漏任何一處就會 500 或資料遺失
+18c. **不要頻繁推未測試完整的程式碼到 Render**：每次 git push 都觸發 Render 重新部署（build 3-4 分鐘），部署期間服務中斷、token 失效。改 DB schema 時要在本機想清楚 PG 行為，一次推對，不要推上去才 debug
+18d. **持股專區 token 存 DB（user_settings 表）**，不存記憶體。Render 重啟/重新部署不會讓使用者被踢出
 19. PostgreSQL 沒有 `INSERT OR IGNORE` → db.py 會轉換，但 material_news 的自增 id 不適用 ON CONFLICT → 改用 SELECT 去重
 20. Render 的 iCloud 警示要隱藏（`window.location.hostname.includes('onrender.com')`）
 
