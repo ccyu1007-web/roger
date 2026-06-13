@@ -5788,17 +5788,50 @@ try:
 except Exception as e:
     print(f"[Portfolio] DB 初始化失敗（不影響啟動）: {e}")
 
-# 密碼驗證
-_portfolio_tokens = {}
-
+# 密碼驗證（token 存 DB，重啟不失效）
 def _hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
+
+def _check_token_db(token):
+    """從 DB 檢查 token 是否有效"""
+    if not token:
+        return False
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT value FROM user_settings WHERE key='portfolio_token'")
+        row = c.fetchone()
+        c.execute("SELECT value FROM user_settings WHERE key='portfolio_token_expires'")
+        exp_row = c.fetchone()
+        conn.close()
+        if not row or row[0] != token:
+            return False
+        if exp_row and float(exp_row[0]) < time.time():
+            return False
+        return True
+    except Exception:
+        return False
+
+def _save_token_db(token, expires):
+    """將 token 存入 DB"""
+    try:
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?,?,?)",
+                  ('portfolio_token', token, now))
+        c.execute("INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?,?,?)",
+                  ('portfolio_token_expires', str(expires), now))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 def require_portfolio_auth(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token or token not in _portfolio_tokens or _portfolio_tokens[token] < time.time():
+        if not _check_token_db(token):
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return wrapper
@@ -5832,7 +5865,8 @@ def portfolio_auth():
         return jsonify({"error": "wrong password"}), 401
 
     token = secrets.token_hex(32)
-    _portfolio_tokens[token] = time.time() + 86400
+    expires = time.time() + 86400
+    _save_token_db(token, expires)
     return jsonify({"token": token, "expires_in": 86400})
 
 @app.route("/api/portfolio/set-password", methods=["POST"])
