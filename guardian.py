@@ -2709,12 +2709,14 @@ def get_daily_briefing():
         with sqlite3.get_conn(row_factory=True) as conn_gb:
             c_gb = conn_gb.cursor()
             # 從 stocks 表讀前50名（已由 /api/stocks 算好寫入）
-            c_gb.execute("""SELECT code, name, close, gb_roic, gb_ey,
-                                   gb_roic_rank, gb_ey_rank, gb_total_rank,
-                                   industry, fin_grade_1
-                            FROM stocks
-                            WHERE gb_total_rank IS NOT NULL
-                            ORDER BY gb_total_rank ASC LIMIT 50""")
+            c_gb.execute("""SELECT s.code, s.name, s.close, s.gb_roic, s.gb_ey,
+                                   s.gb_roic_rank, s.gb_ey_rank, s.gb_total_rank,
+                                   s.industry, s.fin_grade_1,
+                                   sc.gi_neff_d as neff_d
+                            FROM stocks s
+                            LEFT JOIN stock_checklist sc ON s.code = sc.code
+                            WHERE s.gb_total_rank IS NOT NULL
+                            ORDER BY s.gb_total_rank ASC LIMIT 50""")
             gb_top50 = [dict(r) for r in c_gb.fetchall()]
 
         # 從快照比對異動（前一交易日 vs 今天）

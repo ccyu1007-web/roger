@@ -566,7 +566,7 @@ function renderGreenblatt(brief) {
           <th>排名</th><th>代碼</th><th>名稱</th><th>股價</th>
           <th class="num">ROIC%</th><th class="num">盈餘殖利率%</th>
           <th class="num">ROIC排名</th><th class="num">殖利率排名</th>
-          <th class="num">加總排名</th><th>產業</th><th>等級</th>
+          <th class="num">加總排名</th><th>產業</th><th>等級</th><th class="num">Neff</th>
         </tr></thead>
         <tbody>
           ${top50.map((r, i) => {
@@ -584,6 +584,7 @@ function renderGreenblatt(brief) {
               <td class="num" style="font-weight:700">${r.gb_total_rank != null ? r.gb_total_rank : '-'}</td>
               <td style="font-size:.8rem;color:#64748b">${r.industry || '-'}</td>
               <td><span class="badge ${r.fin_grade_1 ? 'badge-' + r.fin_grade_1.toLowerCase().replace(/[^a-z0-9]/g,'') : ''}" style="font-size:.72rem">${r.fin_grade_1 || '-'}</span></td>
+              <td class="num" style="${r.neff_d != null && r.neff_d >= 1 ? 'color:#dc2626;font-weight:700' : 'color:#94a3b8'}">${r.neff_d != null ? r.neff_d.toFixed(2) : '-'}</td>
             </tr>`;
           }).join('')}
         </tbody>
