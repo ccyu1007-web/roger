@@ -188,8 +188,8 @@
 | com.stock.startup | 開機啟動 | 補跑腳本（等網路/清lock/檢查缺漏/補資料）|
 
 #### 雲端（Render）
-- **無排程** — Render 不跑任何排程，所有資料由本機排程抓取後 push 到 Render
-- 原 APScheduler 已移除（Render 記憶體有限，且本機已全量 push，排程多此一舉）
+- **新聞排程** — Render 上用 APScheduler 每小時第 5 分鐘自動抓三種新聞（重大訊息/MoneyDJ/產業新聞），不依賴群益，電腦休眠也能更新
+- 其他排程（股價/營收/季報/法人等）仍由本機 launchd 執行後 push 到 Render
 
 #### 三層架構設計原則
 
