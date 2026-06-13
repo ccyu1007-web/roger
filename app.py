@@ -5064,7 +5064,10 @@ def _init_user_lists():
     except Exception: pass
     conn.close()
 
-_init_user_lists()
+try:
+    _init_user_lists()
+except Exception as e:
+    print(f"[UserLists] DB 初始化失敗（不影響啟動）: {e}")
 
 # 自動清除過期預估（隔年 3/31 後清除）
 def _cleanup_expired_estimates():
@@ -5780,7 +5783,10 @@ def _init_portfolio_db():
                 try: cn.close()
                 except: pass
 
-_init_portfolio_db()
+try:
+    _init_portfolio_db()
+except Exception as e:
+    print(f"[Portfolio] DB 初始化失敗（不影響啟動）: {e}")
 
 # 密碼驗證
 _portfolio_tokens = {}
