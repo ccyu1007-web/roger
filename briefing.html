@@ -295,6 +295,8 @@ function render(brief, newsArr, indNews) {
       </div>
     </div>
 
+    ${renderGreenblatt(brief)}
+
     ${renderIndNewsSplit(indNews)}
 
     ${renderNewsByDate(news)}
@@ -546,6 +548,128 @@ function gradeChangeHtml(g) {
       <div class="direction">${g.from_grade || 'X'} → ${g.to_grade}</div>
     </div>
   </div>`;
+}
+
+function renderGreenblatt(brief) {
+  const top50 = brief.gb_top50 || [];
+  const gbNew = brief.gb_new || [];
+  const gbRemoved = brief.gb_removed || [];
+
+  if (top50.length === 0) {
+    return '';
+  }
+
+  const top50Html = `
+    <div class="cheap-table-wrap">
+      <table class="cheap-table">
+        <thead><tr>
+          <th>排名</th><th>代碼</th><th>名稱</th><th>股價</th>
+          <th class="num">ROIC%</th><th class="num">盈餘殖利率%</th>
+          <th class="num">ROIC排名</th><th class="num">殖利率排名</th>
+          <th class="num">加總排名</th><th>產業</th><th>等級</th>
+        </tr></thead>
+        <tbody>
+          ${top50.map((r, i) => {
+            const isNew = gbNew.some(n => n.code === r.code);
+            const rowBg = isNew ? 'background:#eff6ff;' : '';
+            return `<tr style="${rowBg}">
+              <td>${i + 1}</td>
+              <td class="code-cell" onclick="window.open('/company.html?code=${r.code}','_blank')">${r.code}</td>
+              <td>${r.name}${isNew ? ' <span style="color:#2563eb;font-size:.75rem;font-weight:700">NEW</span>' : ''}</td>
+              <td class="num">${r.close != null ? r.close.toFixed(2) : '-'}</td>
+              <td class="num">${r.gb_roic != null ? r.gb_roic.toFixed(2) : '-'}</td>
+              <td class="num">${r.gb_ey != null ? r.gb_ey.toFixed(2) : '-'}</td>
+              <td class="num">${r.gb_roic_rank != null ? r.gb_roic_rank : '-'}</td>
+              <td class="num">${r.gb_ey_rank != null ? r.gb_ey_rank : '-'}</td>
+              <td class="num" style="font-weight:700">${r.gb_total_rank != null ? r.gb_total_rank : '-'}</td>
+              <td style="font-size:.8rem;color:#64748b">${r.industry || '-'}</td>
+              <td><span class="badge ${r.fin_grade_1 ? 'badge-' + r.fin_grade_1.toLowerCase().replace(/[^a-z0-9]/g,'') : ''}" style="font-size:.72rem">${r.fin_grade_1 || '-'}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  const changesHtml = (gbNew.length > 0 || gbRemoved.length > 0) ? `
+    ${gbNew.length > 0 ? `
+      <div style="margin-bottom:12px">
+        <div style="font-weight:700;font-size:.88rem;color:#1e40af;padding:8px 0;border-bottom:1px solid #e2e8f0">新進前50名 (${gbNew.length})</div>
+        ${gbNew.map(r => `<div class="flash-item" onclick="window.open('/company.html?code=${r.code}','_blank')">
+          <div class="stock-info"><span class="code">${r.code}</span><span class="name">${r.name}</span></div>
+          <div class="right-info">
+            <div class="price">${r.close != null ? r.close.toFixed(2) : '-'}</div>
+            <div class="direction">ROIC ${r.gb_roic != null ? r.gb_roic.toFixed(1) : '-'}% / 殖利率 ${r.gb_ey != null ? r.gb_ey.toFixed(1) : '-'}% / 排名 ${r.gb_total_rank}</div>
+          </div>
+        </div>`).join('')}
+      </div>` : ''}
+    ${gbRemoved.length > 0 ? `
+      <div>
+        <div style="font-weight:700;font-size:.88rem;color:#94a3b8;padding:8px 0;border-bottom:1px solid #e2e8f0">移出前50名 (${gbRemoved.length})</div>
+        ${gbRemoved.map(r => `<div class="flash-item" style="opacity:.6" onclick="window.open('/company.html?code=${r.code}','_blank')">
+          <div class="stock-info"><span class="code">${r.code}</span><span class="name">${r.name}</span></div>
+        </div>`).join('')}
+      </div>` : ''}
+  ` : '<div style="color:#94a3b8;font-size:.85rem;padding:16px 0">與前一交易日相同，無異動</div>';
+
+  const guideHtml = `
+    <div style="font-size:.85rem;line-height:1.8;color:#334155">
+      <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:#1e3a5f">葛林布萊神奇公式 — 操作指引</div>
+      <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:700;margin-bottom:6px">選股指標</div>
+        <div>ROIC（資本報酬率）= EBIT / (淨營運資金 + 淨固定資產)，衡量公司品質</div>
+        <div>盈餘殖利率 = EBIT / 企業價值(EV)，衡量便宜程度</div>
+        <div>兩者各自排名後加總，排名越小越好</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:700;margin-bottom:6px">篩選條件</div>
+        <div>排除金融股、KY股、市值低於30億</div>
+      </div>
+      <div style="background:#eff6ff;border-radius:8px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:700;margin-bottom:6px">建倉方式（20~30支）</div>
+        <div>1. 從排名最前面開始挑選，目標建立 20~30 支的組合</div>
+        <div>2. 分 3~4 批建倉，每隔 2~3 個月買入 5~7 支</div>
+        <div>3. 每批用當時最新排名挑選（跳過已持有的）</div>
+        <div>4. 分批目的：避免在市場高點一次全部買進</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:8px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:700;margin-bottom:6px">換股規則</div>
+        <div>1. 每支股票持有約一年後檢視</div>
+        <div>2. 已不在前30名 → 賣出，換入新進前30名的股票</div>
+        <div>3. 仍在名單內 → 繼續持有</div>
+        <div>4. 因為分批買入，賣出時間也是分散的，形成滾動式循環</div>
+      </div>
+      <div style="background:#fffbeb;border-radius:8px;padding:14px 16px">
+        <div style="font-weight:700;margin-bottom:6px">紀律要求</div>
+        <div>1. 至少堅持 3~5 年，短期可能跑輸大盤</div>
+        <div>2. 照排名買，不要自己挑選「比較好」的</div>
+        <div>3. 台灣無資本利得稅差異，不需調整持有週數</div>
+      </div>
+    </div>`;
+
+  return `
+    <div class="section">
+      <div class="section-header" style="background:#fdf2f8;color:#9d174d;border-bottom:2px solid #f9a8d4" onclick="toggle(this)">
+        <span style="flex:1">葛林布萊神奇公式</span>
+        <span class="badge-count" style="margin-right:8px">前50名</span>
+        <span class="arrow collapsed">&#9654;</span>
+      </div>
+      <div class="section-body collapsed" style="padding-top:0">
+        <div class="val-tabs">
+          <div class="val-tab active collapsed" onclick="switchValTab(this,'gb-top50')">今日前50名<span class="tab-count">(${top50.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'gb-changes')">異動<span class="tab-count">(${gbNew.length + gbRemoved.length})</span><span class="tab-arrow">&#9654;</span></div>
+          <div class="val-tab" onclick="switchValTab(this,'gb-guide')">操作指引<span class="tab-arrow">&#9654;</span></div>
+        </div>
+        <div id="gb-top50" class="val-tab-panel active collapsed">
+          ${top50Html}
+        </div>
+        <div id="gb-changes" class="val-tab-panel">
+          ${changesHtml}
+        </div>
+        <div id="gb-guide" class="val-tab-panel">
+          ${guideHtml}
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderNewsByDate(news) {

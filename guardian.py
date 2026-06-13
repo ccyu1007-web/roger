@@ -1963,7 +1963,8 @@ def snapshot_stock_states():
         for col, typ in [('val_level','TEXT'),('val_aa','REAL'),('val_a1','REAL'),
                          ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
                          ('discount_pct','REAL'),('neff_d','REAL'),('lynch_d','REAL'),
-                         ('shen_grade','TEXT'),('est_grade','TEXT'),('blend_grade','TEXT')]:
+                         ('shen_grade','TEXT'),('est_grade','TEXT'),('blend_grade','TEXT'),
+                         ('gb_total_rank','INTEGER')]:
             try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
             except Exception: pass
         # stocks 表加欄位
@@ -2027,7 +2028,7 @@ def snapshot_stock_states():
                                 div_c1, div_s1, deepest_val_level, val_cheap_days,
                                 sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld,
                                 val_aa, val_a1, val_a2, val_a, val_lt6,
-                                shen_grade, est_grade
+                                shen_grade, est_grade, gb_total_rank
                          FROM stocks WHERE close IS NOT NULL""")
         except Exception as e:
             print(f"[評價快照] 查詢失敗，用舊查詢: {e}")
@@ -2147,8 +2148,9 @@ def snapshot_stock_states():
                          (stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                           shen_eps, shen_pe, shen_yld, fin_grade,
                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
-                          neff_d, lynch_d, shen_grade, est_grade, blend_grade, updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                          neff_d, lynch_d, shen_grade, est_grade, blend_grade,
+                          gb_total_rank, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
                          price=excluded.price, price_pos=excluded.price_pos,
                          fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
@@ -2162,12 +2164,14 @@ def snapshot_stock_states():
                          neff_d=excluded.neff_d, lynch_d=excluded.lynch_d,
                          shen_grade=excluded.shen_grade, est_grade=excluded.est_grade,
                          blend_grade=excluded.blend_grade,
+                         gb_total_rank=excluded.gb_total_rank,
                          updated_at=excluded.updated_at""",
                       (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
                        shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
                        vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
                        vl['val_a'], vl['val_lt6'], vl['discount_pct'],
-                       _neff_d, _lynch_d, _shen_grade, _est_grade, _blend_grade, now_str))
+                       _neff_d, _lynch_d, _shen_grade, _est_grade, _blend_grade,
+                       row.get('gb_total_rank'), now_str))
 
             # 更新便宜天數和歷史最深等級
             cur_level = vl['val_level']
@@ -2273,6 +2277,11 @@ def get_daily_briefing():
     all_rows = None
     all_rows = None
     _ss_queries = [
+        """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
+                  shen_eps, shen_pe, shen_yld, fin_grade,
+                  val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
+                  neff_d, lynch_d, shen_grade, est_grade, gb_total_rank
+           FROM stock_state ORDER BY stock_id, date DESC""",
         """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                   shen_eps, shen_pe, shen_yld, fin_grade,
                   val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
@@ -2692,6 +2701,48 @@ def get_daily_briefing():
         elif not cur_peg_ok and prev_peg_ok:
             growth_changes['peg_removed'].append(sid)
 
+    # ── 葛林布萊神奇公式：前50名 + 異動 ──
+    gb_top50 = []
+    gb_new = []      # 新進前50
+    gb_removed = []  # 移出前50
+    try:
+        with sqlite3.get_conn(row_factory=True) as conn_gb:
+            c_gb = conn_gb.cursor()
+            # 從 stocks 表讀前50名（已由 /api/stocks 算好寫入）
+            c_gb.execute("""SELECT code, name, close, gb_roic, gb_ey,
+                                   gb_roic_rank, gb_ey_rank, gb_total_rank,
+                                   industry, fin_grade_1
+                            FROM stocks
+                            WHERE gb_total_rank IS NOT NULL
+                            ORDER BY gb_total_rank ASC LIMIT 50""")
+            gb_top50 = [dict(r) for r in c_gb.fetchall()]
+
+        # 從快照比對異動（前一交易日 vs 今天）
+        cur_top50_codes = set(r['code'] for r in gb_top50)
+        prev_top50_codes = set()
+        for sid, snapshots in grouped.items():
+            if len(snapshots) >= 2:
+                prev_rank = snapshots[1].get('gb_total_rank')
+                if prev_rank is not None and prev_rank <= 50:
+                    prev_top50_codes.add(sid)
+
+        # 新進：今天在前50，昨天不在
+        new_codes = cur_top50_codes - prev_top50_codes
+        for r in gb_top50:
+            if r['code'] in new_codes:
+                gb_new.append(r)
+
+        # 移出：昨天在前50，今天不在
+        removed_codes = prev_top50_codes - cur_top50_codes
+        for sid in removed_codes:
+            name = names.get(sid, sid)
+            # 讀取今天的排名（可能超過50）
+            extra_gb = stock_extra.get(sid, {})
+            gb_removed.append({'code': sid, 'name': name})
+
+    except Exception as e:
+        print(f"[每日報告] 葛林布萊查詢失敗: {e}")
+
     return {
         'alerts': alerts,
         'opportunities': opportunities,
@@ -2706,6 +2757,9 @@ def get_daily_briefing():
         'shen_grade_changes': shen_grade_changes,
         'blend_grade_changes': blend_grade_changes,
         'growth_changes': growth_changes,
+        'gb_top50': gb_top50,
+        'gb_new': gb_new,
+        'gb_removed': gb_removed,
         'data_date': grouped[list(grouped.keys())[0]][0]['date'] if grouped else None,
     }
 
