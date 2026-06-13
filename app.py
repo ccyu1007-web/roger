@@ -5030,9 +5030,40 @@ def _init_all_db():
 
 _init_all_db()
 
-# ── 雲端排程已移除 ────────────────
-# Render 不跑任何排程，所有資料由本機排程抓取後 push 到 Render
-# （Render 記憶體有限，且本機已全量 push，排程多此一舉）
+# ── 雲端新聞排程（Render 上每 60 分鐘抓新聞）────────────────
+if os.environ.get('DATABASE_URL'):
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        _news_scheduler = BackgroundScheduler()
+
+        def _cloud_fetch_news():
+            """Render 上定期抓三種新聞（政府API+MoneyDJ+產業新聞，不需群益）"""
+            try:
+                from guardian import fetch_material_news, fetch_moneydj_news
+                from industry_news_fetcher import fetch_industry_news
+                r1 = fetch_material_news()
+                print(f"[雲端新聞] 重大訊息: {r1.get('new', 0)} 則")
+            except Exception as e:
+                print(f"[雲端新聞] 重大訊息失敗: {e}")
+            try:
+                r2 = fetch_moneydj_news()
+                print(f"[雲端新聞] MoneyDJ: {r2.get('new', 0)} 則")
+            except Exception as e:
+                print(f"[雲端新聞] MoneyDJ失敗: {e}")
+            try:
+                r3 = fetch_industry_news()
+                print(f"[雲端新聞] 產業新聞: {r3} 則")
+            except Exception as e:
+                print(f"[雲端新聞] 產業新聞失敗: {e}")
+
+        _news_scheduler.add_job(_cloud_fetch_news, 'interval', minutes=60, id='cloud_news',
+                                next_run_time=None)  # 啟動後第一次由 cron 觸發
+        # 每小時的第 5 分鐘跑（避免整點擁擠）
+        _news_scheduler.add_job(_cloud_fetch_news, 'cron', minute=5, id='cloud_news_cron')
+        _news_scheduler.start()
+        print("[雲端新聞] 排程已啟動（每小時第 5 分鐘）")
+    except Exception as e:
+        print(f"[雲端新聞] 排程啟動失敗: {e}")
 
 # ── 使用者清單（觀察/持股/重點/體質）─────────────────────
 def _init_user_lists():
