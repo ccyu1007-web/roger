@@ -2711,7 +2711,7 @@ def get_daily_briefing():
             # 從 stocks 表讀前50名（已由 /api/stocks 算好寫入）
             c_gb.execute("""SELECT s.code, s.name, s.close, s.gb_roic, s.gb_ey,
                                    s.gb_roic_rank, s.gb_ey_rank, s.gb_total_rank,
-                                   s.industry, s.fin_grade_1,
+                                   s.industry, s.fin_grade_1, s.fin_grade_1y,
                                    sc.gi_neff_d as neff_d
                             FROM stocks s
                             LEFT JOIN stock_checklist sc ON s.code = sc.code

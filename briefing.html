@@ -566,7 +566,7 @@ function renderGreenblatt(brief) {
           <th>排名</th><th>代碼</th><th>名稱</th><th>股價</th>
           <th class="num">ROIC%</th><th class="num">盈餘殖利率%</th>
           <th class="num">ROIC排名</th><th class="num">殖利率排名</th>
-          <th class="num">加總排名</th><th>產業</th><th>等級</th><th class="num">Neff</th>
+          <th class="num">加總排名</th><th>產業</th><th>等級${top50[0] && top50[0].fin_grade_1y ? '(' + top50[0].fin_grade_1y + ')' : ''}</th><th class="num">Neff</th>
         </tr></thead>
         <tbody>
           ${top50.map((r, i) => {
