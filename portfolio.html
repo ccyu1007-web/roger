@@ -330,7 +330,7 @@ async function showMain() {
 async function loadData() {
   try {
     const r = await fetch(API + '/api/portfolio/list', { headers: headers() });
-    if (!r.ok) { sessionStorage.removeItem('portfolio_token'); location.reload(); return; }
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert('載入失敗：' + (e.error||r.status)); return; }
     portfolios = await r.json();
   } catch(e) { return; }
   renderAll();
