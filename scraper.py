@@ -2976,26 +2976,9 @@ def _quick_update_inner(t0, today_str):
                 pk=['stock_id','date'],
                 since=_today_start,
             )
-            # push stock_checklist（名稱制欄位，增量）
-            _push_table_to_render(
-                table='stock_checklist',
-                columns=['code',
-                         'chk_fin_grade','chk_cum_yoy','chk_gm_change',
-                         'chk_best_grade_aa','chk_price_below_aa','chk_blend_yield','chk_ddm_return',
-                         'chk_neff_growth','chk_neff_ratio','chk_lynch_peg','chk_lynch_consist',
-                         'pass_count','total_count','base_count','bonus_count','detail',
-                         'eps_setting','div_setting','yld_high','yld_max','pe_high','pe_low',
-                         'lt_div','lt_yld','val_a','val_a1','val_a2','val_aa','lt5','lt6','lt7',
-                         'gi_neff_a','gi_neff_b','gi_neff_3a','gi_neff_3b',
-                         'gi_neff_c','gi_neff_d','gi_intrinsic_growth',
-                         'gi_lynch_a','gi_lynch_b','gi_lynch_c','gi_lynch_d',
-                         'gi_rev_cagr_5y','gi_shares_change','gi_yield','gi_pe',
-                         'gi_gray','gi_neff_gray','gi_lynch_gray','gi_warnings',
-                         'gi_shiller_avg_eps','gi_shiller_pe','gi_shiller_alert','gi_roic_avg',
-                         'updated_at'],
-                pk=['code'],
-                since=_today_start,
-            )
+            # push stock_checklist（自動讀取所有欄位，依 CLAUDE.md 33h 規則）
+            from render_sync import _push_single_table
+            _push_single_table('stock_checklist')
             # push quarterly_financial（增量：只推今天更新的）
             _push_table_to_render(
                 table='quarterly_financial',
