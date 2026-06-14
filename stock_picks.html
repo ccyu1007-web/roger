@@ -155,7 +155,7 @@ function copyPrompt() {
 - stocks 表（EPS 5季+6年、股利6年、財務等級6年、評價門檻val_aa/a1/a2/a、營收年增、法人買賣超、配息率payout_1~5）
 - stock_checklist 表（45項檢核含 profit_count/safety_count/value_count/growth_eval_count、gi_neff_d/gi_lynch_d、gi_roic_avg/gi_roe_avg/gi_opm_avg、gi_shiller_avg_eps/gi_shiller_pe/gi_shiller_alert、growth_signal、red_flags、gi_rev_cagr_3y/5y、growth_inv_risk）
 - financial_annual 表（年度三表、earnings_quality）
-- pe_history 表（pe_high/pe_low，算5年區間與中位數）
+- pe_history 表（pe_high/pe_low，算5年區間與中位數，pe_high 超過 20 以 20 計算）
 - quarterly_financial 表（季度EPS趨勢）
 
 【信任門檻（硬排除）】
@@ -199,7 +199,7 @@ PE：綜合PE（blend_pe = 股價/綜合EPS）
 
 ■ 成長精選（快速成長股，用 PEG/Neff + 近4季PE）
 估值指標：PEG（gi_lynch_d = 近4季PE / 保守成長率）、Neff（gi_neff_d = (保守成長率+殖利率) / 近4季PE）
-保守成長率 = min(3年EPS CAGR, 5年EPS CAGR)。PEG 和 Neff 用同一個 g，但 gray 判斷條件不同（Neff 有額外成長穩定性過濾），所以可能有 PEG 但沒有有效 Neff。
+保守成長率 g = min(3年EPS CAGR, 5年EPS CAGR)。total_return = g + 殖利率。PEG = PE/total_return，Neff = total_return/PE（互為倒數，值一定同時存在）。但 gray 標記不同：neff_gray = g<=0 或成長斷層>=2年；lynch_gray = 一致性<0.5。PEG/Neff 都顯示實際數值，被 gray 標記的加(灰)。
 近4季PE（gi_pe = 股價 / 近四季累計EPS），上限 20 倍（林區原則），超過不選入。
 營收CAGR = gi_rev_cagr_3y（3年營收複合成長率）。
 不用逍遙評價門檻。
