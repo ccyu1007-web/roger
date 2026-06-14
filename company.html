@@ -2449,6 +2449,39 @@ function copyAnalysisPrompt() {
   });
 }
 
+function copyFormatPrompt() {
+  const textarea = document.getElementById('notesArea');
+  const content = textarea ? textarea.value.trim() : '';
+  if (!content) {
+    alert('請先在編輯區貼上質性分析內容');
+    return;
+  }
+  const name = document.querySelector('.chk-price')?.textContent?.split(' ')[1] || '';
+  const prompt = `請幫我將以下 ${CODE} ${name} 的質性研究筆記重新排版為 Markdown 格式，然後直接用 API 寫入 Render。
+
+【排版規則】
+1. 用 ## 標題分區（一、二、三、四）
+2. 用 **粗體** 標示重點
+3. 用 - 條列呈現清單
+4. 段落間空行
+5. 來源標記 [xxxx] 保留不動
+6. [判斷] 標記保留不動
+7. 不改動任何內容文字，只調整格式
+
+【完成後直接寫入 Render】
+curl -X POST https://tock-system.onrender.com/api/user-notes/${CODE} -H "Content-Type: application/json" -d '{"content":"排版後的內容"}'
+
+【以下是需要排版的原始內容】
+
+${content}`;
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    const el = document.getElementById('notesStatus');
+    if (el) el.textContent = '排版指令已複製到剪貼簿';
+    setTimeout(() => { if (el) el.textContent = ''; }, 2000);
+  });
+}
+
 function togglePromptPreview() {
   const el = document.getElementById('promptPreview');
   if (el.style.display === 'none') {
@@ -2537,6 +2570,7 @@ async function loadNotes() {
           <button class="notes-mode-btn active" id="btnNotesPreview" onclick="switchNotesMode('preview')">預覽</button>
           <button class="notes-mode-btn" id="btnNotesEdit" onclick="switchNotesMode('edit')">編輯</button>
           <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
+          <button onclick="copyFormatPrompt()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">排版整理</button>
           <button onclick="togglePromptPreview()" style="padding:3px 10px;border:1px solid #94a3b8;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#94a3b8;font-weight:600">查看指令內容</button>
           <span class="notes-status" id="notesStatus">${updatedAt ? '最後更新：' + updatedAt : ''}</span>
         </div>
