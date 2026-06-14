@@ -2773,8 +2773,18 @@ function copyReportPrompt() {
 - 第二層思考（循環股或市場極度悲觀/樂觀時）
 
 【完成後自動存入 Render】
-產出報告後，直接呼叫 API 寫入 Render DB：
-curl -X POST https://tock-system.onrender.com/api/investment-report/${CODE} -H "Content-Type: application/json" -d '{"content":"報告內容"}'
+產出報告後，用 Python 寫入 Render DB（避免 shell 轉義造成換行符變成 \\n 文字）：
+\`\`\`
+python3 << 'PYEOF'
+import json, urllib.request
+content = """（把完整 Markdown 報告貼在這裡，用真實換行，不要用 \\n）"""
+data = json.dumps({"content": content}).encode("utf-8")
+req = urllib.request.Request(
+    "https://tock-system.onrender.com/api/investment-report/${CODE}",
+    data=data, headers={"Content-Type": "application/json"}, method="POST")
+print(urllib.request.urlopen(req, timeout=30).read().decode())
+PYEOF
+\`\`\`
 存入後告知使用者到個股頁重新整理即可看到。
 
 分析日期：${new Date().toISOString().slice(0,10)}`;
