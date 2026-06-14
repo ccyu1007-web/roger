@@ -2644,23 +2644,28 @@ function copyReportPrompt() {
 【資料來源】
 從逍遙投資系統 DB（stocks.db）讀取以下資料：
 1. stocks 表：EPS（5季+6年）、股利（6年）、財務等級（6年）、評價門檻、營收年增率、法人買賣超
-2. stock_checklist 表：45項體質檢核、Neff/PEG、ROIC/ROE/OPM均值、成長燈號、紅旗警示
-3. financial_annual 表：年度損益表、資產負債表、現金流量表
+2. stock_checklist 表：45項體質檢核（含分類：profit_count/safety_count/value_count/growth_eval_count）、Neff/PEG、ROIC/ROE/OPM均值、成長燈號、紅旗、gi_shiller_avg_eps/gi_shiller_pe/gi_shiller_alert、gi_intrinsic_growth、growth_inv_risk
+3. financial_annual 表：年度損益表、資產負債表、現金流量表（含 earnings_quality 盈餘品質）
 4. quarterly_financial 表：季度EPS與損益
 5. monthly_revenue 表：月營收趨勢
-6. user_notes 表：質性研究筆記（從 Render API 讀取：curl -s https://tock-system.onrender.com/api/user-notes/${CODE}）
-7. user_estimates 表：使用者預估EPS/股利
+6. pe_history 表：歷史本益比（算5年PE最高/最低/中位數）
+7. user_notes 表：質性研究筆記（從 Render API 讀取：curl -s https://tock-system.onrender.com/api/user-notes/${CODE}）
+8. user_estimates 表：使用者預估EPS/股利
 
 【報告格式（Markdown）】
 
 ## 投資判斷：【重倉 / 小買 / 觀望 / 避開】
-一句話說明理由。
+一句話說明理由。如果是循環股，理由要包含循環位置判斷。
 
 ## 一、體質面
-- 檢核通過率、關鍵通過/未通過項目
-- 財務等級趨勢（6年）
+- 檢核分類分數：獲利 X/Y、安全 X/Y、價值 X/Y、成長 X/Y（總計 X/45）
+- 財務等級趨勢（6年表格）
 - 紅旗警示與邊界條件
-- ROIC/ROE/毛利率/營益率趨勢
+- 年度趨勢表格（營收/毛利率/營益率/EPS/股利/ROIC/負債比/FCF）
+- 盈餘品質標註（> 100% 優秀、< 80% 注意）
+- 配息率趨勢（payout_1~5，是否逐年攀升？EPS下滑但股利不變 = 可持續性存疑）
+- 循環性判斷：EPS 6年 max/min 比值（> 2.5倍 = 強循環、1.5~2.5 = 中度、< 1.5 = 穩定）
+- 如果是循環股：目前毛利率 vs 5年均值（判斷是循環性需求衰退還是結構性競爭力流失）
 
 ## 二、護城河與質性面
 - 從質性筆記摘要：護城河強度、核心優勢、最大威脅
@@ -2670,18 +2675,28 @@ function copyReportPrompt() {
 - 目前評價等級與各門檻價位
 - 折價幅度、便宜天數
 - PE/殖利率（沈董、綜合、席勒）
+- 正常化PE = 股價 / 席勒均值EPS（gi_shiller_avg_eps），與目前PE對比判斷是否被循環扭曲
+- 歷史PE區間（從pe_history讀：5年最高/最低/中位數，目前PE在區間的什麼位置）
 - EPS 來源與可靠度
+- 不對稱性評估（僅循環股）：用歷史低點EPS × 低PE估下檔、用席勒均值EPS × 合理PE估正常化價值
 
 ## 四、成長面
 - 營收趨勢燈號（3M vs 12M）
 - Neff 比率、PEG
 - 合約負債變化
 - 近期 EPS 季度趨勢
+- 存貨風險（growth_inv_risk，如果為1要警示）
+- 循環位置判斷（僅循環股）：綜合席勒alert + 利潤率vs均值 + 3M/12M營收方向，判斷在高峰/回落/谷底/復甦初期
+- 復甦訊號清單（僅循環股在回落或谷底時）：3M營收是否轉正？毛利率是否止穩？合約負債是否回升？法人是否回補？
 
-## 五、風險提示
-- 什麼情況下判斷會錯
-- 景氣循環位置（席勒PE vs 目前PE）
+## 五、風險提示與第二層思考
+- 什麼情況下判斷會錯（升級/降級的條件）
+- 景氣循環位置總結
 - 關鍵追蹤指標
+- 第二層思考（僅循環股或市場極度悲觀/樂觀時）：
+  - 市場共識是什麼？（從燈號/便宜天數/法人動向推斷）
+  - 有什麼是市場可能沒看到的？
+  - 需要什麼證據來驗證反向觀點？
 
 【完成後自動存入 Render】
 產出報告後，直接呼叫 API 寫入 Render DB：
