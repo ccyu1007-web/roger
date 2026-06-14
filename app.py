@@ -5437,6 +5437,35 @@ def save_investment_report(code):
                        code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
     return jsonify({"status": "ok"})
 
+# ── 選股推薦 API（複用 investment_reports 表，key=_stock_picks）──
+@app.route("/api/stock-picks", methods=["GET"])
+def get_stock_picks():
+    _init_investment_reports()
+    rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code='_stock_picks'")
+    if rows:
+        return jsonify(rows[0])
+    return jsonify({"content": "", "updated_at": None})
+
+@app.route("/api/stock-picks", methods=["POST"])
+def save_stock_picks():
+    _init_investment_reports()
+    from datetime import datetime
+    content = request.json.get('content', '')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if content.strip():
+        c.execute("INSERT OR REPLACE INTO investment_reports (code, content, updated_at) VALUES (?,?,?)",
+                  ('_stock_picks', content, now))
+    else:
+        c.execute("DELETE FROM investment_reports WHERE code='_stock_picks'")
+    conn.commit()
+    conn.close()
+    _bg_push_table('investment_reports', ['code','content','updated_at'], ['code'],
+                   create_sql="""CREATE TABLE IF NOT EXISTS investment_reports (
+                       code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
+    return jsonify({"status": "ok"})
+
 # ── 檢核表 API ─────────────────────────────────────────────
 @app.route("/api/stocks/<code>/checklist")
 def get_checklist(code):

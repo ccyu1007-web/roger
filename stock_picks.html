@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>選股推薦</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  header a:hover { color: #fff; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+
+  .notes-wrap { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+  .notes-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .notes-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; }
+  .notes-mode-btn {
+    padding: 3px 12px; border: 1px solid #e2e8f0; border-radius: 5px;
+    background: #fff; cursor: pointer; font-size: .78rem; color: #64748b; font-weight: 600;
+  }
+  .notes-mode-btn.active { background: #059669; color: #fff; border-color: #059669; }
+
+  .notes-preview {
+    min-height: 200px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+    font-size: .85rem; line-height: 1.8; cursor: text;
+  }
+  .notes-preview h1,.notes-preview h2,.notes-preview h3 { margin: 12px 0 6px; color: #1e3a5f; }
+  .notes-preview h1 { font-size: 1.1rem; }
+  .notes-preview h2 { font-size: 1rem; }
+  .notes-preview h3 { font-size: .92rem; }
+  .notes-preview table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: .84rem; }
+  .notes-preview th,.notes-preview td { border: 1px solid #d1d5db; padding: 5px 10px; text-align: left; }
+  .notes-preview th { background: #f1f5f9; font-weight: 600; color: #334155; }
+  .notes-preview ul,.notes-preview ol { padding-left: 20px; margin: 6px 0; }
+  .notes-preview p { margin: 6px 0; }
+  .notes-preview strong { color: #1e3a5f; }
+  .notes-preview blockquote { border-left: 3px solid #059669; padding-left: 12px; color: #64748b; margin: 8px 0; }
+  .notes-preview code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; }
+  .notes-preview a { color: #2563eb; text-decoration: none; }
+  .notes-preview a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>選股推薦</h1>
+    <span style="font-size:.82rem;color:rgba(255,255,255,.7)" id="updatedAt"></span>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/">回總表</a>
+    <a href="/briefing.html">逍遙日報</a>
+    <a href="/valuation.html">評價報告</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="notes-wrap">
+    <div class="notes-header">
+      <span class="notes-title">選股推薦</span>
+      <button class="notes-mode-btn active" id="btnPreview" onclick="switchMode('preview')">預覽</button>
+      <button class="notes-mode-btn" id="btnEdit" onclick="switchMode('edit')">編輯</button>
+      <button onclick="copyPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製選股指令</button>
+      <span id="statusEl" style="font-size:.75rem;color:#94a3b8"></span>
+    </div>
+    <div class="notes-preview" id="preview" onclick="switchMode('edit')">
+      <div style="color:#cbd5e1">載入中...</div>
+    </div>
+    <textarea id="editor" oninput="onInput()" style="display:none;width:100%;min-height:500px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:.85rem;font-family:'Microsoft JhengHei','Segoe UI',monospace;resize:vertical;line-height:1.6"></textarea>
+  </div>
+</div>
+
+<script>
+let _timer = null;
+
+async function load() {
+  try {
+    const res = await fetch('/api/stock-picks');
+    const data = await res.json();
+    const content = data.content || '';
+    document.getElementById('editor').value = content;
+    if (data.updated_at) {
+      document.getElementById('updatedAt').textContent = '最後更新：' + data.updated_at;
+    }
+    renderPreview();
+  } catch(e) {
+    document.getElementById('preview').innerHTML = '<div style="color:#ef4444">載入失敗: ' + e.message + '</div>';
+  }
+}
+
+function renderPreview() {
+  const text = document.getElementById('editor').value || '';
+  const preview = document.getElementById('preview');
+  if (text.trim()) {
+    preview.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text.replace(/\n/g, '<br>');
+    // 讓表格內的股票代碼可以點擊
+    preview.querySelectorAll('td').forEach(td => {
+      const code = td.textContent.trim();
+      if (/^\d{4}$/.test(code)) {
+        td.innerHTML = `<a href="/company.html?code=${code}" target="_blank" style="font-weight:700;color:#2563eb">${code}</a>`;
+      }
+    });
+  } else {
+    preview.innerHTML = '<span style="color:#cbd5e1">無推薦內容，點擊編輯或複製選股指令</span>';
+  }
+}
+
+function switchMode(mode) {
+  const editor = document.getElementById('editor');
+  const preview = document.getElementById('preview');
+  const btnEdit = document.getElementById('btnEdit');
+  const btnPreview = document.getElementById('btnPreview');
+  if (mode === 'edit') {
+    editor.style.display = '';
+    preview.style.display = 'none';
+    btnEdit.classList.add('active');
+    btnPreview.classList.remove('active');
+    editor.focus();
+  } else {
+    renderPreview();
+    editor.style.display = 'none';
+    preview.style.display = '';
+    btnPreview.classList.add('active');
+    btnEdit.classList.remove('active');
+  }
+}
+
+function onInput() {
+  const statusEl = document.getElementById('statusEl');
+  if (statusEl) statusEl.textContent = '編輯中...';
+  clearTimeout(_timer);
+  _timer = setTimeout(() => {
+    const text = document.getElementById('editor').value;
+    fetch('/api/stock-picks', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({content: text})
+    });
+    if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
+  }, 800);
+}
+
+function copyPrompt() {
+  const today = new Date().toISOString().slice(0,10);
+  const prompt = `請幫我從逍遙投資系統 DB 篩選出目前最值得關注的 50 家公司。
+
+【資料來源】
+從 stocks.db 讀取 stocks 表 + stock_checklist 表，對所有有收盤價的股票進行量化篩選。
+
+【篩選維度（不含質性研究）】
+1. 體質面：財務等級（fin_grade_1）、檢核通過率（pass_count/total_count）、紅旗（red_flags）、ROIC/毛利率/營益率均值
+2. 評價面：目前評價等級（val_aa/a1/a2/a vs close）、折價幅度、便宜天數（val_cheap_days）、PE/殖利率、席勒PE alert
+3. 成長面：營收趨勢燈號（growth_signal）、Neff 比率、PEG、合約負債變化（contract_chg）、EPS 季度趨勢
+
+【分類標準】
+- 重倉候選：等級 AA~A1 + 評價 AA~A1 + 燈號綠/黃 + 通過率>=75% + 無嚴重紅旗（全部標註「需完成質性研究確認」）
+- 小買候選：等級 A2 以上 + 評價 A2~A + 燈號非紅色 + 通過率>=65%
+- 觀望候選：體質好但評價貴 / 評價便宜但成長紅燈 / 有瑕疵但值得追蹤
+
+【輸出格式（Markdown 表格）】
+每個分類一張表，欄位：代碼 | 名稱 | 等級 | 評價 | 燈號 | PE | 殖利率 | 檢核 | Neff | 一句話理由
+
+表格內股票代碼只寫 4 碼數字（例如 2330），不要加連結語法。
+
+【完成後自動存入 Render】
+產出結果後，直接呼叫 API 寫入：
+curl -X POST https://tock-system.onrender.com/api/stock-picks -H "Content-Type: application/json" -d '{"content":"結果內容"}'
+
+分析日期：${today}`;
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    const el = document.getElementById('statusEl');
+    if (el) el.textContent = '選股指令已複製到剪貼簿';
+  });
+}
+
+load();
+</script>
+</body>
+</html>
