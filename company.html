@@ -2630,16 +2630,17 @@ function copyReportPrompt() {
   const name = document.querySelector('.chk-price')?.textContent?.split(' ')[1] || '';
   const prompt = `請幫我產出 ${CODE} ${name} 的投資報告書。
 
-請從我的逍遙投資系統 DB 讀取以下資料：
+【資料來源】
+從逍遙投資系統 DB（stocks.db）讀取以下資料：
 1. stocks 表：EPS（5季+6年）、股利（6年）、財務等級（6年）、評價門檻、營收年增率、法人買賣超
 2. stock_checklist 表：45項體質檢核、Neff/PEG、ROIC/ROE/OPM均值、成長燈號、紅旗警示
 3. financial_annual 表：年度損益表、資產負債表、現金流量表
 4. quarterly_financial 表：季度EPS與損益
 5. monthly_revenue 表：月營收趨勢
-6. user_notes 表：質性研究筆記（護城河、成長亮點、注意事項）
+6. user_notes 表：質性研究筆記（從 Render API 讀取：curl -s https://tock-system.onrender.com/api/user-notes/${CODE}）
 7. user_estimates 表：使用者預估EPS/股利
 
-綜合以上量化數據與質性分析，產出投資報告書，格式如下（Markdown）：
+【報告格式（Markdown）】
 
 ## 投資判斷：【重倉 / 小買 / 觀望 / 避開】
 一句話說明理由。
@@ -2670,6 +2671,11 @@ function copyReportPrompt() {
 - 什麼情況下判斷會錯
 - 景氣循環位置（席勒PE vs 目前PE）
 - 關鍵追蹤指標
+
+【完成後自動存入 Render】
+產出報告後，直接呼叫 API 寫入 Render DB：
+curl -X POST https://tock-system.onrender.com/api/investment-report/${CODE} -H "Content-Type: application/json" -d '{"content":"報告內容"}'
+存入後告知使用者到個股頁重新整理即可看到。
 
 分析日期：${new Date().toISOString().slice(0,10)}`;
 
