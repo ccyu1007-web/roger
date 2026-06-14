@@ -644,11 +644,12 @@
 
 <div class="container">
   <div class="tabs">
-    <button class="tab" id="tabDecision" onclick="switchTab('decision')">檢核清單</button>
     <button class="tab active" id="tabFinancial" onclick="switchTab('financial')">年度財報</button>
     <button class="tab" id="tabQuarterly" onclick="switchTab('quarterly')">季度估計表</button>
     <button class="tab" id="tabRevenue" onclick="switchTab('revenue')">月營收</button>
     <button class="tab" id="tabIndustry" onclick="switchTab('industry')">同業比較</button>
+    <button class="tab" id="tabDecision" onclick="switchTab('decision')">檢核清單</button>
+    <button class="tab" id="tabNotes" onclick="switchTab('notes')">質性研究筆記</button>
     <button class="tab" id="tabReport" onclick="switchTab('report')">投資報告書</button>
   </div>
   <div class="panel" id="panel">
@@ -665,22 +666,25 @@ let currentTab = 'financial';
 
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById('tabDecision').classList.toggle('active', tab === 'decision');
   document.getElementById('tabFinancial').classList.toggle('active', tab === 'financial');
   document.getElementById('tabQuarterly').classList.toggle('active', tab === 'quarterly');
   document.getElementById('tabRevenue').classList.toggle('active', tab === 'revenue');
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
+  document.getElementById('tabDecision').classList.toggle('active', tab === 'decision');
+  document.getElementById('tabNotes').classList.toggle('active', tab === 'notes');
   document.getElementById('tabReport').classList.toggle('active', tab === 'report');
   ['tabISA','tabISQ','tabBSA','tabBSQ'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
   });
-  if (tab === 'decision') loadDecision();
-  else if (tab === 'financial') loadFinancial();
+  if (tab === 'financial') loadFinancial();
   else if (tab === 'quarterly') loadQuarterly();
   else if (tab === 'revenue') loadRevenue();
+  else if (tab === 'industry') loadIndustry();
+  else if (tab === 'decision') loadDecision();
+  else if (tab === 'notes') loadNotes();
   else if (tab === 'report') loadReport();
-  else loadIndustry();
+  else loadFinancial();
 }
 
 // ── 載入檢核清單（從 DB 讀取）──
@@ -929,17 +933,7 @@ async function loadDecision() {
     html += '<div id="ckDcfContent" style="font-size:.85rem;color:#94a3b8">載入中...</div>';
     html += '</div>';
 
-    // === 質性研究筆記 ===
-    const noteContent = noteData.content || '';
-    if (noteContent) {
-      html += '<div style="margin-top:24px;padding:16px 20px;background:#fff;border-radius:10px;border:1px solid #e2e8f0">';
-      html += '<div style="font-size:1rem;font-weight:700;color:#1e3a5f;margin-bottom:10px">質性研究筆記</div>';
-      html += `<div style="font-size:.85rem;color:#334155;line-height:1.8;white-space:pre-wrap">${noteContent.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
-      if (noteData.updated_at) {
-        html += `<div style="text-align:right;font-size:.72rem;color:#94a3b8;margin-top:6px">筆記更新：${noteData.updated_at}</div>`;
-      }
-      html += '</div>';
-    }
+    // 質性研究筆記已獨立為「質性研究筆記」tab
 
     if (cl.updated_at) {
       html += `<div style="text-align:right;font-size:.75rem;color:#94a3b8;margin-top:8px">檢核表更新：${cl.updated_at}</div>`;
@@ -1996,22 +1990,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div id="dcfNote" style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.6"></div>
     </div>
 
-    <!-- 質性研究筆記 -->
-    <div class="notes-wrap">
-      <div class="notes-header">
-        <span class="notes-title">質性研究筆記</span>
-        <button class="notes-mode-btn active" id="btnNotesPreview" onclick="switchNotesMode('preview')">預覽</button>
-        <button class="notes-mode-btn" id="btnNotesEdit" onclick="switchNotesMode('edit')">編輯</button>
-        <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
-        <button onclick="togglePromptPreview()" style="padding:3px 10px;border:1px solid #94a3b8;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#94a3b8;font-weight:600">查看指令內容</button>
-        <span class="notes-status" id="notesStatus"></span>
-      </div>
-      <div id="promptPreview" style="display:none;margin:0 12px 12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;color:#475569;line-height:1.7;white-space:pre-wrap">
-      </div>
-      <div class="notes-preview" id="notesPreview" onclick="switchNotesMode('edit')"></div>
-      <textarea class="notes-area" id="notesArea" oninput="onNotesInput()" style="display:none"
-        placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點..."></textarea>
-    </div>
+    <!-- 質性研究筆記已獨立為「質性研究筆記」tab -->
 
   </div>`;
 }
@@ -2539,6 +2518,38 @@ function onNotesInput() {
     }
     if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
   }, 800);
+}
+
+// ── 質性研究筆記（獨立 tab）──
+async function loadNotes() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入質性研究筆記...</div></div>';
+  try {
+    const res = await fetch(`/api/user-notes/${CODE}`);
+    const noteData = await res.json();
+    const noteContent = noteData.content || '';
+    const updatedAt = noteData.updated_at || '';
+
+    panel.innerHTML = `
+      <div class="notes-wrap">
+        <div class="notes-header">
+          <span class="notes-title">質性研究筆記</span>
+          <button class="notes-mode-btn active" id="btnNotesPreview" onclick="switchNotesMode('preview')">預覽</button>
+          <button class="notes-mode-btn" id="btnNotesEdit" onclick="switchNotesMode('edit')">編輯</button>
+          <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
+          <button onclick="togglePromptPreview()" style="padding:3px 10px;border:1px solid #94a3b8;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#94a3b8;font-weight:600">查看指令內容</button>
+          <span class="notes-status" id="notesStatus">${updatedAt ? '最後更新：' + updatedAt : ''}</span>
+        </div>
+        <div id="promptPreview" style="display:none;margin:0 12px 12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;color:#475569;line-height:1.7;white-space:pre-wrap"></div>
+        <div class="notes-preview" id="notesPreview" onclick="switchNotesMode('edit')"></div>
+        <textarea class="notes-area" id="notesArea" oninput="onNotesInput()" style="display:none"
+          placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點...">${noteContent.replace(/</g,'&lt;')}</textarea>
+      </div>`;
+
+    _renderNotesPreview();
+  } catch(e) {
+    panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗: ' + e.message + '</div>';
+  }
 }
 
 // ── 投資報告書 ──
@@ -4109,6 +4120,8 @@ if (CODE) {
     switchTab('decision');
   } else if (_initTab === 'revenue') {
     switchTab('revenue');
+  } else if (_initTab === 'notes') {
+    switchTab('notes');
   } else if (_initTab === 'report') {
     switchTab('report');
   } else {
