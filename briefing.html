@@ -725,10 +725,33 @@ function renderGreenblatt(brief) {
     </div>`;
 }
 
+function _renderNewsGroup(items) {
+  const alarm = items.filter(n => n.direction === 'alarm');
+  const neg = items.filter(n => !['positive','alarm'].includes(n.direction));
+  const pos = items.filter(n => n.direction === 'positive');
+  let h = '';
+  if (alarm.length) {
+    h += '<div class="news-group-label" style="color:#7f1d1d">警鈴 (' + alarm.length + ')</div>';
+    h += alarm.map(n => newsHtml(n)).join('');
+  }
+  if (neg.length) {
+    h += '<div class="news-group-label" style="color:#991b1b">負向 / 風險 (' + neg.length + ')</div>';
+    h += neg.map(n => newsHtml(n)).join('');
+  }
+  if (pos.length) {
+    h += '<div class="news-group-label" style="color:#059669">正向催化劑 (' + pos.length + ')</div>';
+    h += pos.map(n => newsHtml(n)).join('');
+  }
+  return h;
+}
+
 function renderNewsByDate(news) {
   if (!news.length) return '';
+  const pending = news.filter(n => !n.status);
+  const done = news.filter(n => n.status);
+
   const groups = {};
-  news.forEach(n => {
+  pending.forEach(n => {
     const date = (n.created_at || '').slice(0, 10);
     if (!groups[date]) groups[date] = [];
     groups[date].push(n);
@@ -739,52 +762,64 @@ function renderNewsByDate(news) {
     const cnt = groups[d].length;
     return `<div class="val-tab ${i===0?'active collapsed':''}" onclick="switchValTab(this,'news-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
   }).join('');
-  const panelsHtml = dates.map((d, i) => {
-    const items = groups[d];
-    const alarm = items.filter(n => n.direction === 'alarm');
-    const neg = items.filter(n => !['positive','alarm'].includes(n.direction));
-    const pos = items.filter(n => n.direction === 'positive');
-    let content = '';
-    if (alarm.length) {
-      content += '<div class="news-group-label" style="color:#7f1d1d">警鈴 (' + alarm.length + ')</div>';
-      content += alarm.map(n => newsHtml(n)).join('');
-    }
-    if (neg.length) {
-      content += '<div class="news-group-label" style="color:#991b1b">負向 / 風險 (' + neg.length + ')</div>';
-      content += neg.map(n => newsHtml(n)).join('');
-    }
-    if (pos.length) {
-      content += '<div class="news-group-label" style="color:#059669">正向催化劑 (' + pos.length + ')</div>';
-      content += pos.map(n => newsHtml(n)).join('');
-    }
-    return `<div id="news-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${content}</div>`;
-  }).join('');
+  const panelsHtml = dates.map((d, i) =>
+    `<div id="news-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${_renderNewsGroup(groups[d])}</div>`
+  ).join('');
+
+  // 已處理收摺
+  const doneHtml = done.length ? `
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:.82rem;color:#94a3b8;padding:6px 0">已處理 (${done.length})</summary>
+      <div style="opacity:.6">${done.map(n => newsHtml(n)).join('')}</div>
+    </details>` : '';
+
   return `<div class="section" id="news-section">
     <div class="section-header header-yellow" onclick="toggle(this)">
-      <span style="flex:1">個股重大訊息 (${news.length})</span>
+      <span style="flex:1">個股重大訊息 (${pending.length} 未處理${done.length ? ' / ' + done.length + ' 已處理' : ''})</span>
       <span class="arrow collapsed">&#9654;</span>
     </div>
     <div class="section-body collapsed" style="padding-top:0">
-      <div class="val-tabs" style="flex-wrap:wrap">${tabsHtml}</div>
-      ${panelsHtml}
+      <div style="padding:8px 0">
+        <input type="text" id="newsSearch" placeholder="搜尋新聞（代碼/名稱/關鍵字）" oninput="filterBriefingNews()"
+          style="width:100%;padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:.85rem;outline:none">
+      </div>
+      <div id="newsPendingWrap">
+        <div class="val-tabs" style="flex-wrap:wrap">${tabsHtml}</div>
+        ${panelsHtml}
+      </div>
+      ${doneHtml}
     </div>
   </div>`;
+}
+
+function filterBriefingNews() {
+  const q = (document.getElementById('newsSearch')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#news-section .news-item').forEach(el => {
+    if (!q) { el.style.display = ''; return; }
+    el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
 }
 
 function _refreshNews() {
   const news = _newsArr.filter(n => n.tier >= 1);
   const el = document.getElementById('news-section');
   if (!el) return;
+  const searchVal = document.getElementById('newsSearch')?.value || '';
   const tmp = document.createElement('div');
   tmp.innerHTML = renderNewsByDate(news);
   const newSection = tmp.firstElementChild;
   if (newSection) {
     el.replaceWith(newSection);
-    // 展開新聞區（剛操作過，保持展開）
     const body = newSection.querySelector('.section-body');
     const arrow = newSection.querySelector('.arrow');
     if (body) body.classList.remove('collapsed');
     if (arrow) arrow.classList.remove('collapsed');
+    // 恢復搜尋關鍵字
+    const searchEl = document.getElementById('newsSearch');
+    if (searchEl && searchVal) {
+      searchEl.value = searchVal;
+      filterBriefingNews();
+    }
   }
 }
 
