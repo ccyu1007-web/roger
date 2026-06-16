@@ -242,10 +242,10 @@ EPS振幅 = 6年EPS最高/最低倍數，>2.5x判定為循環股。正常化EPS 
 所有重倉/小買標註「需完成質性研究確認」。
 
 【變化追蹤】
-產出結果前，先從 Render 讀取上一次選股推薦內容（curl -s https://tock-system.onrender.com/api/stock-picks），提取所有股票代碼，與本次結果比對：
-- 新進榜：上次沒有、這次有的股票
-- 移出榜：上次有、這次沒有的股票
-放在報告最前面（標題下方），標明各自屬於哪個分類。
+產出結果前，先從 Render 讀取上一次選股推薦內容（curl -s https://tock-system.onrender.com/api/stock-picks），提取各區塊（價值/成長/循環）的股票代碼，與本次結果比對。
+在每個區塊（價值精選/成長精選/循環反轉）的表格下方，用註記格式標示該區塊的變動：
+> 新進：1234 名稱A、5678 名稱B
+> 移出：9012、3456
 
 【完成後自動存入 Render】
 curl -X POST https://tock-system.onrender.com/api/stock-picks -H "Content-Type: application/json" -d '{"content":"結果內容"}'
