@@ -34,10 +34,10 @@ MAX_BAD_GRADE_YEARS = 3      # 近5年差等級超過此數排除
 BAD_GRADE_BASES = {'B1', 'B2', 'C', 'D', 'X'}
 
 # ── 林區分類 ──
-CYCLICAL_AMP_THRESHOLD = 2.5
+CYCLICAL_AMP_THRESHOLD = 2.5    # EPS振幅 = 6年正值EPS最高/最低，>此值歸景氣循環
 FAST_GROWTH_CAGR = 15.0
 STEADY_GROWTH_CAGR = 5.0
-SLOW_GROWTH_AMP_MAX = 1.5
+SLOW_GROWTH_AMP_MAX = 1.5      # 緩慢成長要求EPS振幅<此值（穩定性條件）
 
 # ── 財務等級排序（排序第15以內 = A級） ──
 A_LEVEL_BASES = {'AA', 'A1', 'A2', 'A', 'B1A'}
