@@ -627,9 +627,9 @@ def fmt_value(r):
     bp = f"{r['blend_pe']:.1f}" if r.get('blend_pe') else '-'
     by = f"{r['blend_yld']:.1f}" if r.get('blend_yld') else '-'
     ch = r.get('val_cheap_days') or 0
-    m3 = f"{r['gi_rev_3m_yoy']:.1f}" if r.get('gi_rev_3m_yoy') is not None else '-'
-    m12 = f"{r['gi_rev_12m_yoy']:.1f}" if r.get('gi_rev_12m_yoy') is not None else '-'
-    rc = f"{r['revenue_cum_yoy']:.1f}" if r.get('revenue_cum_yoy') is not None else '-'
+    m3 = f"{r['gi_rev_3m_yoy']:.1f}%" if r.get('gi_rev_3m_yoy') is not None else '-'
+    m12 = f"{r['gi_rev_12m_yoy']:.1f}%" if r.get('gi_rev_12m_yoy') is not None else '-'
+    rc = f"{r['revenue_cum_yoy']:.1f}%" if r.get('revenue_cum_yoy') is not None else '-'
     pe_r = f"{r.get('_pe_low', '')}/{r.get('_pe_mid', '')}/{r.get('_pe_high', '')}"
     return f"| {c} | {n}{_liq(r)} | {r['_lt']} | {r.get('fin_grade_1', '')} | {vl} | {cl} | {m3} | {m12} | {rc} | {bp} | {pe_r} | {by} | {ch} | {_fl(r)} |"
 
@@ -643,9 +643,9 @@ def fmt_growth(r):
     ro = f"{r['gi_roic_avg']:.1f}" if r.get('gi_roic_avg') else '-'
     sp = f"{r['shen_pe']:.1f}" if r.get('shen_pe') else '-'
     cg = f"{r['gi_rev_cagr_3y']:.1f}" if r.get('gi_rev_cagr_3y') else '-'
-    m3 = f"{r['gi_rev_3m_yoy']:.1f}" if r.get('gi_rev_3m_yoy') is not None else '-'
-    m12 = f"{r['gi_rev_12m_yoy']:.1f}" if r.get('gi_rev_12m_yoy') is not None else '-'
-    rc = f"{r['revenue_cum_yoy']:.1f}" if r.get('revenue_cum_yoy') is not None else '-'
+    m3 = f"{r['gi_rev_3m_yoy']:.1f}%" if r.get('gi_rev_3m_yoy') is not None else '-'
+    m12 = f"{r['gi_rev_12m_yoy']:.1f}%" if r.get('gi_rev_12m_yoy') is not None else '-'
+    rc = f"{r['revenue_cum_yoy']:.1f}%" if r.get('revenue_cum_yoy') is not None else '-'
     pe_r = f"{r.get('_pe_low', '')}/{r.get('_pe_mid', '')}/{r.get('_pe_high', '')}"
     return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {m3} | {m12} | {rc} | {cg} | {pg} | {nf} | {ro} | {sp} | {pe_r} | {_fl(r)} |"
 
@@ -661,7 +661,7 @@ def fmt_cycle(r):
     npe = r.get('_norm_pe', '')
     sd = r.get('_sd', '')
     cp = r.get('_cp', '')
-    rc = f"{r['revenue_cum_yoy']:.1f}" if r.get('revenue_cum_yoy') is not None else '-'
+    rc = f"{r['revenue_cum_yoy']:.1f}%" if r.get('revenue_cum_yoy') is not None else '-'
     return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {rc} | {ams} | {e4} | {ne}({nm}) | {rp} | {cp} | {npe} | {sd} | {_fl(r)} |"
 
 
@@ -788,8 +788,8 @@ def run_full(dry_run=False):
     L.append("> 適用：緩慢成長 + 穩健股｜估值：逍遙評價門檻（val_aa/a）")
     L.append("> 重倉：股價<=AA + 3M>=0 + 3M>=12M + 累積>0 + 防呆通過 + 近2年等級A以上")
     L.append("> 小買：股價<=A + 3M>=0 + 累積>0｜觀望：等級A以上 + 股價<=A + 營收未到位\n")
-    VH = "| 代碼 | 名稱 | 林區 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE | PE區間 | 殖利率 | 便宜天 | 防呆 |\n|------|------|------|------|------|------|-----|------|------|-----|--------|--------|--------|------|"
-    VW_H = "| 代碼 | 名稱 | 林區 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE | PE區間 | 殖利率 | 便宜天 | 等什麼 |\n|------|------|------|------|------|------|-----|------|------|-----|--------|--------|--------|--------|"
+    VH = "| 代碼 | 名稱 | 林區 | 等級 | 評價 | 股價 | 3M | 12M | 累積成長率 | PE | PE區間 | 殖利率 | 便宜天 | 防呆 |\n|------|------|------|------|------|------|-----|------|------|-----|--------|--------|--------|------|"
+    VW_H = "| 代碼 | 名稱 | 林區 | 等級 | 評價 | 股價 | 3M | 12M | 累積成長率 | PE | PE區間 | 殖利率 | 便宜天 | 等什麼 |\n|------|------|------|------|------|------|-----|------|------|-----|--------|--------|--------|--------|"
 
     if vh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -826,8 +826,8 @@ def run_full(dry_run=False):
     L.append("> 適用：快速成長股（3年營收CAGR>15%）｜估值：PEG/Neff + 沈董PE<=20")
     L.append("> 重倉：PEG<=0.8或Neff>=1.2 + 3M>0 + 累積>0 + 3M>12M + 防呆通過")
     L.append("> 小買：PEG<=1.2或Neff>=0.8 + 3M>0 + 累積>0｜觀望：營收未到位\n")
-    GH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | CAGR3 | PEG | Neff | ROIC | 沈董PE | PE區間 | 防呆 |\n|------|------|------|------|-----|------|------|-------|-----|------|------|--------|--------|------|"
-    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | CAGR3 | PEG | Neff | ROIC | 沈董PE | PE區間 | 等什麼 |\n|------|------|------|------|-----|------|------|-------|-----|------|------|--------|--------|--------|"
+    GH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積成長率 | CAGR3 | PEG | Neff | ROIC | 沈董PE | PE區間 | 防呆 |\n|------|------|------|------|-----|------|------|-------|-----|------|------|--------|--------|------|"
+    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積成長率 | CAGR3 | PEG | Neff | ROIC | 沈董PE | PE區間 | 等什麼 |\n|------|------|------|------|-----|------|------|-------|-----|------|------|--------|--------|--------|"
 
     if gh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -864,8 +864,8 @@ def run_full(dry_run=False):
     L.append("> 適用：景氣循環 + 轉機股｜估值：正常化PE + 復甦進度（近4季EPS/正常化EPS）")
     L.append("> 重倉：PE<=10 + 進度0.5~1.5 + 訊號3/3 + 3M>12M｜小買：PE<=12 + 進度0.5~1.5 + 訊號>=2/3")
     L.append("> 觀望：PE<=15 + 進度<0.5或訊號不足｜排除：近4季EPS<=0 或進度>2.0\n")
-    CH = "| 代碼 | 名稱 | 等級 | 股價 | 累積 | 振幅 | 4QEPS | 正常化EPS | 復甦進度 | 位置 | 正常化PE | 訊號 | 防呆 |\n|------|------|------|------|------|------|-------|-----------|----------|------|----------|------|------|"
-    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | 累積 | 振幅 | 4QEPS | 正常化EPS | 復甦進度 | 位置 | 正常化PE | 訊號 | 等什麼 |\n|------|------|------|------|------|------|-------|-----------|----------|------|----------|------|--------|"
+    CH = "| 代碼 | 名稱 | 等級 | 股價 | 累積成長率 | 振幅 | 4QEPS | 正常化EPS | 復甦進度 | 位置 | 正常化PE | 訊號 | 防呆 |\n|------|------|------|------|------|------|-------|-----------|----------|------|----------|------|------|"
+    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | 累積成長率 | 振幅 | 4QEPS | 正常化EPS | 復甦進度 | 位置 | 正常化PE | 訊號 | 等什麼 |\n|------|------|------|------|------|------|-------|-----------|----------|------|----------|------|--------|"
 
     if cyh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
