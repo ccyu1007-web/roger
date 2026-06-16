@@ -4967,18 +4967,20 @@ def archive_industry_news(nid):
     # 標記已歸檔
     c.execute("UPDATE industry_news SET archived_code=?, archived_at=? WHERE id=?", (code, now, nid))
 
-    # 寫入 user_notes（append 模式）
-    c.execute("SELECT content FROM user_notes WHERE code=?", (code,))
+    # 寫入 user_notes.news_archive（不動 content，避免覆蓋質性研究筆記）
+    c.execute("SELECT content, news_archive FROM user_notes WHERE code=?", (code,))
     existing = c.fetchone()
-    note_line = f"\n[{date_str} {source}] {title}"
+    note_line = f"[{date_str} {source}] {title}"
     if link:
         note_line += f"\n{link}"
-    if existing and existing[0]:
-        new_content = existing[0] + "\n" + note_line
+    if existing:
+        old_archive = existing[1] or ''
+        new_archive = (old_archive + "\n\n" + note_line).strip() if old_archive.strip() else note_line
+        c.execute("UPDATE user_notes SET news_archive=?, updated_at=? WHERE code=?",
+                  (new_archive, now, code))
     else:
-        new_content = note_line.strip()
-    c.execute("INSERT OR REPLACE INTO user_notes (code, content, updated_at) VALUES (?,?,?)",
-              (code, new_content, now))
+        c.execute("INSERT INTO user_notes (code, content, news_archive, updated_at) VALUES (?,?,?,?)",
+                  (code, '', note_line, now))
     conn.commit()
     conn.close()
 
@@ -5081,6 +5083,7 @@ def _init_user_lists():
     c.execute("""CREATE TABLE IF NOT EXISTS user_notes (
         code TEXT PRIMARY KEY,
         content TEXT,
+        news_archive TEXT,
         updated_at TEXT
     )""")
     # 個股估值參數也存 DB
@@ -5375,10 +5378,10 @@ def delete_daily_note(date):
 
 @app.route("/api/user-notes/<code>", methods=["GET"])
 def get_user_note(code):
-    rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))
+    rows = query_db("SELECT content, news_archive, updated_at FROM user_notes WHERE code=?", (code,))
     if rows:
         return jsonify(rows[0])
-    return jsonify({"content": "", "updated_at": None})
+    return jsonify({"content": "", "news_archive": "", "updated_at": None})
 
 @app.route("/api/user-notes/<code>", methods=["POST"])
 def save_user_note(code):
@@ -5395,9 +5398,9 @@ def save_user_note(code):
         c.execute("DELETE FROM user_notes WHERE code=?", (code,))
     conn.commit()
     conn.close()
-    _bg_push_table('user_notes', ['code','content','updated_at'], ['code'],
+    _bg_push_table('user_notes', ['code','content','news_archive','updated_at'], ['code'],
                    create_sql="""CREATE TABLE IF NOT EXISTS user_notes (
-                       code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
+                       code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT)""")
     return jsonify({"status": "ok"})
 
 # ── 投資報告書 API ──────────────────────────────────────────
