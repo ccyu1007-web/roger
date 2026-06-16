@@ -11,7 +11,7 @@ pages = [
     ("01_總表_上半部", "/index.html", {"full_page": False, "wait": 3}),
     ("02_總表_完整", "/index.html", {"full_page": True, "wait": 3}),
     ("03_個股詳細頁", "/company.html?code=2330", {"full_page": True, "wait": 4}),
-    ("04_每日報告", "/daily.html", {"full_page": True, "wait": 3}),
+    ("04_逍遙日報", "/briefing.html", {"full_page": True, "wait": 3}),
     ("05_系統監控", "/health.html", {"full_page": True, "wait": 3}),
 ]
 
