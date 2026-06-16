@@ -5089,6 +5089,14 @@ def _init_user_lists():
         news_archive TEXT,
         updated_at TEXT
     )""")
+    # 確保 news_archive 欄位存在（舊表可能沒有）— 先 commit 避免 PG 死鎖
+    conn.commit()
+    try:
+        c.execute("ALTER TABLE user_notes ADD COLUMN news_archive TEXT")
+        conn.commit()
+    except Exception:
+        try: conn.rollback()
+        except: pass
     # 個股估值參數也存 DB
     c.execute("""CREATE TABLE IF NOT EXISTS user_estimates (
         code TEXT PRIMARY KEY,
@@ -5381,7 +5389,16 @@ def delete_daily_note(date):
 
 @app.route("/api/user-notes/<code>", methods=["GET"])
 def get_user_note(code):
-    rows = query_db("SELECT content, news_archive, updated_at FROM user_notes WHERE code=?", (code,))
+    try:
+        rows = query_db("SELECT content, news_archive, updated_at FROM user_notes WHERE code=?", (code,))
+    except Exception:
+        # news_archive 欄位尚未建立時 fallback
+        rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))
+        if rows:
+            r = dict(rows[0])
+            r['news_archive'] = ''
+            return jsonify(r)
+        return jsonify({"content": "", "news_archive": "", "updated_at": None})
     if rows:
         return jsonify(rows[0])
     return jsonify({"content": "", "news_archive": "", "updated_at": None})
