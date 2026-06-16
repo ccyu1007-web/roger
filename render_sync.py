@@ -471,10 +471,10 @@ def _push_all_to_render():
         },
         {
             'table': 'user_notes',
-            'columns': ['code', 'content', 'updated_at'],
+            'columns': ['code', 'content', 'news_archive', 'updated_at'],
             'pk': ['code'],
             'create_sql': """CREATE TABLE IF NOT EXISTS user_notes (
-                code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""",
+                code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT)""",
         },
         {
             'table': 'daily_notes',

@@ -4984,6 +4984,9 @@ def archive_industry_news(nid):
     conn.commit()
     conn.close()
 
+    _bg_push_table('user_notes', ['code','content','news_archive','updated_at'], ['code'],
+                   create_sql="""CREATE TABLE IF NOT EXISTS user_notes (
+                       code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT)""")
     return jsonify({"status": "ok", "code": code, "title": title})
 
 # ── 前端首頁 ────────────────────────────────────────────────

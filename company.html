@@ -2561,7 +2561,18 @@ async function loadNotes() {
     const res = await fetch(`/api/user-notes/${CODE}`);
     const noteData = await res.json();
     const noteContent = noteData.content || '';
+    const newsArchive = noteData.news_archive || '';
     const updatedAt = noteData.updated_at || '';
+
+    const archiveHtml = newsArchive.trim() ? newsArchive.trim().split(/\n\n+/).map(block => {
+      const lines = block.split('\n');
+      const title = lines[0] || '';
+      const link = lines[1] && lines[1].startsWith('http') ? lines[1] : '';
+      return `<div style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:.85rem">
+        <div style="color:#334155">${title}</div>
+        ${link ? `<a href="${link}" target="_blank" style="font-size:.75rem;color:#2563eb;text-decoration:none">查看原文</a>` : ''}
+      </div>`;
+    }).join('') : '<span style="color:#cbd5e1;font-size:.85rem">尚無歸檔新聞</span>';
 
     panel.innerHTML = `
       <div class="notes-wrap">
@@ -2578,6 +2589,10 @@ async function loadNotes() {
         <div class="notes-preview" id="notesPreview" onclick="switchNotesMode('edit')"></div>
         <textarea class="notes-area" id="notesArea" oninput="onNotesInput()" style="display:none"
           placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點...">${noteContent.replace(/</g,'&lt;')}</textarea>
+      </div>
+      <div style="border-top:2px solid #f59e0b;background:#fff;padding:16px 28px;border-radius:0 0 10px 10px;margin-top:12px">
+        <div style="font-size:.95rem;font-weight:700;color:#92400e;margin-bottom:10px">新聞報告彙整</div>
+        ${archiveHtml}
       </div>`;
 
     _renderNotesPreview();
