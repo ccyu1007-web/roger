@@ -117,13 +117,21 @@
   /* News */
   .news-item { padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
   .news-item:last-child { border-bottom: none; }
-  .news-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
-  .stock-tag { font-size: .75em; background: #eff6ff; padding: 1px 6px; border-radius: 4px; color: #2563eb; font-weight: 600; }
+  .news-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; flex-wrap: wrap; }
+  .stock-tag { font-size: .75em; background: #eff6ff; padding: 1px 6px; border-radius: 4px; color: #2563eb; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .stock-tag:hover { text-decoration: underline; }
   .time-tag { font-size: .72em; color: #94a3b8; }
   .news-subject { font-size: .88em; color: #334155; line-height: 1.5; }
   .dir-alarm { font-size: .68em; background: #fef2f2; color: #dc2626; padding: 1px 5px; border-radius: 3px; }
+  .dir-negative { font-size: .68em; background: #fee2e2; color: #991b1b; padding: 1px 5px; border-radius: 3px; }
   .dir-positive { font-size: .68em; background: #f0fdf4; color: #16a34a; padding: 1px 5px; border-radius: 3px; }
   .news-item.tier2 { border-left: 3px solid #f97316; margin-left: -20px; padding-left: 17px; }
+  .news-actions { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+  .news-actions button { padding: 1px 8px; border-radius: 4px; cursor: pointer; font-size: .72rem; border: 1px solid; }
+  .btn-important { border-color: #059669; background: #dcfce7; color: #166534; }
+  .btn-dismiss { border-color: #94a3b8; background: #f1f5f9; color: #64748b; }
+  .btn-undo { border-color: #e2e8f0; background: #fff; color: #94a3b8; font-size: .68rem; }
+  .news-group-label { margin: 10px 0 6px; font-weight: 700; font-size: .88rem; }
 
   /* Industry news */
   .ind-news-item { padding: 8px 0; border-bottom: 1px solid #f1f5f9; display: flex; align-items: baseline; gap: 10px; }
@@ -208,6 +216,7 @@ let _qualitySet = new Set();
 let _focusTrackSet = new Set();
 let _watchSet = new Set();
 let _holdSet = new Set();
+let _newsArr = [];
 
 async function loadData() {
   try {
@@ -252,6 +261,7 @@ function render(brief, newsArr, indNews) {
   const shenGradeChanges = brief.shen_grade_changes || [];
   const blendGradeChanges = brief.blend_grade_changes || [];
 
+  _newsArr = newsArr;
   const news = newsArr.filter(n => n.tier >= 1);
   const etfChanges = (brief.etf_changes || []).slice(0, 15);
 
@@ -505,17 +515,59 @@ function indNewsHtml(n) {
 
 function newsHtml(n) {
   const cls = n.tier === 2 ? 'news-item tier2' : 'news-item';
-  const dirTag = n.direction === 'alarm' ? '<span class="dir-alarm">警示</span>' :
-    n.direction === 'positive' ? '<span class="dir-positive">正向</span>' : '';
+  const dirCls = n.direction === 'alarm' ? 'dir-alarm' :
+    n.direction === 'positive' ? 'dir-positive' : 'dir-negative';
+  const dirLabel = n.direction === 'alarm' ? '警示' :
+    n.direction === 'positive' ? '正向' : '';
+  const ruleTag = n.matched_rule ? `<span class="${dirCls}">${n.matched_rule}</span>` :
+    (dirLabel ? `<span class="${dirCls}">${dirLabel}</span>` : '');
   const timeStr = n.created_at ? n.created_at.slice(11, 16) : '';
-  return `<div class="${cls}">
+  const linkHtml = n.link ? `<a href="${n.link}" target="_blank" style="font-size:.74rem;color:#2563eb;text-decoration:none;white-space:nowrap">查看</a>` : '';
+  const actions = newsActions(n);
+  return `<div class="${cls}" id="news-row-${n.id}">
     <div class="news-meta">
-      <span class="stock-tag">${n.code} ${n.name}</span>
+      <a class="stock-tag" href="/company.html?code=${n.code}" target="_blank">${n.code} ${n.name}</a>
       <span class="time-tag">${timeStr}</span>
-      ${dirTag}
+      ${ruleTag}
+      ${linkHtml}
+      ${actions}
     </div>
-    <div class="news-subject">${n.subject}</div>
+    <div class="news-subject">${(n.subject||'').replace(/\r?\n/g,' ')}</div>
   </div>`;
+}
+
+function newsActions(n) {
+  if (n.status) {
+    const label = n.status === 'important' ? '已標重要' : '已略過';
+    const bg = n.status === 'important' ? '#dcfce7' : '#f1f5f9';
+    const color = n.status === 'important' ? '#059669' : '#94a3b8';
+    return `<span class="news-actions">
+      <span style="font-size:.7rem;color:${color};background:${bg};padding:1px 6px;border-radius:3px">${label}</span>
+      <button class="btn-undo" onclick="undoNews(${n.id})">撤銷</button>
+    </span>`;
+  }
+  return `<span class="news-actions">
+    <button class="btn-important" onclick="markNews(${n.id},'important')">重要</button>
+    <button class="btn-dismiss" onclick="markNews(${n.id},'dismissed')">略過</button>
+  </span>`;
+}
+
+async function markNews(id, status) {
+  try {
+    await fetch('/api/news/' + id + '/status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
+    const item = _newsArr.find(n => n.id === id);
+    if (item) item.status = status;
+    _refreshNews();
+  } catch(e) { console.error('標記失敗:', e); }
+}
+
+async function undoNews(id) {
+  try {
+    await fetch('/api/news/' + id + '/status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status: null})});
+    const item = _newsArr.find(n => n.id === id);
+    if (item) item.status = null;
+    _refreshNews();
+  } catch(e) { console.error('撤銷失敗:', e); }
 }
 
 function etfHtml(e) {
@@ -675,7 +727,6 @@ function renderGreenblatt(brief) {
 
 function renderNewsByDate(news) {
   if (!news.length) return '';
-  // 按日期分組
   const groups = {};
   news.forEach(n => {
     const date = (n.created_at || '').slice(0, 10);
@@ -688,10 +739,27 @@ function renderNewsByDate(news) {
     const cnt = groups[d].length;
     return `<div class="val-tab ${i===0?'active collapsed':''}" onclick="switchValTab(this,'news-${d}')">${label}<span class="tab-count">(${cnt})</span><span class="tab-arrow">&#9654;</span></div>`;
   }).join('');
-  const panelsHtml = dates.map((d, i) =>
-    `<div id="news-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${groups[d].map(n => newsHtml(n)).join('')}</div>`
-  ).join('');
-  return `<div class="section">
+  const panelsHtml = dates.map((d, i) => {
+    const items = groups[d];
+    const alarm = items.filter(n => n.direction === 'alarm');
+    const neg = items.filter(n => !['positive','alarm'].includes(n.direction));
+    const pos = items.filter(n => n.direction === 'positive');
+    let content = '';
+    if (alarm.length) {
+      content += '<div class="news-group-label" style="color:#7f1d1d">警鈴 (' + alarm.length + ')</div>';
+      content += alarm.map(n => newsHtml(n)).join('');
+    }
+    if (neg.length) {
+      content += '<div class="news-group-label" style="color:#991b1b">負向 / 風險 (' + neg.length + ')</div>';
+      content += neg.map(n => newsHtml(n)).join('');
+    }
+    if (pos.length) {
+      content += '<div class="news-group-label" style="color:#059669">正向催化劑 (' + pos.length + ')</div>';
+      content += pos.map(n => newsHtml(n)).join('');
+    }
+    return `<div id="news-${d}" class="val-tab-panel ${i===0?'active collapsed':''}">${content}</div>`;
+  }).join('');
+  return `<div class="section" id="news-section">
     <div class="section-header header-yellow" onclick="toggle(this)">
       <span style="flex:1">個股重大訊息 (${news.length})</span>
       <span class="arrow collapsed">&#9654;</span>
@@ -701,6 +769,23 @@ function renderNewsByDate(news) {
       ${panelsHtml}
     </div>
   </div>`;
+}
+
+function _refreshNews() {
+  const news = _newsArr.filter(n => n.tier >= 1);
+  const el = document.getElementById('news-section');
+  if (!el) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderNewsByDate(news);
+  const newSection = tmp.firstElementChild;
+  if (newSection) {
+    el.replaceWith(newSection);
+    // 展開新聞區（剛操作過，保持展開）
+    const body = newSection.querySelector('.section-body');
+    const arrow = newSection.querySelector('.arrow');
+    if (body) body.classList.remove('collapsed');
+    if (arrow) arrow.classList.remove('collapsed');
+  }
 }
 
 function switchValTab(tabEl, panelId) {
