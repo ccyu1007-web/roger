@@ -160,7 +160,7 @@ function copyPrompt() {
 
 【信任門檻（硬排除）】
 1. 排除 KY/DR（code/name 含 -KY、code 以 910 開頭）
-2. 排除金融保險業
+2. 排除金融保險業、建材營造業
 3. 排除上市不足 5 年（listed_date 格式 YYYYMMDD）
 4. 排除連續配息不足 3 年（div_c1/c2/c3 任一為 NULL 或 0）
 5. 近5年財務等級（fin_grade_1~fin_grade_5）有3年以上落在 B1/B2/C/D/X（含+/-變體，即 base 去掉+/-後為 B1/B2/C/D/X）則排除。B1A/B2A 不算差。
