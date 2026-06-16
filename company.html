@@ -2687,10 +2687,11 @@ function onReportInput() {
 }
 
 function copyReportPrompt() {
-  const name = document.querySelector('.chk-price')?.textContent?.split(' ')[1] || '';
-  const prompt = `請幫我產出 ${CODE} ${name} 的投資報告書。
+  const prompt = `請執行投資報告書引擎產出資料簡報，然後根據資料簡報撰寫報告：
+python3 /Users/roger/Documents/AI機器人/stock_system/investment_report_engine.py ${CODE}
 
-【資料來源】
+腳本會輸出完整的資料簡報（含所有數據、檢核表45項、質性筆記、報告格式指令），直接根據輸出內容撰寫報告並存入 Render。`;
+/* 舊版 prompt 已移除 — 所有邏輯在 investment_report_engine.py
 從逍遙投資系統 DB（stocks.db）讀取：
 1. stocks 表：EPS（5季+6年）、股利（6年）、財務等級（6年）、評價門檻、營收年增率、配息率payout_1~5
 2. stock_checklist 表：45項檢核全部欄位（含 chk_ 前綴的逐項通過/未通過 + detail_ 前綴的實際值）
@@ -2853,7 +2854,7 @@ req = urllib.request.Request(
 print(urllib.request.urlopen(req, timeout=30).read().decode())
 PYEOF
 
-分析日期：${new Date().toISOString().slice(0,10)}`;
+*/
 
   navigator.clipboard.writeText(prompt).then(() => {
     const el = document.getElementById('reportStatus');
