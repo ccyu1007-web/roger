@@ -2438,7 +2438,19 @@ function getAnalysisPrompt() {
 ## 四、注意事項
 - 目前好數字在什麼情境下不持續？（景氣循環、一次性收益、客戶流失等）[來源/判斷]
 - 最強空方論點（一段話）[判斷]。
-- 本次分析的資料盲區（查不到或來源過舊的關鍵數據）。`;
+- 本次分析的資料盲區（查不到或來源過舊的關鍵數據）。
+
+【完成後自動寫入 Render】
+分析完成後，將排版好的 Markdown 內容用 Python 寫入 Render：
+python3 << 'PYEOF'
+import json, urllib.request
+content = """（完整 Markdown 質性研究筆記）"""
+data = json.dumps({"content": content}).encode("utf-8")
+req = urllib.request.Request(
+    "https://tock-system.onrender.com/api/user-notes/${CODE}",
+    data=data, headers={"Content-Type": "application/json"}, method="POST")
+print(urllib.request.urlopen(req, timeout=30).read().decode())
+PYEOF`;
 }
 
 function copyAnalysisPrompt() {
