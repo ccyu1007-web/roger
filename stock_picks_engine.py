@@ -996,14 +996,54 @@ def run_full(dry_run=False):
             yld_str = f'{yld:.1f}%' + (' 通過' if yld_pass else ' 未達')
         yld_mark = 'V' if yld_pass else 'X'
 
-        # 引擎未選原因
+        # 引擎未選原因（具體化）
         reason = '—'
         if code in excluded:
             reason = excluded[code]
-        elif code in eval_log:
-            reason = eval_log[code].split('→')[-1].strip()
         elif code not in passed:
             reason = '信任門檻未通過'
+        elif code in eval_log:
+            raw = eval_log[code]
+            detail = raw.split('→')[-1].strip()
+            if detail and '未達標' not in detail:
+                reason = detail
+            else:
+                # 從資料判斷具體卡關原因
+                lt = r.get('_lt', '')
+                reasons = []
+                if lt in ('緩慢成長', '穩健股'):
+                    val_a = r.get('val_a')
+                    if val_a and cl and cl > val_a:
+                        reasons.append(f'股價{cl}高於A門檻{val_a}')
+                    m3 = r.get('gi_rev_3m_yoy')
+                    rc = r.get('revenue_cum_yoy')
+                    if m3 is not None and m3 < 0:
+                        reasons.append(f'3M營收{m3:.1f}%')
+                    if rc is not None and rc < 0:
+                        reasons.append(f'累積營收{rc:.1f}%')
+                elif lt == '快速成長':
+                    spe = r.get('shen_pe')
+                    if spe and spe > 20:
+                        reasons.append(f'沈董PE {spe:.1f}>20')
+                    peg = r.get('gi_lynch_d')
+                    neff = r.get('gi_neff_d')
+                    if peg and peg > 1.2 and (neff is None or neff < 0.8):
+                        reasons.append(f'PEG {peg:.2f}/Neff {neff:.2f}未達')
+                elif lt in ('景氣循環', '轉機股'):
+                    npe = r.get('_norm_pe')
+                    if npe and npe > 15:
+                        reasons.append(f'正常化PE {npe:.1f}>15')
+                    rp = r.get('_rp')
+                    if rp and rp > 2.0:
+                        reasons.append(f'復甦進度{rp:.1f}過高')
+                    e4q = r.get('eps_4q_sum')
+                    if not e4q or e4q <= 0:
+                        reasons.append('近4季EPS<=0')
+                if not reasons:
+                    reasons.append(f'{lt}估值未達標')
+                reason = '；'.join(reasons)
+        elif code in classified:
+            reason = '分類後未進入估值'
 
         return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {pe_mark} {pe_str} | {yld_mark} {yld_str} | {reason} |"
 
