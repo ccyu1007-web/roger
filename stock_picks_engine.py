@@ -896,6 +896,121 @@ def run_full(dry_run=False):
     if cr: L.append("> 移出：" + "、".join(cr))
     if not cn and not cr: L.append("> 無變動")
     L.append("")
+    # ── 交叉比對（漏網之魚偵測）──
+    engine_all = cv | cg | cc  # 引擎已選到的所有代碼
+
+    # 從 DB 讀體質清單、觀察清單、葛林布萊前50
+    conn_x = sqlite3.connect(DB_PATH)
+    conn_x.row_factory = sqlite3.Row
+    quality_set = set()
+    watch_set = set()
+    for row in conn_x.execute("SELECT list_type, code FROM user_lists WHERE list_type IN ('quality','watch')"):
+        if row['list_type'] == 'quality':
+            quality_set.add(row['code'])
+        else:
+            watch_set.add(row['code'])
+    gb50 = set()
+    for row in conn_x.execute("SELECT code FROM stocks WHERE gb_total_rank IS NOT NULL AND gb_total_rank <= 50"):
+        gb50.add(row['code'])
+    conn_x.close()
+
+    # 找出引擎沒選到但其他篩選有選到的
+    quality_miss = sorted((quality_set & watch_set) - engine_all)  # 體質+觀察都通過但引擎沒選
+    gb_miss = sorted(gb50 - engine_all)  # 葛林布萊前50但引擎沒選
+
+    def _cross_detail(code):
+        """產出單支股票的 PE面/殖利率面位置說明"""
+        r = stocks.get(code)
+        if not r:
+            return f"| {code} | — | 不在資料中 |"
+        name = (r.get('name') or '')[:8]
+        cl = r.get('close')
+        e4 = r.get('eps_4q_sum')
+        bdiv = r.get('blend_div')
+        val_a = r.get('val_a')
+
+        parts = []
+        # PE 面
+        pe_str = '—'
+        if cl and e4 and e4 > 0:
+            pe = cl / e4
+            pe_lo = r.get('_pe_low') or stocks.get(code, {}).get('_pe_low')
+            pe_mid = r.get('_pe_mid')
+            pe_hi = r.get('_pe_high')
+            if pe_lo and pe_hi:
+                if pe <= pe_lo:
+                    pe_str = f'PE {pe:.1f} <= 歷史低 {pe_lo}（便宜）'
+                elif pe <= pe_mid:
+                    pe_str = f'PE {pe:.1f} 在低~中 {pe_lo}/{pe_mid}（偏低）'
+                elif pe <= pe_hi:
+                    pe_str = f'PE {pe:.1f} 在中~高 {pe_mid}/{pe_hi}（中位）'
+                else:
+                    pe_str = f'PE {pe:.1f} > 歷史高 {pe_hi}（偏貴）'
+            else:
+                pe_str = f'PE {pe:.1f}（無歷史區間）'
+        parts.append(f'PE面: {pe_str}')
+
+        # 殖利率面
+        yld_str = '—'
+        if cl and cl > 0 and bdiv and bdiv > 0:
+            yld = bdiv / cl * 100
+            if yld >= 6.0:
+                yld_str = f'殖利率 {yld:.1f}% >= 6%（通過）'
+            elif yld >= 5.5:
+                yld_str = f'殖利率 {yld:.1f}% 在 5.5~6%（接近）'
+            else:
+                yld_str = f'殖利率 {yld:.1f}% < 5.5%（未達）'
+        parts.append(f'殖利率面: {yld_str}')
+
+        # 引擎未選原因
+        reason = '—'
+        if code in excluded:
+            reason = excluded[code]
+        elif code in eval_log:
+            reason = eval_log[code].split('→')[-1].strip()
+        elif code not in passed:
+            reason = '信任門檻未通過'
+        parts.append(f'原因: {reason}')
+
+        # 評價距離
+        dist = ''
+        if cl and val_a and val_a > 0:
+            pct = (cl - val_a) / val_a * 100
+            dist = f'距A門檻 {"+" if pct > 0 else ""}{pct:.0f}%'
+        else:
+            dist = '無門檻'
+
+        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {dist} | {' / '.join(parts)} |"
+
+    if quality_miss or gb_miss:
+        L.append("---\n## 四、交叉比對（漏網之魚偵測）\n")
+
+        if quality_miss:
+            L.append("### 體質+觀察通過但引擎未列\n")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | 距A門檻 | PE面 / 殖利率面 / 原因 |")
+            L.append("|------|------|------|------|---------|------------------------|")
+            for c in quality_miss[:30]:
+                L.append(_cross_detail(c))
+            if len(quality_miss) > 30:
+                L.append(f"\n> ...及其他 {len(quality_miss) - 30} 支")
+            L.append("")
+
+        if gb_miss:
+            L.append("### 葛林布萊前50但引擎未列\n")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | 距A門檻 | PE面 / 殖利率面 / 原因 |")
+            L.append("|------|------|------|------|---------|------------------------|")
+            for c in gb_miss[:30]:
+                gb_rank = stocks.get(c, {}).get('gb_total_rank', '—')
+                L.append(_cross_detail(c) + f" GB#{gb_rank}")
+            L.append("")
+
+        # 反向：引擎有列但體質未通過
+        engine_no_quality = sorted(engine_all - quality_set)
+        if engine_no_quality:
+            L.append("### 引擎有列但體質未通過（體質門檻可能過嚴）\n")
+            L.append("> " + "、".join(f"{c} {stocks.get(c, {}).get('name', '')}" for c in engine_no_quality[:20]))
+            L.append("")
+
     L.append(f"分析日期：{today}")
 
     content = "\n".join(L)
