@@ -989,17 +989,15 @@ def run_full(dry_run=False):
             L.append("### 體質+觀察通過但引擎未列\n")
             L.append("| 代碼 | 名稱 | 等級 | 股價 | 距A門檻 | PE面 / 殖利率面 / 原因 |")
             L.append("|------|------|------|------|---------|------------------------|")
-            for c in quality_miss[:30]:
+            for c in quality_miss:
                 L.append(_cross_detail(c))
-            if len(quality_miss) > 30:
-                L.append(f"\n> ...及其他 {len(quality_miss) - 30} 支")
             L.append("")
 
         if gb_miss:
             L.append("### 葛林布萊前50但引擎未列\n")
             L.append("| 代碼 | 名稱 | 等級 | 股價 | 距A門檻 | PE面 / 殖利率面 / 原因 |")
             L.append("|------|------|------|------|---------|------------------------|")
-            for c in gb_miss[:30]:
+            for c in gb_miss:
                 gb_rank = stocks.get(c, {}).get('gb_total_rank', '—')
                 L.append(_cross_detail(c) + f" GB#{gb_rank}")
             L.append("")
