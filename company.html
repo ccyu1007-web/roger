@@ -2441,12 +2441,29 @@ function getAnalysisPrompt() {
 - 最強空方論點（一段話）[判斷]。
 - 本次分析的資料盲區（查不到或來源過舊的關鍵數據）。
 
-【完成後自動寫入 Render】
-分析完成後，將排版好的 Markdown 內容用 Python 寫入 Render：
+【完成後自動寫入 Render（含結構化摘要）】
+分析完成後，根據分析內容填寫結構化欄位，然後連同筆記一起寫入 Render：
+- moat_strength：從分析中判斷，填「強/中/弱/無」
+- moat_source：JSON array，從「品牌/轉換成本/網路效應/成本優勢」中選
+- structural_risk：填「有/無」
+- structural_risk_desc：有風險時簡述
+- growth_catalyst：從第三段摘要近期催化劑
+- confidence：綜合資料完整度判斷，填「高/中/低」
+- lynch_override：通常留空（自動判斷），除非分類明顯不合理才填
+
 python3 << 'PYEOF'
 import json, urllib.request
 content = """（完整 Markdown 質性研究筆記）"""
-data = json.dumps({"content": content}).encode("utf-8")
+meta = {
+    "moat_strength": "（強/中/弱/無）",
+    "moat_source": "（JSON array，如 [\\"品牌\\",\\"轉換成本\\"]）",
+    "structural_risk": "（有/無）",
+    "structural_risk_desc": "（風險說明，無則空字串）",
+    "growth_catalyst": "（近期催化劑摘要）",
+    "confidence": "（高/中/低）",
+    "lynch_override": ""
+}
+data = json.dumps({"content": content, "meta": meta}).encode("utf-8")
 req = urllib.request.Request(
     "https://tock-system.onrender.com/api/user-notes/${CODE}",
     data=data, headers={"Content-Type": "application/json"}, method="POST")
@@ -2481,8 +2498,16 @@ function copyFormatPrompt() {
 6. [判斷] 標記保留不動
 7. 不改動任何內容文字，只調整格式
 
-【完成後直接寫入 Render】
-curl -X POST https://tock-system.onrender.com/api/user-notes/${CODE} -H "Content-Type: application/json" -d '{"content":"排版後的內容"}'
+【完成後直接寫入 Render（含結構化摘要）】
+排版完成後，根據筆記內容填寫結構化欄位（moat_strength/moat_source/structural_risk/structural_risk_desc/growth_catalyst/confidence/lynch_override），連同排版後的內容一起用 POST 寫入：
+python3 -c "
+import json, urllib.request
+content = '''（排版後的內容）'''
+meta = {'moat_strength':'','moat_source':'[]','structural_risk':'','structural_risk_desc':'','growth_catalyst':'','confidence':'','lynch_override':''}
+data = json.dumps({'content': content, 'meta': meta}).encode('utf-8')
+req = urllib.request.Request('https://tock-system.onrender.com/api/user-notes/${CODE}', data=data, headers={'Content-Type': 'application/json'}, method='POST')
+print(urllib.request.urlopen(req, timeout=30).read().decode())
+"
 
 【以下是需要排版的原始內容】
 
