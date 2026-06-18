@@ -232,13 +232,17 @@ def generate_briefing(code):
 
     # ── 季度 EPS ──
     lines.append(f"\n【季度EPS（近10季）】")
-    lines.append(f"  {'季度':>8} {'EPS':>7} {'營收(百萬)':>10} {'營業利益(百萬)':>14}")
+    lines.append(f"  {'季度':>8} {'EPS':>7} {'本業EPS':>8} {'業外EPS':>8} {'營收(百萬)':>10} {'營業利益(百萬)':>14}")
     for row in reversed(list(qf_rows)):
         rev = row['revenue']
         oi = row['operating_income']
+        ec = row['eps_core']
+        en = row['eps_nonop']
         rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
         oi_s = f"{oi/1e6:>14.0f}" if oi else '             —'
-        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {rev_s} {oi_s}")
+        ec_s = f"{ec:>8.2f}" if ec is not None else '       —'
+        en_s = f"{en:>8.2f}" if en is not None else '       —'
+        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {ec_s} {en_s} {rev_s} {oi_s}")
 
     # ── PE 歷史 ──
     lines.append(f"\n【PE歷史區間】")
@@ -341,6 +345,15 @@ def generate_briefing(code):
 ---
 ## 三、價值評估
 **檢核通過：X/15**
+
+本業推估EPS計算（必做）：
+1. 用所有已公佈季度的營業利益 vs 去年同季，算平均本業成長率
+2. 未公佈季度：去年同季 本業EPS × (1+成長率) + 去年同季 業外EPS → 推估該季EPS
+3. 全年預估 = 已公佈季度實際EPS + 推估未公佈季度EPS
+4. 用本業推估EPS算PE，對照歷史PE區間（低/中/高）標示PE面位置
+5. 用綜合股利算殖利率，對照門檻（6%/5.5%）標示殖利率面位置
+6. 明確寫出：PE面（通過/未通過/接近）+ 殖利率面（通過/未通過/接近）+ 哪一面卡關
+
 評價門檻表 + PE/殖利率 + EPS穩定性/配息率/DDM/DCF → 以分類角度解讀 → 小結
 
 ---
