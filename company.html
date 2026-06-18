@@ -2176,6 +2176,7 @@ async function initEstimator(sharesMillion) {
       if (el) el.textContent = _estPrice.toFixed(2);
     }
     _stockData = stock;
+    window._stockData = stock;  // 供報告保鮮指示器讀取
   } catch(e) {}
 
   // 從 DB 讀取評價門檻（與總表同源，不前端重算）
@@ -2541,6 +2542,40 @@ function _renderNotesPreview() {
   }
 }
 
+function _collectMeta() {
+  const moatEl = document.querySelector('input[name="nm_moat"]:checked');
+  const riskEl = document.querySelector('input[name="nm_risk"]:checked');
+  const confEl = document.querySelector('input[name="nm_conf"]:checked');
+  const srcs = [];
+  document.querySelectorAll('.cb_moat_src:checked').forEach(cb => srcs.push(cb.value));
+  return {
+    moat_strength: moatEl ? moatEl.value : '',
+    moat_source: JSON.stringify(srcs),
+    structural_risk: riskEl ? riskEl.value : '',
+    structural_risk_desc: (document.getElementById('riskDesc')?.value || '').trim(),
+    growth_catalyst: (document.getElementById('growthCat')?.value || '').trim(),
+    confidence: confEl ? confEl.value : '',
+    lynch_override: document.getElementById('lynchOver')?.value || ''
+  };
+}
+
+let _metaTimer = null;
+function onMetaChange() {
+  clearTimeout(_metaTimer);
+  _metaTimer = setTimeout(() => {
+    const text = document.getElementById('notesArea')?.value || '';
+    const meta = _collectMeta();
+    window._notesMeta = meta;
+    const body = text.trim() ? {content: text, meta} : {content: text};
+    fetch(`/api/user-notes/${CODE}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const statusEl = document.getElementById('notesStatus');
+    if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
+  }, 500);
+}
+
 function onNotesInput() {
   const statusEl = document.getElementById('notesStatus');
   if (statusEl) statusEl.textContent = '編輯中...';
@@ -2549,10 +2584,11 @@ function onNotesInput() {
     const text = document.getElementById('notesArea').value;
     if (text.trim()) {
       localStorage.setItem('notes_' + CODE, text);
-      // 同步到 DB
+      // 同步到 DB（帶結構化欄位）
+      const meta = _collectMeta();
       fetch(`/api/user-notes/${CODE}`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({content: text})
+        body: JSON.stringify({content: text, meta})
       });
     } else {
       localStorage.removeItem('notes_' + CODE);
@@ -2575,6 +2611,16 @@ async function loadNotes() {
     const noteContent = noteData.content || '';
     const newsArchive = noteData.news_archive || '';
     const updatedAt = noteData.updated_at || '';
+    // 結構化欄位
+    window._notesMeta = {
+      moat_strength: noteData.moat_strength || '',
+      moat_source: noteData.moat_source || '',
+      structural_risk: noteData.structural_risk || '',
+      structural_risk_desc: noteData.structural_risk_desc || '',
+      growth_catalyst: noteData.growth_catalyst || '',
+      confidence: noteData.confidence || '',
+      lynch_override: noteData.lynch_override || ''
+    };
 
     const archiveHtml = newsArchive.trim() ? newsArchive.trim().split(/\n\n+/).map(block => {
       const lines = block.split('\n');
@@ -2585,6 +2631,51 @@ async function loadNotes() {
         ${link ? `<a href="${link}" target="_blank" style="font-size:.75rem;color:#2563eb;text-decoration:none">查看原文</a>` : ''}
       </div>`;
     }).join('') : '<span style="color:#cbd5e1;font-size:.85rem">尚無歸檔新聞</span>';
+
+    // 結構化摘要面板 HTML
+    const m = window._notesMeta;
+    let moatSources = [];
+    try { moatSources = JSON.parse(m.moat_source || '[]'); } catch(e) { moatSources = []; }
+    const moatOpts = ['品牌','轉換成本','網路效應','成本優勢'];
+    const lynchOpts = ['','緩慢成長','穩健股','快速成長','景氣循環','轉機股','資產股'];
+
+    const structPanel = `
+      <div id="structPanel" style="border-top:2px solid #059669;background:#f0fdf4;padding:14px 20px;border-radius:0 0 10px 10px;margin-top:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer" onclick="document.getElementById('structBody').style.display=document.getElementById('structBody').style.display==='none'?'':'none';this.querySelector('span:last-child').textContent=document.getElementById('structBody').style.display==='none'?'[展開]':'[收合]'">
+          <span style="font-size:.9rem;font-weight:700;color:#059669">結構化摘要</span>
+          <span style="font-size:.72rem;color:#94a3b8">[收合]</span>
+        </div>
+        <div id="structBody" style="display:flex;flex-wrap:wrap;gap:14px 24px;font-size:.82rem">
+          <div>
+            <label style="font-weight:600;color:#334155">護城河強度</label><br>
+            ${['強','中','弱','無'].map(v => `<label style="margin-right:8px"><input type="radio" name="nm_moat" value="${v}" ${m.moat_strength===v?'checked':''} onchange="onMetaChange()"> ${v}</label>`).join('')}
+          </div>
+          <div>
+            <label style="font-weight:600;color:#334155">護城河來源</label><br>
+            ${moatOpts.map(v => `<label style="margin-right:8px"><input type="checkbox" class="cb_moat_src" value="${v}" ${moatSources.includes(v)?'checked':''} onchange="onMetaChange()"> ${v}</label>`).join('')}
+          </div>
+          <div>
+            <label style="font-weight:600;color:#334155">結構性風險</label><br>
+            <label style="margin-right:8px"><input type="radio" name="nm_risk" value="有" ${m.structural_risk==='有'?'checked':''} onchange="onMetaChange()"> 有</label>
+            <label><input type="radio" name="nm_risk" value="無" ${m.structural_risk==='無'?'checked':''} onchange="onMetaChange()"> 無</label>
+            <input id="riskDesc" type="text" value="${(m.structural_risk_desc||'').replace(/"/g,'&quot;')}" placeholder="風險說明" onchange="onMetaChange()" style="margin-left:6px;padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem;width:180px">
+          </div>
+          <div>
+            <label style="font-weight:600;color:#334155">成長催化劑</label><br>
+            <input id="growthCat" type="text" value="${(m.growth_catalyst||'').replace(/"/g,'&quot;')}" placeholder="近期成長驅動因素" onchange="onMetaChange()" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem;width:240px">
+          </div>
+          <div>
+            <label style="font-weight:600;color:#334155">信心度</label><br>
+            ${['高','中','低'].map(v => `<label style="margin-right:8px"><input type="radio" name="nm_conf" value="${v}" ${m.confidence===v?'checked':''} onchange="onMetaChange()"> ${v}</label>`).join('')}
+          </div>
+          <div>
+            <label style="font-weight:600;color:#334155">林區分類覆寫</label><br>
+            <select id="lynchOver" onchange="onMetaChange()" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem">
+              ${lynchOpts.map(v => `<option value="${v}" ${m.lynch_override===v?'selected':''}>${v||'(自動判斷)'}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>`;
 
     panel.innerHTML = `
       <div class="notes-wrap">
@@ -2602,6 +2693,7 @@ async function loadNotes() {
         <textarea class="notes-area" id="notesArea" oninput="onNotesInput()" style="display:none"
           placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點...">${noteContent.replace(/</g,'&lt;')}</textarea>
       </div>
+      ${structPanel}
       <div style="border-top:2px solid #f59e0b;background:#fff;padding:16px 28px;border-radius:0 0 10px 10px;margin-top:12px">
         <div style="font-size:.95rem;font-weight:700;color:#92400e;margin-bottom:10px">新聞報告彙整</div>
         ${archiveHtml}
@@ -2624,6 +2716,38 @@ async function loadReport() {
     const data = await res.json();
     const content = data.content || '';
     const updatedAt = data.updated_at || '';
+    // 保鮮資料
+    window._reportSnapshot = {
+      price: data.snapshot_price, grade: data.snapshot_grade,
+      eps: data.snapshot_eps, judgment: data.snapshot_judgment
+    };
+
+    // 保鮮指示器
+    let freshnessHtml = '';
+    if (updatedAt) {
+      const daysSince = Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000);
+      const fColor = daysSince < 90 ? '#22c55e' : daysSince < 180 ? '#f59e0b' : '#ef4444';
+      const fLabel = daysSince < 90 ? '新鮮' : daysSince < 180 ? '偏舊' : '過期';
+      let priceWarn = '';
+      if (data.snapshot_price && window._stockData?.close) {
+        const pctChg = ((window._stockData.close - data.snapshot_price) / data.snapshot_price * 100).toFixed(1);
+        const absChg = Math.abs(parseFloat(pctChg));
+        if (absChg > 15) {
+          priceWarn = `<span style="color:#ef4444;font-weight:600;margin-left:8px">股價偏離 ${pctChg}% 建議更新</span>`;
+        } else {
+          priceWarn = `<span style="margin-left:8px;color:#64748b">股價 ${data.snapshot_price} → ${window._stockData.close} (${pctChg > 0 ? '+' : ''}${pctChg}%)</span>`;
+        }
+      }
+      freshnessHtml = `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;font-size:.8rem;flex-wrap:wrap">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${fColor}"></span>
+          <span style="color:${fColor};font-weight:600">${fLabel}</span>
+          <span style="color:#64748b">${daysSince} 天前</span>
+          ${data.snapshot_judgment ? `<span style="padding:1px 8px;background:#eff6ff;border-radius:4px;color:#1e40af;font-weight:600">${data.snapshot_judgment}</span>` : ''}
+          ${data.snapshot_grade ? `<span style="color:#64748b">等級 ${data.snapshot_grade}</span>` : ''}
+          ${priceWarn}
+        </div>`;
+    }
 
     const name = document.querySelector('.chk-price')?.textContent?.split(' ')[1] || '';
 
@@ -2637,6 +2761,7 @@ async function loadReport() {
           <button onclick="exportReportPDF()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">匯出 PDF</button>
           <span id="reportStatus" style="font-size:.75rem;color:#94a3b8">${updatedAt ? '最後更新：' + updatedAt : ''}</span>
         </div>
+        ${freshnessHtml}
         <div class="notes-preview" id="reportPreview" onclick="switchReportMode('edit')"></div>
         <textarea id="reportArea" oninput="onReportInput()" style="display:none;width:100%;min-height:400px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:.85rem;font-family:'Microsoft JhengHei','Segoe UI',monospace;resize:vertical;line-height:1.6">${content.replace(/</g,'&lt;')}</textarea>
       </div>`;
@@ -2693,9 +2818,28 @@ function onReportInput() {
     fetch(`/api/investment-report/${CODE}`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({content: text})
+    }).then(() => {
+      // 儲存報告時自動更新快照
+      if (text.trim() && window._stockData) {
+        const s = window._stockData;
+        fetch(`/api/report-snapshot/${CODE}`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            price: s.close, grade: s.val_level,
+            eps: s.blend_eps || s.shen_eps,
+            judgment: _extractJudgment(text)
+          })
+        });
+      }
     });
     if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
   }, 800);
+}
+
+function _extractJudgment(text) {
+  // 從報告內容提取投資判斷（重倉/小買/觀望/避開）
+  const m = text.match(/投資判斷[：:]\s*[【\[]?(重倉|小買|觀望|避開)[】\]]?/);
+  return m ? m[1] : '';
 }
 
 function copyReportPrompt() {

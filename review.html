@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>歷史決策回顧 — 逍遙投資系統</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Microsoft JhengHei','Segoe UI',sans-serif; background: #f8fafc; color: #1e293b; padding: 20px; }
+h1 { font-size: 1.2rem; color: #1e3a5f; margin-bottom: 16px; }
+.back { font-size: .85rem; color: #2563eb; text-decoration: none; margin-bottom: 12px; display: inline-block; }
+.back:hover { text-decoration: underline; }
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); font-size: .84rem; }
+th { background: #f1f5f9; padding: 8px 10px; text-align: left; font-weight: 600; color: #475569; cursor: pointer; white-space: nowrap; user-select: none; }
+th:hover { background: #e2e8f0; }
+td { padding: 7px 10px; border-top: 1px solid #f1f5f9; }
+tr:hover { background: #f8fafc; }
+.pos { color: #dc2626; font-weight: 600; }
+.neg { color: #16a34a; font-weight: 600; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+.badge-heavy { background: #fef2f2; color: #991b1b; }
+.badge-small { background: #fffbeb; color: #92400e; }
+.badge-watch { background: #f0f9ff; color: #1e40af; }
+.badge-avoid { background: #f1f5f9; color: #64748b; }
+.fresh-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.empty { text-align: center; padding: 40px; color: #94a3b8; }
+#loading { text-align: center; padding: 40px; color: #64748b; }
+</style>
+</head>
+<body>
+<a href="/" class="back">← 返回總表</a>
+<h1>歷史決策回顧</h1>
+<div id="loading">載入中...</div>
+<table id="reviewTable" style="display:none">
+  <thead>
+    <tr>
+      <th data-col="code">代碼</th>
+      <th data-col="name">名稱</th>
+      <th data-col="snapshot_judgment">結論</th>
+      <th data-col="updated_at">報告日期</th>
+      <th data-col="snapshot_price">當時股價</th>
+      <th data-col="current_price">現在股價</th>
+      <th data-col="price_change_pct">漲跌幅</th>
+      <th data-col="snapshot_grade">當時等級</th>
+      <th data-col="current_grade">現在等級</th>
+      <th data-col="moat_strength">護城河</th>
+      <th data-col="confidence">信心度</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+let _data = [];
+let _sortCol = 'updated_at';
+let _sortAsc = false;
+
+async function load() {
+  try {
+    const res = await fetch('/api/review-data');
+    _data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    if (_data.length === 0) {
+      document.getElementById('loading').style.display = '';
+      document.getElementById('loading').innerHTML = '<div class="empty">尚無投資報告快照資料</div>';
+      return;
+    }
+    document.getElementById('reviewTable').style.display = '';
+    render();
+  } catch(e) {
+    document.getElementById('loading').innerHTML = '<div class="empty" style="color:#ef4444">載入失敗: ' + e.message + '</div>';
+  }
+}
+
+function render() {
+  const sorted = [..._data].sort((a, b) => {
+    let va = a[_sortCol], vb = b[_sortCol];
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (typeof va === 'number' && typeof vb === 'number') return _sortAsc ? va - vb : vb - va;
+    return _sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+
+  document.getElementById('tbody').innerHTML = sorted.map(r => {
+    const pct = r.price_change_pct;
+    const pctCls = pct > 0 ? 'pos' : pct < 0 ? 'neg' : '';
+    const pctStr = pct != null ? (pct > 0 ? '+' : '') + pct + '%' : '—';
+
+    const jMap = {'重倉': 'badge-heavy', '小買': 'badge-small', '觀望': 'badge-watch', '避開': 'badge-avoid'};
+    const jBadge = r.snapshot_judgment ? `<span class="badge ${jMap[r.snapshot_judgment] || ''}">${r.snapshot_judgment}</span>` : '—';
+
+    // 新鮮度
+    const days = r.updated_at ? Math.floor((Date.now() - new Date(r.updated_at).getTime()) / 86400000) : 999;
+    const fc = days < 90 ? '#22c55e' : days < 180 ? '#f59e0b' : '#ef4444';
+
+    return `<tr>
+      <td><a href="/company.html?code=${r.code}&tab=report" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:600">${r.code}</a></td>
+      <td>${r.name || ''}</td>
+      <td>${jBadge}</td>
+      <td><span class="fresh-dot" style="background:${fc}"></span>${(r.updated_at || '').substring(0, 10)}</td>
+      <td>${r.snapshot_price != null ? r.snapshot_price.toFixed(1) : '—'}</td>
+      <td>${r.current_price != null ? r.current_price.toFixed(1) : '—'}</td>
+      <td class="${pctCls}">${pctStr}</td>
+      <td>${r.snapshot_grade || '—'}</td>
+      <td>${r.current_grade || '—'}</td>
+      <td>${r.moat_strength || '—'}</td>
+      <td>${r.confidence || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// 點擊排序
+document.querySelectorAll('#reviewTable th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (_sortCol === col) _sortAsc = !_sortAsc;
+    else { _sortCol = col; _sortAsc = true; }
+    render();
+  });
+});
+
+load();
+</script>
+</body>
+</html>

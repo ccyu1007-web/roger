@@ -42,6 +42,20 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # static file 不快取
 app.config['COMPRESS_MIMETYPES'] = ['application/json']
 DB_PATH = "stocks.db"
 
+# ── 表結構常數（push 和 API 共用）────────────────────────────
+_USER_NOTES_COLS = ['code','content','news_archive','updated_at',
+                    'moat_strength','moat_source','structural_risk',
+                    'structural_risk_desc','growth_catalyst','confidence','lynch_override']
+_USER_NOTES_CREATE = """CREATE TABLE IF NOT EXISTS user_notes (
+    code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT,
+    moat_strength TEXT, moat_source TEXT, structural_risk TEXT,
+    structural_risk_desc TEXT, growth_catalyst TEXT, confidence TEXT, lynch_override TEXT)"""
+
+_REPORT_COLS = ['code','content','updated_at','snapshot_price','snapshot_grade','snapshot_eps','snapshot_judgment']
+_REPORT_CREATE = """CREATE TABLE IF NOT EXISTS investment_reports (
+    code TEXT PRIMARY KEY, content TEXT, updated_at TEXT,
+    snapshot_price REAL, snapshot_grade TEXT, snapshot_eps REAL, snapshot_judgment TEXT)"""
+
 def _bg_push_table(table, columns, pk, create_sql=None, where=None, clear_first=False):
     """背景 push 單一表到 Render（僅本機執行）"""
     if os.environ.get('DATABASE_URL'):
@@ -4984,9 +4998,7 @@ def archive_industry_news(nid):
     conn.commit()
     conn.close()
 
-    _bg_push_table('user_notes', ['code','content','news_archive','updated_at'], ['code'],
-                   create_sql="""CREATE TABLE IF NOT EXISTS user_notes (
-                       code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT)""")
+    _bg_push_table('user_notes', _USER_NOTES_COLS, ['code'], create_sql=_USER_NOTES_CREATE)
     return jsonify({"status": "ok", "code": code, "title": title})
 
 # ── 前端首頁 ────────────────────────────────────────────────
@@ -5097,6 +5109,21 @@ def _init_user_lists():
     except Exception:
         try: conn.rollback()
         except: pass
+    # 質性研究結構化欄位
+    for col in ['moat_strength', 'moat_source', 'structural_risk',
+                'structural_risk_desc', 'growth_catalyst', 'confidence', 'lynch_override']:
+        try:
+            c.execute(f"ALTER TABLE user_notes ADD COLUMN {col} TEXT")
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except: pass
+    # 清單異動歷史
+    c.execute("""CREATE TABLE IF NOT EXISTS list_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT, list_type TEXT, action TEXT,
+        reason TEXT, price_at REAL, timestamp TEXT)""")
+    conn.commit()
     # 個股估值參數也存 DB
     c.execute("""CREATE TABLE IF NOT EXISTS user_estimates (
         code TEXT PRIMARY KEY,
@@ -5172,8 +5199,18 @@ def update_user_list(list_type):
         price = data.get('price')
         c.execute("INSERT OR REPLACE INTO user_lists (list_type, code, added_at, price_at) VALUES (?,?,?,?)",
                   (list_type, code, now, price))
+        # 記錄異動歷史
+        try:
+            c.execute("INSERT INTO list_history (code, list_type, action, reason, price_at, timestamp) VALUES (?,?,?,?,?,?)",
+                      (code, list_type, 'add', data.get('reason', ''), price, now))
+        except Exception: pass
     elif action == 'remove' and code:
         c.execute("DELETE FROM user_lists WHERE list_type=? AND code=?", (list_type, code))
+        try:
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            c.execute("INSERT INTO list_history (code, list_type, action, reason, price_at, timestamp) VALUES (?,?,?,?,?,?)",
+                      (code, list_type, 'remove', data.get('reason', ''), data.get('price'), now))
+        except Exception: pass
     elif action == 'sync':
         # 整批同步（從 localStorage 遷移用）
         codes = data.get('codes', [])
@@ -5389,38 +5426,70 @@ def delete_daily_note(date):
 
 @app.route("/api/user-notes/<code>", methods=["GET"])
 def get_user_note(code):
+    _meta_cols = ['moat_strength','moat_source','structural_risk',
+                  'structural_risk_desc','growth_catalyst','confidence','lynch_override']
     try:
-        rows = query_db("SELECT content, news_archive, updated_at FROM user_notes WHERE code=?", (code,))
+        rows = query_db(
+            "SELECT content, news_archive, updated_at, " +
+            ", ".join(_meta_cols) +
+            " FROM user_notes WHERE code=?", (code,))
     except Exception:
-        # news_archive 欄位尚未建立時 fallback
-        rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))
-        if rows:
-            r = dict(rows[0])
-            r['news_archive'] = ''
-            return jsonify(r)
-        return jsonify({"content": "", "news_archive": "", "updated_at": None})
+        try:
+            rows = query_db("SELECT content, news_archive, updated_at FROM user_notes WHERE code=?", (code,))
+        except Exception:
+            rows = query_db("SELECT content, updated_at FROM user_notes WHERE code=?", (code,))
+            if rows:
+                r = dict(rows[0])
+                r['news_archive'] = ''
+                return jsonify(r)
+            return jsonify({"content": "", "news_archive": "", "updated_at": None})
     if rows:
         return jsonify(rows[0])
-    return jsonify({"content": "", "news_archive": "", "updated_at": None})
+    result = {"content": "", "news_archive": "", "updated_at": None}
+    for c in _meta_cols:
+        result[c] = None
+    return jsonify(result)
 
 @app.route("/api/user-notes/<code>", methods=["POST"])
 def save_user_note(code):
 
     from datetime import datetime
     content = request.json.get('content', '')
+    meta = request.json.get('meta')  # optional structured fields
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if content.strip():
-        c.execute("INSERT OR REPLACE INTO user_notes (code, content, updated_at) VALUES (?,?,?)",
-                  (code, content, now))
+        if meta:
+            # 保留 news_archive：先讀現有值
+            c.execute("SELECT news_archive FROM user_notes WHERE code=?", (code,))
+            existing = c.fetchone()
+            news_archive = existing[0] if existing else ''
+            c.execute(
+                "INSERT OR REPLACE INTO user_notes "
+                "(code, content, news_archive, updated_at, "
+                "moat_strength, moat_source, structural_risk, structural_risk_desc, "
+                "growth_catalyst, confidence, lynch_override) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (code, content, news_archive, now,
+                 meta.get('moat_strength'), meta.get('moat_source'),
+                 meta.get('structural_risk'), meta.get('structural_risk_desc'),
+                 meta.get('growth_catalyst'), meta.get('confidence'),
+                 meta.get('lynch_override')))
+        else:
+            # 向下相容：只更新 content，保留其他欄位
+            c.execute("SELECT 1 FROM user_notes WHERE code=?", (code,))
+            if c.fetchone():
+                c.execute("UPDATE user_notes SET content=?, updated_at=? WHERE code=?",
+                          (content, now, code))
+            else:
+                c.execute("INSERT INTO user_notes (code, content, updated_at) VALUES (?,?,?)",
+                          (code, content, now))
     else:
         c.execute("DELETE FROM user_notes WHERE code=?", (code,))
     conn.commit()
     conn.close()
-    _bg_push_table('user_notes', ['code','content','news_archive','updated_at'], ['code'],
-                   create_sql="""CREATE TABLE IF NOT EXISTS user_notes (
-                       code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT)""")
+    _bg_push_table('user_notes', _USER_NOTES_COLS, ['code'], create_sql=_USER_NOTES_CREATE)
     return jsonify({"status": "ok"})
 
 # ── 投資報告書 API ──────────────────────────────────────────
@@ -5430,12 +5499,26 @@ def _init_investment_reports():
     c.execute("""CREATE TABLE IF NOT EXISTS investment_reports (
         code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
     conn.commit()
+    # 報告快照欄位（保鮮機制）
+    for col, typ in [('snapshot_price', 'REAL'), ('snapshot_grade', 'TEXT'),
+                     ('snapshot_eps', 'REAL'), ('snapshot_judgment', 'TEXT')]:
+        try:
+            c.execute(f"ALTER TABLE investment_reports ADD COLUMN {col} {typ}")
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except: pass
     conn.close()
 
 @app.route("/api/investment-report/<code>", methods=["GET"])
 def get_investment_report(code):
     _init_investment_reports()
-    rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code=?", (code,))
+    try:
+        rows = query_db(
+            "SELECT content, updated_at, snapshot_price, snapshot_grade, snapshot_eps, snapshot_judgment "
+            "FROM investment_reports WHERE code=?", (code,))
+    except Exception:
+        rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code=?", (code,))
     if rows:
         return jsonify(rows[0])
     return jsonify({"content": "", "updated_at": None})
@@ -5455,9 +5538,7 @@ def save_investment_report(code):
         c.execute("DELETE FROM investment_reports WHERE code=?", (code,))
     conn.commit()
     conn.close()
-    _bg_push_table('investment_reports', ['code','content','updated_at'], ['code'],
-                   create_sql="""CREATE TABLE IF NOT EXISTS investment_reports (
-                       code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
+    _bg_push_table('investment_reports', _REPORT_COLS, ['code'], create_sql=_REPORT_CREATE)
     return jsonify({"status": "ok"})
 
 # ── 選股推薦 API（複用 investment_reports 表，key=_stock_picks）──
@@ -5484,10 +5565,138 @@ def save_stock_picks():
         c.execute("DELETE FROM investment_reports WHERE code='_stock_picks'")
     conn.commit()
     conn.close()
-    _bg_push_table('investment_reports', ['code','content','updated_at'], ['code'],
-                   create_sql="""CREATE TABLE IF NOT EXISTS investment_reports (
-                       code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""")
+    _bg_push_table('investment_reports', _REPORT_COLS, ['code'], create_sql=_REPORT_CREATE)
     return jsonify({"status": "ok"})
+
+# ── 報告快照 API ────────────────────────────────────────────
+@app.route("/api/report-snapshot/<code>", methods=["POST"])
+def save_report_snapshot(code):
+    """儲存投資報告書產出時的股價/等級/EPS/結論，用於保鮮比對"""
+    _init_investment_reports()
+    from datetime import datetime
+    data = request.json or {}
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM investment_reports WHERE code=?", (code,))
+    if c.fetchone():
+        c.execute(
+            "UPDATE investment_reports SET snapshot_price=?, snapshot_grade=?, "
+            "snapshot_eps=?, snapshot_judgment=? WHERE code=?",
+            (data.get('price'), data.get('grade'), data.get('eps'),
+             data.get('judgment'), code))
+    else:
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute(
+            "INSERT INTO investment_reports (code, content, updated_at, "
+            "snapshot_price, snapshot_grade, snapshot_eps, snapshot_judgment) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (code, '', now, data.get('price'), data.get('grade'),
+             data.get('eps'), data.get('judgment')))
+    conn.commit()
+    conn.close()
+    _bg_push_table('investment_reports', _REPORT_COLS, ['code'], create_sql=_REPORT_CREATE)
+    return jsonify({"status": "ok"})
+
+# ── 筆記摘要 API（總表用）──────────────────────────────────
+@app.route("/api/notes-summary")
+def get_notes_summary():
+    """回傳所有有筆記的股票摘要，供總表顯示覆蓋率徽章"""
+    try:
+        rows = query_db(
+            "SELECT code, updated_at, moat_strength, confidence "
+            "FROM user_notes WHERE content IS NOT NULL AND content != ''")
+    except Exception:
+        rows = query_db(
+            "SELECT code, updated_at FROM user_notes "
+            "WHERE content IS NOT NULL AND content != ''")
+    # 也查有報告的股票
+    try:
+        report_rows = query_db(
+            "SELECT code, updated_at as report_date, snapshot_price, snapshot_judgment "
+            "FROM investment_reports WHERE content IS NOT NULL AND content != '' AND code != '_stock_picks'")
+    except Exception:
+        report_rows = query_db(
+            "SELECT code, updated_at as report_date "
+            "FROM investment_reports WHERE content IS NOT NULL AND content != '' AND code != '_stock_picks'")
+    report_map = {}
+    for r in report_rows:
+        report_map[r['code']] = dict(r)
+    result = {}
+    for r in rows:
+        d = dict(r)
+        rpt = report_map.pop(r['code'], None)
+        if rpt:
+            d['report_date'] = rpt.get('report_date')
+            d['snapshot_price'] = rpt.get('snapshot_price')
+            d['snapshot_judgment'] = rpt.get('snapshot_judgment')
+        result[r['code']] = d
+    # 有報告但沒筆記的也列入
+    for code, rpt in report_map.items():
+        result[code] = {
+            'code': code, 'updated_at': None,
+            'report_date': rpt.get('report_date'),
+            'snapshot_price': rpt.get('snapshot_price'),
+            'snapshot_judgment': rpt.get('snapshot_judgment'),
+        }
+    return jsonify(result)
+
+# ── 清單異動歷史 API ───────────────────────────────────────
+@app.route("/api/list-history/<code>")
+def get_list_history(code):
+    rows = query_db(
+        "SELECT list_type, action, reason, price_at, timestamp "
+        "FROM list_history WHERE code=? ORDER BY timestamp DESC LIMIT 50",
+        (code,))
+    return jsonify(rows)
+
+# ── 歷史決策回顧 API ──────────────────────────────────────
+@app.route("/api/review-data")
+def get_review_data():
+    """回傳所有有報告快照的股票 vs 現況"""
+    try:
+        reports = query_db(
+            "SELECT code, updated_at, snapshot_price, snapshot_grade, "
+            "snapshot_eps, snapshot_judgment "
+            "FROM investment_reports "
+            "WHERE snapshot_price IS NOT NULL AND code != '_stock_picks'")
+    except Exception:
+        return jsonify([])
+    if not reports:
+        return jsonify([])
+    # 取得現在股價
+    prices = {}
+    for r in query_db("SELECT code, close, val_level FROM stocks"):
+        prices[r['code']] = {'close': r.get('close'), 'val_level': r.get('val_level')}
+    result = []
+    for r in reports:
+        d = dict(r)
+        cur = prices.get(r['code'], {})
+        d['current_price'] = cur.get('close')
+        d['current_grade'] = cur.get('val_level')
+        if r.get('snapshot_price') and cur.get('close'):
+            d['price_change_pct'] = round(
+                (cur['close'] - r['snapshot_price']) / r['snapshot_price'] * 100, 1)
+        else:
+            d['price_change_pct'] = None
+        # 取得股票名稱
+        name_rows = query_db("SELECT name FROM stocks WHERE code=?", (r['code'],))
+        d['name'] = name_rows[0]['name'] if name_rows else ''
+        # 取得筆記摘要
+        try:
+            note_rows = query_db(
+                "SELECT moat_strength, confidence FROM user_notes WHERE code=?", (r['code'],))
+            if note_rows:
+                d['moat_strength'] = note_rows[0].get('moat_strength')
+                d['confidence'] = note_rows[0].get('confidence')
+        except Exception:
+            pass
+        result.append(d)
+    return jsonify(result)
+
+# ── 歷史決策回顧頁面 ──────────────────────────────────────
+@app.route("/review.html")
+def review_page():
+    return send_from_directory('.', 'review.html')
 
 # ── 檢核表 API ─────────────────────────────────────────────
 @app.route("/api/stocks/<code>/checklist")

@@ -34,6 +34,8 @@ TABLE_PK = {
     'user_settings':        ['key'],
     'portfolios':           ['id'],
     'portfolio_holdings':   ['portfolio_id', 'stock_code', 'account'],
+    'list_history':         ['id'],
+    'investment_reports':   ['code'],
 }
 
 

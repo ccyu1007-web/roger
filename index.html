@@ -497,6 +497,14 @@
     <button onclick="exportCSV()" style="padding:6px 14px;border:1px solid #059669;border-radius:6px;background:#fff;color:#059669;cursor:pointer;font-size:.82rem;font-weight:600;white-space:nowrap">匯出 CSV</button>
   </div>
 
+  <!-- 我的關注摘要 -->
+  <div id="myFocusPanel" style="display:none;margin-bottom:10px;padding:10px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.82rem">
+    <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="document.getElementById('myFocusBody').style.display=document.getElementById('myFocusBody').style.display==='none'?'':'none'">
+      <span style="font-weight:700;color:#92400e">我的關注</span>
+      <span id="myFocusCount" style="font-size:.72rem;color:#b45309"></span>
+    </div>
+    <div id="myFocusBody" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
+  </div>
 
   <div class="table-wrap">
     <div class="loading" id="loading">
@@ -2291,6 +2299,7 @@ let _fixedQ = [], _fixedY = [], _fixedD = [];  // 固定欄位的季度/年度
 let allData  = [];
 let _prevailingQuarter = ''; // 多數公司目前的最新季度
 let _newsFlags = {};  // code → count（有重要新聞的股票）
+let _notesSummary = {};  // code → {updated_at, moat_strength, confidence, report_date, ...}
 let filtered = [];
 let sortCol  = 'code';
 let sortAsc  = true;
@@ -2301,17 +2310,19 @@ let PAGE_SIZE = 50;
 // ── 初始載入 ────────────────────────────────────────────────
 async function loadData() {
   try {
-    const [sRes, stRes, nfRes, ueRes] = await Promise.all([
+    const [sRes, stRes, nfRes, ueRes, nsRes] = await Promise.all([
       fetch('/api/status'),
       fetch('/api/stocks'),
       fetch('/api/news-flags'),
       fetch('/api/user-estimates-all'),
+      fetch('/api/notes-summary'),
     ]);
     const status = await sRes.json();
     const stocks = await stRes.json();
     try { _newsFlags = await nfRes.json(); } catch(e) { _newsFlags = {}; }
     let _userEstimates = {};
     try { _userEstimates = await ueRes.json(); } catch(e) { _userEstimates = {}; }
+    try { _notesSummary = await nsRes.json(); } catch(e) { _notesSummary = {}; }
 
     updateStatusBar(status);
     setRefreshingUI(status.is_refreshing);
@@ -2371,6 +2382,7 @@ async function loadData() {
     previewWatch();
     applySort();
     render();
+    updateMyFocus();
 
     if (status.is_refreshing) pollRefresh();
 
@@ -2601,6 +2613,54 @@ function setMarket(btn) {
   document.querySelectorAll('.market-btns .mkt-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   applyFilter();
+}
+
+function updateMyFocus() {
+  const panel = document.getElementById('myFocusPanel');
+  const body = document.getElementById('myFocusBody');
+  const countEl = document.getElementById('myFocusCount');
+  if (!panel || !body) return;
+  const alerts = [];
+  // 持倉/追蹤中今日漲跌 >3%
+  allData.forEach(r => {
+    const isTracked = holdSet.has(r.code) || trackSet.has(r.code);
+    if (!isTracked) return;
+    const chg = r.change_pct;
+    if (chg != null && Math.abs(chg) > 3) {
+      const color = chg > 0 ? '#dc2626' : '#16a34a';
+      alerts.push(`<a href="/company.html?code=${r.code}" target="_blank" style="padding:3px 8px;background:#fff;border:1px solid ${color};border-radius:5px;color:${color};text-decoration:none;font-weight:600;white-space:nowrap">${r.code} ${r.name} ${chg > 0 ? '+' : ''}${chg.toFixed(1)}%</a>`);
+    }
+  });
+  // 筆記超過 6 個月未更新的持倉/追蹤股
+  const sixMonthsAgo = Date.now() - 180 * 86400000;
+  allData.forEach(r => {
+    const isTracked = holdSet.has(r.code) || trackSet.has(r.code);
+    if (!isTracked) return;
+    const ns = _notesSummary[r.code];
+    if (!ns || !ns.updated_at) {
+      if (holdSet.has(r.code)) {
+        alerts.push(`<span style="padding:3px 8px;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;color:#991b1b;font-size:.78rem;white-space:nowrap">${r.code} ${r.name} 無質性筆記</span>`);
+      }
+    } else if (new Date(ns.updated_at).getTime() < sixMonthsAgo) {
+      alerts.push(`<span style="padding:3px 8px;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;color:#92400e;font-size:.78rem;white-space:nowrap">${r.code} ${r.name} 筆記過期</span>`);
+    }
+  });
+  // 有報告但股價偏離 >15%
+  allData.forEach(r => {
+    const ns = _notesSummary[r.code];
+    if (!ns || !ns.snapshot_price || !r.close) return;
+    const pct = Math.abs((r.close - ns.snapshot_price) / ns.snapshot_price * 100);
+    if (pct > 15) {
+      alerts.push(`<span style="padding:3px 8px;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;color:#991b1b;font-size:.78rem;white-space:nowrap">${r.code} ${r.name} 報告偏離${pct.toFixed(0)}%</span>`);
+    }
+  });
+  if (alerts.length > 0) {
+    panel.style.display = '';
+    body.innerHTML = alerts.join('');
+    countEl.textContent = alerts.length + ' 則提醒';
+  } else {
+    panel.style.display = 'none';
+  }
 }
 
 function applyFilter() {
@@ -2912,7 +2972,20 @@ function render() {
       <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${trackSet.has(r.code)?'checked':''} onchange="toggleTrack(this)" style="accent-color:#2563eb"></td>
       <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
-      <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}</td>
+      <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}${(() => {
+        const ns = _notesSummary[r.code];
+        if (!ns) return '';
+        let dots = '';
+        if (ns.updated_at) {
+          const months = (Date.now() - new Date(ns.updated_at).getTime()) / (1000*60*60*24*30);
+          const nc = months < 3 ? '#22c55e' : months < 6 ? '#f59e0b' : '#ef4444';
+          dots += `<a href="/company.html?code=${r.code}&tab=notes" target="_blank" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${nc};margin-left:4px;vertical-align:middle;cursor:pointer" title="質性筆記 ${ns.updated_at.substring(0,10)}"></a>`;
+        }
+        if (ns.report_date) {
+          dots += `<a href="/company.html?code=${r.code}&tab=report" target="_blank" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#3b82f6;margin-left:3px;vertical-align:middle;cursor:pointer" title="報告書 ${(ns.report_date||'').substring(0,10)}${ns.snapshot_judgment ? ' '+ns.snapshot_judgment : ''}"></a>`;
+        }
+        return dots;
+      })()}</td>
       <td>${r.name}</td>
       <td class="g-mkt" data-col="market">${mktBadge}</td>
       <td class="g-mkt" data-col="industry" style="font-size:.8rem;color:#475569">${r.industry || '－'}</td>
