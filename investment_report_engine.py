@@ -113,7 +113,7 @@ def generate_briefing(code):
 
     # ── 季度損益 ──
     qf_rows = conn.execute("""
-        SELECT quarter, eps, revenue, operating_income
+        SELECT quarter, eps, revenue, operating_income, eps_core, eps_nonop
         FROM quarterly_financial WHERE code=?
         ORDER BY CAST(REPLACE(REPLACE(quarter,'Q','.'),'q','.') AS REAL) DESC LIMIT 10
     """, (code,)).fetchall()
