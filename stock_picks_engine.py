@@ -914,6 +914,28 @@ def run_full(dry_run=False):
         gb50.add(row['code'])
     conn_x.close()
 
+    # 交叉比對用 PE 區間（中位數，高點封頂20）
+    conn_pe = sqlite3.connect(DB_PATH)
+    conn_pe.row_factory = sqlite3.Row
+    _cross_pe = {}  # code → (pe_low_median, pe_high_median)
+    for row in conn_pe.execute(
+        "SELECT code, pe_high, pe_low FROM pe_history ORDER BY code, year DESC"
+    ).fetchall():
+        c = row['code']
+        if c not in _cross_pe:
+            _cross_pe[c] = {'highs': [], 'lows': []}
+        if len(_cross_pe[c]['highs']) < 5:
+            if row['pe_high'] and float(row['pe_high']) > 0:
+                _cross_pe[c]['highs'].append(min(float(row['pe_high']), PE_HIGH_CAP))
+            if row['pe_low'] and float(row['pe_low']) > 0:
+                _cross_pe[c]['lows'].append(float(row['pe_low']))
+    conn_pe.close()
+    for c, d in _cross_pe.items():
+        d['highs'].sort()
+        d['lows'].sort()
+        d['pe_hi'] = d['highs'][len(d['highs']) // 2] if d['highs'] else None
+        d['pe_lo'] = d['lows'][len(d['lows']) // 2] if d['lows'] else None
+
     # 找出引擎沒選到但其他篩選有選到的
     quality_miss = sorted((quality_set & watch_set) - engine_all)  # 體質+觀察都通過但引擎沒選
     gb_miss = sorted(gb50 - engine_all)  # 葛林布萊前50但引擎沒選
@@ -954,13 +976,14 @@ def run_full(dry_run=False):
         e4 = r.get('eps_4q_sum')
         bdiv = r.get('blend_div')
 
-        # PE 面（五分法）
+        # PE 面（五分法，中位數區間）
         pe_pass = False
         pe_str = '—'
         if cl and e4 and e4 > 0:
             pe = cl / e4
-            pe_lo = r.get('_pe_low')
-            pe_hi = r.get('_pe_high')
+            cpd = _cross_pe.get(code, {})
+            pe_lo = cpd.get('pe_lo')
+            pe_hi = cpd.get('pe_hi')
             pe_pass, pe_str = _pe_position(pe, pe_lo, pe_hi)
         pe_mark = 'V' if pe_pass else 'X'
 
@@ -989,16 +1012,16 @@ def run_full(dry_run=False):
 
         if quality_miss:
             L.append("### 體質+觀察通過但引擎未列\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 距A門檻 | PE面 / 殖利率面 / 原因 |")
-            L.append("|------|------|------|------|---------|------------------------|")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 原因 |")
+            L.append("|------|------|------|------|------|----------|------|")
             for c in quality_miss:
                 L.append(_cross_detail(c))
             L.append("")
 
         if gb_miss:
             L.append("### 葛林布萊前50但引擎未列\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 距A門檻 | PE面 / 殖利率面 / 原因 |")
-            L.append("|------|------|------|------|---------|------------------------|")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 原因 |")
+            L.append("|------|------|------|------|------|----------|------|")
             for c in gb_miss:
                 gb_rank = stocks.get(c, {}).get('gb_total_rank', '—')
                 L.append(_cross_detail(c) + f" GB#{gb_rank}")
