@@ -985,7 +985,7 @@ def run_full(dry_run=False):
             pe_lo = cpd.get('pe_lo')
             pe_hi = cpd.get('pe_hi')
             pe_pass, pe_str = _pe_position(pe, pe_lo, pe_hi)
-        pe_mark = 'V' if pe_pass else 'X'
+        pe_mark = '<span style="color:#2563eb;font-weight:700">V</span>' if pe_pass else '<span style="color:#ef4444;font-weight:700">X</span>'
 
         # 殖利率面（5.5%門檻）
         yld_pass = False
@@ -993,8 +993,8 @@ def run_full(dry_run=False):
         if cl and cl > 0 and bdiv and bdiv > 0:
             yld = bdiv / cl * 100
             yld_pass = yld >= CROSS_YLD_THRESHOLD
-            yld_str = f'{yld:.1f}%' + (' 通過' if yld_pass else ' 未達')
-        yld_mark = 'V' if yld_pass else 'X'
+            yld_str = f'{yld:.1f}%' + (' <span style="color:#2563eb">通過</span>' if yld_pass else ' <span style="color:#ef4444">未達</span>')
+        yld_mark = '<span style="color:#2563eb;font-weight:700">V</span>' if yld_pass else '<span style="color:#ef4444;font-weight:700">X</span>'
 
         # 引擎未選原因（具體化）
         reason = '—'
