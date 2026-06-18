@@ -918,49 +918,60 @@ def run_full(dry_run=False):
     quality_miss = sorted((quality_set & watch_set) - engine_all)  # 體質+觀察都通過但引擎沒選
     gb_miss = sorted(gb50 - engine_all)  # 葛林布萊前50但引擎沒選
 
+    def _pe_position(pe, pe_lo, pe_hi):
+        """PE 五分法位置判斷：很便宜/偏低/合理/偏高/偏貴"""
+        if pe_lo is None or pe_hi is None or pe_hi <= pe_lo:
+            return None, '無區間'
+        step = (pe_hi - pe_lo) / 5
+        b1 = pe_lo + step       # 很便宜/偏低 界線
+        b2 = pe_lo + step * 2   # 偏低/合理 界線
+        b3 = pe_lo + step * 3   # 合理/偏高 界線
+        b4 = pe_lo + step * 4   # 偏高/偏貴 界線
+        if pe < pe_lo:
+            return True, f'{pe:.1f} 極低（< 歷史低 {pe_lo}）'
+        elif pe <= b1:
+            return True, f'{pe:.1f} 很便宜（{pe_lo}~{b1:.1f}）'
+        elif pe <= b2:
+            return True, f'{pe:.1f} 偏低（{b1:.1f}~{b2:.1f}）'
+        elif pe <= b3:
+            return False, f'{pe:.1f} 合理（{b2:.1f}~{b3:.1f}）'
+        elif pe <= b4:
+            return False, f'{pe:.1f} 偏高（{b3:.1f}~{b4:.1f}）'
+        elif pe <= pe_hi:
+            return False, f'{pe:.1f} 偏貴（{b4:.1f}~{pe_hi}）'
+        else:
+            return False, f'{pe:.1f} 極高（> 歷史高 {pe_hi}）'
+
+    CROSS_YLD_THRESHOLD = 5.5
+
     def _cross_detail(code):
         """產出單支股票的 PE面/殖利率面位置說明"""
         r = stocks.get(code)
         if not r:
-            return f"| {code} | — | 不在資料中 |"
+            return f"| {code} | — | — | 不在資料中 |"
         name = (r.get('name') or '')[:8]
         cl = r.get('close')
         e4 = r.get('eps_4q_sum')
         bdiv = r.get('blend_div')
-        val_a = r.get('val_a')
 
-        parts = []
-        # PE 面
+        # PE 面（五分法）
+        pe_pass = False
         pe_str = '—'
         if cl and e4 and e4 > 0:
             pe = cl / e4
-            pe_lo = r.get('_pe_low') or stocks.get(code, {}).get('_pe_low')
-            pe_mid = r.get('_pe_mid')
+            pe_lo = r.get('_pe_low')
             pe_hi = r.get('_pe_high')
-            if pe_lo and pe_hi:
-                if pe <= pe_lo:
-                    pe_str = f'PE {pe:.1f} <= 歷史低 {pe_lo}（便宜）'
-                elif pe <= pe_mid:
-                    pe_str = f'PE {pe:.1f} 在低~中 {pe_lo}/{pe_mid}（偏低）'
-                elif pe <= pe_hi:
-                    pe_str = f'PE {pe:.1f} 在中~高 {pe_mid}/{pe_hi}（中位）'
-                else:
-                    pe_str = f'PE {pe:.1f} > 歷史高 {pe_hi}（偏貴）'
-            else:
-                pe_str = f'PE {pe:.1f}（無歷史區間）'
-        parts.append(f'PE面: {pe_str}')
+            pe_pass, pe_str = _pe_position(pe, pe_lo, pe_hi)
+        pe_mark = 'V' if pe_pass else 'X'
 
-        # 殖利率面
+        # 殖利率面（5.5%門檻）
+        yld_pass = False
         yld_str = '—'
         if cl and cl > 0 and bdiv and bdiv > 0:
             yld = bdiv / cl * 100
-            if yld >= 6.0:
-                yld_str = f'殖利率 {yld:.1f}% >= 6%（通過）'
-            elif yld >= 5.5:
-                yld_str = f'殖利率 {yld:.1f}% 在 5.5~6%（接近）'
-            else:
-                yld_str = f'殖利率 {yld:.1f}% < 5.5%（未達）'
-        parts.append(f'殖利率面: {yld_str}')
+            yld_pass = yld >= CROSS_YLD_THRESHOLD
+            yld_str = f'{yld:.1f}%' + (' 通過' if yld_pass else ' 未達')
+        yld_mark = 'V' if yld_pass else 'X'
 
         # 引擎未選原因
         reason = '—'
@@ -970,17 +981,8 @@ def run_full(dry_run=False):
             reason = eval_log[code].split('→')[-1].strip()
         elif code not in passed:
             reason = '信任門檻未通過'
-        parts.append(f'原因: {reason}')
 
-        # 評價距離
-        dist = ''
-        if cl and val_a and val_a > 0:
-            pct = (cl - val_a) / val_a * 100
-            dist = f'距A門檻 {"+" if pct > 0 else ""}{pct:.0f}%'
-        else:
-            dist = '無門檻'
-
-        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {dist} | {' / '.join(parts)} |"
+        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {pe_mark} {pe_str} | {yld_mark} {yld_str} | {reason} |"
 
     if quality_miss or gb_miss:
         L.append("---\n## 四、交叉比對（漏網之魚偵測）\n")
