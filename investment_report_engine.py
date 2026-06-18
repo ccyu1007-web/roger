@@ -226,7 +226,9 @@ def generate_briefing(code):
         div_s = f"{div:.2f}" if div is not None else '—'
         roic = f"{row['roic']:.1f}%" if row.get('roic') else '—'
         debt = f"{row['debt_ratio']:.1f}%" if row.get('debt_ratio') else '—'
-        lines.append(f"  {row['year']:>6} {rev/1e6:>10.0f} {gm:>7} {opm:>7} {row.get('eps','—'):>7} {div_s:>6} {roic:>7} {debt:>7} {fcf/1e6:>10.0f} {eq:>8} {icr:>8}")
+        rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
+        fcf_s = f"{fcf/1e6:>10.0f}" if fcf else '         —'
+        lines.append(f"  {row['year']:>6} {rev_s} {gm:>7} {opm:>7} {row.get('eps','—'):>7} {div_s:>6} {roic:>7} {debt:>7} {fcf_s} {eq:>8} {icr:>8}")
 
     # ── 季度 EPS ──
     lines.append(f"\n【季度EPS（近10季）】")
@@ -234,7 +236,9 @@ def generate_briefing(code):
     for row in reversed(list(qf_rows)):
         rev = row['revenue']
         oi = row['operating_income']
-        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {rev/1e6:>10.0f} {oi/1e6:>14.0f}")
+        rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
+        oi_s = f"{oi/1e6:>14.0f}" if oi else '             —'
+        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {rev_s} {oi_s}")
 
     # ── PE 歷史 ──
     lines.append(f"\n【PE歷史區間】")
