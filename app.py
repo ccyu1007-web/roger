@@ -522,8 +522,7 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
             r[f'payout_{i}'] = None
 
     # ── 評價門檻（統一計算，存 DB）──
-    # EPS/股利取用順序：使用者手動設定 > min(綜合EPS, 沈董EPS)，股利跟隨EPS來源
-    # 與季估計表的逍遙評價法一致
+    # EPS/股利取用順序：使用者手動設定 > 沈董EPS（本業推估）> 綜合EPS（fallback），股利跟隨EPS來源
     est_eps = None
     est_div = None
     if user_params:

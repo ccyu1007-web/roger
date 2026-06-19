@@ -169,7 +169,7 @@ const INFO_TEXT = {
     <span style="color:#94a3b8">* 預估等級：使用者在季估計表輸入的預估EPS/股利計算而來。沈董等級：從季度EPS推算的沈董EPS+配息率推算股利計算而來。個股如有自訂 PE/殖利率參數，會優先套用。</span>`,
   xiaoyao: `<b style="color:#334155">逍遙評價系統</b><br>
     以門檻價位為基準，追蹤股價穿越各級門檻的情況。<br>
-    <b>EPS 取用順序</b>：使用者預估 > min(綜合EPS, 沈董EPS)　｜　<b>股利取用順序</b>：跟隨EPS來源（綜合EPS→綜合股利，沈董EPS→沈董股利）<br>
+    <b>EPS 取用順序</b>：使用者預估 > 沈董EPS（本業推估）> 綜合EPS（fallback）　｜　<b>股利取用順序</b>：跟隨EPS來源（沈董EPS→沈董股利）<br>
     <span style="color:#dc2626;font-weight:700">AA</span> = min(EPS×最低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　最嚴格（PE=10, 殖利率=6%）<br>
     <span style="color:#ea580c;font-weight:700">A1</span> = min(EPS×最低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　PE嚴+殖利率寬（PE=10, 殖利率=5.5%）<br>
     <span style="color:#2563eb;font-weight:700">A2</span> = min(EPS×偏低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　PE寬+殖利率嚴（PE=12, 殖利率=6%）<br>
