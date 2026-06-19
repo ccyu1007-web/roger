@@ -564,4 +564,4 @@ Render 上群益被擋、公開資訊觀測站也不穩，所以**所有資料�
 - **預估/系統等級**：`recalc_all_derived()` 統一計算 est_eps/div/pe/yld/grade、sys_pe/yld/grade 存入 `stocks` 表 → 前端不獨立計算
 - **評價快照**：`snapshot_stock_states()` 從 `stocks` 表讀取門檻值寫入 `stock_state` → 不獨立計算門檻
 - **新增任何計算欄位**，都必須存入 DB 後再讓前端讀取
-- **EPS/股利取用順序統一**：使用者預估(user_estimates) > min(綜合EPS, 沈董EPS)（只比正值，股利跟隨EPS來源：綜合EPS→綜合股利，沈董EPS→沈董股利）。所有計算門檻和等級的地方都用此順序，不可各自定義
+- **EPS/股利取用順序統一**：使用者預估(user_estimates) > 沈董EPS（本業推估法）> 綜合EPS（fallback）。股利跟隨EPS來源（沈董EPS→沈董股利，綜合EPS→綜合股利）。沈董EPS已改用本業推估法（保留季節性），不再取min(綜合,沈董)。所有計算門檻和等級的地方都用此順序，不可各自定義

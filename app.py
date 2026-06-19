@@ -545,35 +545,28 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         val_eps = est_eps
         val_div = est_div
     else:
-        _blend_eps = r.get('blend_eps')
+        # 直接用沈董EPS（本業推估法已修正季節性，不再取 min(綜合,沈董)）
         _shen_eps = r.get('shen_eps')
-        _blend_pos = _blend_eps if _blend_eps and _blend_eps > 0 else None
-        _shen_pos = _shen_eps if _shen_eps and _shen_eps > 0 else None
-        if _blend_pos is not None and _shen_pos is not None:
-            if _blend_pos <= _shen_pos:
-                val_eps = _blend_pos
-                val_div = r.get('blend_div')
-            else:
-                val_eps = _shen_pos
-                val_div = r.get('shen_div')
-        elif _blend_pos is not None:
-            val_eps = _blend_pos
-            val_div = r.get('blend_div')
-        elif _shen_pos is not None:
-            val_eps = _shen_pos
+        if _shen_eps and _shen_eps > 0:
+            val_eps = _shen_eps
             val_div = r.get('shen_div')
+        else:
+            _blend_eps = r.get('blend_eps')
+            if _blend_eps and _blend_eps > 0:
+                val_eps = _blend_eps
+                val_div = r.get('blend_div')
     val_bdiv = r.get('blend_div')
     r['val_eps_used'] = val_eps
     r['val_div_used'] = val_div
     r['val_pe'] = round(close / val_eps, 2) if close and val_eps and val_eps > 0 else None
     r['val_yld'] = round(val_div / close * 100, 2) if close and close > 0 and val_div and val_div > 0 else None
-    # 標記來源
+    # 標記來源（優先序：預估 > 沈董 > 綜合fallback）
     if est_eps and est_eps > 0:
         r['val_source'] = '預估'
-    elif val_eps == r.get('blend_eps'):
-        r['val_source'] = '綜合'
     elif val_eps == r.get('shen_eps'):
         r['val_source'] = '沈董'
+    elif val_eps == r.get('blend_eps'):
+        r['val_source'] = '綜合'
     else:
         r['val_source'] = None
 
