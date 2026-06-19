@@ -106,7 +106,7 @@
     <table>
       <tr><th width="140">用途</th><th width="200">EPS 優先順序</th><th width="200">股利 優先順序</th><th>說明</th></tr>
       <tr><td class="field">評價門檻<br>(AA/A1/A2/A)</td><td>1. 使用者預估<br>2. 沈董EPS（本業推估）<br>3. 綜合EPS（fallback）</td><td>1. 使用者預估<br>2. 沈董股利<br>3. 綜合股利（fallback）</td><td><span class="formula">min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)</span><div class="note">後端 recalc_all_derived() 統一計算存 DB，前端直接讀取。不再取min(綜合,沈董)，直接用沈董</div></td></tr>
-      <tr><td class="field">檢核表 DDM</td><td>1. 預估 EPS (est_eps)<br>2. min(系統, 沈董)</td><td>綜合股利 > 沈董股利</td><td>與評價門檻相同優先順序</td></tr>
+      <tr><td class="field">檢核表 DDM</td><td>1. 預估 EPS (est_eps)<br>2. 沈董EPS（本業推估）</td><td>沈董股利 > 綜合股利（fallback）</td><td>與評價門檻相同優先順序</td></tr>
       <tr><td class="field">沈董系列</td><td>沈董 EPS</td><td>沈董股利</td><td>本業推估法（已公佈實際+未公佈用本業成長率推估+業外中位數），無法計算時fallback Q1×4</td></tr>
       <tr><td class="field">綜合系列</td><td>沈董×30% + 加權×70%</td><td>沈董股利×30% + 加權股利×70%</td><td>預設 30/70，可自訂</td></tr>
       <tr><td class="field">加權系列</td><td>五年加權平均</td><td>五年加權平均</td><td>權重 30/30/20/10/10</td></tr>
