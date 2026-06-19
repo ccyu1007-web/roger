@@ -4216,7 +4216,7 @@ def _calc_growth_indicators(_json, _dt):
             if s_start and s_start > 0:
                 shares_change = (s_end - s_start) / s_start * 100
 
-        # ── 殖利率：預估 > 綜合
+        # ── 殖利率：預估 > min(沈董, 綜合)股利，與逍遙評價法一致
         ue = ue_map.get(code, {})
         div_val = None
         # 優先用 user_estimates 的預估股利
@@ -4226,13 +4226,22 @@ def _calc_growth_indicators(_json, _dt):
                 div_val = float(vm_div)
             except Exception:
                 pass
-        # fallback: 綜合股利
-        if not div_val and st.get('blend_div'):
-            div_val = st['blend_div']
+        # fallback: min(沈董股利, 綜合股利)
+        if not div_val:
+            _s_div = st.get('shen_div')
+            _b_div = st.get('blend_div')
+            _s_d = _s_div if _s_div and _s_div > 0 else None
+            _b_d = _b_div if _b_div and _b_div > 0 else None
+            if _s_d is not None and _b_d is not None:
+                div_val = min(_s_d, _b_d)
+            elif _s_d is not None:
+                div_val = _s_d
+            elif _b_d is not None:
+                div_val = _b_d
 
         yld = (div_val / close * 100) if div_val and close > 0 else 0
 
-        # ── PE：預估 > 綜合
+        # ── PE：預估 > min(沈董, 綜合)，與逍遙評價法一致
         pe = None
         # 優先用 user_estimates 的預估EPS算PE
         vm_eps = ue.get('vmEps')
@@ -4243,9 +4252,22 @@ def _calc_growth_indicators(_json, _dt):
                     pe = close / est_eps
             except Exception:
                 pass
-        # fallback: 綜合EPS
-        if pe is None and st.get('blend_eps') and st['blend_eps'] > 0:
-            pe = close / st['blend_eps']
+        # fallback: min(沈董, 綜合)
+        if pe is None:
+            _s_eps = st.get('shen_eps')
+            _b_eps = st.get('blend_eps')
+            _s_pos = _s_eps if _s_eps and _s_eps > 0 else None
+            _b_pos = _b_eps if _b_eps and _b_eps > 0 else None
+            if _s_pos is not None and _b_pos is not None:
+                _use_eps = min(_s_pos, _b_pos)
+            elif _s_pos is not None:
+                _use_eps = _s_pos
+            elif _b_pos is not None:
+                _use_eps = _b_pos
+            else:
+                _use_eps = None
+            if _use_eps and _use_eps > 0:
+                pe = close / _use_eps
 
         if pe is None or pe <= 0:
             # PE 無值，但營收 CAGR 和部分指標仍輸出
