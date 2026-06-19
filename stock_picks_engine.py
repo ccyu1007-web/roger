@@ -665,12 +665,12 @@ def _fmt_pe_range(r):
 
 
 def _fmt_pe(r):
-    """格式化 PE 面（V/X + 五分法位置）"""
+    """格式化 PE 面（V/X + 五分法位置），EPS用min(沈董,綜合)與逍遙評價法一致"""
     cl = r.get('close')
-    e4 = r.get('eps_4q_sum')
-    if not cl or not e4 or e4 <= 0:
+    val_eps = r.get('val_eps_used')
+    if not cl or not val_eps or val_eps <= 0:
         return f'{_X} —'
-    pe = cl / e4
+    pe = cl / val_eps
     pe_lo = r.get('_xpe_lo')
     pe_hi = r.get('_xpe_hi')
     passed, desc = _pe_position(pe, pe_lo, pe_hi)
@@ -1058,7 +1058,7 @@ def run_full(dry_run=False):
 
     if quality_miss or gb_miss:
         L.append("---\n## 四、交叉比對（漏網之魚偵測）\n")
-        L.append("> PE面：近4季EPS，歷史PE區間用5年中位數（高點封頂20）五分法｜殖利率面：綜合股利，門檻5.5%\n")
+        L.append("> PE面：min(沈董EPS,綜合EPS)與逍遙評價法一致，歷史PE區間用5年中位數（高點封頂20）五分法｜殖利率面：綜合股利，門檻5.5%\n")
 
         if quality_miss:
             L.append("### 體質+觀察通過但引擎未列\n")
