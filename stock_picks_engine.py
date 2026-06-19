@@ -640,19 +640,28 @@ def _pe_position(pe, pe_lo, pe_hi):
     b3 = pe_lo + step * 3
     b4 = pe_lo + step * 4
     if pe < pe_lo:
-        return True, f'{pe:.1f} 極低（< 歷史低 {pe_lo}）'
+        return True, f'{pe:.1f} 極低'
     elif pe <= b1:
-        return True, f'{pe:.1f} 很便宜（{pe_lo}~{b1:.1f}）'
+        return True, f'{pe:.1f} 很便宜'
     elif pe <= b2:
-        return True, f'{pe:.1f} 偏低（{b1:.1f}~{b2:.1f}）'
+        return True, f'{pe:.1f} 偏低'
     elif pe <= b3:
-        return False, f'{pe:.1f} 合理（{b2:.1f}~{b3:.1f}）'
+        return False, f'{pe:.1f} 合理'
     elif pe <= b4:
-        return False, f'{pe:.1f} 偏高（{b3:.1f}~{b4:.1f}）'
+        return False, f'{pe:.1f} 偏高'
     elif pe <= pe_hi:
-        return False, f'{pe:.1f} 偏貴（{b4:.1f}~{pe_hi}）'
+        return False, f'{pe:.1f} 偏貴'
     else:
-        return False, f'{pe:.1f} 極高（> 歷史高 {pe_hi}）'
+        return False, f'{pe:.1f} 極高'
+
+
+def _fmt_pe_range(r):
+    """PE區間（中位數低~高）"""
+    lo = r.get('_xpe_lo')
+    hi = r.get('_xpe_hi')
+    if lo and hi:
+        return f'{lo:.1f}~{hi:.1f}'
+    return '—'
 
 
 def _fmt_pe(r):
@@ -708,7 +717,7 @@ def fmt_value(r):
     elif r.get('val_a2') and cl <= r['val_a2']: vl = 'A2'
     elif r.get('val_a') and cl <= r['val_a']: vl = 'A'
     ch = r.get('val_cheap_days') or 0
-    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {vl} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_yld(r)} | {ch} | {_fl(r)} |"
+    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {vl} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} | {_fmt_yld(r)} | {ch} | {_fl(r)} |"
 
 
 def fmt_growth(r):
@@ -719,7 +728,7 @@ def fmt_growth(r):
     if r.get('gi_neff_gray') and r.get('gi_neff_d'): nf += '(灰)'
     cg = f"{r['gi_rev_cagr_3y']:.1f}" if r.get('gi_rev_cagr_3y') else '-'
     sp = f"{r['shen_pe']:.1f}" if r.get('shen_pe') else '-'
-    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_yld(r)} | {cg} | {pg} | {nf} | {sp} | {_fl(r)} |"
+    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} | {_fmt_yld(r)} | {cg} | {pg} | {nf} | {sp} | {_fl(r)} |"
 
 
 def fmt_cycle(r):
@@ -729,7 +738,7 @@ def fmt_cycle(r):
     rp = r.get('_rp', '')
     npe = r.get('_norm_pe', '')
     sd = r.get('_sd', '')
-    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_yld(r)} | {npe} | {rp} | {sd} | {_fl(r)} |"
+    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} | {_fmt_yld(r)} | {npe} | {rp} | {sd} | {_fl(r)} |"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -856,8 +865,8 @@ def run_full(dry_run=False):
     L.append("> EPS：min(沈董EPS, 綜合EPS)｜股利：跟隨EPS來源｜PE/殖利率：綜合")
     L.append("> 重倉：股價<=AA + 3M>=0 + 3M>=12M + 累積>0 + 防呆通過 + 近2年等級A以上")
     L.append("> 小買：股價<=A + 3M>=0 + 累積>0｜觀望：等級A以上 + 股價<=A + 營收未到位\n")
-    VH = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | 便宜天 | 防呆 |\n|------|------|------|------|------|-----|------|------|------|----------|--------|------|"
-    VW_H = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | 便宜天 | 等什麼 |\n|------|------|------|------|------|-----|------|------|------|----------|--------|--------|"
+    VH = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 便宜天 | 防呆 |\n|------|------|------|------|------|-----|------|------|------|--------|----------|--------|------|"
+    VW_H = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 便宜天 | 等什麼 |\n|------|------|------|------|------|-----|------|------|------|--------|----------|--------|--------|"
 
     if vh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -895,8 +904,8 @@ def run_full(dry_run=False):
     L.append("> EPS：沈董EPS｜PEG/Neff：檢核表計算值")
     L.append("> 重倉：PEG<=0.8或Neff>=1.2 + 3M>0 + 累積>0 + 3M>12M + 防呆通過")
     L.append("> 小買：PEG<=1.2或Neff>=0.8 + 3M>0 + 累積>0｜觀望：營收未到位\n")
-    GH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | CAGR3 | PEG | Neff | 沈董PE | 防呆 |\n|------|------|------|------|-----|------|------|------|----------|-------|-----|------|--------|------|"
-    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | CAGR3 | PEG | Neff | 沈董PE | 等什麼 |\n|------|------|------|------|-----|------|------|------|----------|-------|-----|------|--------|--------|"
+    GH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | CAGR3 | PEG | Neff | 沈董PE | 防呆 |\n|------|------|------|------|-----|------|------|------|--------|----------|-------|-----|------|--------|------|"
+    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | CAGR3 | PEG | Neff | 沈董PE | 等什麼 |\n|------|------|------|------|-----|------|------|------|--------|----------|-------|-----|------|--------|--------|"
 
     if gh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -934,8 +943,8 @@ def run_full(dry_run=False):
     L.append("> EPS：6年EPS平均或中位數（正常化）｜復甦進度EPS：近4季加總")
     L.append("> 重倉：PE<=10 + 進度0.5~1.5 + 訊號3/3 + 3M>12M｜小買：PE<=12 + 進度0.5~1.5 + 訊號>=2/3")
     L.append("> 觀望：PE<=15 + 進度<0.5或訊號不足｜排除：近4季EPS<=0 或進度>2.0\n")
-    CH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | 正常化PE | 復甦進度 | 訊號 | 防呆 |\n|------|------|------|------|-----|------|------|------|----------|----------|----------|------|------|"
-    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | 正常化PE | 復甦進度 | 訊號 | 等什麼 |\n|------|------|------|------|-----|------|------|------|----------|----------|----------|------|--------|"
+    CH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 正常化PE | 復甦進度 | 訊號 | 防呆 |\n|------|------|------|------|-----|------|------|------|--------|----------|----------|----------|------|------|"
+    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 正常化PE | 復甦進度 | 訊號 | 等什麼 |\n|------|------|------|------|-----|------|------|------|--------|----------|----------|----------|------|--------|"
 
     if cyh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -1045,7 +1054,7 @@ def run_full(dry_run=False):
         elif code in classified:
             reason = '分類後未進入估值'
 
-        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_yld(r)} | {reason} |"
+        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} | {_fmt_yld(r)} | {reason} |"
 
     if quality_miss or gb_miss:
         L.append("---\n## 四、交叉比對（漏網之魚偵測）\n")
@@ -1053,16 +1062,16 @@ def run_full(dry_run=False):
 
         if quality_miss:
             L.append("### 體質+觀察通過但引擎未列\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|-----|------|------|------|----------|------|")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 原因 |")
+            L.append("|------|------|------|------|-----|------|------|------|--------|----------|------|")
             for c in quality_miss:
                 L.append(_cross_detail(c))
             L.append("")
 
         if gb_miss:
             L.append("### 葛林布萊前50但引擎未列\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|-----|------|------|------|----------|------|")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 原因 |")
+            L.append("|------|------|------|------|-----|------|------|------|--------|----------|------|")
             for c in gb_miss:
                 gb_rank = stocks.get(c, {}).get('gb_total_rank', '—')
                 L.append(_cross_detail(c) + f" GB#{gb_rank}")
