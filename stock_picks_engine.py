@@ -167,6 +167,11 @@ def load_all_data():
             stocks[c]['_pe_low'] = round(sum(l) / len(l), 1)
             stocks[c]['_pe_mid'] = round((sum(h) / len(h) + sum(l) / len(l)) / 2, 1)
             stocks[c]['_pe_high'] = round(sum(h) / len(h), 1)
+            # 五分法用中位數（高點封頂，低點不封頂）
+            hs = sorted(h)
+            ls = sorted(l)
+            stocks[c]['_xpe_hi'] = hs[len(hs) // 2]
+            stocks[c]['_xpe_lo'] = ls[len(ls) // 2]
 
     # 毛利率：從 financial_annual 取近5年實際值
     gm_data = {}
@@ -617,6 +622,84 @@ def _fl(r):
     return ','.join(parts) or '-'
 
 
+# ── 共用 V/X 格式化 ──────────────────────────────────────────
+_V = '<span style="color:#2563eb;font-weight:700">V</span>'
+_X = '<span style="color:#ef4444;font-weight:700">X</span>'
+_PASS = '<span style="color:#2563eb">通過</span>'
+_FAIL = '<span style="color:#ef4444">未達</span>'
+CROSS_YLD_THRESHOLD = 5.5
+
+
+def _pe_position(pe, pe_lo, pe_hi):
+    """PE 五分法位置判斷"""
+    if pe_lo is None or pe_hi is None or pe_hi <= pe_lo:
+        return None, '無區間'
+    step = (pe_hi - pe_lo) / 5
+    b1 = pe_lo + step
+    b2 = pe_lo + step * 2
+    b3 = pe_lo + step * 3
+    b4 = pe_lo + step * 4
+    if pe < pe_lo:
+        return True, f'{pe:.1f} 極低（< 歷史低 {pe_lo}）'
+    elif pe <= b1:
+        return True, f'{pe:.1f} 很便宜（{pe_lo}~{b1:.1f}）'
+    elif pe <= b2:
+        return True, f'{pe:.1f} 偏低（{b1:.1f}~{b2:.1f}）'
+    elif pe <= b3:
+        return False, f'{pe:.1f} 合理（{b2:.1f}~{b3:.1f}）'
+    elif pe <= b4:
+        return False, f'{pe:.1f} 偏高（{b3:.1f}~{b4:.1f}）'
+    elif pe <= pe_hi:
+        return False, f'{pe:.1f} 偏貴（{b4:.1f}~{pe_hi}）'
+    else:
+        return False, f'{pe:.1f} 極高（> 歷史高 {pe_hi}）'
+
+
+def _fmt_pe(r):
+    """格式化 PE 面（V/X + 五分法位置）"""
+    cl = r.get('close')
+    e4 = r.get('eps_4q_sum')
+    if not cl or not e4 or e4 <= 0:
+        return f'{_X} —'
+    pe = cl / e4
+    pe_lo = r.get('_xpe_lo')
+    pe_hi = r.get('_xpe_hi')
+    passed, desc = _pe_position(pe, pe_lo, pe_hi)
+    return f'{_V if passed else _X} {desc}'
+
+
+def _fmt_yld(r):
+    """格式化殖利率面（V/X + 數字）"""
+    cl = r.get('close')
+    bdiv = r.get('blend_div')
+    if not cl or cl <= 0 or not bdiv or bdiv <= 0:
+        return f'{_X} —'
+    yld = bdiv / cl * 100
+    passed = yld >= CROSS_YLD_THRESHOLD
+    return f'{_V if passed else _X} {yld:.1f}% {_PASS if passed else _FAIL}'
+
+
+def _fmt_m3(r):
+    v = r.get('gi_rev_3m_yoy')
+    if v is None: return '—'
+    mark = _V if v >= 0 else _X
+    return f'{mark} {v:.1f}%'
+
+
+def _fmt_m12(r):
+    v = r.get('gi_rev_12m_yoy')
+    if v is None: return '—'
+    mark = _V if v >= 0 else _X
+    return f'{mark} {v:.1f}%'
+
+
+def _fmt_rc(r):
+    v = r.get('revenue_cum_yoy')
+    if v is None: return '—'
+    mark = _V if v > 0 else _X
+    return f'{mark} {v:.1f}%'
+
+
 def fmt_value(r):
     c, n, cl = r['code'], (r.get('name') or '')[:8], r['close']
     vl = ''
@@ -624,14 +707,8 @@ def fmt_value(r):
     elif r.get('val_a1') and cl <= r['val_a1']: vl = 'A1'
     elif r.get('val_a2') and cl <= r['val_a2']: vl = 'A2'
     elif r.get('val_a') and cl <= r['val_a']: vl = 'A'
-    bp = f"{r['blend_pe']:.1f}" if r.get('blend_pe') else '-'
-    by = f"{r['blend_yld']:.1f}" if r.get('blend_yld') else '-'
     ch = r.get('val_cheap_days') or 0
-    m3 = f"{r['gi_rev_3m_yoy']:.1f}%" if r.get('gi_rev_3m_yoy') is not None else '-'
-    m12 = f"{r['gi_rev_12m_yoy']:.1f}%" if r.get('gi_rev_12m_yoy') is not None else '-'
-    rc = f"{r['revenue_cum_yoy']:.1f}%" if r.get('revenue_cum_yoy') is not None else '-'
-    pe_r = f"{r.get('_pe_low', '')}/{r.get('_pe_mid', '')}/{r.get('_pe_high', '')}"
-    return f"| {c} | {n}{_liq(r)} | {r['_lt']} | {r.get('fin_grade_1', '')} | {vl} | {cl} | {m3} | {m12} | {rc} | {bp} | {pe_r} | {by} | {ch} | {_fl(r)} |"
+    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {vl} | {cl} | {_fmt_pe(r)} | {_fmt_yld(r)} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {ch} | {_fl(r)} |"
 
 
 def fmt_growth(r):
@@ -640,29 +717,19 @@ def fmt_growth(r):
     nf = f"{r['gi_neff_d']:.2f}" if r.get('gi_neff_d') else '-'
     if r.get('gi_lynch_gray') and r.get('gi_lynch_d'): pg += '(灰)'
     if r.get('gi_neff_gray') and r.get('gi_neff_d'): nf += '(灰)'
-    ro = f"{r['gi_roic_avg']:.1f}" if r.get('gi_roic_avg') else '-'
-    sp = f"{r['shen_pe']:.1f}" if r.get('shen_pe') else '-'
     cg = f"{r['gi_rev_cagr_3y']:.1f}" if r.get('gi_rev_cagr_3y') else '-'
-    m3 = f"{r['gi_rev_3m_yoy']:.1f}%" if r.get('gi_rev_3m_yoy') is not None else '-'
-    m12 = f"{r['gi_rev_12m_yoy']:.1f}%" if r.get('gi_rev_12m_yoy') is not None else '-'
-    rc = f"{r['revenue_cum_yoy']:.1f}%" if r.get('revenue_cum_yoy') is not None else '-'
-    pe_r = f"{r.get('_pe_low', '')}/{r.get('_pe_mid', '')}/{r.get('_pe_high', '')}"
-    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {m3} | {m12} | {rc} | {cg} | {pg} | {nf} | {ro} | {sp} | {pe_r} | {_fl(r)} |"
+    sp = f"{r['shen_pe']:.1f}" if r.get('shen_pe') else '-'
+    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_pe(r)} | {_fmt_yld(r)} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {cg} | {pg} | {nf} | {sp} | {_fl(r)} |"
 
 
 def fmt_cycle(r):
     c, n, cl = r['code'], (r.get('name') or '')[:8], r['close']
-    am = r.get('_amp')
-    ams = f"{am:.1f}x" if am and am < 100 else '含負值'
-    e4 = f"{r['eps_4q_sum']:.2f}" if r.get('eps_4q_sum') else '-'
     ne = r.get('_norm_eps', '')
     nm = r.get('_norm_method', '')
     rp = r.get('_rp', '')
     npe = r.get('_norm_pe', '')
     sd = r.get('_sd', '')
-    cp = r.get('_cp', '')
-    rc = f"{r['revenue_cum_yoy']:.1f}%" if r.get('revenue_cum_yoy') is not None else '-'
-    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {rc} | {ams} | {e4} | {ne}({nm}) | {rp} | {cp} | {npe} | {sd} | {_fl(r)} |"
+    return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_pe(r)} | {_fmt_yld(r)} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {npe} | {rp} | {sd} | {_fl(r)} |"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -789,8 +856,8 @@ def run_full(dry_run=False):
     L.append("> EPS：min(綜合EPS, 沈董EPS)｜股利：跟隨EPS來源｜PE/殖利率：綜合")
     L.append("> 重倉：股價<=AA + 3M>=0 + 3M>=12M + 累積>0 + 防呆通過 + 近2年等級A以上")
     L.append("> 小買：股價<=A + 3M>=0 + 累積>0｜觀望：等級A以上 + 股價<=A + 營收未到位\n")
-    VH = "| 代碼 | 名稱 | 林區 | 等級 | 評價 | 股價 | 3M | 12M | 累積成長率 | PE | PE區間 | 殖利率 | 便宜天 | 防呆 |\n|------|------|------|------|------|------|-----|------|------|-----|--------|--------|--------|------|"
-    VW_H = "| 代碼 | 名稱 | 林區 | 等級 | 評價 | 股價 | 3M | 12M | 累積成長率 | PE | PE區間 | 殖利率 | 便宜天 | 等什麼 |\n|------|------|------|------|------|------|-----|------|------|-----|--------|--------|--------|--------|"
+    VH = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | 便宜天 | 防呆 |\n|------|------|------|------|------|------|----------|-----|------|------|--------|------|"
+    VW_H = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | 便宜天 | 等什麼 |\n|------|------|------|------|------|------|----------|-----|------|------|--------|--------|"
 
     if vh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -828,8 +895,8 @@ def run_full(dry_run=False):
     L.append("> EPS：沈董EPS｜PEG/Neff：檢核表計算值")
     L.append("> 重倉：PEG<=0.8或Neff>=1.2 + 3M>0 + 累積>0 + 3M>12M + 防呆通過")
     L.append("> 小買：PEG<=1.2或Neff>=0.8 + 3M>0 + 累積>0｜觀望：營收未到位\n")
-    GH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積成長率 | CAGR3 | PEG | Neff | ROIC | 沈董PE | PE區間 | 防呆 |\n|------|------|------|------|-----|------|------|-------|-----|------|------|--------|--------|------|"
-    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積成長率 | CAGR3 | PEG | Neff | ROIC | 沈董PE | PE區間 | 等什麼 |\n|------|------|------|------|-----|------|------|-------|-----|------|------|--------|--------|--------|"
+    GH = "| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | CAGR3 | PEG | Neff | 沈董PE | 防呆 |\n|------|------|------|------|------|----------|-----|------|------|-------|-----|------|--------|------|"
+    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | CAGR3 | PEG | Neff | 沈董PE | 等什麼 |\n|------|------|------|------|------|----------|-----|------|------|-------|-----|------|--------|--------|"
 
     if gh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -867,8 +934,8 @@ def run_full(dry_run=False):
     L.append("> EPS：6年EPS平均或中位數（正常化）｜復甦進度EPS：近4季加總")
     L.append("> 重倉：PE<=10 + 進度0.5~1.5 + 訊號3/3 + 3M>12M｜小買：PE<=12 + 進度0.5~1.5 + 訊號>=2/3")
     L.append("> 觀望：PE<=15 + 進度<0.5或訊號不足｜排除：近4季EPS<=0 或進度>2.0\n")
-    CH = "| 代碼 | 名稱 | 等級 | 股價 | 累積成長率 | 振幅 | 4QEPS | 正常化EPS | 復甦進度 | 位置 | 正常化PE | 訊號 | 防呆 |\n|------|------|------|------|------|------|-------|-----------|----------|------|----------|------|------|"
-    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | 累積成長率 | 振幅 | 4QEPS | 正常化EPS | 復甦進度 | 位置 | 正常化PE | 訊號 | 等什麼 |\n|------|------|------|------|------|------|-------|-----------|----------|------|----------|------|--------|"
+    CH = "| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | 正常化PE | 復甦進度 | 訊號 | 防呆 |\n|------|------|------|------|------|----------|-----|------|------|----------|----------|------|------|"
+    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | 正常化PE | 復甦進度 | 訊號 | 等什麼 |\n|------|------|------|------|------|----------|-----|------|------|----------|----------|------|--------|"
 
     if cyh:
         L.append("### 重倉候選（需完成質性研究確認）\n")
@@ -917,57 +984,9 @@ def run_full(dry_run=False):
         gb50.add(row['code'])
     conn_x.close()
 
-    # 交叉比對用 PE 區間（中位數，高點封頂20）
-    conn_pe = sqlite3.connect(DB_PATH)
-    conn_pe.row_factory = sqlite3.Row
-    _cross_pe = {}  # code → (pe_low_median, pe_high_median)
-    for row in conn_pe.execute(
-        "SELECT code, pe_high, pe_low FROM pe_history ORDER BY code, year DESC"
-    ).fetchall():
-        c = row['code']
-        if c not in _cross_pe:
-            _cross_pe[c] = {'highs': [], 'lows': []}
-        if len(_cross_pe[c]['highs']) < 5:
-            if row['pe_high'] and float(row['pe_high']) > 0:
-                _cross_pe[c]['highs'].append(min(float(row['pe_high']), PE_HIGH_CAP))
-            if row['pe_low'] and float(row['pe_low']) > 0:
-                _cross_pe[c]['lows'].append(float(row['pe_low']))
-    conn_pe.close()
-    for c, d in _cross_pe.items():
-        d['highs'].sort()
-        d['lows'].sort()
-        d['pe_hi'] = d['highs'][len(d['highs']) // 2] if d['highs'] else None
-        d['pe_lo'] = d['lows'][len(d['lows']) // 2] if d['lows'] else None
-
     # 找出引擎沒選到但其他篩選有選到的
     quality_miss = sorted((quality_set & watch_set) - engine_all)  # 體質+觀察都通過但引擎沒選
     gb_miss = sorted(gb50 - engine_all)  # 葛林布萊前50但引擎沒選
-
-    def _pe_position(pe, pe_lo, pe_hi):
-        """PE 五分法位置判斷：很便宜/偏低/合理/偏高/偏貴"""
-        if pe_lo is None or pe_hi is None or pe_hi <= pe_lo:
-            return None, '無區間'
-        step = (pe_hi - pe_lo) / 5
-        b1 = pe_lo + step       # 很便宜/偏低 界線
-        b2 = pe_lo + step * 2   # 偏低/合理 界線
-        b3 = pe_lo + step * 3   # 合理/偏高 界線
-        b4 = pe_lo + step * 4   # 偏高/偏貴 界線
-        if pe < pe_lo:
-            return True, f'{pe:.1f} 極低（< 歷史低 {pe_lo}）'
-        elif pe <= b1:
-            return True, f'{pe:.1f} 很便宜（{pe_lo}~{b1:.1f}）'
-        elif pe <= b2:
-            return True, f'{pe:.1f} 偏低（{b1:.1f}~{b2:.1f}）'
-        elif pe <= b3:
-            return False, f'{pe:.1f} 合理（{b2:.1f}~{b3:.1f}）'
-        elif pe <= b4:
-            return False, f'{pe:.1f} 偏高（{b3:.1f}~{b4:.1f}）'
-        elif pe <= pe_hi:
-            return False, f'{pe:.1f} 偏貴（{b4:.1f}~{pe_hi}）'
-        else:
-            return False, f'{pe:.1f} 極高（> 歷史高 {pe_hi}）'
-
-    CROSS_YLD_THRESHOLD = 5.5
 
     def _cross_detail(code):
         """產出單支股票的 PE面/殖利率面位置說明"""
@@ -976,28 +995,6 @@ def run_full(dry_run=False):
             return f"| {code} | — | — | 不在資料中 |"
         name = (r.get('name') or '')[:8]
         cl = r.get('close')
-        e4 = r.get('eps_4q_sum')
-        bdiv = r.get('blend_div')
-
-        # PE 面（五分法，中位數區間）
-        pe_pass = False
-        pe_str = '—'
-        if cl and e4 and e4 > 0:
-            pe = cl / e4
-            cpd = _cross_pe.get(code, {})
-            pe_lo = cpd.get('pe_lo')
-            pe_hi = cpd.get('pe_hi')
-            pe_pass, pe_str = _pe_position(pe, pe_lo, pe_hi)
-        pe_mark = '<span style="color:#2563eb;font-weight:700">V</span>' if pe_pass else '<span style="color:#ef4444;font-weight:700">X</span>'
-
-        # 殖利率面（5.5%門檻）
-        yld_pass = False
-        yld_str = '—'
-        if cl and cl > 0 and bdiv and bdiv > 0:
-            yld = bdiv / cl * 100
-            yld_pass = yld >= CROSS_YLD_THRESHOLD
-            yld_str = f'{yld:.1f}%' + (' <span style="color:#2563eb">通過</span>' if yld_pass else ' <span style="color:#ef4444">未達</span>')
-        yld_mark = '<span style="color:#2563eb;font-weight:700">V</span>' if yld_pass else '<span style="color:#ef4444;font-weight:700">X</span>'
 
         # 引擎未選原因（具體化）
         reason = '—'
@@ -1048,7 +1045,7 @@ def run_full(dry_run=False):
         elif code in classified:
             reason = '分類後未進入估值'
 
-        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {pe_mark} {pe_str} | {yld_mark} {yld_str} | {reason} |"
+        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {_fmt_pe(r)} | {_fmt_yld(r)} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {reason} |"
 
     if quality_miss or gb_miss:
         L.append("---\n## 四、交叉比對（漏網之魚偵測）\n")
@@ -1056,16 +1053,16 @@ def run_full(dry_run=False):
 
         if quality_miss:
             L.append("### 體質+觀察通過但引擎未列\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|------|----------|------|")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | 原因 |")
+            L.append("|------|------|------|------|------|----------|-----|------|------|------|")
             for c in quality_miss:
                 L.append(_cross_detail(c))
             L.append("")
 
         if gb_miss:
             L.append("### 葛林布萊前50但引擎未列\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|------|----------|------|")
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | PE面 | 殖利率面 | 3M | 12M | 累積 | 原因 |")
+            L.append("|------|------|------|------|------|----------|-----|------|------|------|")
             for c in gb_miss:
                 gb_rank = stocks.get(c, {}).get('gb_total_rank', '—')
                 L.append(_cross_detail(c) + f" GB#{gb_rank}")
