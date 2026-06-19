@@ -522,7 +522,8 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
             r[f'payout_{i}'] = None
 
     # ── 評價門檻（統一計算，存 DB）──
-    # EPS/股利取用順序：使用者手動設定 > 沈董EPS（本業推估）> 綜合EPS（fallback），股利跟隨EPS來源
+    # EPS/股利取用順序：使用者手動設定 > min(沈董EPS, 綜合EPS)，股利跟隨EPS來源
+    # 沈董EPS已改用本業推估法，blend含50%沈董，min()提供極端季節性保護同時保留50%成長
     est_eps = None
     est_div = None
     if user_params:
@@ -544,28 +545,37 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         val_eps = est_eps
         val_div = est_div
     else:
-        # 直接用沈董EPS（本業推估法已修正季節性，不再取 min(綜合,沈董)）
+        # min(沈董EPS, 綜合EPS)：沈董已改用本業推估法，綜合含50%沈董+50%加權
+        # min 在成長股仍保留50%成長（透過blend），在極端季節性股票提供安全帽
+        _blend_eps = r.get('blend_eps')
         _shen_eps = r.get('shen_eps')
-        if _shen_eps and _shen_eps > 0:
-            val_eps = _shen_eps
-            val_div = r.get('shen_div')
-        else:
-            _blend_eps = r.get('blend_eps')
-            if _blend_eps and _blend_eps > 0:
-                val_eps = _blend_eps
+        _blend_pos = _blend_eps if _blend_eps and _blend_eps > 0 else None
+        _shen_pos = _shen_eps if _shen_eps and _shen_eps > 0 else None
+        if _blend_pos is not None and _shen_pos is not None:
+            if _blend_pos <= _shen_pos:
+                val_eps = _blend_pos
                 val_div = r.get('blend_div')
+            else:
+                val_eps = _shen_pos
+                val_div = r.get('shen_div')
+        elif _shen_pos is not None:
+            val_eps = _shen_pos
+            val_div = r.get('shen_div')
+        elif _blend_pos is not None:
+            val_eps = _blend_pos
+            val_div = r.get('blend_div')
     val_bdiv = r.get('blend_div')
     r['val_eps_used'] = val_eps
     r['val_div_used'] = val_div
     r['val_pe'] = round(close / val_eps, 2) if close and val_eps and val_eps > 0 else None
     r['val_yld'] = round(val_div / close * 100, 2) if close and close > 0 and val_div and val_div > 0 else None
-    # 標記來源（優先序：預估 > 沈董 > 綜合fallback）
+    # 標記來源
     if est_eps and est_eps > 0:
         r['val_source'] = '預估'
-    elif val_eps == r.get('shen_eps'):
-        r['val_source'] = '沈董'
     elif val_eps == r.get('blend_eps'):
         r['val_source'] = '綜合'
+    elif val_eps == r.get('shen_eps'):
+        r['val_source'] = '沈董'
     else:
         r['val_source'] = None
 

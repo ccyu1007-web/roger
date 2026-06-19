@@ -98,7 +98,7 @@
       <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
       <tr><td class="field">評價AA</td><td>最便宜門檻<div class="note">股價 ≤ 此值 → <span class="color-sample" style="background:#fee2e2"></span>紅底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">min(EPS×10, 股利/6%, 綜合股利/6%+股利)</span>
-        <div class="note">EPS/股利優先順序：預估 > 沈董（本業推估）> 綜合（fallback）</div></td></tr>
+        <div class="note">EPS/股利優先順序：預估 > min(沈董EPS, 綜合EPS)，股利跟隨EPS來源</div></td></tr>
       <tr><td class="field">評價A1</td><td>偏便宜<div class="note"><span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
         <td><span class="src-calc">計算</span> <span class="formula">min(EPS×10, 股利/5.5%, 綜合股利/6%+股利)</span></td></tr>
       <tr><td class="field">評價A2</td><td>合理偏低<div class="note"><span class="color-sample" style="background:#fef9c3"></span>黃底</div></td>
