@@ -120,7 +120,7 @@
   <div class="section-body">
     <table>
       <tr><th width="120">系列</th><th width="280">EPS 計算</th><th>PE / 殖利率 / 等級</th></tr>
-      <tr><td class="field">沈董</td><td>本業推估法<div class="note">已公佈季度：實際EPS。未公佈季度：去年同季本業EPS×(1+本業成長率)+業外中位數。本業成長率＝已公佈季度營業利益vs去年同季的平均成長率，業外＝去年4季業外EPS中位數。Fallback：無法計算時退回Q1×4年化</div></td>
+      <tr><td class="field">沈董</td><td>當年度已公佈季度年化推算<div class="note">4季：直接加總；1~3季：加總/季數×4；無：fallback近四季</div></td>
         <td>PE=股價/沈董EPS，殖利率=沈董股利/股價，等級=矩陣查表</td></tr>
       <tr><td class="field">加權</td><td>五年加權平均<div class="note">權重 30/30/20/10/10（近→遠）</div></td>
         <td>同上公式</td></tr>
