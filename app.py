@@ -181,11 +181,11 @@ def _get_stock_params(user_params, global_settings):
 # ── 沈董EPS/股利/綜合股利 後端計算 ────────────────────────────
 DEFAULT_WEIGHTS = [30, 30, 20, 10, 10]
 
-def _calc_shen_fields(r, cur_roc, global_settings=None):
+def _calc_shen_fields(r, cur_roc, global_settings=None, qf_data=None):
     """計算沈董EPS、沈董股利、綜合股利，寫入 row dict"""
     if global_settings is None:
         global_settings = _get_global_settings()
-    # 沈董EPS
+    # 沈董EPS — 本業推估法（fallback: Q1×4）
     all_eps = []
     for i in range(1, 6):
         q = r.get(f'eps_{i}q')
@@ -195,9 +195,70 @@ def _calc_shen_fields(r, cur_roc, global_settings=None):
     cur_year = [(q, v) for q, v in all_eps if q and int(q.split('Q')[0]) == cur_roc]
     n = len(cur_year)
     is_fallback = False
+    estimated = False
+
     if n >= 4:
+        # 4季齊全，直接加總
         r['shen_eps'] = round(sum(v for _, v in cur_year), 2)
+    elif n > 0 and qf_data:
+        # 嘗試本業推估法
+        last_roc = cur_roc - 1
+        # 建立季度查找表
+        qf_by_q = {}
+        for qf in qf_data:
+            qf_by_q[qf['quarter']] = qf
+        # 今年已公佈季度的營業利益 vs 去年同季 → 平均本業成長率
+        growth_rates = []
+        for qstr, _ in cur_year:
+            q_num = qstr.split('Q')[-1]
+            last_q = f'{last_roc}Q{q_num}'
+            cur_qf = qf_by_q.get(qstr)
+            last_qf = qf_by_q.get(last_q)
+            if cur_qf and last_qf and cur_qf.get('oi') and last_qf.get('oi') and last_qf['oi'] > 0:
+                growth_rates.append((cur_qf['oi'] - last_qf['oi']) / last_qf['oi'])
+        if growth_rates:
+            avg_growth = sum(growth_rates) / len(growth_rates)
+            # 去年4季業外EPS的中位數
+            last_nonops = []
+            for q_num in range(1, 5):
+                lq = qf_by_q.get(f'{last_roc}Q{q_num}')
+                if lq:
+                    nonop = lq.get('eps_nonop')
+                    if nonop is None and lq.get('eps') is not None and lq.get('eps_core') is not None:
+                        nonop = lq['eps'] - lq['eps_core']
+                    if nonop is not None:
+                        last_nonops.append(nonop)
+            nonop_median = sorted(last_nonops)[len(last_nonops) // 2] if last_nonops else 0
+            # 已公佈季度用實際EPS
+            published_nums = set(int(qstr.split('Q')[-1]) for qstr, _ in cur_year)
+            total_eps = sum(v for _, v in cur_year)
+            # 未公佈季度推估
+            can_estimate = True
+            for q_num in range(1, 5):
+                if q_num in published_nums:
+                    continue
+                last_q = f'{last_roc}Q{q_num}'
+                lq = qf_by_q.get(last_q)
+                if not lq or lq.get('eps') is None:
+                    can_estimate = False
+                    break
+                # 去年同季本業EPS
+                last_core = lq.get('eps_core')
+                if last_core is None and lq.get('eps') is not None and lq.get('eps_nonop') is not None:
+                    last_core = lq['eps'] - lq['eps_nonop']
+                if last_core is None:
+                    last_core = lq['eps']  # 無法拆分時用整體EPS
+                est_q = last_core * (1 + avg_growth) + nonop_median
+                total_eps += est_q
+            if can_estimate:
+                r['shen_eps'] = round(total_eps, 2)
+                estimated = True
+        # fallback: 本業推估失敗 → Q1×4
+        if not estimated:
+            s = sum(v for _, v in cur_year)
+            r['shen_eps'] = round(s / n * 4, 2)
     elif n > 0:
+        # 無 qf_data → 原始 Q1×4
         s = sum(v for _, v in cur_year)
         r['shen_eps'] = round(s / n * 4, 2)
     else:
@@ -629,6 +690,25 @@ def recalc_all_derived(codes=None):
     except Exception:
         pass
 
+    # 讀取季度資料（沈董EPS本業推估用）
+    qf_map = {}  # code → [{'quarter','eps','eps_core','eps_nonop','oi'}, ...]
+    try:
+        qf_rows = conn.execute(
+            "SELECT code, quarter, eps, eps_core, eps_nonop, operating_income "
+            "FROM quarterly_financial WHERE eps IS NOT NULL"
+        ).fetchall()
+        for qf in qf_rows:
+            c = qf['code']
+            if c not in qf_map:
+                qf_map[c] = []
+            qf_map[c].append({
+                'quarter': qf['quarter'], 'eps': qf['eps'],
+                'eps_core': qf['eps_core'], 'eps_nonop': qf['eps_nonop'],
+                'oi': qf['operating_income']
+            })
+    except Exception:
+        pass
+
     # 讀取最新年度 financial_annual（葛林布萊盈餘殖利率用）
     fa_map = {}
     try:
@@ -652,7 +732,7 @@ def recalc_all_derived(codes=None):
     sets_sql = ', '.join(f'{col}=?' for col in DERIVED_COLS)
     for row in rows:
         r = dict(row)
-        _calc_shen_fields(r, cur_roc, gs)
+        _calc_shen_fields(r, cur_roc, gs, qf_data=qf_map.get(r['code']))
         up = ue_map.get(r['code'])
         _calc_derived_fields(r, gs, up)
 
