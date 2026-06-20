@@ -178,6 +178,15 @@ if DATABASE_URL:
                 return None
 
         @property
+        def lastrowid(self):
+            try:
+                self._cur.execute("SELECT lastval()")
+                row = self._cur.fetchone()
+                return row[0] if row else None
+            except Exception:
+                return None
+
+        @property
         def rowcount(self):
             return self._cur.rowcount
 
