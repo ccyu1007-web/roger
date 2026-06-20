@@ -515,10 +515,12 @@ function renderOnePortfolio(p, type) {
   });
   // 現金列
   const cashAmt = p.cash_balance || 0;
+  const totalWithCash = p.total_market_value + cashAmt;
+  const cashWeight = totalWithCash > 0 ? round2(cashAmt / totalWithCash * 100) : 0;
   html += `<tr style="background:#f8fafc;color:#64748b;font-style:italic">
     <td></td><td>現金</td><td></td><td></td>
     <td class="num-col fmt-num">${fmt(cashAmt)}</td>
-    <td class="num-col"></td>`;
+    <td class="num-col">${fmtPct(cashWeight)}</td>`;
   if (hasAccts) accts.forEach(() => { html += `<td></td>`; });
   html += `<td></td></tr>`;
   // 總計列

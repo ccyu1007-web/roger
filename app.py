@@ -6325,10 +6325,10 @@ def portfolio_list():
                 'code': s['code'], 'name': s['name'], 'price': s['price'],
                 'lots': total_lots, 'market_value': mv, 'accounts': s['accounts']
             })
-        # 計算比重（以總市值為分母）
-        for h in holdings:
-            h['weight'] = round(h['market_value'] / total_mv * 100, 2) if total_mv > 0 else 0
+        # 計算比重（以總市值+現金為分母）
         total_value = total_mv + (cash or 0)
+        for h in holdings:
+            h['weight'] = round(h['market_value'] / total_value * 100, 2) if total_value > 0 else 0
         pnl = total_value - (capital or 0) if capital else 0
         pnl_pct = round(pnl / capital * 100, 2) if capital else 0
         # 分紅計算：(損益 - 利息) × 比例，損益不超過利息時為 0
