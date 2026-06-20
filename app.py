@@ -6349,6 +6349,7 @@ def portfolio_list():
 @app.route("/api/portfolio/create", methods=["POST"])
 @require_portfolio_auth
 def portfolio_create():
+  try:
     data = request.get_json() or {}
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
@@ -6364,6 +6365,8 @@ def portfolio_create():
     conn.close()
     _push_portfolios()
     return jsonify({"status": "ok", "id": new_id})
+  except Exception as e:
+    return jsonify({"error": str(e)}), 500
 
 @app.route("/api/portfolio/<int:pid>", methods=["PUT"])
 @require_portfolio_auth
