@@ -36,6 +36,9 @@ TABLE_PK = {
     'portfolio_holdings':   ['portfolio_id', 'stock_code', 'account'],
     'list_history':         ['id'],
     'investment_reports':   ['code'],
+    'recipes':              ['id'],
+    'weekly_menu':          ['id'],
+    'shopping_list':        ['id'],
 }
 
 
