@@ -6358,17 +6358,31 @@ def portfolio_create():
   try:
     data = request.get_json() or {}
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
     accts = json.dumps(data.get('accounts', []), ensure_ascii=False)
-    c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, notes, sort_order, created_at, updated_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-              (data.get('name','新組合'), data.get('portfolio_type','personal'),
-               data.get('dividend_condition',''), data.get('dividend_ratio',0), data.get('interest_rate',0),
-               data.get('invested_capital',0), data.get('cash_balance',0), accts, data.get('notes',''), data.get('sort_order',0), now, now))
-    new_id = c.lastrowid
-    conn.commit()
-    conn.close()
+    vals = (data.get('name','新組合'), data.get('portfolio_type','personal'),
+            data.get('dividend_condition',''), data.get('dividend_ratio',0), data.get('interest_rate',0),
+            data.get('invested_capital',0), data.get('cash_balance',0), accts, data.get('notes',''), data.get('sort_order',0), now, now)
+    is_pg = bool(os.environ.get('DATABASE_URL'))
+    if is_pg:
+        # PostgreSQL: 用手動 id 避免 SERIAL 序列不同步問題
+        import psycopg2
+        pg_conn = psycopg2.connect(os.environ['DATABASE_URL'])
+        pg_conn.autocommit = True
+        cur = pg_conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM portfolios")
+        new_id = cur.fetchone()[0]
+        cur.execute("""INSERT INTO portfolios (id, name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, notes, sort_order, created_at, updated_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (new_id,) + vals)
+        pg_conn.close()
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, notes, sort_order, created_at, updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""", vals)
+        new_id = c.lastrowid
+        conn.commit()
+        conn.close()
     _push_portfolios()
     return jsonify({"status": "ok", "id": new_id})
   except Exception as e:
