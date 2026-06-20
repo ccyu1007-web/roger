@@ -2822,6 +2822,7 @@ def sync_table():
         'daily_notes', 'industry_news',
         'portfolios', 'portfolio_holdings',
         'investment_reports',
+        'recipes', 'weekly_menu', 'shopping_list',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
@@ -2968,6 +2969,7 @@ def sync_clear_table():
     ALLOWED_TABLES = {
         'material_news', 'etf_holdings', 'etf_changes', 'etf_info',
         'user_lists', 'user_notes', 'user_estimates', 'focus_tracking', 'focus_signals',
+        'recipes', 'weekly_menu', 'shopping_list',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
