@@ -6494,6 +6494,32 @@ def portfolio_delete_holding(pid, code):
     _push_holdings()
     return jsonify({"status": "ok"})
 
+@app.route("/api/sync/portfolio-dump")
+def sync_portfolio_dump():
+    """供本機 pull 用，以 Render 為準同步 portfolio 資料"""
+    if not check_sync_token():
+        return jsonify({"error": "unauthorized"}), 401
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, sort_order, accounts, notes, created_at, updated_at FROM portfolios ORDER BY id")
+    portfolios = []
+    for r in c.fetchall():
+        portfolios.append({
+            'id': r[0], 'name': r[1], 'portfolio_type': r[2], 'dividend_condition': r[3],
+            'dividend_ratio': r[4], 'interest_rate': r[5], 'invested_capital': r[6],
+            'cash_balance': r[7], 'sort_order': r[8], 'accounts': r[9], 'notes': r[10],
+            'created_at': r[11], 'updated_at': r[12]
+        })
+    c.execute("SELECT portfolio_id, stock_code, account, shares_lot, added_at, updated_at FROM portfolio_holdings")
+    holdings = []
+    for r in c.fetchall():
+        holdings.append({
+            'portfolio_id': r[0], 'stock_code': r[1], 'account': r[2],
+            'shares_lot': r[3], 'added_at': r[4], 'updated_at': r[5]
+        })
+    conn.close()
+    return jsonify({"portfolios": portfolios, "holdings": holdings})
+
 # ── 廚房管理 ────────────────────────────────────────────────
 def _init_cooking_db():
     conn = sqlite3.connect(DB_PATH)

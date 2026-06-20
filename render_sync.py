@@ -341,6 +341,53 @@ def _save_last_sync_time(ts):
     except Exception:
         pass
 
+def _pull_portfolio_from_render():
+    """從 Render 拉回 portfolios + portfolio_holdings，以 Render 為準。
+    使用者在 Render 前台操作持股，本機必須同步。"""
+    if _is_cloud():
+        return
+    _rs = _create_session()
+    try:
+        resp = _rs.get(f'{RENDER_URL}/api/sync/portfolio-dump',
+                       headers={'X-Sync-Token': SYNC_TOKEN}, timeout=30)
+    except Exception as e:
+        print(f"[拉回] portfolio API 連線失敗: {e}")
+        return
+    if resp.status_code != 200:
+        print(f"[拉回] portfolio API 失敗: HTTP {resp.status_code}")
+        return
+    data = resp.json()
+    render_portfolios = data.get('portfolios', [])
+    render_holdings = data.get('holdings', [])
+
+    with sqlite3.get_conn() as conn:
+        # portfolios: 以 Render 為準，全量覆蓋
+        for p in render_portfolios:
+            conn.execute(
+                'INSERT OR REPLACE INTO portfolios (id, name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, sort_order, accounts, notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                (p['id'], p['name'], p.get('portfolio_type','personal'), p.get('dividend_condition'),
+                 p.get('dividend_ratio'), p.get('interest_rate',0), p.get('invested_capital',0),
+                 p.get('cash_balance',0), p.get('sort_order',0), p.get('accounts','[]'),
+                 p.get('notes',''), p.get('created_at'), p.get('updated_at')))
+        # 刪除 Render 上不存在的 portfolio
+        render_pids = set(p['id'] for p in render_portfolios)
+        local_pids = [r[0] for r in conn.execute('SELECT id FROM portfolios').fetchall()]
+        for pid in local_pids:
+            if pid not in render_pids:
+                conn.execute('DELETE FROM portfolios WHERE id=?', (pid,))
+                conn.execute('DELETE FROM portfolio_holdings WHERE portfolio_id=?', (pid,))
+
+        # holdings: 以 Render 為準，全量覆蓋
+        conn.execute('DELETE FROM portfolio_holdings')
+        for h in render_holdings:
+            conn.execute(
+                'INSERT INTO portfolio_holdings (portfolio_id, stock_code, account, shares_lot, added_at, updated_at) VALUES (?,?,?,?,?,?)',
+                (h['portfolio_id'], h['stock_code'], h.get('account',''),
+                 h.get('shares_lot',0), h.get('added_at'), h.get('updated_at')))
+        conn.commit()
+    print(f"[拉回] portfolio 同步: {len(render_portfolios)} 組合, {len(render_holdings)} 筆持股")
+
+
 def _push_all_to_render():
     """一次 push 所有資料到 Render — 增量同步（只推上次同步後更新的）"""
     global _last_sync_result
@@ -360,6 +407,10 @@ def _push_all_to_render():
         _pull_user_lists_from_render()
     except Exception as e:
         print(f"[拉回] user_lists 失敗: {e}")
+    try:
+        _pull_portfolio_from_render()
+    except Exception as e:
+        print(f"[拉回] portfolio 失敗: {e}")
 
     last_sync = _get_last_sync_time()
     mode = f"增量（since {last_sync}）" if last_sync else "全量（首次）"
