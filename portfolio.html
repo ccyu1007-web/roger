@@ -292,6 +292,7 @@ function fmtPct(n) {
   if (n == null) return '—';
   return n.toFixed(2) + '%';
 }
+function round2(n) { return Math.round(n * 100) / 100; }
 
 // ── 認證 ──
 async function doAuth() {
@@ -507,6 +508,25 @@ function renderOnePortfolio(p, type) {
     html += `<td><button class="del-btn" onclick="deleteHolding(${p.id},'${h.code}')" title="刪除">&#x2715;</button></td>
     </tr>`;
   });
+  // 現金列
+  const cashAmt = p.cash_balance || 0;
+  const cashWeight = p.invested_capital > 0 ? round2(cashAmt / p.invested_capital * 100) : 0;
+  const colSpan = hasAccts ? accts.length + 1 : 1;
+  html += `<tr style="background:#f8fafc;color:#64748b;font-style:italic">
+    <td></td><td>現金</td><td></td><td></td>
+    <td class="num-col fmt-num">${fmt(cashAmt)}</td>
+    <td class="num-col">${fmtPct(cashWeight)}</td>`;
+  if (hasAccts) accts.forEach(() => { html += `<td></td>`; });
+  html += `<td></td></tr>`;
+  // 總計列
+  const totalAmt = p.total_market_value + cashAmt;
+  const totalWeight = p.invested_capital > 0 ? round2(totalAmt / p.invested_capital * 100) : 0;
+  html += `<tr style="font-weight:700;border-top:2px solid #334155;background:#f1f5f9">
+    <td></td><td>總計</td><td></td><td></td>
+    <td class="num-col fmt-num">${fmt(totalAmt)}</td>
+    <td class="num-col">${fmtPct(totalWeight)}</td>`;
+  if (hasAccts) accts.forEach(() => { html += `<td></td>`; });
+  html += `<td></td></tr>`;
   html += `</tbody></table>`;
 
   html += `<div class="add-row">
