@@ -605,25 +605,21 @@ function copyPrompt() {
 
 使用者資訊：
 - 廚藝初級，步驟要簡單
-- 健康烹調（蒸、煮、烤、少油炒為主）
+- 健康烹調（蒸、煮、烤、少油炒為主，避免油炸）
 - 2~3 人份
-- 早中晚三餐
+- 早中晚三餐（早餐簡單即可，稍有變化）
 - 食材以全聯或一般菜市場買得到為主
 - 不吃：豆芽菜、紅蘿蔔
-- 早餐簡單即可，稍有變化
+- 乳糖不耐症：不用牛奶，改用豆漿或燕麥奶
+- 避免美乃滋等不健康醬料
+- 魚類要好處理的：全聯一片裝的魚排、旗魚、土魠魚等切片，不要整隻魚
 
 請先讀取現有食譜庫和過去菜單，避免重複：
-1. GET /api/cooking/recipes（需 Authorization: Bearer token）
-2. GET /api/cooking/menu/weeks 看歷史週次
-3. GET /api/cooking/menu?week=YYYY-MM-DD 看各週內容
-
-規劃完成後：
-1. 新食譜存入 POST /api/cooking/recipes
-2. 菜單存入 POST /api/cooking/menu（week_start, items 含 day:0-6, meal:早餐/午餐/晚餐, recipe_id 或 custom_name）
-3. 從菜單食材彙整採購清單存入 POST /api/cooking/shopping
-
-所有 API 都需要 Authorization: Bearer <token>，token 從 sessionStorage 的 portfolio_token 取得。
-本機 API: http://localhost:5000`;
+1. 直接讀本機 DB（stocks.db）的 recipes、weekly_menu 表
+2. 新食譜直接 INSERT INTO recipes
+3. 菜單直接 INSERT INTO weekly_menu（week_start, day 0-6, meal 早餐/午餐/晚餐, recipe_id, custom_name）
+4. 採購清單直接 INSERT INTO shopping_list
+5. 完成後用 render_sync._push_table_to_render 把三張表 push 到 Render（clear_first=True）`;
 
   navigator.clipboard.writeText(prompt).then(() => setStatus('廚房指令已複製到剪貼簿'));
 }
