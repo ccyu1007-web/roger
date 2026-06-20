@@ -80,7 +80,8 @@
       <button class="notes-mode-btn active" id="btnPreview" onclick="switchMode('preview')">預覽</button>
       <button class="notes-mode-btn" id="btnEdit" onclick="switchMode('edit')">編輯</button>
       <button onclick="copyPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製選股指令</button>
-      <button onclick="exportPDF()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">匯出 PDF</button>
+      <button onclick="exportPDF('buy')" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">匯出買入</button>
+      <button onclick="exportPDF('watch')" style="padding:3px 10px;border:1px solid #64748b;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#64748b;font-weight:600">匯出觀望</button>
       <span id="statusEl" style="font-size:.75rem;color:#94a3b8"></span>
     </div>
     <div class="notes-preview" id="preview" onclick="switchMode('edit')">
@@ -174,9 +175,32 @@ python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py
   });
 }
 
-function exportPDF() {
+function exportPDF(mode) {
   switchMode('preview');
-  setTimeout(() => window.print(), 200);
+  const preview = document.getElementById('preview');
+  const children = Array.from(preview.children);
+  const hiddenEls = [];
+  let currentSection = null;
+
+  children.forEach(el => {
+    const tag = el.tagName;
+    const text = el.textContent || '';
+    if (tag === 'H2') { currentSection = null; return; }
+    if (tag === 'H3') {
+      if (/重倉|小買/.test(text)) currentSection = 'buy';
+      else if (/觀望/.test(text)) currentSection = 'watch';
+      else currentSection = null;
+    }
+    if (currentSection && currentSection !== mode) {
+      el.style.display = 'none';
+      hiddenEls.push(el);
+    }
+  });
+
+  setTimeout(() => {
+    window.print();
+    hiddenEls.forEach(el => el.style.display = '');
+  }, 200);
 }
 
 load();
