@@ -6325,9 +6325,10 @@ def portfolio_list():
                 'code': s['code'], 'name': s['name'], 'price': s['price'],
                 'lots': total_lots, 'market_value': mv, 'accounts': s['accounts']
             })
-        # 計算比重
+        # 計算比重（以投入本金為分母）
+        base = capital or total_mv  # 沒設本金時 fallback 到總市值
         for h in holdings:
-            h['weight'] = round(h['market_value'] / total_mv * 100, 2) if total_mv > 0 else 0
+            h['weight'] = round(h['market_value'] / base * 100, 2) if base > 0 else 0
         total_value = total_mv + (cash or 0)
         pnl = total_value - (capital or 0) if capital else 0
         pnl_pct = round(pnl / capital * 100, 2) if capital else 0
