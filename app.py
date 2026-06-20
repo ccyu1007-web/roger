@@ -6097,7 +6097,8 @@ def _init_portfolio_db():
     if is_pg:
         try:
             import psycopg2
-            pg_conn = psycopg2.connect(os.environ['DATABASE_URL'])
+            from db import DATABASE_URL as PG_URL
+            pg_conn = psycopg2.connect(PG_URL)
             pg_conn.autocommit = True  # 每條 DDL 自動 commit，不持鎖
             cur = pg_conn.cursor()
             for col, typ in [
@@ -6365,8 +6366,10 @@ def portfolio_create():
     is_pg = bool(os.environ.get('DATABASE_URL'))
     if is_pg:
         # PostgreSQL: 先修正序列再 INSERT，避免 push 資料導致序列不同步
+        # 用 db.py 已清理的 DATABASE_URL
+        from db import DATABASE_URL as PG_URL
         import psycopg2
-        pg_conn = psycopg2.connect(os.environ['DATABASE_URL'])
+        pg_conn = psycopg2.connect(PG_URL)
         pg_conn.autocommit = True
         cur = pg_conn.cursor()
         cur.execute("SELECT setval('portfolios_id_seq', COALESCE((SELECT MAX(id) FROM portfolios), 0))")
@@ -6531,7 +6534,8 @@ def _init_cooking_db():
     if os.environ.get('DATABASE_URL'):
         try:
             import psycopg2
-            pg_conn = psycopg2.connect(os.environ['DATABASE_URL'])
+            from db import DATABASE_URL as PG_URL
+            pg_conn = psycopg2.connect(PG_URL)
             pg_conn.autocommit = True
             cur = pg_conn.cursor()
             for tbl in ['recipes', 'weekly_menu', 'shopping_list']:
