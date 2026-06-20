@@ -570,6 +570,33 @@ def _push_all_to_render():
             'create_sql': """CREATE TABLE IF NOT EXISTS investment_reports (
                 code TEXT PRIMARY KEY, content TEXT, updated_at TEXT)""",
         },
+        {
+            'table': 'recipes',
+            'columns': ['id','name','category','ingredients','steps','note','servings','created_at','updated_at'],
+            'pk': ['id'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS recipes (
+                id SERIAL PRIMARY KEY, name TEXT NOT NULL, category TEXT DEFAULT '',
+                ingredients TEXT DEFAULT '', steps TEXT DEFAULT '', note TEXT DEFAULT '',
+                servings TEXT DEFAULT '2-3人', created_at TEXT, updated_at TEXT)""",
+        },
+        {
+            'table': 'weekly_menu',
+            'columns': ['id','week_start','day','meal','recipe_id','custom_name','note'],
+            'pk': ['id'],
+            'clear_first': True,
+            'create_sql': """CREATE TABLE IF NOT EXISTS weekly_menu (
+                id SERIAL PRIMARY KEY, week_start TEXT NOT NULL, day INTEGER NOT NULL,
+                meal TEXT NOT NULL, recipe_id INTEGER, custom_name TEXT DEFAULT '', note TEXT DEFAULT '')""",
+        },
+        {
+            'table': 'shopping_list',
+            'columns': ['id','week_start','item','quantity','checked','manual'],
+            'pk': ['id'],
+            'clear_first': True,
+            'create_sql': """CREATE TABLE IF NOT EXISTS shopping_list (
+                id SERIAL PRIMARY KEY, week_start TEXT NOT NULL, item TEXT NOT NULL,
+                quantity TEXT DEFAULT '', checked INTEGER DEFAULT 0, manual INTEGER DEFAULT 0)""",
+        },
     ]
 
     from datetime import datetime

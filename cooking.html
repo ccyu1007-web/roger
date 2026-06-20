@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>廚房管理 — 逍遙投資系統</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f8fafc; color: #1a202c; }
+
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; }
+  header a { color: rgba(255,255,255,.9); font-size: .82rem; font-weight: 600; text-decoration: none; }
+  header a:hover { color: #fff; text-decoration: underline; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  /* 密碼畫面 */
+  #authScreen { display: flex; justify-content: center; align-items: center; min-height: 60vh; }
+  .auth-box {
+    background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 2px 20px rgba(0,0,0,.1);
+    text-align: center; max-width: 360px; width: 100%;
+  }
+  .auth-box h2 { margin-bottom: 20px; color: #1e3a5f; }
+  .auth-box input {
+    width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;
+    font-size: 1rem; text-align: center; letter-spacing: 4px; outline: none;
+  }
+  .auth-box input:focus { border-color: #2563eb; }
+  .auth-box button {
+    margin-top: 16px; width: 100%; padding: 12px; border: none; border-radius: 8px;
+    background: #2563eb; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+  .auth-box button:hover { background: #1d4ed8; }
+  .auth-error { color: #dc2626; font-size: .85rem; margin-top: 10px; display: none; }
+
+  /* 主畫面 */
+  #mainScreen { display: none; }
+
+  /* Tab */
+  .tab-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .tab-btn {
+    padding: 8px 18px; border: 1px solid #e2e8f0; border-radius: 8px;
+    background: #fff; cursor: pointer; font-size: .85rem; font-weight: 600; color: #64748b;
+  }
+  .tab-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* 卡片 */
+  .card {
+    background: #fff; border-radius: 10px; padding: 20px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08); margin-bottom: 16px;
+  }
+  .card-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 12px; }
+
+  /* 按鈕 */
+  .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: .82rem; font-weight: 600; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-green { background: #059669; color: #fff; }
+  .btn-green:hover { background: #047857; }
+  .btn-gray { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+  .btn-gray:hover { background: #e2e8f0; }
+  .btn-red { background: #fff; color: #dc2626; border: 1px solid #fecaca; }
+  .btn-red:hover { background: #fef2f2; }
+  .btn-copy { background: #fff; color: #059669; border: 1px solid #059669; }
+  .btn-copy:hover { background: #ecfdf5; }
+
+  /* 食譜表格 */
+  .recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .recipe-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; cursor: pointer;
+    transition: box-shadow .2s;
+  }
+  .recipe-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+  .recipe-card h3 { font-size: .95rem; color: #1e3a5f; margin-bottom: 6px; }
+  .recipe-card .cat { font-size: .75rem; color: #fff; background: #2563eb; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
+  .recipe-card .ingredients { font-size: .8rem; color: #64748b; line-height: 1.5; }
+
+  /* 菜單表格 */
+  .menu-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  .menu-table th, .menu-table td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; }
+  .menu-table th { background: #f1f5f9; font-weight: 600; color: #334155; white-space: nowrap; }
+  .menu-table td { min-height: 40px; }
+  .menu-table .meal-label { font-weight: 600; color: #1e3a5f; width: 50px; }
+
+  /* 採購清單 */
+  .shop-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+  .shop-item.checked { color: #94a3b8; text-decoration: line-through; }
+  .shop-item input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; }
+  .shop-item .item-name { flex: 1; font-size: .88rem; }
+  .shop-item .item-qty { font-size: .82rem; color: #64748b; min-width: 80px; }
+
+  /* 食譜詳情 modal */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 12px; padding: 28px; max-width: 600px; width: 95%;
+    max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,.2);
+  }
+  .modal-box h2 { font-size: 1.1rem; color: #1e3a5f; margin-bottom: 16px; }
+  .modal-field { margin-bottom: 14px; }
+  .modal-field label { display: block; font-size: .82rem; font-weight: 600; color: #334155; margin-bottom: 4px; }
+  .modal-field input, .modal-field textarea, .modal-field select {
+    width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: .9rem;
+  }
+  .modal-field textarea { resize: vertical; font-family: inherit; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  /* 週選擇器 */
+  .week-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .week-nav button { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: .85rem; }
+  .week-nav button:hover { background: #f1f5f9; }
+  .week-nav .week-label { font-weight: 700; color: #1e3a5f; font-size: .95rem; }
+
+  /* 搜尋列 */
+  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .search-bar input {
+    flex: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px;
+    font-size: .88rem; outline: none;
+  }
+  .search-bar input:focus { border-color: #2563eb; }
+  .search-bar select { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: .85rem; }
+
+  @media print {
+    header, .tab-bar, .search-bar, .btn, .week-nav button { display: none; }
+    .tab-content { display: block !important; }
+    .card { box-shadow: none; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>廚房管理</h1>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/">回總表</a>
+    <a href="/portfolio.html">持股專區</a>
+    <a href="/valuation.html">評價報告</a>
+  </div>
+</header>
+
+<!-- 密碼驗證 -->
+<div id="authScreen">
+  <div class="auth-box">
+    <h2>請輸入密碼</h2>
+    <input type="password" id="pwInput" placeholder="密碼" onkeydown="if(event.key==='Enter')doAuth()">
+    <button onclick="doAuth()">進入</button>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
+
+<!-- 主畫面 -->
+<div id="mainScreen">
+  <div class="container">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('menu')">每週菜單</button>
+      <button class="tab-btn" onclick="switchTab('recipes')">食譜庫</button>
+      <button class="tab-btn" onclick="switchTab('shopping')">採購清單</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-copy" onclick="copyPrompt()">複製廚房指令</button>
+      <span id="statusEl" style="font-size:.75rem;color:#94a3b8"></span>
+    </div>
+
+    <!-- 每週菜單 -->
+    <div class="tab-content active" id="tab-menu">
+      <div class="week-nav">
+        <button onclick="changeWeek(-1)">&larr; 上週</button>
+        <span class="week-label" id="weekLabel"></span>
+        <button onclick="changeWeek(1)">下週 &rarr;</button>
+        <button onclick="goThisWeek()" class="btn btn-gray" style="margin-left:8px">本週</button>
+      </div>
+      <div class="card">
+        <table class="menu-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th>
+            </tr>
+          </thead>
+          <tbody id="menuBody"></tbody>
+        </table>
+      </div>
+      <div id="menuHistory" style="margin-top:16px"></div>
+    </div>
+
+    <!-- 食譜庫 -->
+    <div class="tab-content" id="tab-recipes">
+      <div class="search-bar">
+        <input type="text" id="recipeSearch" placeholder="搜尋食譜名稱或食材..." oninput="loadRecipes()">
+        <select id="recipeCatFilter" onchange="loadRecipes()">
+          <option value="">全部分類</option>
+          <option value="中式">中式</option>
+          <option value="台式">台式</option>
+          <option value="日式">日式</option>
+          <option value="西式">西式</option>
+          <option value="韓式">韓式</option>
+          <option value="東南亞">東南亞</option>
+          <option value="早餐">早餐</option>
+          <option value="湯品">湯品</option>
+          <option value="其他">其他</option>
+        </select>
+        <button class="btn btn-primary" onclick="openRecipeModal()">新增食譜</button>
+      </div>
+      <div class="recipe-grid" id="recipeGrid"></div>
+    </div>
+
+    <!-- 採購清單 -->
+    <div class="tab-content" id="tab-shopping">
+      <div class="week-nav">
+        <button onclick="changeShopWeek(-1)">&larr; 上週</button>
+        <span class="week-label" id="shopWeekLabel"></span>
+        <button onclick="changeShopWeek(1)">下週 &rarr;</button>
+        <button onclick="goShopThisWeek()" class="btn btn-gray" style="margin-left:8px">本週</button>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span class="card-title" style="margin:0">採購清單</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-green" onclick="generateShopping()">從菜單產生</button>
+            <button class="btn btn-gray" onclick="addManualItem()">手動新增</button>
+          </div>
+        </div>
+        <div id="shopList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 食譜 Modal -->
+<div class="modal-overlay" id="recipeModal">
+  <div class="modal-box">
+    <h2 id="recipeModalTitle">新增食譜</h2>
+    <input type="hidden" id="rmId">
+    <div class="modal-field"><label>名稱</label><input type="text" id="rmName"></div>
+    <div class="modal-field">
+      <label>分類</label>
+      <select id="rmCategory">
+        <option value="中式">中式</option><option value="台式">台式</option>
+        <option value="日式">日式</option><option value="西式">西式</option>
+        <option value="韓式">韓式</option><option value="東南亞">東南亞</option>
+        <option value="早餐">早餐</option><option value="湯品">湯品</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="modal-field"><label>食材（每行一項，如「雞胸肉 300g」）</label><textarea id="rmIngredients" rows="6"></textarea></div>
+    <div class="modal-field"><label>步驟（每行一步）</label><textarea id="rmSteps" rows="6"></textarea></div>
+    <div class="modal-field"><label>備註</label><textarea id="rmNote" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-red" id="rmDeleteBtn" style="display:none;margin-right:auto" onclick="deleteRecipe()">刪除</button>
+      <button class="btn btn-gray" onclick="closeRecipeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveRecipe()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 食譜詳情 Modal -->
+<div class="modal-overlay" id="recipeDetailModal">
+  <div class="modal-box">
+    <div id="recipeDetailContent"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeDetailModal()">關閉</button>
+      <button class="btn btn-primary" onclick="editFromDetail()">編輯</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let TOKEN = sessionStorage.getItem('portfolio_token') || '';
+let currentWeek = getMonday(new Date());
+let shopWeek = getMonday(new Date());
+let allRecipes = [];
+let currentDetailRecipe = null;
+
+function headers() {
+  return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+}
+
+function getMonday(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
+  dt.setDate(diff);
+  return dt.toISOString().slice(0,10);
+}
+
+function formatWeek(w) {
+  const d = new Date(w);
+  const end = new Date(d); end.setDate(d.getDate() + 6);
+  return `${d.getMonth()+1}/${d.getDate()} ~ ${end.getMonth()+1}/${end.getDate()}`;
+}
+
+// ── 認證 ──
+async function doAuth() {
+  const pw = document.getElementById('pwInput').value;
+  if (!pw) return;
+  const err = document.getElementById('authError');
+  err.style.display = 'none';
+  try {
+    const r = await fetch(API + '/api/portfolio/auth', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error === 'wrong password' ? '密碼錯誤' : d.error; err.style.display = 'block'; return; }
+    TOKEN = d.token;
+    sessionStorage.setItem('portfolio_token', TOKEN);
+    showMain();
+  } catch(e) { err.textContent = '連線失敗'; err.style.display = 'block'; }
+}
+
+async function checkAuth() {
+  if (!TOKEN) return false;
+  try {
+    const r = await fetch(API + '/api/cooking/recipes', { headers: headers() });
+    return r.ok;
+  } catch(e) { return false; }
+}
+
+async function showMain() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'block';
+  loadMenu();
+  loadRecipes();
+}
+
+// ── Tab 切換 ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'recipes') loadRecipes();
+  if (tab === 'shopping') loadShopping();
+}
+
+// ── 每週菜單 ──
+const MEALS = ['早餐', '午餐', '晚餐'];
+const DAYS = ['一','二','三','四','五','六','日'];
+
+function changeWeek(offset) {
+  const d = new Date(currentWeek);
+  d.setDate(d.getDate() + offset * 7);
+  currentWeek = d.toISOString().slice(0,10);
+  loadMenu();
+}
+function goThisWeek() { currentWeek = getMonday(new Date()); loadMenu(); }
+
+async function loadMenu() {
+  document.getElementById('weekLabel').textContent = formatWeek(currentWeek);
+  try {
+    const r = await fetch(API + '/api/cooking/menu?week=' + currentWeek, { headers: headers() });
+    if (!r.ok) return;
+    const data = await r.json();
+    renderMenu(data.items);
+  } catch(e) {}
+}
+
+function renderMenu(items) {
+  const body = document.getElementById('menuBody');
+  let html = '';
+  MEALS.forEach(meal => {
+    html += '<tr>';
+    html += `<td class="meal-label">${meal}</td>`;
+    for (let d = 0; d < 7; d++) {
+      const item = items.find(i => i.day === d && i.meal === meal);
+      const name = item ? (item.recipe_name || item.custom_name || '') : '';
+      const note = item && item.note ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:2px">${item.note}</div>` : '';
+      const rid = item && item.recipe_id ? item.recipe_id : '';
+      const clickAttr = rid ? `onclick="showRecipeDetail(${rid})" style="cursor:pointer;color:#2563eb;font-weight:600"` : '';
+      html += `<td><span ${clickAttr}>${name}</span>${note}</td>`;
+    }
+    html += '</tr>';
+  });
+  body.innerHTML = html;
+}
+
+// ── 食譜庫 ──
+async function loadRecipes() {
+  const q = document.getElementById('recipeSearch')?.value || '';
+  const cat = document.getElementById('recipeCatFilter')?.value || '';
+  try {
+    let url = API + '/api/cooking/recipes?';
+    if (q) url += 'q=' + encodeURIComponent(q) + '&';
+    if (cat) url += 'category=' + encodeURIComponent(cat);
+    const r = await fetch(url, { headers: headers() });
+    if (!r.ok) return;
+    allRecipes = await r.json();
+    renderRecipes();
+  } catch(e) {}
+}
+
+function renderRecipes() {
+  const grid = document.getElementById('recipeGrid');
+  if (!allRecipes.length) {
+    grid.innerHTML = '<div style="color:#94a3b8;padding:40px;text-align:center">還沒有食譜，按「新增食譜」或使用「複製廚房指令」讓 Claude 幫你建立</div>';
+    return;
+  }
+  grid.innerHTML = allRecipes.map(r => `
+    <div class="recipe-card" onclick="showRecipeDetail(${r.id})">
+      <h3>${r.name}</h3>
+      ${r.category ? `<span class="cat">${r.category}</span>` : ''}
+      <div class="ingredients">${(r.ingredients||'').split('\n').slice(0,3).join('、')}${(r.ingredients||'').split('\n').length > 3 ? '...' : ''}</div>
+    </div>
+  `).join('');
+}
+
+function openRecipeModal(recipe) {
+  document.getElementById('recipeModalTitle').textContent = recipe ? '編輯食譜' : '新增食譜';
+  document.getElementById('rmId').value = recipe ? recipe.id : '';
+  document.getElementById('rmName').value = recipe ? recipe.name : '';
+  document.getElementById('rmCategory').value = recipe ? (recipe.category || '中式') : '中式';
+  document.getElementById('rmIngredients').value = recipe ? (recipe.ingredients || '') : '';
+  document.getElementById('rmSteps').value = recipe ? (recipe.steps || '') : '';
+  document.getElementById('rmNote').value = recipe ? (recipe.note || '') : '';
+  document.getElementById('rmDeleteBtn').style.display = recipe ? 'inline-block' : 'none';
+  document.getElementById('recipeModal').classList.add('show');
+}
+
+function closeRecipeModal() { document.getElementById('recipeModal').classList.remove('show'); }
+
+async function saveRecipe() {
+  const id = document.getElementById('rmId').value;
+  const data = {
+    name: document.getElementById('rmName').value.trim(),
+    category: document.getElementById('rmCategory').value,
+    ingredients: document.getElementById('rmIngredients').value.trim(),
+    steps: document.getElementById('rmSteps').value.trim(),
+    note: document.getElementById('rmNote').value.trim()
+  };
+  if (!data.name) { alert('請輸入食譜名稱'); return; }
+  try {
+    if (id) {
+      await fetch(API + '/api/cooking/recipes/' + id, { method: 'PUT', headers: headers(), body: JSON.stringify(data) });
+    } else {
+      await fetch(API + '/api/cooking/recipes', { method: 'POST', headers: headers(), body: JSON.stringify(data) });
+    }
+    closeRecipeModal();
+    loadRecipes();
+  } catch(e) { alert('儲存失敗'); }
+}
+
+async function deleteRecipe() {
+  const id = document.getElementById('rmId').value;
+  if (!id) return;
+  if (!confirm('確定要刪除這個食譜嗎？')) return;
+  try {
+    await fetch(API + '/api/cooking/recipes/' + id, { method: 'DELETE', headers: headers() });
+    closeRecipeModal();
+    closeDetailModal();
+    loadRecipes();
+  } catch(e) { alert('刪除失敗'); }
+}
+
+async function showRecipeDetail(id) {
+  const recipe = allRecipes.find(r => r.id === id);
+  if (!recipe) {
+    // 從 API 載入
+    try {
+      const r = await fetch(API + '/api/cooking/recipes?q=', { headers: headers() });
+      if (r.ok) { allRecipes = await r.json(); }
+    } catch(e) {}
+    const found = allRecipes.find(r => r.id === id);
+    if (!found) return;
+    currentDetailRecipe = found;
+  } else {
+    currentDetailRecipe = recipe;
+  }
+  const r = currentDetailRecipe;
+  const ingredients = (r.ingredients || '').split('\n').filter(s=>s.trim()).map(s => `<li>${s}</li>`).join('');
+  const steps = (r.steps || '').split('\n').filter(s=>s.trim()).map((s,i) => `<li>${s}</li>`).join('');
+  document.getElementById('recipeDetailContent').innerHTML = `
+    <h2>${r.name} ${r.category ? `<span style="font-size:.8rem;background:#2563eb;color:#fff;padding:2px 8px;border-radius:4px;vertical-align:middle">${r.category}</span>` : ''}</h2>
+    ${r.note ? `<p style="color:#64748b;font-size:.85rem;margin-bottom:12px">${r.note}</p>` : ''}
+    <div style="margin-bottom:16px">
+      <h3 style="font-size:.9rem;color:#334155;margin-bottom:6px">食材</h3>
+      <ul style="padding-left:20px;font-size:.88rem;line-height:1.8">${ingredients || '<li style="color:#94a3b8">尚未填寫</li>'}</ul>
+    </div>
+    <div>
+      <h3 style="font-size:.9rem;color:#334155;margin-bottom:6px">步驟</h3>
+      <ol style="padding-left:20px;font-size:.88rem;line-height:1.8">${steps || '<li style="color:#94a3b8">尚未填寫</li>'}</ol>
+    </div>
+  `;
+  document.getElementById('recipeDetailModal').classList.add('show');
+}
+
+function closeDetailModal() { document.getElementById('recipeDetailModal').classList.remove('show'); }
+function editFromDetail() {
+  closeDetailModal();
+  if (currentDetailRecipe) openRecipeModal(currentDetailRecipe);
+}
+
+// ── 採購清單 ──
+let shopItems = [];
+
+function changeShopWeek(offset) {
+  const d = new Date(shopWeek);
+  d.setDate(d.getDate() + offset * 7);
+  shopWeek = d.toISOString().slice(0,10);
+  loadShopping();
+}
+function goShopThisWeek() { shopWeek = getMonday(new Date()); loadShopping(); }
+
+async function loadShopping() {
+  document.getElementById('shopWeekLabel').textContent = formatWeek(shopWeek);
+  try {
+    const r = await fetch(API + '/api/cooking/shopping?week=' + shopWeek, { headers: headers() });
+    if (!r.ok) return;
+    const data = await r.json();
+    shopItems = data.items;
+    renderShopping();
+  } catch(e) {}
+}
+
+function renderShopping() {
+  const list = document.getElementById('shopList');
+  if (!shopItems.length) {
+    list.innerHTML = '<div style="color:#94a3b8;padding:20px;text-align:center">尚無採購項目，按「從菜單產生」自動彙整</div>';
+    return;
+  }
+  list.innerHTML = shopItems.map(item => `
+    <div class="shop-item ${item.checked ? 'checked' : ''}">
+      <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleShopItem(${item.id})">
+      <span class="item-name">${item.item}</span>
+      <span class="item-qty">${item.quantity || ''}</span>
+    </div>
+  `).join('');
+}
+
+async function toggleShopItem(id) {
+  try {
+    await fetch(API + '/api/cooking/shopping/toggle', {
+      method: 'POST', headers: headers(), body: JSON.stringify({id: id})
+    });
+    loadShopping();
+  } catch(e) {}
+}
+
+async function generateShopping() {
+  // 從本週菜單的食譜食材彙整
+  try {
+    const r = await fetch(API + '/api/cooking/menu?week=' + shopWeek, { headers: headers() });
+    if (!r.ok) return;
+    const data = await r.json();
+    const ingredientMap = {};
+    data.items.forEach(item => {
+      if (!item.ingredients) return;
+      item.ingredients.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line) return;
+        // 嘗試分離品名和數量（如「雞胸肉 300g」）
+        const match = line.match(/^(.+?)\s+([\d.]+\s*[a-zA-Z克公斤顆粒杯碗匙條片塊把份包瓶罐盒袋]*\.?)$/);
+        if (match) {
+          const name = match[1].trim();
+          if (!ingredientMap[name]) ingredientMap[name] = [];
+          ingredientMap[name].push(match[2].trim());
+        } else {
+          if (!ingredientMap[line]) ingredientMap[line] = [];
+        }
+      });
+    });
+    const items = Object.entries(ingredientMap).map(([item, qtys]) => ({
+      item, quantity: qtys.join(' + '), checked: 0, manual: 0
+    }));
+    // 保留手動新增的項目
+    const manualItems = shopItems.filter(i => i.manual);
+    const allItems = [...items, ...manualItems.map(i => ({item: i.item, quantity: i.quantity, checked: i.checked, manual: 1}))];
+    await fetch(API + '/api/cooking/shopping', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({week_start: shopWeek, items: allItems})
+    });
+    loadShopping();
+    setStatus('已從菜單產生採購清單');
+  } catch(e) { alert('產生失敗'); }
+}
+
+function addManualItem() {
+  const name = prompt('食材名稱：');
+  if (!name || !name.trim()) return;
+  const qty = prompt('數量（可留空）：') || '';
+  shopItems.push({item: name.trim(), quantity: qty.trim(), checked: 0, manual: 1});
+  // 存回
+  fetch(API + '/api/cooking/shopping', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({week_start: shopWeek, items: shopItems})
+  }).then(() => loadShopping());
+}
+
+// ── 複製廚房指令 ──
+function copyPrompt() {
+  const prompt = `請幫我規劃下一週的菜單。
+
+使用者資訊：
+- 廚藝初級，步驟要簡單
+- 健康烹調（蒸、煮、烤、少油炒為主）
+- 2~3 人份
+- 早中晚三餐
+- 食材以全聯或一般菜市場買得到為主
+- 不吃：豆芽菜、紅蘿蔔
+- 早餐簡單即可，稍有變化
+
+請先讀取現有食譜庫和過去菜單，避免重複：
+1. GET /api/cooking/recipes（需 Authorization: Bearer token）
+2. GET /api/cooking/menu/weeks 看歷史週次
+3. GET /api/cooking/menu?week=YYYY-MM-DD 看各週內容
+
+規劃完成後：
+1. 新食譜存入 POST /api/cooking/recipes
+2. 菜單存入 POST /api/cooking/menu（week_start, items 含 day:0-6, meal:早餐/午餐/晚餐, recipe_id 或 custom_name）
+3. 從菜單食材彙整採購清單存入 POST /api/cooking/shopping
+
+所有 API 都需要 Authorization: Bearer <token>，token 從 sessionStorage 的 portfolio_token 取得。
+本機 API: http://localhost:5000`;
+
+  navigator.clipboard.writeText(prompt).then(() => setStatus('廚房指令已複製到剪貼簿'));
+}
+
+function setStatus(msg) {
+  const el = document.getElementById('statusEl');
+  if (el) el.textContent = msg;
+  setTimeout(() => { if (el) el.textContent = ''; }, 3000);
+}
+
+// ── 啟動 ──
+(async () => {
+  if (await checkAuth()) {
+    showMain();
+  }
+})();
+</script>
+</body>
+</html>

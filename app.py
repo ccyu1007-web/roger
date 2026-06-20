@@ -6469,6 +6469,188 @@ def portfolio_delete_holding(pid, code):
     _push_holdings()
     return jsonify({"status": "ok"})
 
+# ── 廚房管理 ────────────────────────────────────────────────
+def _init_cooking_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS recipes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT DEFAULT '',
+        ingredients TEXT DEFAULT '',
+        steps TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        servings TEXT DEFAULT '2-3人',
+        created_at TEXT,
+        updated_at TEXT
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS weekly_menu (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_start TEXT NOT NULL,
+        day INTEGER NOT NULL,
+        meal TEXT NOT NULL,
+        recipe_id INTEGER,
+        custom_name TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        UNIQUE(week_start, day, meal)
+    )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS shopping_list (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_start TEXT NOT NULL,
+        item TEXT NOT NULL,
+        quantity TEXT DEFAULT '',
+        checked INTEGER DEFAULT 0,
+        manual INTEGER DEFAULT 0
+    )""")
+    try: conn.commit()
+    except Exception: pass
+    conn.close()
+
+try:
+    _init_cooking_db()
+except Exception as e:
+    print(f"[Cooking] DB 初始化失敗（不影響啟動）: {e}")
+
+# -- 食譜 CRUD --
+@app.route("/api/cooking/recipes", methods=["GET"])
+@require_portfolio_auth
+def cooking_recipes_list():
+    q = request.args.get('q', '').strip()
+    cat = request.args.get('category', '').strip()
+    sql = "SELECT * FROM recipes WHERE 1=1"
+    params = []
+    if q:
+        sql += " AND (name LIKE ? OR ingredients LIKE ?)"
+        params += [f'%{q}%', f'%{q}%']
+    if cat:
+        sql += " AND category=?"
+        params.append(cat)
+    sql += " ORDER BY updated_at DESC"
+    rows = query_db(sql, params)
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/cooking/recipes", methods=["POST"])
+@require_portfolio_auth
+def cooking_recipe_create():
+    d = request.json or {}
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""INSERT INTO recipes (name, category, ingredients, steps, note, servings, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?)""",
+              (d.get('name',''), d.get('category',''), d.get('ingredients',''),
+               d.get('steps',''), d.get('note',''), d.get('servings','2-3人'), now, now))
+    rid = c.lastrowid
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "id": rid})
+
+@app.route("/api/cooking/recipes/<int:rid>", methods=["PUT"])
+@require_portfolio_auth
+def cooking_recipe_update(rid):
+    d = request.json or {}
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""UPDATE recipes SET name=?, category=?, ingredients=?, steps=?, note=?, servings=?, updated_at=?
+                 WHERE id=?""",
+              (d.get('name',''), d.get('category',''), d.get('ingredients',''),
+               d.get('steps',''), d.get('note',''), d.get('servings','2-3人'), now, rid))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/cooking/recipes/<int:rid>", methods=["DELETE"])
+@require_portfolio_auth
+def cooking_recipe_delete(rid):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM recipes WHERE id=?", (rid,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+# -- 每週菜單 --
+@app.route("/api/cooking/menu", methods=["GET"])
+@require_portfolio_auth
+def cooking_menu_get():
+    week = request.args.get('week', '')
+    if not week:
+        # 算出本週一
+        from datetime import timedelta
+        today = datetime.now()
+        monday = today - timedelta(days=today.weekday())
+        week = monday.strftime('%Y-%m-%d')
+    rows = query_db("SELECT wm.*, r.name as recipe_name, r.ingredients, r.steps FROM weekly_menu wm LEFT JOIN recipes r ON wm.recipe_id=r.id WHERE wm.week_start=? ORDER BY wm.day, wm.meal", [week])
+    return jsonify({"week_start": week, "items": [dict(r) for r in rows]})
+
+@app.route("/api/cooking/menu/weeks", methods=["GET"])
+@require_portfolio_auth
+def cooking_menu_weeks():
+    rows = query_db("SELECT DISTINCT week_start FROM weekly_menu ORDER BY week_start DESC")
+    return jsonify([r['week_start'] for r in rows])
+
+@app.route("/api/cooking/menu", methods=["POST"])
+@require_portfolio_auth
+def cooking_menu_save():
+    d = request.json or {}
+    week = d.get('week_start', '')
+    items = d.get('items', [])
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM weekly_menu WHERE week_start=?", (week,))
+    for item in items:
+        c.execute("""INSERT INTO weekly_menu (week_start, day, meal, recipe_id, custom_name, note)
+                     VALUES (?,?,?,?,?,?)""",
+                  (week, item.get('day',0), item.get('meal',''),
+                   item.get('recipe_id'), item.get('custom_name',''), item.get('note','')))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+# -- 採購清單 --
+@app.route("/api/cooking/shopping", methods=["GET"])
+@require_portfolio_auth
+def cooking_shopping_get():
+    week = request.args.get('week', '')
+    if not week:
+        from datetime import timedelta
+        today = datetime.now()
+        monday = today - timedelta(days=today.weekday())
+        week = monday.strftime('%Y-%m-%d')
+    rows = query_db("SELECT * FROM shopping_list WHERE week_start=? ORDER BY checked, item", [week])
+    return jsonify({"week_start": week, "items": [dict(r) for r in rows]})
+
+@app.route("/api/cooking/shopping", methods=["POST"])
+@require_portfolio_auth
+def cooking_shopping_save():
+    d = request.json or {}
+    week = d.get('week_start', '')
+    items = d.get('items', [])
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM shopping_list WHERE week_start=?", (week,))
+    for item in items:
+        c.execute("""INSERT INTO shopping_list (week_start, item, quantity, checked, manual)
+                     VALUES (?,?,?,?,?)""",
+                  (week, item.get('item',''), item.get('quantity',''),
+                   item.get('checked',0), item.get('manual',0)))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+@app.route("/api/cooking/shopping/toggle", methods=["POST"])
+@require_portfolio_auth
+def cooking_shopping_toggle():
+    d = request.json or {}
+    sid = d.get('id')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE shopping_list SET checked = CASE WHEN checked=1 THEN 0 ELSE 1 END WHERE id=?", (sid,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
 # ── 啟動 ────────────────────────────────────────────────────
 def _wait_for_port(port, timeout=90):
     """等待 port 釋放（AirPlay 開機時可能短暫佔用 5000）"""
