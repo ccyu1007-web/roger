@@ -46,6 +46,17 @@
   .notes-preview code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; }
   .notes-preview a { color: #2563eb; text-decoration: none; }
   .notes-preview a:hover { text-decoration: underline; }
+
+  @media print {
+    body { background: #fff; }
+    header { background: #1e3a5f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .notes-header { display: none; }
+    .container { max-width: 100%; padding: 0; }
+    .notes-wrap { box-shadow: none; padding: 12px 0; }
+    .notes-preview { border: none; padding: 0; }
+    .notes-preview th { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .notes-preview tbody tr:nth-child(even) { background: #eff6ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>
@@ -69,6 +80,7 @@
       <button class="notes-mode-btn active" id="btnPreview" onclick="switchMode('preview')">預覽</button>
       <button class="notes-mode-btn" id="btnEdit" onclick="switchMode('edit')">編輯</button>
       <button onclick="copyPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製選股指令</button>
+      <button onclick="exportPDF()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">匯出 PDF</button>
       <span id="statusEl" style="font-size:.75rem;color:#94a3b8"></span>
     </div>
     <div class="notes-preview" id="preview" onclick="switchMode('edit')">
@@ -160,6 +172,12 @@ python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py
     const el = document.getElementById('statusEl');
     if (el) el.textContent = '選股指令已複製到剪貼簿';
   });
+}
+
+function exportPDF() {
+  // 確保在預覽模式
+  switchMode('preview');
+  setTimeout(() => window.print(), 200);
 }
 
 load();
