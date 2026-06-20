@@ -6364,16 +6364,15 @@ def portfolio_create():
             data.get('invested_capital',0), data.get('cash_balance',0), accts, data.get('notes',''), data.get('sort_order',0), now, now)
     is_pg = bool(os.environ.get('DATABASE_URL'))
     if is_pg:
-        # PostgreSQL: 用手動 id 避免 SERIAL 序列不同步問題
+        # PostgreSQL: 先修正序列再 INSERT，避免 push 資料導致序列不同步
         import psycopg2
         pg_conn = psycopg2.connect(os.environ['DATABASE_URL'])
         pg_conn.autocommit = True
         cur = pg_conn.cursor()
-        cur.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM portfolios")
+        cur.execute("SELECT setval('portfolios_id_seq', COALESCE((SELECT MAX(id) FROM portfolios), 0))")
+        cur.execute("""INSERT INTO portfolios (name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, notes, sort_order, created_at, updated_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""", vals)
         new_id = cur.fetchone()[0]
-        cur.execute("""INSERT INTO portfolios (id, name, portfolio_type, dividend_condition, dividend_ratio, interest_rate, invested_capital, cash_balance, accounts, notes, sort_order, created_at, updated_at)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (new_id,) + vals)
         pg_conn.close()
     else:
         conn = sqlite3.connect(DB_PATH)
