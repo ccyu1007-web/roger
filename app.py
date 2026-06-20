@@ -6112,6 +6112,12 @@ def _init_portfolio_db():
                 cur.execute("SELECT account FROM portfolio_holdings LIMIT 1")
             except Exception:
                 pg_conn.rollback()
+            # 修正 SERIAL 序列號（push 資料帶明確 id，序列不會自動更新）
+            for tbl in ['portfolios']:
+                try:
+                    cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 0) + 1, false)")
+                except Exception:
+                    pg_conn.rollback()
             pg_conn.close()
         except Exception as e:
             print(f"[Portfolio] PG 補欄位失敗: {e}")
@@ -6508,6 +6514,21 @@ def _init_cooking_db():
     try: conn.commit()
     except Exception: pass
     conn.close()
+    # PostgreSQL: 修正 SERIAL 序列號
+    if os.environ.get('DATABASE_URL'):
+        try:
+            import psycopg2
+            pg_conn = psycopg2.connect(os.environ['DATABASE_URL'])
+            pg_conn.autocommit = True
+            cur = pg_conn.cursor()
+            for tbl in ['recipes', 'weekly_menu', 'shopping_list']:
+                try:
+                    cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 0) + 1, false)")
+                except Exception:
+                    pg_conn.rollback()
+            pg_conn.close()
+        except Exception:
+            pass
 
 try:
     _init_cooking_db()
