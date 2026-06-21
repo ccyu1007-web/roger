@@ -155,6 +155,7 @@ function switchTab(tab, btn) {
   _currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  rebuildEtfFilter();
   renderCurrentTab();
 }
 
