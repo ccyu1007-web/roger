@@ -2554,6 +2554,14 @@ async function reloadStocks() {
     allData.forEach(r => {
       r._ue = _userEstimates[r.code] || null;
     });
+    // 重新映射月營收欄位（initMonthlyRevHeaders 只在初始載入跑一次）
+    allData.forEach(r => {
+      if (!r.monthly_rev) return;
+      r.monthly_rev.forEach(m => {
+        r[`rev_m${m.month}`] = m.revenue;
+        r[`rev_m${m.month}_yoy`] = m.yoy;
+      });
+    });
     allData.forEach(calcDerived);
     filtered = [...allData];
     applyFilter();
