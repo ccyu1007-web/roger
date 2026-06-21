@@ -4783,6 +4783,70 @@ def etf_changes_report():
 
     return jsonify(sorted(groups.values(), key=lambda g: (g['change_date'] or '', g['etf_code']), reverse=True))
 
+@app.route("/api/etf/opportunities")
+def etf_opportunities():
+    """ETF 換股機會：被剔除股票 × 評價等級交叉分析"""
+    days = int(request.args.get("days", 90))
+    rows = query_db("""
+        SELECT c.change_date, c.etf_code, c.stock_code, c.stock_name, c.action,
+               COALESCE(i.name, c.etf_code) as etf_name, i.category as etf_category,
+               s.close, s.val_aa, s.val_a1, s.val_a2, s.val_a, s.val_lt6,
+               s.div_c1, s.div_c2, s.div_1_label, s.div_2_label,
+               s.val_eps_used, s.val_div_used, s.val_source,
+               s.deepest_val_level, s.val_cheap_days,
+               s.industry, s.blend_eps, s.blend_div
+        FROM etf_changes c
+        LEFT JOIN etf_info i ON c.etf_code = i.code
+        LEFT JOIN stocks s ON c.stock_code = s.code
+        WHERE c.change_date >= date('now', ?)
+        ORDER BY c.change_date DESC
+    """, [f'-{days} days'])
+
+    # 整理成結構化資料
+    results = []
+    for r in rows:
+        price = r['close'] or 0
+        aa = r['val_aa'] or 0
+        a1 = r['val_a1'] or 0
+        a2 = r['val_a2'] or 0
+        a  = r['val_a'] or 0
+
+        # 判斷當前評價等級
+        val_level = 'above'
+        if price and aa and price <= aa + 0.005: val_level = 'AA'
+        elif price and a1 and price <= a1 + 0.005: val_level = 'A1'
+        elif price and a2 and price <= a2 + 0.005: val_level = 'A2'
+        elif price and a  and price <= a  + 0.005: val_level = 'A'
+
+        # 股利變動分析
+        div_change = None
+        div1 = r['div_c1']
+        div2 = r['div_c2']
+        if div1 is not None and div2 is not None and div2 > 0:
+            pct = round((div1 - div2) / div2 * 100, 1)
+            div_change = {'from': round(div2, 2), 'to': round(div1, 2), 'pct': pct,
+                          'from_year': r['div_2_label'], 'to_year': r['div_1_label']}
+
+        results.append({
+            'change_date': r['change_date'],
+            'etf_code': r['etf_code'],
+            'etf_name': r['etf_name'],
+            'etf_category': r['etf_category'] or '',
+            'action': r['action'],
+            'stock_code': r['stock_code'],
+            'stock_name': r['stock_name'] or '',
+            'close': price,
+            'val_level': val_level,
+            'val_aa': aa, 'val_a1': a1, 'val_a2': a2, 'val_a': a,
+            'val_lt6': r['val_lt6'],
+            'div_change': div_change,
+            'industry': r['industry'] or '',
+            'cheap_days': r['val_cheap_days'] or 0,
+            'deepest_level': r['deepest_val_level'] or '',
+        })
+
+    return jsonify(results)
+
 @app.route("/api/etf/list")
 def etf_list():
     """取得所有追蹤的 ETF 清單及其持股數"""
