@@ -497,11 +497,12 @@ def _push_all_to_render():
         },
         {
             'table': 'etf_changes',
-            'columns': ['id','etf_code','stock_code','stock_name','action','change_date','created_at'],
-            'pk': ['id'],
+            'columns': ['etf_code','stock_code','stock_name','action','change_date','created_at'],
+            'pk': ['etf_code','stock_code','change_date'],
             'create_sql': """CREATE TABLE IF NOT EXISTS etf_changes (
-                id INTEGER PRIMARY KEY, etf_code TEXT, stock_code TEXT,
-                stock_name TEXT, action TEXT, change_date TEXT, created_at TEXT)""",
+                id INTEGER PRIMARY KEY AUTOINCREMENT, etf_code TEXT NOT NULL, stock_code TEXT NOT NULL,
+                stock_name TEXT, action TEXT NOT NULL, change_date TEXT NOT NULL, created_at TEXT,
+                UNIQUE(etf_code, stock_code, change_date))""",
         },
         {
             'table': 'etf_info',
