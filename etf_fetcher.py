@@ -41,6 +41,9 @@ TRACKED_ETFS = {
     '00918':  {'name': '大華優利高填息30',     'issuer': 'dh',      'category': '高股息'},
     '00940':  {'name': '元大台灣價值高息',     'issuer': 'yuanta',  'category': '高股息'},
     '00900':  {'name': '富邦特選高股息30',     'issuer': 'fubon',   'category': '高股息'},
+    '00915':  {'name': '凱基優選高股息30',     'issuer': 'moneydj', 'category': '高股息'},
+    '00936':  {'name': '台新永續高息中小',     'issuer': 'moneydj', 'category': '高股息'},
+    '00939':  {'name': '統一台灣高息動能',     'issuer': 'moneydj', 'category': '高股息'},
     # ── 指標型（規模大，頻率低但具參考價值）──
     '0056':   {'name': '元大高股息',           'issuer': 'yuanta',  'category': '指標型'},
     '00878':  {'name': '國泰永續高股息',       'issuer': 'cathay',  'category': '指標型'},

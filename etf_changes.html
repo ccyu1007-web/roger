@@ -252,6 +252,17 @@ function renderOpportunities() {
   const box = document.getElementById('content');
   let html = '';
 
+  // ── 即將審核提醒
+  const curMonth = new Date().getMonth() + 1;
+  const reviewing = Object.entries(REVIEW_SCHEDULE)
+    .filter(([_, v]) => v.months.includes(curMonth))
+    .map(([code, v]) => `${code} ${v.name}`);
+  if (reviewing.length) {
+    html += `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.82rem;color:#1e40af;line-height:1.6">
+      <strong>本月審核：</strong>${reviewing.join('、')} — 留意被剔除標的的賣壓機會
+    </div>`;
+  }
+
   // ── A: 被剔除 + 進入便宜區間
   const cheapRemoves = removeList.filter(r => r.val_level !== 'above');
   if (cheapRemoves.length) {
@@ -299,7 +310,7 @@ function renderOpportunities() {
     divWarnings.forEach(r => {
       const divHtml = `<span class="div-down">${r.div_change.from_year} ${r.div_change.from} → ${r.div_change.to_year} ${r.div_change.to} (${fmtP(r.div_change.pct)})</span>`;
       const etfTags = r.etfs.filter(e => e.category === '高股息').map(e =>
-        `<span style="font-size:.75rem;padding:2px 6px;border-radius:3px;background:#fee2e2;color:#991b1b;margin:1px 2px;display:inline-block">${e.code} ${e.name}</span>`
+        `<span style="font-size:.75rem;padding:2px 6px;border-radius:3px;background:#fee2e2;color:#991b1b;margin:1px 2px;display:inline-block">${e.code} ${e.name}<br><span style="font-size:.68rem;color:#b91c1c">${e.date}</span></span>`
       ).join('');
       html += `<tr>
         <td><a class="stock-link" href="/company.html?code=${r.stock_code}" target="_blank">${r.stock_code} ${r.stock_name}</a></td>
@@ -351,7 +362,7 @@ function renderOpportunities() {
           : `<span class="div-up">${fmtP(r.div_change.pct)}</span>`)
         : '-';
       const etfTags = r.etfs.map(e =>
-        `<span style="font-size:.75rem;padding:2px 6px;border-radius:3px;background:#f1f5f9;color:#475569;margin:1px 2px;display:inline-block">${e.code}</span>`
+        `<span style="font-size:.75rem;padding:2px 6px;border-radius:3px;background:#f1f5f9;color:#475569;margin:1px 2px;display:inline-block">${e.code} ${e.name}<br><span style="font-size:.68rem;color:#94a3b8">${e.date}</span></span>`
       ).join('');
       html += `<tr>
         <td><a class="stock-link" href="/company.html?code=${r.stock_code}" target="_blank">${r.stock_code} ${r.stock_name}</a></td>
