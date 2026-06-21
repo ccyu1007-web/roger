@@ -4700,12 +4700,17 @@ def _sync_dividends_from_financial(codes):
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == '--quick':
-        quick_update()
-    elif len(sys.argv) > 1 and sys.argv[1] == '--prices':
-        run_prices()
-    elif len(sys.argv) > 1 and sys.argv[1] == '--maintenance':
-        run_maintenance()
-    else:
-        run()
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] == '--quick':
+            quick_update()
+        elif len(sys.argv) > 1 and sys.argv[1] == '--prices':
+            run_prices()
+        elif len(sys.argv) > 1 and sys.argv[1] == '--maintenance':
+            run_maintenance()
+        else:
+            run()
+    except Exception as e:
+        print(f"[排程] 異常結束: {e}", flush=True)
+    # 確保 exit code 為 0，避免 macOS launchd 誤判為 EX_CONFIG(78) 永久停止排程
+    sys.exit(0)
 

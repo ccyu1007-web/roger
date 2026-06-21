@@ -6841,5 +6841,6 @@ if __name__ == "__main__":
     use_reloader = is_local and not under_launchd
     if is_local and not _wait_for_port(5000):
         print("Port 5000 持續被佔用超過 90 秒，放棄啟動", flush=True)
-        import sys; sys.exit(1)
+        # exit 0 而非 1，避免 macOS launchd 誤判為配置錯誤(78)永久停止排程
+        import sys; sys.exit(0)
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=use_reloader)
