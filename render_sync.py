@@ -78,6 +78,7 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     where: 可選的 WHERE 條件
     clear_first: 由 Render 端在同一 transaction 裡清空+寫入（避免空窗期）
     since: 只推 updated_at >= since 的資料（增量同步），格式 'YYYY-MM-DD HH:MM:SS'
+    回傳 (成功筆數, 失敗筆數) tuple
     """
     col_str = ','.join(columns)
     sql = f"SELECT {col_str} FROM {table}"
@@ -90,7 +91,7 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
 
     if not rows:
         print(f"  [{table}] 無資料")
-        return 0
+        return (0, 0)
 
     data = [{columns[j]: r[j] for j in range(len(columns))} for r in rows]
 
@@ -112,7 +113,7 @@ def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch
     if failed:
         logger.warning(f"[{table}] 部分同步：{len(data)-failed}/{len(data)} 筆成功，{failed} 筆失敗")
     print(f"  [{table}] {len(data)} 筆" + (f"（{failed} 筆失敗）" if failed else ""))
-    return len(data) - failed
+    return (len(data) - failed, failed)
 
 
 def _merge_push_to_render(table, columns, pk, create_sql=None):
@@ -673,7 +674,7 @@ def _push_all_to_render():
                     create_sql=cfg.get('create_sql'),
                 )
             else:
-                _push_table_to_render(
+                result = _push_table_to_render(
                     table=cfg['table'],
                     columns=cfg['columns'],
                     pk=cfg['pk'],
@@ -682,6 +683,9 @@ def _push_all_to_render():
                     clear_first=cfg.get('clear_first', False),
                     since=last_sync if use_since else None,
                 )
+                # 部分 batch 失敗也記入 failures，防止錯誤標記為成功
+                if isinstance(result, tuple) and result[1] > 0:
+                    failures.append(f"{cfg['table']}: {result[1]}筆失敗")
         except Exception as e:
             print(f"  [{cfg['table']}] 失敗: {e}")
             failures.append(f"{cfg['table']}: {e}")

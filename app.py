@@ -2145,38 +2145,6 @@ def get_stocks():
     q      = request.args.get("q", "").strip()
     market = request.args.get("market", "")
 
-    # 確保新欄位存在（Render PostgreSQL 可能還沒有）
-    try:
-        conn_init = sqlite3.connect(DB_PATH)
-        for col, typ in [('revenue_year','INTEGER'),('revenue_month','INTEGER'),
-                        ('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER'),
-                        ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT'),
-                        ('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
-                        ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT'),
-                        ('priority_grade','TEXT'),('grade_source','TEXT'),
-                        # 衍生計算欄位（原本在前端JS計算，現統一存DB）
-                        ('shen_eps','REAL'),('shen_div','REAL'),
-                        ('shen_pe','REAL'),('shen_yld','REAL'),('shen_grade','TEXT'),
-                        ('weighted_eps','REAL'),('weighted_div','REAL'),('weighted_pe','REAL'),('weighted_yld','REAL'),('weighted_grade','TEXT'),
-                        ('weighted_payout','REAL'),
-                        ('blend_eps','REAL'),('blend_div','REAL'),('blend_pe','REAL'),('blend_yld','REAL'),('blend_grade','TEXT'),
-                        ('eps_4q_sum','REAL'),('trailing_div','REAL'),('trailing_pe','REAL'),('trailing_yld','REAL'),('trailing_grade','TEXT'),
-                        ('contract_chg','REAL'),
-                        ('payout_1','REAL'),('payout_2','REAL'),('payout_3','REAL'),
-                        ('payout_4','REAL'),('payout_5','REAL'),('payout_6','REAL'),
-                        ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
-                        ('val_eps_used','REAL'),('val_div_used','REAL'),
-                        ('val_pe','REAL'),('val_yld','REAL'),('val_source','TEXT'),
-                        ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),
-                        ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT'),
-                        ('gb_roic','REAL'),('gb_ey','REAL'),('gb_roic_rank','INTEGER'),('gb_ey_rank','INTEGER'),('gb_total_rank','INTEGER')]:
-            try: conn_init.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
-            except Exception: pass
-        try: conn_init.commit()
-        except Exception: pass
-        conn_init.close()
-    except Exception: pass
-
     sql    = """SELECT code, name, market, industry, close, change, change_240d, volume,
                        revenue_date, revenue_year, revenue_month,
                        revenue_yoy, revenue_mom, revenue_cum_yoy,
@@ -5083,6 +5051,37 @@ def _init_all_db():
             )""")
             conn.commit()
             conn.close()
+        # 確保 stocks 表新欄位存在（啟動時一次性，不在每次 API 請求執行）
+        _stocks_new_cols = [
+            ('revenue_year','INTEGER'),('revenue_month','INTEGER'),
+            ('revenue_note','TEXT'),('deepest_val_level','TEXT'),('val_cheap_days','INTEGER'),
+            ('sys_est_eps','REAL'),('sys_est_quarter','TEXT'),('sys_est_confidence','TEXT'),
+            ('sys_ann_eps','REAL'),('sys_ann_div','REAL'),('sys_ann_pe','REAL'),
+            ('sys_ann_yld','REAL'),('sys_ann_confidence','TEXT'),
+            ('priority_grade','TEXT'),('grade_source','TEXT'),
+            ('shen_eps','REAL'),('shen_div','REAL'),
+            ('shen_pe','REAL'),('shen_yld','REAL'),('shen_grade','TEXT'),
+            ('weighted_eps','REAL'),('weighted_div','REAL'),('weighted_pe','REAL'),('weighted_yld','REAL'),('weighted_grade','TEXT'),
+            ('weighted_payout','REAL'),
+            ('blend_eps','REAL'),('blend_div','REAL'),('blend_pe','REAL'),('blend_yld','REAL'),('blend_grade','TEXT'),
+            ('eps_4q_sum','REAL'),('trailing_div','REAL'),('trailing_pe','REAL'),('trailing_yld','REAL'),('trailing_grade','TEXT'),
+            ('contract_chg','REAL'),
+            ('payout_1','REAL'),('payout_2','REAL'),('payout_3','REAL'),
+            ('payout_4','REAL'),('payout_5','REAL'),('payout_6','REAL'),
+            ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
+            ('val_eps_used','REAL'),('val_div_used','REAL'),
+            ('val_pe','REAL'),('val_yld','REAL'),('val_source','TEXT'),
+            ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),
+            ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT'),
+            ('gb_roic','REAL'),('gb_ey','REAL'),('gb_roic_rank','INTEGER'),('gb_ey_rank','INTEGER'),('gb_total_rank','INTEGER'),
+        ]
+        conn_s = sqlite3.connect()
+        for col, typ in _stocks_new_cols:
+            try: conn_s.execute(f"ALTER TABLE stocks ADD COLUMN {col} {typ}")
+            except Exception: pass
+        try: conn_s.commit()
+        except Exception: pass
+        conn_s.close()
         # 建立查詢索引
         conn = sqlite3.connect()
         sqlite3.ensure_indexes(conn)

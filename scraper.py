@@ -1757,13 +1757,13 @@ def _fill_dividends_from_bwibbu():
     from collections import defaultdict
     all_divs = defaultdict(dict)
 
-    # TWSE BWIBBU: 110~113 年
-    twse_div_dates = {
-        '113': ['20250401'],
-        '112': ['20240401'],
-        '111': ['20230801', '20230601'],
-        '110': ['20220701', '20221201'],
-    }
+    # TWSE BWIBBU: 自動產生近 N 年（民國年 → 隔年西元 4/1）
+    from datetime import datetime as _dt
+    _cur_roc = _dt.now().year - 1911
+    twse_div_dates = {}
+    for _yr in range(_cur_roc - 1, _cur_roc - 5, -1):  # 近4年
+        _west = _yr + 1911 + 1  # 隔年
+        twse_div_dates[str(_yr)] = [f'{_west}0401']
     for div_year, dates in twse_div_dates.items():
         for dt in dates:
             url = (f"https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d"
@@ -1785,13 +1785,10 @@ def _fill_dividends_from_bwibbu():
                 break
             _time.sleep(0.3)
 
-    # TPEX: 用 PE API 的每股股利欄位
-    tpex_div_dates = {
-        '113': ['114/07'],
-        '112': ['113/07'],
-        '111': ['112/08'],
-        '110': ['111/07'],
-    }
+    # TPEX: 用 PE API 的每股股利欄位（民國年 → 隔年民國 7 月）
+    tpex_div_dates = {}
+    for _yr in range(_cur_roc - 1, _cur_roc - 5, -1):
+        tpex_div_dates[str(_yr)] = [f'{_yr + 1}/07']
     for div_year, dates in tpex_div_dates.items():
         for dt in dates:
             url = (f"https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/"
@@ -1857,7 +1854,10 @@ def _refresh_grades_from_pbr():
         _refresh_grades_from_pbr_inner(conn, c, _time)
 
 def _refresh_grades_from_pbr_inner(conn, c, _time):
-    year_dates = {'114':'20260401','113':'20250401','112':'20240401','111':'20230301','110':'20220401'}
+    # 自動產生近 5 年（民國年 → 隔年西元 4/1）
+    from datetime import datetime as _dt
+    _cur_roc = _dt.now().year - 1911
+    year_dates = {str(yr): f'{yr + 1911 + 1}0401' for yr in range(_cur_roc, _cur_roc - 5, -1)}
     roe_data = {}
 
     for roc_yr, dt in year_dates.items():
@@ -1873,7 +1873,9 @@ def _refresh_grades_from_pbr_inner(conn, c, _time):
                 roe_data.setdefault(code, {})[roc_yr] = round(pbr / pe * 100, 2)
         _time.sleep(0.3)
 
-    for roc_yr, dt in {'114':'115/04','113':'114/04','112':'113/04','111':'112/03','110':'111/04'}.items():
+    # TPEX: 民國年 → 隔年民國 4 月
+    tpex_yr_dates = {str(yr): f'{yr + 1}/04' for yr in range(_cur_roc, _cur_roc - 5, -1)}
+    for roc_yr, dt in tpex_yr_dates.items():
         url = (f"https://www.tpex.org.tw/web/stock/aftertrading/peratio_analysis/"
                f"pera_result.php?l=zh-tw&d={dt}&c=&o=json")
         data = fetch_json(url)
