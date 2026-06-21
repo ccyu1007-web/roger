@@ -662,7 +662,8 @@ def _push_all_to_render():
             use_since = (last_sync
                          and not cfg.get('clear_first')
                          and not cfg.get('merge_mode')
-                         and 'updated_at' in cfg['columns'])
+                         and not cfg.get('use_single_table')
+                         and 'updated_at' in cfg.get('columns', []))
 
             if cfg.get('use_single_table'):
                 _push_single_table(cfg['table'])
