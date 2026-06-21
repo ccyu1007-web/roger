@@ -615,6 +615,43 @@
     padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
     font-size: .85rem; outline: none;
   }
+  /* ── ETF 資訊區 ── */
+  #etfSection {
+    background: #fff; border-radius: 10px; box-shadow: 0 1px 8px rgba(0,0,0,.08);
+    overflow: hidden; border-top: 3px solid #0ea5e9; margin-top: 16px;
+  }
+  .etf-header {
+    padding: 12px 20px; display: flex; align-items: center; gap: 10px;
+    background: #f0f9ff; border-bottom: 1px solid #bae6fd; cursor: pointer;
+    user-select: none;
+  }
+  .etf-header-title { font-weight: 700; color: #0369a1; font-size: .92rem; flex: 1; }
+  .etf-header-badge {
+    font-size: .75rem; background: #0ea5e9; color: #fff;
+    padding: 1px 8px; border-radius: 10px; font-weight: 600;
+  }
+  .etf-header-arrow { color: #0ea5e9; font-size: .8rem; transition: transform .2s; }
+  .etf-header-arrow.open { transform: rotate(90deg); }
+  .etf-body { padding: 14px 20px; }
+  .etf-holdings-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .etf-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 14px;
+    padding: 3px 10px; font-size: .78rem; color: #0369a1; font-weight: 600;
+  }
+  .etf-tag .etf-weight { color: #0ea5e9; font-size: .72rem; font-weight: 400; }
+  .etf-changes-title { font-size: .8rem; color: #64748b; font-weight: 600; margin-bottom: 6px; }
+  .etf-change-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; border-bottom: 1px solid #f1f5f9; font-size: .82rem;
+  }
+  .etf-change-row:last-child { border-bottom: none; }
+  .etf-change-date { color: #94a3b8; white-space: nowrap; font-size: .75rem; min-width: 76px; }
+  .etf-change-action-in  { background: #dcfce7; color: #166534; padding: 1px 8px; border-radius: 3px; font-weight: 700; font-size: .75rem; white-space: nowrap; }
+  .etf-change-action-out { background: #fee2e2; color: #991b1b; padding: 1px 8px; border-radius: 3px; font-weight: 700; font-size: .75rem; white-space: nowrap; }
+  .etf-change-name { color: #1e3a5f; flex: 1; }
+  .etf-empty { color: #94a3b8; font-size: .82rem; padding: 4px 0; }
+
   /* ── 列印/匯出 PDF ── */
   @media print {
     body { background: #fff !important; }
@@ -656,6 +693,7 @@
     <div class="loading"><div class="spinner"></div><div>載入資料中...</div></div>
   </div>
   <div id="importantNews" style="margin-top:16px"></div>
+  <div id="etfSection" style="display:none"></div>
 </div>
 
 <script>
@@ -4301,6 +4339,68 @@ function saveToNotes(date, subject) {
   alert('已存入筆記');
 }
 
+// ── ETF 資訊 ──
+async function loadEtfInfo() {
+  try {
+    const res = await fetch(`/api/etf/stock/${CODE}`);
+    const data = await res.json();
+    const holdings = data.holdings || [];
+    const changes = data.changes || [];
+    const el = document.getElementById('etfSection');
+    if (!holdings.length && !changes.length) { el.style.display = 'none'; return; }
+
+    const hasChanges = changes.length > 0;
+    // 預設：有近期異動就展開，否則收合
+    const defaultOpen = hasChanges;
+
+    const holdingsHtml = holdings.length
+      ? `<div class="etf-holdings-row">${holdings.map(h => {
+          const wt = h.weight != null ? `<span class="etf-weight">${Number(h.weight).toFixed(2)}%</span>` : '';
+          return `<span class="etf-tag">${h.etf_code} ${h.etf_name || h.etf_code}${wt ? ' ' + wt : ''}</span>`;
+        }).join('')}</div>`
+      : `<div class="etf-empty">目前未被任何追蹤 ETF 持有</div>`;
+
+    const changesHtml = hasChanges
+      ? `<div class="etf-changes-title">近半年異動</div>` +
+        changes.map(c => {
+          const isIn = c.action === '納入' || c.action === 'add';
+          const actionLabel = isIn ? '納入' : '剔除';
+          const actionCls = isIn ? 'etf-change-action-in' : 'etf-change-action-out';
+          return `<div class="etf-change-row">
+            <span class="etf-change-date">${c.change_date || ''}</span>
+            <span class="${actionCls}">${actionLabel}</span>
+            <span class="etf-change-name">${c.etf_code} ${c.etf_name || c.etf_code}</span>
+          </div>`;
+        }).join('')
+      : '';
+
+    const badge = holdings.length ? `<span class="etf-header-badge">${holdings.length} 檔</span>` : '';
+    const changeBadge = hasChanges ? `<span class="etf-header-badge" style="background:#f59e0b">${changes.length} 筆異動</span>` : '';
+
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div class="etf-header" onclick="toggleEtfSection()">
+        <span class="etf-header-title">ETF 持有資訊</span>
+        ${badge}${changeBadge}
+        <span class="etf-header-arrow${defaultOpen ? ' open' : ''}" id="etfArrow">▶</span>
+      </div>
+      <div class="etf-body" id="etfBody" style="display:${defaultOpen ? 'block' : 'none'}">
+        ${holdingsHtml}
+        ${changesHtml}
+      </div>`;
+  } catch(e) {}
+}
+
+function toggleEtfSection() {
+  const body = document.getElementById('etfBody');
+  const arrow = document.getElementById('etfArrow');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (open) arrow.classList.remove('open');
+  else arrow.classList.add('open');
+}
+
 // ── 重要新聞 ──
 async function loadImportantNews() {
   try {
@@ -4477,6 +4577,7 @@ if (CODE) {
     loadFinancial();
   }
   loadImportantNews();
+  loadEtfInfo();
 }
 </script>
 </body>

@@ -4712,8 +4712,20 @@ def industry_compare(code):
 # ── ETF 成分股 API ─────────────────────────────────────────
 @app.route("/api/etf/stock/<code>")
 def etf_membership(code):
-    """查詢某股票被哪些 ETF 持有"""
-    return jsonify(get_stock_etf_membership(code))
+    """查詢某股票被哪些 ETF 持有 + 近期異動"""
+    holdings = get_stock_etf_membership(code)
+    # 近期 ETF 異動
+    from datetime import datetime, timedelta
+    since = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+    changes = query_db("""
+        SELECT c.change_date, c.etf_code, COALESCE(i.name, c.etf_code) as etf_name,
+               i.category as etf_category, c.action
+        FROM etf_changes c
+        LEFT JOIN etf_info i ON c.etf_code = i.code
+        WHERE c.stock_code = ? AND c.change_date >= ?
+        ORDER BY c.change_date DESC
+    """, [code, since])
+    return jsonify({'holdings': holdings, 'changes': changes})
 
 @app.route("/api/etf/<etf_code>/holdings")
 def etf_holdings(etf_code):
