@@ -127,11 +127,11 @@ function valBadge(level) { return `<span class="val-badge val-${level}">${LEVEL_
 async function load() {
   try {
     const [oppRes, chgRes] = await Promise.all([
-      fetch('/api/etf/opportunities?days=90'),
-      fetch('/api/etf/changes-report?limit=5000'),
+      fetch('/api/etf/opportunities?days=90').then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch('/api/etf/changes-report?limit=5000').then(r => r.ok ? r.json() : []).catch(() => []),
     ]);
-    oppData = await oppRes.json();
-    allData = await chgRes.json();
+    oppData = oppRes;
+    allData = chgRes;
     buildFilter();
     renderCurrentTab();
   } catch (e) {

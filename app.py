@@ -4787,6 +4787,8 @@ def etf_changes_report():
 def etf_opportunities():
     """ETF 換股機會：被剔除股票 × 評價等級交叉分析"""
     days = int(request.args.get("days", 90))
+    from datetime import datetime, timedelta
+    since_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
     rows = query_db("""
         SELECT c.change_date, c.etf_code, c.stock_code, c.stock_name, c.action,
                COALESCE(i.name, c.etf_code) as etf_name, i.category as etf_category,
@@ -4798,9 +4800,9 @@ def etf_opportunities():
         FROM etf_changes c
         LEFT JOIN etf_info i ON c.etf_code = i.code
         LEFT JOIN stocks s ON c.stock_code = s.code
-        WHERE c.change_date >= date('now', ?)
+        WHERE c.change_date >= ?
         ORDER BY c.change_date DESC
-    """, [f'-{days} days'])
+    """, [since_date])
 
     # 整理成結構化資料
     results = []
