@@ -277,7 +277,7 @@ def _fetch_moneydj(etf_code):
     """從 MoneyDJ 抓取 ETF 完整持股明細"""
     try:
         url = f'https://www.moneydj.com/ETF/X/Basic/Basic0007B.xdjhtm?etfid={etf_code}.TW'
-        r = _session.get(url, timeout=15, verify=False)
+        r = _session.get(url, timeout=15)
         r.encoding = 'utf-8'
         if r.status_code != 200:
             print(f"  [MoneyDJ] HTTP {r.status_code}")
