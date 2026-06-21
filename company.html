@@ -616,22 +616,10 @@
     font-size: .85rem; outline: none;
   }
   /* ── ETF 資訊區 ── */
-  #etfSection {
-    background: #fff; border-radius: 10px; box-shadow: 0 1px 8px rgba(0,0,0,.08);
-    overflow: hidden; border-top: 3px solid #0ea5e9; margin-top: 16px;
-  }
-  .etf-header {
-    padding: 12px 20px; display: flex; align-items: center; gap: 10px;
-    background: #f0f9ff; border-bottom: 1px solid #bae6fd; cursor: pointer;
-    user-select: none;
-  }
-  .etf-header-title { font-weight: 700; color: #0369a1; font-size: .92rem; flex: 1; }
   .etf-header-badge {
     font-size: .75rem; background: #0ea5e9; color: #fff;
     padding: 1px 8px; border-radius: 10px; font-weight: 600;
   }
-  .etf-header-arrow { color: #0ea5e9; font-size: .8rem; transition: transform .2s; }
-  .etf-header-arrow.open { transform: rotate(90deg); }
   .etf-body { padding: 14px 20px; }
   .etf-holdings-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .etf-tag {
@@ -687,13 +675,13 @@
     <button class="tab" id="tabIndustry" onclick="switchTab('industry')">同業比較</button>
     <button class="tab" id="tabDecision" onclick="switchTab('decision')">檢核清單</button>
     <button class="tab" id="tabNotes" onclick="switchTab('notes')">質性研究筆記</button>
+    <button class="tab" id="tabEtf" onclick="switchTab('etf')">ETF</button>
     <button class="tab" id="tabReport" onclick="switchTab('report')">投資報告書</button>
   </div>
   <div class="panel" id="panel">
     <div class="loading"><div class="spinner"></div><div>載入資料中...</div></div>
   </div>
   <div id="importantNews" style="margin-top:16px"></div>
-  <div id="etfSection" style="display:none"></div>
 </div>
 
 <script>
@@ -710,6 +698,7 @@ function switchTab(tab) {
   document.getElementById('tabIndustry').classList.toggle('active', tab === 'industry');
   document.getElementById('tabDecision').classList.toggle('active', tab === 'decision');
   document.getElementById('tabNotes').classList.toggle('active', tab === 'notes');
+  document.getElementById('tabEtf').classList.toggle('active', tab === 'etf');
   document.getElementById('tabReport').classList.toggle('active', tab === 'report');
   ['tabISA','tabISQ','tabBSA','tabBSQ'].forEach(id => {
     const el = document.getElementById(id);
@@ -721,6 +710,7 @@ function switchTab(tab) {
   else if (tab === 'industry') loadIndustry();
   else if (tab === 'decision') loadDecision();
   else if (tab === 'notes') loadNotes();
+  else if (tab === 'etf') loadEtfTab();
   else if (tab === 'report') loadReport();
   else loadFinancial();
 }
@@ -4340,65 +4330,46 @@ function saveToNotes(date, subject) {
 }
 
 // ── ETF 資訊 ──
-async function loadEtfInfo() {
+async function loadEtfTab() {
+  const panel = document.getElementById('panel');
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><div>載入 ETF 資訊...</div></div>';
   try {
     const res = await fetch(`/api/etf/stock/${CODE}`);
     const data = await res.json();
     const holdings = data.holdings || [];
     const changes = data.changes || [];
-    const el = document.getElementById('etfSection');
-    if (!holdings.length && !changes.length) { el.style.display = 'none'; return; }
-
-    const hasChanges = changes.length > 0;
-    // 預設：有近期異動就展開，否則收合
-    const defaultOpen = hasChanges;
 
     const holdingsHtml = holdings.length
-      ? `<div class="etf-holdings-row">${holdings.map(h => {
-          const wt = h.weight != null ? `<span class="etf-weight">${Number(h.weight).toFixed(2)}%</span>` : '';
-          return `<span class="etf-tag">${h.etf_code} ${h.etf_name || h.etf_code}${wt ? ' ' + wt : ''}</span>`;
-        }).join('')}</div>`
-      : `<div class="etf-empty">目前未被任何追蹤 ETF 持有</div>`;
+      ? `<div style="margin-bottom:20px">
+          <div class="etf-changes-title" style="font-size:.9rem;margin-bottom:10px">持有的 ETF <span class="etf-header-badge">${holdings.length} 檔</span></div>
+          <div class="etf-holdings-row">${holdings.map(h => {
+            const wt = h.weight != null ? ` <span class="etf-weight">${Number(h.weight).toFixed(2)}%</span>` : '';
+            return `<span class="etf-tag">${h.etf_code} ${h.etf_name || h.etf_code}${wt}</span>`;
+          }).join('')}</div>
+        </div>`
+      : `<div style="margin-bottom:20px;color:#94a3b8;font-size:.85rem">目前未被任何追蹤 ETF 持有</div>`;
 
-    const changesHtml = hasChanges
-      ? `<div class="etf-changes-title">近半年異動</div>` +
-        changes.map(c => {
-          const isIn = c.action === '納入' || c.action === 'add';
-          const actionLabel = isIn ? '納入' : '剔除';
-          const actionCls = isIn ? 'etf-change-action-in' : 'etf-change-action-out';
-          return `<div class="etf-change-row">
-            <span class="etf-change-date">${c.change_date || ''}</span>
-            <span class="${actionCls}">${actionLabel}</span>
-            <span class="etf-change-name">${c.etf_code} ${c.etf_name || c.etf_code}</span>
-          </div>`;
-        }).join('')
-      : '';
+    const changesHtml = changes.length
+      ? `<div>
+          <div class="etf-changes-title" style="font-size:.9rem;margin-bottom:10px">近半年異動 <span class="etf-header-badge" style="background:#f59e0b">${changes.length} 筆</span></div>
+          ${changes.map(c => {
+            const isIn = c.action === 'add';
+            const actionLabel = isIn ? '納入' : '剔除';
+            const actionCls = isIn ? 'etf-change-action-in' : 'etf-change-action-out';
+            const catLabel = c.etf_category ? `<span style="font-size:.7rem;color:#64748b;margin-left:4px">[${c.etf_category}]</span>` : '';
+            return `<div class="etf-change-row">
+              <span class="etf-change-date">${c.change_date || ''}</span>
+              <span class="${actionCls}">${actionLabel}</span>
+              <span class="etf-change-name">${c.etf_code} ${c.etf_name || c.etf_code}${catLabel}</span>
+            </div>`;
+          }).join('')}
+        </div>`
+      : `<div style="color:#94a3b8;font-size:.85rem">近半年無 ETF 異動紀錄</div>`;
 
-    const badge = holdings.length ? `<span class="etf-header-badge">${holdings.length} 檔</span>` : '';
-    const changeBadge = hasChanges ? `<span class="etf-header-badge" style="background:#f59e0b">${changes.length} 筆異動</span>` : '';
-
-    el.style.display = 'block';
-    el.innerHTML = `
-      <div class="etf-header" onclick="toggleEtfSection()">
-        <span class="etf-header-title">ETF 持有資訊</span>
-        ${badge}${changeBadge}
-        <span class="etf-header-arrow${defaultOpen ? ' open' : ''}" id="etfArrow">▶</span>
-      </div>
-      <div class="etf-body" id="etfBody" style="display:${defaultOpen ? 'block' : 'none'}">
-        ${holdingsHtml}
-        ${changesHtml}
-      </div>`;
-  } catch(e) {}
-}
-
-function toggleEtfSection() {
-  const body = document.getElementById('etfBody');
-  const arrow = document.getElementById('etfArrow');
-  if (!body) return;
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  if (open) arrow.classList.remove('open');
-  else arrow.classList.add('open');
+    panel.innerHTML = `<div class="etf-body">${holdingsHtml}${changesHtml}</div>`;
+  } catch(e) {
+    panel.innerHTML = '<div class="etf-empty">ETF 資訊載入失敗</div>';
+  }
 }
 
 // ── 重要新聞 ──
@@ -4577,7 +4548,6 @@ if (CODE) {
     loadFinancial();
   }
   loadImportantNews();
-  loadEtfInfo();
 }
 </script>
 </body>
