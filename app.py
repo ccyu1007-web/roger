@@ -289,27 +289,6 @@ def _calc_shen_fields(r, cur_roc, global_settings=None, qf_data=None):
         r['blend_div'] = None
 
 
-# ── 矩陣等級計算（與 guardian.py 一致）─────────────────────────
-def _calc_matrix_grade(pe, yld, pe_high=18, pe_low=10, yld_max=6.0, yld_high=5.5, yld_floor=5.0):
-    """矩陣等級：AA/A1/A2/A/B1A/B2A/B1/B2/觀察/臨界點/X"""
-    if pe is None or pe <= 0 or yld is None or yld <= 0:
-        return 'X'
-    pe_fair = (pe_high + pe_low) / 2
-    pe_above = (pe_high + pe_fair) / 2
-    pe_below = (pe_fair + pe_low) / 2
-    pe_cols = [(-9999, pe_low), (pe_low, pe_below), (pe_below, pe_fair),
-               (pe_fair, pe_above), (pe_above, pe_high), (pe_high, 9999)]
-    y_rows = [(yld_max, 9999), (yld_high, yld_max), (yld_floor, yld_high), (-9999, yld_floor)]
-    grades = [
-        ['AA', 'A2', 'B2A', '觀察', '臨界點', 'X'],
-        ['A1', 'A', 'B2', '臨界點', 'X', 'X'],
-        ['B1A', 'B1', '臨界點', 'X', 'X', 'X'],
-        ['觀察', '臨界點', 'X', 'X', 'X', 'X'],
-    ]
-    col = next((i for i, (lo, hi) in enumerate(pe_cols) if pe >= lo and pe < hi), -1)
-    row = next((i for i, (lo, hi) in enumerate(y_rows) if yld >= lo and yld < hi), -1)
-    return grades[row][col] if col >= 0 and row >= 0 else 'X'
-
 
 # ── 衍生欄位計算（統一由後端算完存 DB）───────────────────────────
 DERIVED_COLS = [
@@ -880,7 +859,7 @@ def _is_grade_aa(g):
     base = g.replace('+', '').replace('-', '')
     return base == 'AA'
 
-def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_high=5.5, y_max=6, y_floor=5):
+def _calc_matrix_grade(pe, yld, pe_hi=18, pe_lo=10, y_max=6, y_high=5.5, y_floor=5):
     """PE×殖利率矩陣等級"""
     if pe is None or pe <= 0 or yld is None or yld <= 0:
         return None
