@@ -539,13 +539,13 @@ def _push_all_to_render():
         },
         {
             'table': 'industry_news',
-            'columns': ['id', 'source', 'title', 'link', 'pub_time', 'summary', 'created_at', 'archived_code', 'archived_at'],
-            'pk': ['id'],
-            'clear_first': True,
+            'columns': ['source', 'title', 'link', 'pub_time', 'summary', 'created_at', 'archived_code', 'archived_at'],
+            'pk': ['title', 'source'],
             'create_sql': """CREATE TABLE IF NOT EXISTS industry_news (
-                id INTEGER PRIMARY KEY, source TEXT, title TEXT, link TEXT,
+                id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, title TEXT, link TEXT,
                 pub_time TEXT, summary TEXT, created_at TEXT,
-                archived_code TEXT, archived_at TEXT)""",
+                archived_code TEXT, archived_at TEXT,
+                UNIQUE(title, source))""",
         },
         {
             'table': 'user_settings',
