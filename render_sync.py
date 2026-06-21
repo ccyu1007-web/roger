@@ -323,6 +323,134 @@ def _pull_user_lists_from_render():
         print(f"[拉回] user_lists 同步: 新增 {added} 筆, 刪除 {removed} 筆")
 
 
+def _pull_daily_notes_from_render():
+    """從 Render 拉回 daily_notes（使用者在前台寫的每日筆記）"""
+    if _is_cloud():
+        return
+    _rs = _create_session()
+    try:
+        resp = _rs.get(f'{RENDER_URL}/api/daily-notes', timeout=30)
+    except Exception as e:
+        print(f"[拉回] daily_notes 連線失敗: {e}")
+        return
+    if resp.status_code != 200:
+        return
+    render_data = resp.json()
+    if not render_data:
+        return
+    updated = 0
+    with sqlite3.get_conn() as conn:
+        for r in render_data:
+            existing = conn.execute('SELECT date FROM daily_notes WHERE date=?', (r['date'],)).fetchone()
+            if not existing:
+                conn.execute('INSERT INTO daily_notes (date, content, created_at) VALUES (?,?,?)',
+                           (r['date'], r.get('content',''), r.get('created_at','')))
+                updated += 1
+            else:
+                conn.execute('UPDATE daily_notes SET content=?, created_at=? WHERE date=?',
+                           (r.get('content',''), r.get('created_at',''), r['date']))
+                updated += 1
+        conn.commit()
+    if updated:
+        print(f"[拉回] daily_notes 同步 {updated} 筆到本機")
+
+
+def _pull_focus_from_render():
+    """從 Render 拉回 focus_tracking（使用者在前台操作的重點追蹤）"""
+    if _is_cloud():
+        return
+    _rs = _create_session()
+    try:
+        resp = _rs.get(f'{RENDER_URL}/api/focus-tracking', timeout=30)
+    except Exception as e:
+        print(f"[拉回] focus_tracking 連線失敗: {e}")
+        return
+    if resp.status_code != 200:
+        return
+    data = resp.json()
+    tracked = data.get('tracked', []) if isinstance(data, dict) else data
+    if not tracked:
+        return
+    updated = 0
+    with sqlite3.get_conn() as conn:
+        # 以 Render 為準，清空本機再寫入
+        conn.execute('DELETE FROM focus_tracking')
+        for r in tracked:
+            conn.execute('''INSERT OR REPLACE INTO focus_tracking
+                (code, focus_date, focus_price, signal_mode, mode_switch_date,
+                 last_signal_date, last_signal_type, note)
+                VALUES (?,?,?,?,?,?,?,?)''',
+                (r.get('code'), r.get('focus_date'), r.get('focus_price'),
+                 r.get('signal_mode'), r.get('mode_switch_date'),
+                 r.get('last_signal_date'), r.get('last_signal_type'), r.get('note')))
+            updated += 1
+        conn.commit()
+    if updated:
+        print(f"[拉回] focus_tracking 同步 {updated} 支到本機")
+
+
+def _pull_cooking_from_render():
+    """從 Render 拉回 weekly_menu + shopping_list（前台操作的廚房系統）"""
+    if _is_cloud():
+        return
+    _rs = _create_session()
+    # weekly_menu
+    try:
+        resp = _rs.get(f'{RENDER_URL}/api/cooking/menu', timeout=30)
+        if resp.status_code == 200:
+            menu_data = resp.json()
+            if menu_data:
+                with sqlite3.get_conn() as conn:
+                    conn.execute('DELETE FROM weekly_menu')
+                    for r in menu_data:
+                        conn.execute('INSERT INTO weekly_menu (week_start,day,meal,recipe_id,custom_name,note) VALUES (?,?,?,?,?,?)',
+                                   (r.get('week_start'), r.get('day'), r.get('meal'),
+                                    r.get('recipe_id'), r.get('custom_name',''), r.get('note','')))
+                    conn.commit()
+                print(f"[拉回] weekly_menu 同步 {len(menu_data)} 筆到本機")
+    except Exception as e:
+        print(f"[拉回] weekly_menu 失敗: {e}")
+
+    # shopping_list
+    try:
+        resp = _rs.get(f'{RENDER_URL}/api/cooking/shopping', timeout=30)
+        if resp.status_code == 200:
+            shop_data = resp.json()
+            if shop_data:
+                with sqlite3.get_conn() as conn:
+                    conn.execute('DELETE FROM shopping_list')
+                    for r in shop_data:
+                        conn.execute('INSERT INTO shopping_list (week_start,item,quantity,checked,manual) VALUES (?,?,?,?,?)',
+                                   (r.get('week_start'), r.get('item'), r.get('quantity',''),
+                                    r.get('checked',0), r.get('manual',0)))
+                    conn.commit()
+                print(f"[拉回] shopping_list 同步 {len(shop_data)} 筆到本機")
+    except Exception as e:
+        print(f"[拉回] shopping_list 失敗: {e}")
+
+
+def cleanup_old_news():
+    """清理超過 7 天且未歸檔的新聞（本機 DB）"""
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+    with sqlite3.get_conn() as conn:
+        # material_news：保留 status='important'
+        r1 = conn.execute(
+            "DELETE FROM material_news WHERE created_at < ? AND (status IS NULL OR status != 'important')",
+            (cutoff,))
+        cnt1 = r1.rowcount if hasattr(r1, 'rowcount') else 0
+
+        # industry_news：保留有歸檔的
+        r2 = conn.execute(
+            "DELETE FROM industry_news WHERE created_at < ? AND (archived_code IS NULL OR archived_code = '')",
+            (cutoff,))
+        cnt2 = r2.rowcount if hasattr(r2, 'rowcount') else 0
+
+        conn.commit()
+    if cnt1 or cnt2:
+        print(f"[新聞清理] material_news 刪除 {cnt1} 筆, industry_news 刪除 {cnt2} 筆")
+
+
 _LAST_SYNC_TIME_FILE = os.path.join(os.path.dirname(__file__), 'logs', '.last_sync_time')
 
 def _get_last_sync_time():
@@ -412,6 +540,24 @@ def _push_all_to_render():
         _pull_portfolio_from_render()
     except Exception as e:
         print(f"[拉回] portfolio 失敗: {e}")
+    try:
+        _pull_daily_notes_from_render()
+    except Exception as e:
+        print(f"[拉回] daily_notes 失敗: {e}")
+    try:
+        _pull_focus_from_render()
+    except Exception as e:
+        print(f"[拉回] focus_tracking 失敗: {e}")
+    try:
+        _pull_cooking_from_render()
+    except Exception as e:
+        print(f"[拉回] cooking 失敗: {e}")
+
+    # 清理超過 7 天的未歸檔新聞
+    try:
+        cleanup_old_news()
+    except Exception as e:
+        print(f"[新聞清理] 失敗: {e}")
 
     last_sync = _get_last_sync_time()
     mode = f"增量（since {last_sync}）" if last_sync else "全量（首次）"
@@ -529,14 +675,7 @@ def _push_all_to_render():
             'create_sql': """CREATE TABLE IF NOT EXISTS user_notes (
                 code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT)""",
         },
-        {
-            'table': 'daily_notes',
-            'columns': ['date', 'content', 'created_at'],
-            'pk': ['date'],
-            'clear_first': True,
-            'create_sql': """CREATE TABLE IF NOT EXISTS daily_notes (
-                date TEXT PRIMARY KEY, content TEXT, created_at TEXT)""",
-        },
+        # daily_notes: Render 前台寫入，由 pull 備份到本機，不 push
         {
             'table': 'industry_news',
             'columns': ['source', 'title', 'link', 'pub_time', 'summary', 'created_at', 'archived_code', 'archived_at'],
@@ -575,22 +714,11 @@ def _push_all_to_render():
                 PRIMARY KEY (code, date))""",
             'where': "WHERE date >= date('now', '-30 days')",
         },
-        {
-            'table': 'focus_tracking',
-            'columns': ['code','focus_date','focus_price','signal_mode','mode_switch_date',
-                        'last_signal_date','last_signal_type','note'],
-            'pk': ['code'],
-            'clear_first': True,
-            'create_sql': """CREATE TABLE IF NOT EXISTS focus_tracking (
-                code TEXT PRIMARY KEY, focus_date TEXT, focus_price REAL,
-                signal_mode TEXT DEFAULT 'initial', mode_switch_date TEXT,
-                last_signal_date TEXT, last_signal_type TEXT, note TEXT)""",
-        },
+        # focus_tracking: Render 前台操作，由 pull 備份到本機，不 push
         {
             'table': 'focus_signals',
             'columns': ['code','date','signal_type','detail'],
             'pk': ['code','date','signal_type'],
-            'clear_first': True,
             'create_sql': """CREATE TABLE IF NOT EXISTS focus_signals (
                 code TEXT NOT NULL, date TEXT NOT NULL, signal_type TEXT NOT NULL,
                 detail TEXT, PRIMARY KEY (code, date, signal_type))""",
@@ -632,24 +760,7 @@ def _push_all_to_render():
                 ingredients TEXT DEFAULT '', steps TEXT DEFAULT '', note TEXT DEFAULT '',
                 servings TEXT DEFAULT '2-3人', created_at TEXT, updated_at TEXT)""",
         },
-        {
-            'table': 'weekly_menu',
-            'columns': ['id','week_start','day','meal','recipe_id','custom_name','note'],
-            'pk': ['id'],
-            'clear_first': True,
-            'create_sql': """CREATE TABLE IF NOT EXISTS weekly_menu (
-                id SERIAL PRIMARY KEY, week_start TEXT NOT NULL, day INTEGER NOT NULL,
-                meal TEXT NOT NULL, recipe_id INTEGER, custom_name TEXT DEFAULT '', note TEXT DEFAULT '')""",
-        },
-        {
-            'table': 'shopping_list',
-            'columns': ['id','week_start','item','quantity','checked','manual'],
-            'pk': ['id'],
-            'clear_first': True,
-            'create_sql': """CREATE TABLE IF NOT EXISTS shopping_list (
-                id SERIAL PRIMARY KEY, week_start TEXT NOT NULL, item TEXT NOT NULL,
-                quantity TEXT DEFAULT '', checked INTEGER DEFAULT 0, manual INTEGER DEFAULT 0)""",
-        },
+        # weekly_menu, shopping_list: Render 前台操作，由 pull 備份到本機，不 push
     ]
 
     from datetime import datetime
