@@ -476,14 +476,14 @@ def _push_all_to_render():
         },
         {
             'table': 'material_news',
-            'columns': ['id','code','name','date','time','subject','description','tier',
+            'columns': ['code','name','date','time','subject','description','tier',
                         'matched_rule','created_at','direction','link','status'],
-            'pk': ['id'],
-            'clear_first': True,
+            'pk': ['code','date','subject'],
             'create_sql': """CREATE TABLE IF NOT EXISTS material_news (
-                id INTEGER PRIMARY KEY, code TEXT, name TEXT, date TEXT, time TEXT,
+                id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT, name TEXT, date TEXT, time TEXT,
                 subject TEXT, description TEXT, tier INTEGER, matched_rule TEXT,
-                created_at TEXT, direction TEXT, link TEXT, status TEXT)""",
+                created_at TEXT, direction TEXT, link TEXT, status TEXT,
+                UNIQUE(code, date, subject))""",
         },
         {
             'table': 'etf_holdings',
