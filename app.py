@@ -2845,13 +2845,8 @@ def sync_table():
                 try: conn.rollback()
                 except Exception: pass
     else:
-        # 無主鍵：先清空再插入（整表替換）
-        try:
-            c.execute(f"DELETE FROM {table}")
-            conn.commit()
-        except Exception:
-            try: conn.rollback()
-            except Exception: pass
+        # 無主鍵：同一 transaction 裡清空+插入，INSERT 失敗時 DELETE 會一起 rollback
+        c.execute(f"DELETE FROM {table}")
         placeholders = ','.join(['?'] * len(columns))
         for r in rows:
             try:
