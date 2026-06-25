@@ -2678,7 +2678,7 @@ function applyFilter() {
   const indVal = document.getElementById('industryFilter')?.value || '';
   filtered = allData.filter(r => {
     const mktOk   = !market || r.market === market;
-    const qOk     = !q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q);
+    const qOk     = !q || (r.code || '').toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q);
     const watchOk = !watchOnly || watchSet.has(r.code);
     const holdOk  = !holdOnly  || holdSet.has(r.code);
     const focusOk = !focusOnly || focusSet.has(r.code);
