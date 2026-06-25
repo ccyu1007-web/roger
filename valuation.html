@@ -256,11 +256,16 @@ async function load() {
     const _shenGradeChanges = _data.shen_grade_changes || [];
     const _sgChangeMap = {};
     _shenGradeChanges.forEach(c => { _sgChangeMap[c.code] = c; });
-    // 標記新增到 _shenGradeList
+    // 標記新增/變動到 _shenGradeList
     _shenGradeList.forEach(item => {
       const chg = _sgChangeMap[item.code];
-      if (chg && chg.direction === 'new') {
+      if (!chg) return;
+      if (chg.direction === 'new') {
         item._chg_new = true;
+        item._chg_from = chg.from_grade;
+        item._chg_to = chg.to_grade;
+      } else if (chg.direction === 'lateral') {
+        item._chg_direction = 'lateral';
         item._chg_from = chg.from_grade;
         item._chg_to = chg.to_grade;
       }

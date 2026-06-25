@@ -2663,9 +2663,20 @@ def get_daily_briefing():
             return
         if cur_g == 'X' and prev_g == 'X':
             return
+        cur_is_a = cur_g in _SHEN_A_GRADES
+        prev_is_a = prev_g in _SHEN_A_GRADES
+        if cur_is_a and not prev_is_a:
+            direction = 'new'       # 新進入 A 級
+        elif not cur_is_a and prev_is_a:
+            direction = 'removed'   # 離開 A 級
+        elif cur_is_a and prev_is_a:
+            direction = 'lateral'   # A 級內部變動
+        else:
+            direction = 'other'     # 非 A 級之間的變動
         result_list.append({
             'code': sid, 'name': name,
             'from_grade': prev_g, 'to_grade': cur_g,
+            'direction': direction,
         })
 
     for sid, snapshots in grouped.items():
