@@ -664,6 +664,7 @@ function renderThresholdList(thNames) {
     let items = (_byThreshold[th] || []).map(s => _enrichFromStockMap({...s}));
     if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
     const normal = items.filter(s => !s._removed && !s.cross);
+    const removed = items.filter(s => s._removed);
     const st = thStyle[th];
 
     html += `<div class="section">
@@ -672,11 +673,11 @@ function renderThresholdList(thNames) {
         <span style="font-weight:400;font-size:.82rem;margin-left:8px">${normal.length} 支</span>
       </div>`;
 
-    if (!normal.length) {
+    if (!normal.length && !removed.length) {
       html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
     } else {
       normal.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
-      html += '<div style="padding:0 20px">' + _shenGradeTableHtml(normal) + '</div>';
+      html += '<div style="padding:0 20px">' + _shenGradeTableHtml([...normal, ...removed]) + '</div>';
     }
     html += '</div>';
   });
