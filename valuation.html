@@ -318,6 +318,32 @@ async function load() {
       }
     });
 
+    // 把 val_level_changes 的變動資訊合入 _byThreshold（便宜清單顯示新增/刪除）
+    Object.values(_byThreshold).forEach(items => {
+      items.forEach(item => {
+        if (item.cross) return;  // 穿越項目已有標記，跳過
+        const chg = changeMap[item.code];
+        if (chg) {
+          item._chg_from = chg.from;
+          item._chg_to = chg.to;
+          item._chg_direction = chg.direction;
+        }
+      });
+    });
+    // 離開便宜區的股票加入對應門檻的 _byThreshold（淡顯刪除）
+    _changes.filter(c => c.direction === 'expensive').forEach(c => {
+      const fromTh = c.from;
+      if (fromTh && _byThreshold[fromTh]) {
+        if (!_byThreshold[fromTh].some(s => s.code === c.code)) {
+          _byThreshold[fromTh].push({
+            code: c.code, name: c.name, price: c.price,
+            discount_pct: null,
+            _removed: true, _chg_from: c.from, _chg_to: c.to || 'above',
+          });
+        }
+      }
+    });
+
     if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
     renderL2Tabs();
     updateCounts();
