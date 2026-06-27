@@ -157,9 +157,10 @@ dateInput.value = today;
 async function loadBriefs() {
   try {
     const res = await fetch('/api/ai-briefs');
+    if (!res.ok) { console.error('API error:', res.status); return; }
     const data = await res.json();
+    console.log('AI briefs loaded:', data.length, '筆');
     renderHistory(data);
-    // 如果有當前選擇日期的報告，顯示預覽
     const selected = dateInput.value;
     const match = data.find(d => d.date === selected);
     if (match) {
