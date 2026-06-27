@@ -2770,6 +2770,7 @@ def sync_table():
         'portfolios', 'portfolio_holdings',
         'investment_reports',
         'recipes', 'weekly_menu', 'shopping_list',
+        'ai_daily_briefs',
     }
     if table not in ALLOWED_TABLES:
         return jsonify({"status": "error", "msg": f"table '{table}' not allowed"}), 400
