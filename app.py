@@ -4,7 +4,7 @@
 """
 
 import logging
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request, make_response, send_from_directory
 import os
 import db as sqlite3
 import threading
@@ -6804,6 +6804,80 @@ def cooking_shopping_toggle():
     conn.commit()
     conn.close()
     return jsonify({"status": "ok"})
+
+# ── AI 日報速讀 ──────────────────────────────────────────────
+_AI_BRIEF_COLS = ['date', 'content', 'created_at']
+_AI_BRIEF_CREATE = """CREATE TABLE IF NOT EXISTS ai_daily_briefs (
+    date TEXT PRIMARY KEY, content TEXT, created_at TEXT
+)"""
+
+def _init_ai_brief_db():
+    try:
+        with sqlite3.get_conn() as conn:
+            c = conn.cursor()
+            c.execute(_AI_BRIEF_CREATE)
+            conn.commit()
+    except Exception:
+        pass
+
+def _cleanup_old_briefs(conn, keep_days=30):
+    """刪除超過 keep_days 天的舊報告"""
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now() - timedelta(days=keep_days)).strftime('%Y-%m-%d')
+    c = conn.cursor()
+    c.execute("DELETE FROM ai_daily_briefs WHERE date < ?", (cutoff,))
+    deleted = c.rowcount
+    if deleted:
+        conn.commit()
+    return deleted
+
+@app.route("/ai-brief.html")
+def ai_brief_page():
+    return send_from_directory('.', 'ai-brief.html')
+
+@app.route("/api/ai-briefs", methods=["GET"])
+def get_ai_briefs():
+    """列出所有 AI 日報速讀，按日期倒序"""
+    _init_ai_brief_db()
+    conn = sqlite3.connect(DB_PATH)
+    _cleanup_old_briefs(conn)
+    conn.close()
+    rows = query_db("SELECT date, content, created_at FROM ai_daily_briefs ORDER BY date DESC")
+    return jsonify([dict(r) for r in rows] if rows else [])
+
+@app.route("/api/ai-briefs", methods=["POST"])
+def save_ai_brief():
+    """儲存 AI 日報速讀"""
+    from datetime import datetime
+    _init_ai_brief_db()
+    data = request.json or {}
+    content = data.get('content', '').strip()
+    brief_date = data.get('date', '')
+    if not content or not brief_date:
+        return jsonify({"error": "日期和內容不能為空"}), 400
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO ai_daily_briefs (date, content, created_at) VALUES (?,?,?)",
+              (brief_date, content, now))
+    conn.commit()
+    conn.close()
+    _bg_push_table('ai_daily_briefs', _AI_BRIEF_COLS, ['date'], create_sql=_AI_BRIEF_CREATE)
+    return jsonify({"status": "ok", "date": brief_date})
+
+@app.route("/api/ai-briefs/<date>", methods=["DELETE"])
+def delete_ai_brief(date):
+    """刪除指定日期的 AI 日報速讀"""
+    _init_ai_brief_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM ai_daily_briefs WHERE date=?", (date,))
+    deleted = c.rowcount
+    conn.commit()
+    conn.close()
+    if deleted:
+        _bg_push_table('ai_daily_briefs', _AI_BRIEF_COLS, ['date'], create_sql=_AI_BRIEF_CREATE)
+    return jsonify({"status": "ok", "deleted": deleted})
 
 # ── 啟動 ────────────────────────────────────────────────────
 def _wait_for_port(port, timeout=90):

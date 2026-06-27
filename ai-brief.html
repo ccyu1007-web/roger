@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 日報速讀</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+  header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+    color: #fff; padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: 2px; }
+  header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  header a:hover { color: #fff; }
+  .nav-links { display: flex; gap: 16px; align-items: center; }
+  .container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+
+  /* 操作區 */
+  .action-bar {
+    background: #fff; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .action-bar label { font-size: .9rem; font-weight: 600; color: #334155; }
+  .action-bar input[type="date"] {
+    padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+    font-size: .9rem; color: #1a202c;
+  }
+  .btn {
+    padding: 7px 16px; border: none; border-radius: 6px; font-size: .85rem;
+    font-weight: 600; cursor: pointer; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-blue { background: #2563eb; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-gray { background: #64748b; color: #fff; }
+  .btn-sm { padding: 4px 10px; font-size: .78rem; }
+  .toast {
+    position: fixed; top: 20px; right: 20px; background: #1e3a5f; color: #fff;
+    padding: 10px 20px; border-radius: 8px; font-size: .85rem; z-index: 999;
+    opacity: 0; transition: opacity .3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* 預覽區 */
+  .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
+  .section-header {
+    padding: 14px 20px; font-weight: 700; font-size: .95rem;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .header-blue { background: #eff6ff; color: #1e40af; border-bottom: 2px solid #93c5fd; }
+  .header-gray { background: #f8fafc; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  .section-body { padding: 16px 20px; }
+  .section-body.collapsed { display: none; }
+  .arrow { font-size: .7em; color: #94a3b8; transition: transform .2s; }
+  .arrow.collapsed { transform: rotate(-90deg); }
+
+  /* Markdown 預覽 */
+  .preview-content { line-height: 1.7; font-size: .92rem; }
+  .preview-content h1 { font-size: 1.3rem; margin: 16px 0 8px; border-bottom: 2px solid #333; padding-bottom: 6px; }
+  .preview-content h2 { font-size: 1.1rem; margin: 14px 0 6px; padding: 4px 8px; color: #fff; border-radius: 4px; }
+  .preview-content h3 { font-size: 1rem; margin: 10px 0 4px; color: #334155; }
+  .preview-content p { margin: 4px 0; }
+  .preview-content ul, .preview-content ol { margin: 4px 0 4px 20px; }
+  .preview-content li { margin: 2px 0; }
+  .preview-content strong { color: #1e3a5f; }
+  .preview-content blockquote { border-left: 3px solid #cbd5e1; padding-left: 12px; color: #64748b; margin: 8px 0; }
+  .preview-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: .85rem; }
+  .preview-content th { background: #f1f5f9; text-align: left; padding: 6px 8px; border: 1px solid #e2e8f0; }
+  .preview-content td { padding: 6px 8px; border: 1px solid #e2e8f0; }
+  .preview-content hr { margin: 12px 0; border: none; border-top: 1px solid #e2e8f0; }
+  .empty-state { text-align: center; color: #94a3b8; padding: 40px 0; font-size: .9rem; }
+
+  /* 歷史清單 */
+  .history-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid #f1f5f9;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-item .date-label { font-weight: 600; color: #2563eb; cursor: pointer; font-size: .9rem; }
+  .history-item .date-label:hover { text-decoration: underline; }
+  .history-item .meta { font-size: .8rem; color: #94a3b8; }
+  .history-actions { display: flex; gap: 6px; }
+
+  /* PDF 列印 */
+  @media print {
+    header, .action-bar, .history-section, .toast, .btn { display: none !important; }
+    .container { max-width: 100%; padding: 0; }
+    .section { box-shadow: none; border: none; }
+    .preview-content { font-size: 10pt; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AI 日報速讀</h1>
+  <div class="nav-links">
+    <a href="/">總表</a>
+    <a href="/briefing.html">逍遙日報</a>
+    <a href="/valuation.html">每日評價</a>
+    <a href="/daily_notes.html">每日筆記</a>
+  </div>
+</header>
+
+<div class="container">
+  <!-- 操作區 -->
+  <div class="action-bar">
+    <label>日期</label>
+    <input type="date" id="briefDate">
+    <button class="btn btn-green" onclick="copyPrompt()">複製指令</button>
+    <button class="btn btn-blue" onclick="exportPDF()">匯出 PDF</button>
+  </div>
+
+  <!-- 預覽區 -->
+  <div class="section">
+    <div class="section-header header-blue" onclick="toggleSection(this)">
+      <span id="previewTitle">報告預覽</span>
+      <span class="arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div id="previewArea" class="preview-content">
+        <div class="empty-state">選擇日期後複製指令，貼給 Claude 產生報告</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 歷史清單 -->
+  <div class="section history-section">
+    <div class="section-header header-gray" onclick="toggleSection(this)">
+      <span>歷史報告（自動保留 30 天）</span>
+      <span class="arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div id="historyList">
+        <div class="empty-state">尚無歷史報告</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 初始化 ──
+const dateInput = document.getElementById('briefDate');
+const today = new Date().toISOString().slice(0, 10);
+dateInput.value = today;
+
+// ── API ──
+async function loadBriefs() {
+  try {
+    const res = await fetch('/api/ai-briefs');
+    const data = await res.json();
+    renderHistory(data);
+    // 如果有當前選擇日期的報告，顯示預覽
+    const selected = dateInput.value;
+    const match = data.find(d => d.date === selected);
+    if (match) {
+      showPreview(match.content, match.date);
+    }
+  } catch (e) {
+    console.error('載入失敗:', e);
+  }
+}
+
+async function saveBrief(date, content) {
+  const res = await fetch('/api/ai-briefs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, content })
+  });
+  return res.json();
+}
+
+async function deleteBrief(date) {
+  if (!confirm(`確定要刪除 ${date} 的報告嗎？`)) return;
+  await fetch(`/api/ai-briefs/${date}`, { method: 'DELETE' });
+  showToast('已刪除');
+  loadBriefs();
+  // 如果刪除的是當前預覽的，清空預覽
+  if (dateInput.value === date) {
+    document.getElementById('previewArea').innerHTML = '<div class="empty-state">選擇日期後複製指令，貼給 Claude 產生報告</div>';
+    document.getElementById('previewTitle').textContent = '報告預覽';
+  }
+}
+
+// ── 預覽 ──
+function showPreview(content, date) {
+  const area = document.getElementById('previewArea');
+  area.innerHTML = marked.parse(content);
+  document.getElementById('previewTitle').textContent = `報告預覽 — ${date}`;
+}
+
+function renderHistory(briefs) {
+  const list = document.getElementById('historyList');
+  if (!briefs || briefs.length === 0) {
+    list.innerHTML = '<div class="empty-state">尚無歷史報告</div>';
+    return;
+  }
+  list.innerHTML = briefs.map(b => `
+    <div class="history-item">
+      <div>
+        <span class="date-label" onclick="viewBrief('${b.date}')">${b.date}</span>
+        <span class="meta">${b.created_at || ''}</span>
+      </div>
+      <div class="history-actions">
+        <button class="btn btn-gray btn-sm" onclick="viewBrief('${b.date}')">檢視</button>
+        <button class="btn btn-red btn-sm" onclick="deleteBrief('${b.date}')">刪除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function viewBrief(date) {
+  dateInput.value = date;
+  const res = await fetch('/api/ai-briefs');
+  const data = await res.json();
+  const match = data.find(d => d.date === date);
+  if (match) {
+    showPreview(match.content, match.date);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+// ── 複製指令 ──
+function copyPrompt() {
+  const date = dateInput.value;
+  if (!date) { showToast('請選擇日期'); return; }
+  const prompt = `請幫我產出 ${date} 的逍遙投資日報速讀。
+
+從 DB 撈取當日的 material_news 和 industry_news，以體質佳（user_lists list_type='quality'）股票為優先判讀：
+- 體質佳股票：有成長或價值動能訊號就寫進報告
+- 非體質佳股票：只有併購等級的重大訊息才納入
+
+整理成以下格式（Markdown），每則 2-3 句精簡描述：
+1. 成長動能（營收創高/新產品/產能擴張/大單/法說上調展望）
+2. 價值動能（庫藏股/大股東加碼/進入便宜區/股利優於預期）
+3. 風險警示（董監轉讓/減資/私募/財報重編）
+4. 總經產業摘要
+5. 今日焦點整理表格（標的/訊號/評價位置/建議動作）
+
+每則標註股票代碼、財務等級、評價位置。沒有值得寫的就不寫，不湊字數。
+完成後呼叫 POST /api/ai-briefs 儲存（date: "${date}", content: 報告內容）。`;
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    showToast('已複製指令到剪貼簿');
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = prompt;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('已複製指令到剪貼簿');
+  });
+}
+
+// ── PDF 匯出 ──
+function exportPDF() {
+  const area = document.getElementById('previewArea');
+  if (area.querySelector('.empty-state')) {
+    showToast('沒有可匯出的報告');
+    return;
+  }
+  window.print();
+}
+
+// ── UI 工具 ──
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.arrow');
+  body.classList.toggle('collapsed');
+  arrow.classList.toggle('collapsed');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── 日期切換時檢查是否有已存報告 ──
+dateInput.addEventListener('change', async () => {
+  const date = dateInput.value;
+  try {
+    const res = await fetch('/api/ai-briefs');
+    const data = await res.json();
+    const match = data.find(d => d.date === date);
+    if (match) {
+      showPreview(match.content, match.date);
+    } else {
+      document.getElementById('previewArea').innerHTML = '<div class="empty-state">此日期尚無報告，請複製指令產生</div>';
+      document.getElementById('previewTitle').textContent = '報告預覽';
+    }
+  } catch (e) {}
+});
+
+// 頁面載入
+loadBriefs();
+</script>
+
+</body>
+</html>
