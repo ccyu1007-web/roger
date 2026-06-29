@@ -138,19 +138,24 @@
   }
   .modal-overlay.show { display: flex; }
   .modal-box {
-    background: #fff; border-radius: 12px; padding: 28px; max-width: 420px; width: 90%;
+    background: #fff; border-radius: 12px; max-width: 420px; width: 90%;
     box-shadow: 0 4px 30px rgba(0,0,0,.15);
-    max-height: 90vh; overflow-y: auto;
+    max-height: 90vh; display: flex; flex-direction: column;
   }
-  .modal-box h3 { margin-bottom: 16px; color: #1e3a5f; }
+  .modal-box h3 { margin-bottom: 16px; color: #1e3a5f; padding: 28px 28px 0; }
+  .modal-body { overflow-y: auto; padding: 0 28px; flex: 1; min-height: 0; }
   .modal-field { margin-bottom: 12px; }
   .modal-field label { display: block; font-size: .82rem; color: #64748b; margin-bottom: 4px; }
   .modal-field input, .modal-field textarea {
     width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
-    font-size: .9rem; outline: none;
+    font-size: 16px; outline: none;
   }
   .modal-field input:focus, .modal-field textarea:focus { border-color: #2563eb; }
-  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    padding: 16px 28px; border-top: 1px solid #f1f5f9;
+    flex-shrink: 0;
+  }
   .modal-actions button {
     padding: 8px 20px; border-radius: 6px; font-size: .9rem; cursor: pointer; border: none;
   }
@@ -247,6 +252,7 @@
 <div class="modal-overlay" id="editModal">
   <div class="modal-box">
     <h3 id="modalTitle">編輯組合</h3>
+    <div class="modal-body">
     <div class="modal-field"><label>組合名稱</label><input type="text" id="mName"></div>
     <div class="modal-field">
       <label>類型</label>
@@ -262,7 +268,8 @@
     <div class="modal-field"><label>分紅比例</label><input type="number" id="mDivRatio" step="0.01" placeholder="例：0.3"></div>
     <div class="modal-field"><label>投入本金</label><input type="number" id="mCapital" step="1"></div>
     <div class="modal-field"><label>現金餘額</label><input type="number" id="mCash" step="1"></div>
-    <div class="modal-field"><label>備註</label><textarea id="mNotes" rows="3" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:.9rem;resize:vertical" placeholder="帳戶備註..."></textarea></div>
+    <div class="modal-field"><label>備註</label><textarea id="mNotes" rows="3" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:16px;resize:vertical" placeholder="帳戶備註..."></textarea></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">取消</button>
       <button class="btn-primary" onclick="saveModal()">儲存</button>
