@@ -595,6 +595,7 @@ function closeModal() {
 
 async function saveModal() {
   if (!editingPid) return;
+  const notesVal = document.getElementById('mNotes').value;
   const data = {
     name: document.getElementById('mName').value,
     portfolio_type: document.getElementById('mType').value,
@@ -604,7 +605,7 @@ async function saveModal() {
     dividend_ratio: parseFloat(document.getElementById('mDivRatio').value) || 0,
     invested_capital: parseFloat(document.getElementById('mCapital').value) || 0,
     cash_balance: parseFloat(document.getElementById('mCash').value) || 0,
-    notes: document.getElementById('mNotes').value,
+    notes: notesVal,
   };
   let r;
   if (editingPid === 'new') {
@@ -619,8 +620,14 @@ async function saveModal() {
     });
   }
   if (!r.ok) { const e = await r.json().catch(()=>({})); alert('儲存失敗：' + (e.error||r.status)); return; }
+  const savePid = editingPid;
   closeModal();
   await loadData();
+  // 確認載回的備註
+  const p = portfolios.find(x => x.id === savePid);
+  if (p && p.notes !== notesVal) {
+    alert('備註儲存異常：\n送出=' + notesVal.substring(0,50) + '\n載回=' + (p.notes||'').substring(0,50));
+  }
 }
 
 async function deletePortfolio(pid) {
