@@ -5153,6 +5153,7 @@ if os.environ.get('DATABASE_URL'):
 
         def _cloud_fetch_news():
             """Render 上定期抓三種新聞（政府API+MoneyDJ+產業新聞，不需群益）"""
+            import gc
             try:
                 from guardian import fetch_material_news, fetch_moneydj_news
                 from industry_news_fetcher import fetch_industry_news
@@ -5170,6 +5171,7 @@ if os.environ.get('DATABASE_URL'):
                 print(f"[雲端新聞] 產業新聞: {r3} 則")
             except Exception as e:
                 print(f"[雲端新聞] 產業新聞失敗: {e}")
+            gc.collect()
 
         _news_scheduler.add_job(_cloud_fetch_news, 'interval', minutes=60, id='cloud_news',
                                 next_run_time=None)  # 啟動後第一次由 cron 觸發
