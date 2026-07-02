@@ -2956,50 +2956,63 @@ def _quick_update_inner(t0, today_str):
 
     # ── 8. 自動 push 到 Render（僅本機，增量同步）──
     if not IS_CLOUD:
-        try:
-            _today_start = date.today().strftime('%Y-%m-%d') + ' 00:00:00'
-            # push stocks 表（增量：只推今天更新的）
-            _push_prices_to_render(since=_today_start)
-            _push_annual_to_render(since=_today_start)
-            _push_estimates_to_render(since=_today_start)
-            # push monthly_revenue（增量：只推今天更新的）
-            _push_table_to_render(
-                table='monthly_revenue',
-                columns=['code','year','month','revenue','updated_at'],
-                pk=['code','year','month'],
-                since=_today_start,
-            )
-            # push stock_state（評價快照，只推今天）
-            _push_table_to_render(
-                table='stock_state',
-                columns=['stock_id','date','price','price_pos','fair_low','fair_mid','fair_high',
-                         'shen_eps','shen_pe','shen_yld','fin_grade','updated_at',
-                         'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct'],
-                pk=['stock_id','date'],
-                since=_today_start,
-            )
-            # push stock_checklist（自動讀取所有欄位，依 CLAUDE.md 33h 規則）
-            from render_sync import _push_single_table
-            _push_single_table('stock_checklist')
-            # push quarterly_financial（增量：只推今天更新的）
-            _push_table_to_render(
-                table='quarterly_financial',
-                columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
-                         'operating_income','non_operating','pretax_income','tax','continuing_income',
-                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
-                pk=['code','quarter'],
-                since=_today_start,
-            )
-            # push pe_history（增量）
-            _push_table_to_render(
-                table='pe_history',
-                columns=['code','year','pe_high','pe_low','updated_at'],
-                pk=['code','year'],
-                since=_today_start,
-            )
-            print(f"[quick_update] 已 push 到 Render")
-        except Exception as e:
-            print(f"[quick_update] push Render 失敗: {e}")
+        from render_sync import _render_reachable, _get_last_push_since, _save_last_push_since
+        if not _render_reachable():
+            print(f"[quick_update] Render 無法連線，跳過 push（下次自動補推）")
+        else:
+            try:
+                _push_since = _get_last_push_since()
+                _push_failed = False
+                # push stocks 表（增量：只推上次成功後更新的）
+                _push_prices_to_render(since=_push_since)
+                _push_annual_to_render(since=_push_since)
+                _push_estimates_to_render(since=_push_since)
+                # push monthly_revenue
+                ok, fail = _push_table_to_render(
+                    table='monthly_revenue',
+                    columns=['code','year','month','revenue','updated_at'],
+                    pk=['code','year','month'],
+                    since=_push_since,
+                )
+                if fail: _push_failed = True
+                # push stock_state（評價快照）
+                ok, fail = _push_table_to_render(
+                    table='stock_state',
+                    columns=['stock_id','date','price','price_pos','fair_low','fair_mid','fair_high',
+                             'shen_eps','shen_pe','shen_yld','fin_grade','updated_at',
+                             'val_level','val_aa','val_a1','val_a2','val_a','val_lt6','discount_pct'],
+                    pk=['stock_id','date'],
+                    since=_push_since,
+                )
+                if fail: _push_failed = True
+                # push stock_checklist（自動讀取所有欄位，依 CLAUDE.md 33h 規則）
+                from render_sync import _push_single_table
+                _push_single_table('stock_checklist')
+                # push quarterly_financial
+                ok, fail = _push_table_to_render(
+                    table='quarterly_financial',
+                    columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
+                             'operating_income','non_operating','pretax_income','tax','continuing_income',
+                             'net_income_parent','eps','contract_liability','inventory','updated_at'],
+                    pk=['code','quarter'],
+                    since=_push_since,
+                )
+                if fail: _push_failed = True
+                # push pe_history
+                ok, fail = _push_table_to_render(
+                    table='pe_history',
+                    columns=['code','year','pe_high','pe_low','updated_at'],
+                    pk=['code','year'],
+                    since=_push_since,
+                )
+                if fail: _push_failed = True
+                if not _push_failed:
+                    _save_last_push_since()
+                    print(f"[quick_update] 已 push 到 Render")
+                else:
+                    print(f"[quick_update] push 部分失敗，下次自動補推")
+            except Exception as e:
+                print(f"[quick_update] push Render 失敗: {e}")
 
     elapsed = time.time() - t0
     print(f"\n快速更新完成！季度EPS {eps_updated} + 年度EPS {eps_y_updated}，耗時 {elapsed:.1f} 秒")

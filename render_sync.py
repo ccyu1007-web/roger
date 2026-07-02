@@ -26,6 +26,41 @@ def _is_cloud():
 # 最近一次同步結果（供 health API 讀取）
 _last_sync_result = {'time': None, 'last_success': None, 'failures': [], 'ok': True}
 
+# ── 增量 push 時間戳追蹤 ──
+_LAST_PUSH_FILE = os.path.join(os.path.dirname(__file__), 'logs', 'last_quick_push.txt')
+
+def _get_last_push_since():
+    """讀取上次成功 push 的時間戳，作為增量 since 門檻。
+    檔案不存在或損壞時 fallback 到 3 天前。"""
+    try:
+        with open(_LAST_PUSH_FILE) as f:
+            ts = f.read().strip()
+            if ts:
+                return ts
+    except FileNotFoundError:
+        pass
+    from datetime import date, timedelta
+    return (date.today() - timedelta(days=3)).strftime('%Y-%m-%d') + ' 00:00:00'
+
+def _save_last_push_since():
+    """記錄本次成功 push 的時間戳"""
+    from datetime import datetime
+    try:
+        os.makedirs(os.path.dirname(_LAST_PUSH_FILE), exist_ok=True)
+        with open(_LAST_PUSH_FILE, 'w') as f:
+            f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    except Exception as e:
+        print(f"[push時間戳] 寫入失敗: {e}")
+
+def _render_reachable():
+    """快速檢查 Render 是否可連線（1 秒 timeout），避免 DNS 不通時浪費重試時間"""
+    import socket
+    try:
+        socket.create_connection(('tock-system.onrender.com', 443), timeout=1).close()
+        return True
+    except (socket.timeout, OSError):
+        return False
+
 
 def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
     """POST with retry，最多重試 max_retries 次，間隔遞增（2s, 4s）"""
