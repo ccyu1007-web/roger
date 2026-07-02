@@ -120,8 +120,8 @@ def fetch_mops_monthly_revenue(roc_year=None, month=None):
                     old = c.execute("SELECT revenue_year, revenue_month FROM stocks WHERE code=?", (code,)).fetchone()
                     if old and (west_year > (old[0] or 0) or (west_year == (old[0] or 0) and month > (old[1] or 0))):
                         c.execute("""UPDATE stocks SET revenue_date=?, revenue_year=?, revenue_month=?,
-                            revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=? WHERE code=?""",
-                            (today_str, west_year, month, rec['yoy'], rec['mom'], rec['cum_yoy'], code))
+                            revenue_yoy=?, revenue_mom=?, revenue_cum_yoy=?, updated_at=? WHERE code=?""",
+                            (today_str, west_year, month, rec['yoy'], rec['mom'], rec['cum_yoy'], now_str, code))
 
                 conn.commit()
                 total = len(all_records)

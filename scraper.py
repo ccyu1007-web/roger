@@ -4236,6 +4236,20 @@ def _fix_tax_data():
 
 def run_prices(scheduled=True):
     """14:30 盤後更新：股價 + 等級 + 評價 + push。目標 2~3 分鐘完成。"""
+    # 若 lock 被佔用（如 quick_update），等待最多 5 分鐘
+    for _i in range(10):
+        try:
+            _f = open(LOCK_FILE)
+            fcntl.flock(_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(_f, fcntl.LOCK_UN)
+            _f.close()
+            break
+        except (IOError, OSError, FileNotFoundError):
+            try: _f.close()
+            except Exception: pass
+            if _i < 9:
+                print(f"[run_prices] lock 被佔用，30 秒後重試... ({_i+1}/10)")
+                time.sleep(30)
     with ScraperLock('run_prices', timeout_sec=300) as lock:
         if lock is None:
             return
