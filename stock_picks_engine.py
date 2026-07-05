@@ -1107,7 +1107,10 @@ def run_full(dry_run=False):
         if engine_no_quality:
             L.append("### 引擎有列但體質未通過\n")
             L.append("> 引擎選上了但你的體質判斷沒通過，可能是體質門檻設定過嚴，或該股票體質確實有疑慮\n")
-            L.append("> " + "、".join(f"{c} {stocks.get(c, {}).get('name', '')}" for c in engine_no_quality[:20]))
+            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 原因 |")
+            L.append("|------|------|------|------|-----|------|------|------|--------|----------|------|")
+            for c in engine_no_quality:
+                L.append(_cross_detail(c))
             L.append("")
 
     L.append(f"分析日期：{today}")
