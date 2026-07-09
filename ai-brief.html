@@ -64,7 +64,12 @@
   /* Markdown 預覽 */
   .preview-content { line-height: 1.7; font-size: .92rem; }
   .preview-content h1 { font-size: 1.3rem; margin: 16px 0 8px; border-bottom: 2px solid #333; padding-bottom: 6px; }
-  .preview-content h2 { font-size: 1.1rem; margin: 14px 0 6px; padding: 4px 8px; color: #fff; border-radius: 4px; }
+  .preview-content h2 { font-size: 1.05rem; margin: 20px 0 10px; padding: 7px 14px; color: #fff; border-radius: 5px; background: #475569; letter-spacing: 1px; }
+  .preview-content h2.sec-growth { background: #16a34a; }
+  .preview-content h2.sec-value { background: #2563eb; }
+  .preview-content h2.sec-risk { background: #dc2626; }
+  .preview-content h2.sec-macro { background: #64748b; }
+  .preview-content h2.sec-focus { background: linear-gradient(135deg, #d97706, #b45309); }
   .preview-content h3 { font-size: 1rem; margin: 10px 0 4px; color: #334155; }
   .preview-content p { margin: 4px 0; }
   .preview-content ul, .preview-content ol { margin: 4px 0 4px 20px; }
@@ -75,6 +80,35 @@
   .preview-content th { background: #f1f5f9; text-align: left; padding: 6px 8px; border: 1px solid #e2e8f0; }
   .preview-content td { padding: 6px 8px; border: 1px solid #e2e8f0; }
   .preview-content hr { margin: 12px 0; border: none; border-top: 1px solid #e2e8f0; }
+
+  /* Stock cards */
+  .stock-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin: 8px 0; border-left: 4px solid #94a3b8; background: #fafbfc; transition: box-shadow .15s; }
+  .stock-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .stock-card.signal-green { border-left-color: #16a34a; }
+  .stock-card.signal-yellow { border-left-color: #eab308; }
+  .stock-card.signal-red { border-left-color: #dc2626; }
+  .stock-card-header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .stock-name { font-weight: 700; font-size: .95rem; color: #1e3a5f; text-decoration: none; }
+  .stock-name:hover { text-decoration: underline; }
+  .stock-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+  .stock-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .73rem; font-weight: 600; white-space: nowrap; }
+  .badge-quality { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
+  .badge-pe { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .badge-val-expensive { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+  .badge-val-fair { background: #eff6ff; color: #2563eb; border: 1px solid #93c5fd; }
+  .badge-val-cheap { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 700; }
+  .stock-desc { font-size: .87rem; color: #475569; line-height: 1.65; padding-left: 2px; }
+
+  /* Enhanced table */
+  .preview-content tr:nth-child(even) { background: #f8fafc; }
+  .preview-content tr:hover { background: #f1f5f9; }
+  .preview-content td.val-cheap { background: #fef2f2; color: #b91c1c; font-weight: 600; }
+  .preview-content td.val-fair { background: #eff6ff; color: #1d4ed8; }
+  .preview-content td.val-expensive { color: #94a3b8; }
+  .preview-content td.act-warn { color: #dc2626; font-weight: 600; }
+  .preview-content td.act-watch { color: #64748b; }
+  .preview-content td.act-hold { color: #2563eb; }
+  .preview-content td.act-buy { color: #16a34a; font-weight: 600; }
   .empty-state { text-align: center; color: #94a3b8; padding: 40px 0; font-size: .9rem; }
 
   /* 歷史清單 */
@@ -196,7 +230,89 @@ async function deleteBrief(date) {
 function showPreview(content, date) {
   const area = document.getElementById('previewArea');
   area.innerHTML = marked.parse(content);
+  postProcessBrief(area);
   document.getElementById('previewTitle').textContent = `報告預覽 — ${date}`;
+}
+
+function postProcessBrief(container) {
+  // 1. H2 章節配色
+  container.querySelectorAll('h2').forEach(function(h2) {
+    var t = h2.textContent;
+    if (t.includes('成長')) h2.classList.add('sec-growth');
+    else if (t.includes('價值')) h2.classList.add('sec-value');
+    else if (t.includes('風險')) h2.classList.add('sec-risk');
+    else if (t.includes('總經') || t.includes('產業摘要')) h2.classList.add('sec-macro');
+    else if (t.includes('焦點')) h2.classList.add('sec-focus');
+  });
+
+  // 2. 個股段落 → 卡片
+  container.querySelectorAll('p').forEach(function(p) {
+    var strong = p.querySelector('strong');
+    if (!strong) return;
+    var m = strong.textContent.match(/(.+?)[（(](\d{4})[）)]/);
+    if (!m) return;
+
+    var stockName = m[1], code = m[2];
+    var html = p.innerHTML;
+    var cutIdx = html.indexOf('</strong>');
+    if (cutIdx < 0) return;
+    var afterStrong = html.substring(cutIdx + 9);
+
+    var parts = afterStrong.split('｜').map(function(s){ return s.trim(); }).filter(Boolean);
+    var badges = [], desc = '', signal = 'green';
+
+    parts.forEach(function(part) {
+      if (part.match(/體質\d+分/)) {
+        if (part.includes('紅')) signal = 'red';
+        else if (part.includes('黃')) signal = 'yellow';
+        badges.push({ html: part, cls: 'badge-quality' });
+      } else if (part.match(/^PE\s/i)) {
+        badges.push({ html: part, cls: 'badge-pe' });
+      } else {
+        var vm = part.match(/^(偏貴|合理偏低(?:[（(][^）)]*[）)])?|合理|便宜(?:[（(][^）)]*[）)])?)/);
+        if (vm) {
+          var cls = 'badge-val-expensive';
+          if (vm[1].startsWith('便宜')) cls = 'badge-val-cheap';
+          else if (vm[1].startsWith('合理')) cls = 'badge-val-fair';
+          badges.push({ html: vm[1], cls: cls });
+          var rest = part.substring(vm[0].length).trim();
+          if (rest) desc += rest;
+        } else {
+          desc += (desc ? ' ' : '') + part;
+        }
+      }
+    });
+
+    var card = document.createElement('div');
+    card.className = 'stock-card signal-' + signal;
+    card.innerHTML =
+      '<div class="stock-card-header">' +
+        '<a class="stock-name" href="/company.html?code=' + code + '" target="_blank">' + stockName + '（' + code + '）</a>' +
+        '<div class="stock-badges">' + badges.map(function(b){ return '<span class="stock-badge ' + b.cls + '">' + b.html + '</span>'; }).join('') + '</div>' +
+      '</div>' +
+      (desc ? '<div class="stock-desc">' + desc + '</div>' : '');
+    p.replaceWith(card);
+  });
+
+  // 3. 焦點表格：評價/動作上色 + 股票連結
+  container.querySelectorAll('table').forEach(function(table) {
+    table.querySelectorAll('td').forEach(function(td) {
+      var text = td.textContent.trim();
+      if (text.startsWith('便宜')) td.classList.add('val-cheap');
+      else if (text === '合理' || text.startsWith('合理偏低')) td.classList.add('val-fair');
+      else if (text === '偏貴') td.classList.add('val-expensive');
+      if (text.includes('警示') || text.includes('避開')) td.classList.add('act-warn');
+      else if (text.includes('觀望')) td.classList.add('act-watch');
+      else if (text.includes('布局') || text.includes('加碼')) td.classList.add('act-buy');
+      else if (text.includes('持有')) td.classList.add('act-hold');
+    });
+    table.querySelectorAll('td:first-child').forEach(function(td) {
+      var cm = td.textContent.match(/[（(](\d{4})[）)]/);
+      if (cm) {
+        td.innerHTML = '<a href="/company.html?code=' + cm[1] + '" target="_blank" style="color:#1e40af;text-decoration:none;font-weight:600">' + td.textContent + '</a>';
+      }
+    });
+  });
 }
 
 function renderHistory(briefs) {
