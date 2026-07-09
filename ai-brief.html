@@ -241,47 +241,110 @@ function postProcessBrief(container) {
     if (t.includes('成長')) h2.classList.add('sec-growth');
     else if (t.includes('價值')) h2.classList.add('sec-value');
     else if (t.includes('風險')) h2.classList.add('sec-risk');
-    else if (t.includes('總經') || t.includes('產業摘要')) h2.classList.add('sec-macro');
+    else if (t.includes('總經') || t.includes('產業')) h2.classList.add('sec-macro');
     else if (t.includes('焦點')) h2.classList.add('sec-focus');
   });
 
-  // 2. 個股段落 → 卡片
+  // 2. 個股段落 → 卡片（支援三種歷史格式）
   container.querySelectorAll('p').forEach(function(p) {
     var strong = p.querySelector('strong');
     if (!strong) return;
-    var m = strong.textContent.match(/(.+?)[（(](\d{4})[）)]/);
-    if (!m) return;
+    var sText = strong.textContent.trim();
+    var stockName, code;
 
-    var stockName = m[1], code = m[2];
+    // Pattern A: 名稱（代碼）
+    var mA = sText.match(/(.+?)[（(](\d{4})[）)]/);
+    // Pattern B: [代碼] 名稱
+    var mB = sText.match(/\[(\d{4})\]\s*(.+)/);
+
+    if (mA) { stockName = mA[1].trim(); code = mA[2]; }
+    else if (mB) { code = mB[1]; stockName = mB[2].trim(); }
+    else return;
+
     var html = p.innerHTML;
     var cutIdx = html.indexOf('</strong>');
     if (cutIdx < 0) return;
-    var afterStrong = html.substring(cutIdx + 9);
+    var afterStrong = html.substring(cutIdx + 9).trim();
 
-    var parts = afterStrong.split('｜').map(function(s){ return s.trim(); }).filter(Boolean);
     var badges = [], desc = '', signal = 'green';
 
-    parts.forEach(function(part) {
-      if (part.match(/體質\d+分/)) {
-        if (part.includes('紅')) signal = 'red';
-        else if (part.includes('黃')) signal = 'yellow';
-        badges.push({ html: part, cls: 'badge-quality' });
-      } else if (part.match(/^PE\s/i)) {
-        badges.push({ html: part, cls: 'badge-pe' });
-      } else {
-        var vm = part.match(/^(偏貴|合理偏低(?:[（(][^）)]*[）)])?|合理|便宜(?:[（(][^）)]*[）)])?)/);
-        if (vm) {
+    if (afterStrong.includes('｜')) {
+      // ── Format A/B：｜ 分隔 ──
+      var parts = afterStrong.split('｜').map(function(s){ return s.trim(); }).filter(Boolean);
+
+      parts.forEach(function(part) {
+        if (part.match(/體質\d+分/)) {
+          if (part.includes('紅')) signal = 'red';
+          else if (part.includes('黃')) signal = 'yellow';
+          badges.push({ html: part, cls: 'badge-quality' });
+        } else if (part.match(/^PE\s/i)) {
+          badges.push({ html: part, cls: 'badge-pe' });
+        } else if (part.match(/^財務\s/)) {
+          var grade = part.replace('財務', '').trim();
+          var g0 = grade.charAt(0).toUpperCase();
+          if (g0 === 'C' || g0 === 'D' || g0 === 'X') signal = 'red';
+          else if (g0 === 'B') signal = 'yellow';
+          badges.push({ html: part, cls: 'badge-quality' });
+        } else if (part.match(/^評價\s/)) {
+          var evalRest = part.replace(/^評價\s*/, '');
+          var parenMatch = evalRest.match(/[（(]([^）)]*)[）)]/);
+          if (parenMatch) {
+            var pc = parenMatch[1];
+            var peM = pc.match(/PE\s*([\d.]+)/);
+            if (peM) badges.push({ html: 'PE ' + peM[1], cls: 'badge-pe' });
+            var yldM = pc.match(/殖利率\s*([\d.]+%?)/);
+            if (yldM) badges.push({ html: '殖利率 ' + yldM[1], cls: 'badge-pe' });
+            evalRest = evalRest.replace(/[（(][^）)]*[）)]/, '').trim();
+          }
+          var sp = evalRest.indexOf(' ');
+          var evalLevel = sp > 0 ? evalRest.substring(0, sp) : evalRest;
+          var evalDesc = sp > 0 ? evalRest.substring(sp + 1).trim() : '';
           var cls = 'badge-val-expensive';
-          if (vm[1].startsWith('便宜')) cls = 'badge-val-cheap';
-          else if (vm[1].startsWith('合理')) cls = 'badge-val-fair';
-          badges.push({ html: vm[1], cls: cls });
-          var rest = part.substring(vm[0].length).trim();
-          if (rest) desc += rest;
+          if (evalLevel.match(/^(AA|便宜)/i)) cls = 'badge-val-cheap';
+          else if (evalLevel.match(/^(A\d|A$|合理)/i)) cls = 'badge-val-fair';
+          badges.push({ html: evalLevel, cls: cls });
+          if (evalDesc) desc += evalDesc;
         } else {
-          desc += (desc ? ' ' : '') + part;
+          var vm = part.match(/^(偏貴|合理偏低(?:[（(][^）)]*[）)])?|合理|便宜(?:[（(][^）)]*[）)])?)/);
+          if (vm) {
+            var cls2 = 'badge-val-expensive';
+            if (vm[1].startsWith('便宜')) cls2 = 'badge-val-cheap';
+            else if (vm[1].startsWith('合理')) cls2 = 'badge-val-fair';
+            badges.push({ html: vm[1], cls: cls2 });
+            var rest = part.substring(vm[0].length).trim();
+            if (rest) desc += rest;
+          } else {
+            desc += (desc ? ' ' : '') + part;
+          }
         }
+      });
+    } else {
+      // ── Format C：/ 分隔，metadata 在描述後面 ──
+      var text = afterStrong;
+      var metaMatch = text.match(/(體質\d+項\s*\/\s*燈號\S+\s*\/\s*PE\s*[\d.]+\s*\/\s*[^<]+)$/);
+      if (metaMatch) {
+        desc = text.substring(0, text.indexOf(metaMatch[1])).trim();
+        var metaParts = metaMatch[1].split('/').map(function(s){ return s.trim(); });
+        metaParts.forEach(function(mp) {
+          if (mp.match(/體質\d+項/)) {
+            badges.push({ html: mp, cls: 'badge-quality' });
+          } else if (mp.match(/燈號/)) {
+            var lamp = mp.replace('燈號', '').trim();
+            if (lamp.includes('紅')) signal = 'red';
+            else if (lamp.includes('黃')) signal = 'yellow';
+          } else if (mp.match(/^PE\s/i)) {
+            badges.push({ html: mp, cls: 'badge-pe' });
+          } else {
+            var cls3 = 'badge-val-expensive';
+            if (mp.includes('便宜')) cls3 = 'badge-val-cheap';
+            else if (mp.includes('合理')) cls3 = 'badge-val-fair';
+            badges.push({ html: mp, cls: cls3 });
+          }
+        });
+      } else {
+        desc = text;
       }
-    });
+    }
 
     var card = document.createElement('div');
     card.className = 'stock-card signal-' + signal;
