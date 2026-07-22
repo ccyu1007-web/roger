@@ -2281,20 +2281,20 @@ def get_daily_briefing():
                   shen_eps, shen_pe, shen_yld, fin_grade,
                   val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
                   neff_d, lynch_d, shen_grade, est_grade, gb_total_rank
-           FROM stock_state ORDER BY stock_id, date DESC""",
+           FROM stock_state WHERE date >= date('now', '-7 days') ORDER BY stock_id, date DESC""",
         """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                   shen_eps, shen_pe, shen_yld, fin_grade,
                   val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
                   neff_d, lynch_d, shen_grade, est_grade
-           FROM stock_state ORDER BY stock_id, date DESC""",
+           FROM stock_state WHERE date >= date('now', '-7 days') ORDER BY stock_id, date DESC""",
         """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                   shen_eps, shen_pe, shen_yld, fin_grade,
                   val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
                   neff_d, lynch_d
-           FROM stock_state ORDER BY stock_id, date DESC""",
+           FROM stock_state WHERE date >= date('now', '-7 days') ORDER BY stock_id, date DESC""",
         """SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                   shen_eps, shen_pe, shen_yld, fin_grade
-           FROM stock_state ORDER BY stock_id, date DESC""",
+           FROM stock_state WHERE date >= date('now', '-7 days') ORDER BY stock_id, date DESC""",
     ]
     for sql in _ss_queries:
         try:
