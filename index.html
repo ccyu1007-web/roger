@@ -2896,7 +2896,13 @@ function render() {
   }
   // 權重標籤不更新（固定用位置標籤）
   // 更新合約負債表頭
-  const sampleCL = rows.find(r => r.contract_1q) || filtered.find(r => r.contract_1q);
+  const sampleCL = allData.reduce((best, r) => {
+    if (!r.contract_1q) return best;
+    if (!best) return r;
+    const [ay, aq] = best.contract_1q.split('Q').map(Number);
+    const [by, bq] = r.contract_1q.split('Q').map(Number);
+    return (by > ay || (by === ay && bq > aq)) ? r : best;
+  }, null);
   if (sampleCL) {
     const el1 = document.getElementById('hdr_cl1');
     const el2 = document.getElementById('hdr_cl2');

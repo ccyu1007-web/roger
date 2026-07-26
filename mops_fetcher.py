@@ -521,6 +521,9 @@ def _fetch_mops_balance_sheet(code, roc_year, season):
                     val = _safe_float(cells[1])
                     if val is not None:
                         result[target_fields[label]] = val * 1000  # 千元 → 元
+        # MOPS 上沒有「合約負債-流動」行代表該公司沒有合約負債，寫 0 而非留 NULL
+        if result and 'contract_liability' not in result:
+            result['contract_liability'] = 0
         return result if result else None
     except Exception:
         return None
