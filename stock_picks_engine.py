@@ -205,10 +205,12 @@ def load_previous_picks():
         content = ''
 
     def _extract(text, section):
-        parts = text.split('## ')
-        for p in parts:
-            if section in p:
-                return set(re.findall(r'\|\s*(\d{4})\s*\|', p))
+        # 找到 "## ...{section}..." 到下一個 "## 一/二/三/四" 之間的所有內容
+        # 包含子 section（### 小買候選、### 觀望等）
+        pattern = rf'## [^#]*{re.escape(section)}.*?(?=\n## [一二三四]|$)'
+        m = re.search(pattern, text, re.DOTALL)
+        if m:
+            return set(re.findall(r'\|\s*(\d{4,6})\s*\|', m.group()))
         return set()
 
     return {
