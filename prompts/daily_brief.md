@@ -7,14 +7,16 @@
 ### Step 1：撈全部新聞
 
 ```sql
--- material_news（日期格式為民國 1150727）
-SELECT code, name, subject, tier, direction, matched_rule
-FROM material_news WHERE date='{民國日期}' AND tier >= 1
+-- material_news（用 created_at 篩選，不可用 date 欄位，因上市/上櫃格式不同）
+SELECT code, name, subject, description, tier, direction, matched_rule
+FROM material_news WHERE created_at >= '{日期} 00:00:00' AND created_at < '{日期+1} 00:00:00' AND tier >= 1
 
 -- industry_news（全撈，不可用關鍵字預篩）
 SELECT id, title, summary, archived_code
 FROM industry_news WHERE created_at LIKE '{日期}%' OR pub_time LIKE '{日期}%'
 ```
+
+> **注意**：material_news 的 `date` 欄位是 API 原始值，上市為民國格式（`1150727`），上櫃為 `MM/DD HH:MM`，格式不統一。一律用 `created_at`（西元 `YYYY-MM-DD HH:MM:SS`）篩選。
 
 ### Step 2：撈體質佳清單 + 體質資料
 
