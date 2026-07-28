@@ -6,31 +6,58 @@
 
 ### Step 1：撈全部新聞
 
-```sql
--- material_news（用 created_at 篩選，不可用 date 欄位，因上市/上櫃格式不同）
-SELECT code, name, subject, description, tier, direction, matched_rule
-FROM material_news WHERE created_at >= '{日期} 00:00:00' AND created_at < '{日期+1} 00:00:00' AND tier >= 1
+用 Python 連接 `stock_system/stocks.db` 執行，不可手寫 SQL 猜格式。
 
--- industry_news（全撈，不可用關鍵字預篩）
-SELECT id, title, summary, archived_code
-FROM industry_news WHERE created_at LIKE '{日期}%' OR pub_time LIKE '{日期}%'
+```python
+import sqlite3, os
+DB = os.path.expanduser('~/Documents/AI機器人/stock_system/stocks.db')
+conn = sqlite3.connect(DB)
+conn.row_factory = sqlite3.Row
+TARGET_DATE = '{日期}'  # 西元格式 YYYY-MM-DD
+NEXT_DATE = '{日期+1}'  # 西元格式 YYYY-MM-DD
+
+# material_news — 必須用 created_at 篩選
+# ⚠ 不可用 date 欄位！上市為民國格式(1150728)、上櫃為 MM/DD HH:MM，格式不統一
+material = conn.execute("""
+    SELECT code, name, subject, description, tier, direction, matched_rule
+    FROM material_news
+    WHERE created_at >= ? AND created_at < ? AND tier >= 1
+    ORDER BY tier DESC, code
+""", (f"{TARGET_DATE} 00:00:00", f"{NEXT_DATE} 00:00:00")).fetchall()
+
+# industry_news — 全撈，不可用關鍵字預篩
+industry = conn.execute("""
+    SELECT id, title, summary, archived_code
+    FROM industry_news
+    WHERE pub_time LIKE ? OR created_at LIKE ?
+    ORDER BY pub_time
+""", (f"{TARGET_DATE}%", f"{TARGET_DATE}%")).fetchall()
 ```
-
-> **注意**：material_news 的 `date` 欄位是 API 原始值，上市為民國格式（`1150727`），上櫃為 `MM/DD HH:MM`，格式不統一。一律用 `created_at`（西元 `YYYY-MM-DD HH:MM:SS`）篩選。
 
 ### Step 2：撈體質佳清單 + 體質資料
 
-```sql
--- 體質佳股票代碼（約300支）
-SELECT code FROM user_lists WHERE list_type='quality'
+```python
+# 體質佳股票代碼（約300支）
+quality_codes = [r[0] for r in conn.execute(
+    "SELECT code FROM user_lists WHERE list_type='quality'").fetchall()]
+quality_set = set(quality_codes)
 
--- 每支股票的體質資料
-SELECT code, pass_count, growth_signal, gi_pe, gi_yield, val_a, val_aa, red_flags
-FROM stock_checklist WHERE code IN (體質佳清單)
+# 股票名稱對照（用於 industry_news 比對）
+stock_names = dict(conn.execute("SELECT code, name FROM stocks").fetchall())
+name_to_code = {v: k for k, v in stock_names.items() if v and len(v) >= 2}
 
--- 股價與基本資料
-SELECT code, name, close, fin_grade_1, fin_grade_1y, deepest_val_level, revenue_cum_yoy
-FROM stocks WHERE code IN (體質佳清單)
+# 體質資料（pass_count, growth_signal, 估值區間, 紅旗）
+placeholders = ','.join('?' * len(quality_codes))
+checklist = {r['code']: dict(r) for r in conn.execute(f"""
+    SELECT code, pass_count, growth_signal, gi_pe, gi_yield, val_a, val_aa, red_flags
+    FROM stock_checklist WHERE code IN ({placeholders})
+""", quality_codes).fetchall()}
+
+# 股價與財務等級
+stocks_info = {r['code']: dict(r) for r in conn.execute(f"""
+    SELECT code, name, close, fin_grade_1, fin_grade_1y, deepest_val_level, revenue_cum_yoy
+    FROM stocks WHERE code IN ({placeholders})
+""", quality_codes).fetchall()}
 ```
 
 ### Step 3：交叉比對（核心步驟，不可簡化）
@@ -47,15 +74,15 @@ FROM stocks WHERE code IN (體質佳清單)
 ### Step 4：分類整理
 
 對 Step 3 命中的每支體質佳股票，根據新聞內容分類：
-- **成長動能**：營收創高、新產品、產能擴張、大單、法說上調展望、臨床進展、新領域切入、capex追加
+- **成長動能**：營收創高、新產品、產能擴張、大單、法說上調展望、臨床進展、新領域切入、capex追加、EPS 創高
 - **價值動能**：庫藏股、大股東加碼、股利優於預期
-- **風險警示**：董監轉讓、減資、私募、財報重編、產業逆風
+- **風險警示**：董監轉讓、減資、私募、財報重編、產業逆風、仲裁/訴訟
 
 **非體質佳股票**：只有併購等級的重大訊息才納入（如股份轉換、合併、收購、matched_rule 為「併購合併」）。
 
 **material_news 判讀**：
-- tier 1 中性 + 內容為例行公告（董事改選、股東會修正、名稱變更、面額變更）→ 跳過
-- tier 1/2 + 有實質內容（臨床結果、產能投資、併購、大額交易）→ 納入
+- tier 1 中性 + 內容為例行公告（董事改選、股東會修正、名稱變更、面額變更、召開通知）→ 跳過
+- tier 1/2 + 有實質內容（臨床結果、產能投資、併購、大額交易、EPS 公告、庫藏股、法說展望）→ 納入
 
 **沒有新聞的股票不納入**，純估值訊號（落入便宜區、殖利率高）不算。
 
@@ -63,9 +90,30 @@ FROM stocks WHERE code IN (體質佳清單)
 
 從 industry_news 中整理與個股無關但重要的總經/產業趨勢（大盤走勢、外資動態、油價、利率、財報週等）。
 
-### Step 6：產出報告
+### Step 6：評價位置判定
 
-每則 2-3 句精簡描述，標註股票代碼、財務等級、評價位置。
+```python
+# 從 stock_checklist 取 val_a, val_aa，與 stocks.close 比較
+def get_val_position(code):
+    ck = checklist.get(code, {})
+    si = stocks_info.get(code, {})
+    close = si.get('close')
+    val_aa = ck.get('val_aa')
+    val_a = ck.get('val_a')
+    if not close or (not val_a and not val_aa):
+        return '未設定'
+    if val_aa and close <= val_aa:
+        return '很便宜'
+    if val_a and close <= val_a:
+        return '便宜區'
+    if val_a and close <= val_a * 1.1:
+        return '略高於便宜價'
+    return '偏高'
+```
+
+### Step 7：產出報告
+
+每則 2-3 句精簡描述，標註股票代碼、財務等級（`stocks.fin_grade_1`）、評價位置。
 
 ```markdown
 # 逍遙投資日報速讀 — {日期}
@@ -73,7 +121,7 @@ FROM stocks WHERE code IN (體質佳清單)
 ---
 
 ## 一、成長動能
-**{代碼} {名稱}｜{財務等級}｜評價 {位置}**
+**{代碼} {名稱}｜{fin_grade_1}｜評價 {位置}**
 {2-3句描述}
 
 ## 二、價值動能
@@ -87,16 +135,9 @@ FROM stocks WHERE code IN (體質佳清單)
 - {要點2}
 
 ## 五、今日焦點整理
-| 標的 | 訊號 | 評價位置 | 體質佳 | 建議動作 |
-|------|------|----------|--------|----------|
+| 標的 | 訊號 | 財務等級 | 評價位置 | 體質佳 | 建議動作 |
+|------|------|----------|----------|--------|----------|
 ```
-
-### 評價位置判定
-- 收盤 < val_aa → 很便宜
-- 收盤 < val_a → 便宜區
-- 收盤略高於 val_a（< 1.1倍）→ 略高於便宜價
-- 收盤 >> val_a → 偏高
-- val_a 為 NULL → 未設定
 
 ### 注意事項
 - 沒有值得寫的區塊就寫「無」，不湊字數
@@ -104,7 +145,13 @@ FROM stocks WHERE code IN (體質佳清單)
 
 ## 儲存
 
-完成後呼叫 Render API：
+完成後呼叫 POST /api/ai-briefs 儲存（本機或 Render 皆可）：
+```
+POST http://localhost:5000/api/ai-briefs
+{"date": "{日期}", "content": "報告內容（Markdown）"}
+```
+
+若本機 Flask 未啟動，改用 Render：
 ```
 POST https://tock-system.onrender.com/api/ai-briefs
 {"date": "{日期}", "content": "報告內容（Markdown）"}
