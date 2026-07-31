@@ -193,8 +193,7 @@ python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py --
 用 API 寫入：
 curl -X POST https://tock-system.onrender.com/api/stock-picks -H "Content-Type: application/json" -d '{"content":"...markdown..."}'
 
-同時跑一次不帶 --dry-run 的引擎確保 Render 資料是最新的：
-python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py
+注意：不要跑不帶 --dry-run 的引擎，否則會覆蓋決策分析。
 
 如需驗證單支：python3 stock_picks_engine.py --check 代碼`;
 
