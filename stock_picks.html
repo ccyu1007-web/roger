@@ -160,10 +160,40 @@ function onInput() {
 }
 
 function copyPrompt() {
-  const prompt = `請執行選股推薦引擎：
-python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py
+  const prompt = `請執行選股推薦引擎並產出決策分析：
 
-所有篩選邏輯在 stock_picks_engine.py 裡，直接執行即可。結果會自動推送到 Render。
+## 步驟一：執行引擎
+python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py --dry-run
+
+用 --dry-run 看完整輸出，確認無誤後再跑一次不帶 --dry-run 推送 Render。
+
+## 步驟二：決策分析（在對話中呈現，不改頁面）
+
+根據引擎輸出的重倉+小買標的，產出以下分析：
+
+### 1. 方向判讀（3行）
+每類（價值/成長/循環）各一句話總結目前狀態，點出「這一輪機會在哪、卡在什麼」。
+
+### 2. 行動清單（信心指數排序）
+把三類的重倉+小買合在一起，用信心指數排序：
+- PE面通過（五分法偏低以下）：+1
+- 殖利率面通過（>= 5.5%）：+1
+- 趨勢面（3M >= 0 且累積 > 0）：+1
+- 品質面（近2年等級皆A級以上）：+1
+- 風險面（防呆無旗標）：+1
+
+每支呈現：
+- 代碼、名稱、類型（價值/成長/循環）、層級（重倉/小買）、股價
+- 信心指數 X/5 + 各維度 V/X
+- 一句話結論：為什麼值得看 + 還差什麼
+- 防呆旗標（如有）
+
+### 3. 等候區（快到位的觀望標的）
+只列「差一步」的觀望標的（3M > -5% 快轉正、或股價離門檻 < 10%）。
+遠期的（訊號0/3、復甦<0.5、3M<-15%）不列，只顯示「已隱藏N支遠期」。
+
+### 4. 異動提醒
+跟上次比較：新進/移出/升級/降級。
 
 如需驗證單支：python3 stock_picks_engine.py --check 代碼
 如需看排除原因：python3 stock_picks_engine.py --excluded`;
