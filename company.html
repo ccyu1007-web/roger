@@ -2839,6 +2839,16 @@ async function loadReport() {
   }
 }
 
+function copyReportContent() {
+  const textarea = document.getElementById('reportArea');
+  const text = textarea ? textarea.value : '';
+  if (!text.trim()) { alert('報告內容為空'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    const el = document.getElementById('reportStatus');
+    if (el) { const orig = el.textContent; el.textContent = '已複製到剪貼簿'; setTimeout(() => el.textContent = orig, 2000); }
+  });
+}
+
 function switchReportMode(mode) {
   const textarea = document.getElementById('reportArea');
   const preview = document.getElementById('reportPreview');
