@@ -2823,6 +2823,7 @@ async function loadReport() {
           <span style="font-size:1rem;font-weight:700;color:#1e3a5f">投資報告書</span>
           <button class="notes-mode-btn active" id="btnReportPreview" onclick="switchReportMode('preview')">預覽</button>
           <button class="notes-mode-btn" id="btnReportEdit" onclick="switchReportMode('edit')">編輯</button>
+          <button onclick="copyReportContent()" style="padding:3px 10px;border:1px solid #334155;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#334155;font-weight:600">複製內容</button>
           <button onclick="copyReportPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製報告指令</button>
           <button onclick="exportReportPDF()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">匯出 PDF</button>
           <span id="reportStatus" style="font-size:.75rem;color:#94a3b8">${updatedAt ? '最後更新：' + updatedAt : ''}</span>
