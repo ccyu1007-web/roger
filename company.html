@@ -2585,6 +2585,16 @@ function switchNotesMode(mode) {
   }
 }
 
+function copyNotesContent() {
+  const textarea = document.getElementById('notesArea');
+  const text = textarea ? textarea.value : '';
+  if (!text.trim()) { alert('筆記內容為空'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    const el = document.getElementById('notesStatus');
+    if (el) { const orig = el.textContent; el.textContent = '已複製到剪貼簿'; setTimeout(() => el.textContent = orig, 2000); }
+  });
+}
+
 function _renderNotesPreview() {
   const textarea = document.getElementById('notesArea');
   const preview = document.getElementById('notesPreview');
@@ -2738,13 +2748,14 @@ async function loadNotes() {
           <span class="notes-title">質性研究筆記</span>
           <button class="notes-mode-btn active" id="btnNotesPreview" onclick="switchNotesMode('preview')">預覽</button>
           <button class="notes-mode-btn" id="btnNotesEdit" onclick="switchNotesMode('edit')">編輯</button>
-          <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600;margin-left:8px">複製分析指令</button>
+          <button onclick="copyNotesContent()" style="padding:3px 10px;border:1px solid #334155;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#334155;font-weight:600;margin-left:8px">複製內容</button>
+          <button onclick="copyAnalysisPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製分析指令</button>
           <button onclick="copyFormatPrompt()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">排版整理</button>
           <button onclick="togglePromptPreview()" style="padding:3px 10px;border:1px solid #94a3b8;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#94a3b8;font-weight:600">查看指令內容</button>
           <span class="notes-status" id="notesStatus">${updatedAt ? '最後更新：' + updatedAt : ''}</span>
         </div>
         <div id="promptPreview" style="display:none;margin:0 12px 12px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:.8rem;color:#475569;line-height:1.7;white-space:pre-wrap"></div>
-        <div class="notes-preview" id="notesPreview" onclick="switchNotesMode('edit')"></div>
+        <div class="notes-preview" id="notesPreview"></div>
         <textarea class="notes-area" id="notesArea" oninput="onNotesInput()" style="display:none"
           placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點...">${noteContent.replace(/</g,'&lt;')}</textarea>
       </div>
@@ -2817,7 +2828,7 @@ async function loadReport() {
           <span id="reportStatus" style="font-size:.75rem;color:#94a3b8">${updatedAt ? '最後更新：' + updatedAt : ''}</span>
         </div>
         ${freshnessHtml}
-        <div class="notes-preview" id="reportPreview" onclick="switchReportMode('edit')"></div>
+        <div class="notes-preview" id="reportPreview"></div>
         <textarea id="reportArea" oninput="onReportInput()" style="display:none;width:100%;min-height:400px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:.85rem;font-family:'Microsoft JhengHei','Segoe UI',monospace;resize:vertical;line-height:1.6">${content.replace(/</g,'&lt;')}</textarea>
       </div>`;
 
