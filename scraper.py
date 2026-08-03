@@ -4353,8 +4353,9 @@ def _run_prices_inner(scheduled=True):
     except Exception as e: print(f"[重點追蹤] 失敗: {e}")
     print(f"[4.評價快照] {time.time()-t1:.1f}s")
 
-    # 5. Checklist + 衍生欄位（Checklist 由本機同步，Render 不獨立計算）
+    # 5. EPS同步 + Checklist + 衍生欄位
     t1 = time.time()
+    _sync_eps_from_quarterly()
     try:
         from app import calc_all_checklists, recalc_all_derived
         if not IS_CLOUD:
