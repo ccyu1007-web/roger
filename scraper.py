@@ -2551,6 +2551,15 @@ def quick_update():
                 print(f"[季報BS同步Render] 失敗: {e}")
 
     # ══ 可跳過步驟（需 lock，被 run() 擋住就跳過）══
+    # 14:10~14:50 平日讓出 lock，確保 run_prices 能在 14:30 順利執行
+    _now = datetime.now()
+    _hm = _now.hour * 60 + _now.minute
+    if _now.weekday() < 5 and 14 * 60 + 10 <= _hm <= 14 * 60 + 50:
+        elapsed = time.time() - t0
+        print(f"[quick_update] 14:30 股價更新時段，讓出 lock")
+        print(f"\n快速更新（僅必跑步驟）完成，耗時 {elapsed:.1f} 秒")
+        return
+
     with ScraperLock('quick_update', timeout_sec=900) as lock:
         if lock is None:
             elapsed = time.time() - t0
@@ -4249,8 +4258,8 @@ def _fix_tax_data():
 
 def run_prices(scheduled=True):
     """14:30 盤後更新：股價 + 等級 + 評價 + push。目標 2~3 分鐘完成。"""
-    # 若 lock 被佔用（如 quick_update），等待最多 5 分鐘
-    for _i in range(10):
+    # 若 lock 被佔用（如 quick_update），等待最多 15 分鐘（quick_update 超時 900s）
+    for _i in range(30):
         try:
             _f = open(LOCK_FILE)
             fcntl.flock(_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -4260,8 +4269,8 @@ def run_prices(scheduled=True):
         except (IOError, OSError, FileNotFoundError):
             try: _f.close()
             except Exception: pass
-            if _i < 9:
-                print(f"[run_prices] lock 被佔用，30 秒後重試... ({_i+1}/10)")
+            if _i < 29:
+                print(f"[run_prices] lock 被佔用，30 秒後重試... ({_i+1}/30)")
                 time.sleep(30)
     with ScraperLock('run_prices', timeout_sec=300) as lock:
         if lock is None:
