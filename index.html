@@ -3273,6 +3273,18 @@ function startAutoRefresh() {
 }
 startAutoRefresh();
 
+// ── 自動更新營收/季報（每 60 分鐘）─────────────────────────────
+let _autoRevTimer = null;
+function startAutoRevenue() {
+  if (_autoRevTimer) return;
+  const INTERVAL = 60 * 60 * 1000; // 60 分鐘
+  _autoRevTimer = setInterval(() => {
+    console.log('[自動更新] 自動更新營收/季報', new Date().toLocaleTimeString());
+    fetch('/api/refresh/revenue', { method: 'POST' }).catch(() => {});
+  }, INTERVAL);
+}
+startAutoRevenue();
+
 // 防止 Mac 觸控板左右滑動觸發瀏覽器返回/前進
 document.querySelector('.table-wrap')?.addEventListener('touchmove', function(e) {
   if (this.scrollWidth > this.clientWidth) e.stopPropagation();
