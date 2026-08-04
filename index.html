@@ -3250,6 +3250,11 @@ document.addEventListener('keydown', e => {
 
 loadData();
 
+// ── bfcache 恢復時重新載入資料 ────────────────────────────────
+window.addEventListener('pageshow', e => {
+  if (e.persisted) loadData();
+});
+
 // ── 盤中自動更新股價（每 30 分鐘）─────────────────────────────
 let _autoRefreshTimer = null;
 function startAutoRefresh() {
