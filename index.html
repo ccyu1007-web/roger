@@ -2430,6 +2430,7 @@ async function triggerUpdateRevenue() {
     } else {
       btn.style.color = '#059669'; btn.style.borderColor = '#059669';
       btn.textContent = data.msg;
+      loadData();
     }
   } catch(e) {
     btn.style.color = '#ef4444'; btn.style.borderColor = '#ef4444'; btn.textContent = '更新失敗';
@@ -3280,7 +3281,7 @@ function startAutoRevenue() {
   const INTERVAL = 60 * 60 * 1000; // 60 分鐘
   _autoRevTimer = setInterval(() => {
     console.log('[自動更新] 自動更新營收/季報', new Date().toLocaleTimeString());
-    fetch('/api/refresh/revenue', { method: 'POST' }).catch(() => {});
+    fetch('/api/refresh/revenue', { method: 'POST' }).then(() => loadData()).catch(() => {});
   }, INTERVAL);
 }
 startAutoRevenue();
