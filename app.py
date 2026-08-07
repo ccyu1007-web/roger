@@ -69,6 +69,27 @@ def _bg_push_table(table, columns, pk, create_sql=None, where=None, clear_first=
             print(f"[bg_push] {table} 失敗: {e}")
     threading.Thread(target=_do, daemon=True).start()
 
+
+def _bg_forward_user_list(list_type, payload):
+    """將 user_list 單筆異動轉發到 Render（僅本機執行）
+    不推整張表，只轉發 add/remove/sync 給 Render 的同一個 API，
+    避免 clear_first=True 洗掉 Render 前台操作的資料。
+    """
+    if os.environ.get('DATABASE_URL'):
+        return
+    def _do():
+        try:
+            from render_sync import RENDER_URL
+            from fetcher_utils import create_session
+            rs = create_session()
+            resp = rs.post(f'{RENDER_URL}/api/user-lists/{list_type}',
+                           json=payload, timeout=15)
+            if resp.status_code != 200:
+                print(f"[bg_forward] user_lists/{list_type} HTTP {resp.status_code}")
+        except Exception as e:
+            print(f"[bg_forward] user_lists/{list_type} 失敗: {e}")
+    threading.Thread(target=_do, daemon=True).start()
+
 # ── Sync API Token 驗證 ─────────────────────────────────────
 SYNC_TOKEN = os.environ.get('SYNC_TOKEN', 'stock-sync-2026')
 
@@ -5293,23 +5314,18 @@ def update_user_list(list_type):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
+    history_params = None  # 延後到 commit 之後再寫，避免 PG 上 list_history 失敗連帶 rollback 主交易
+
     if action == 'add' and code:
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         price = data.get('price')
         c.execute("INSERT OR REPLACE INTO user_lists (list_type, code, added_at, price_at) VALUES (?,?,?,?)",
                   (list_type, code, now, price))
-        # 記錄異動歷史
-        try:
-            c.execute("INSERT INTO list_history (code, list_type, action, reason, price_at, timestamp) VALUES (?,?,?,?,?,?)",
-                      (code, list_type, 'add', data.get('reason', ''), price, now))
-        except Exception: pass
+        history_params = (code, list_type, 'add', data.get('reason', ''), price, now)
     elif action == 'remove' and code:
         c.execute("DELETE FROM user_lists WHERE list_type=? AND code=?", (list_type, code))
-        try:
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            c.execute("INSERT INTO list_history (code, list_type, action, reason, price_at, timestamp) VALUES (?,?,?,?,?,?)",
-                      (code, list_type, 'remove', data.get('reason', ''), data.get('price'), now))
-        except Exception: pass
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        history_params = (code, list_type, 'remove', data.get('reason', ''), data.get('price'), now)
     elif action == 'sync':
         # 整批同步（從 localStorage 遷移用）
         codes = data.get('codes', [])
@@ -5324,12 +5340,18 @@ def update_user_list(list_type):
                           (list_type, item.get('code',''), now, item.get('price')))
 
     conn.commit()
+    # 主交易已 commit，再寫異動歷史（失敗不影響主交易）
+    if history_params:
+        try:
+            c.execute("INSERT INTO list_history (code, list_type, action, reason, price_at, timestamp) VALUES (?,?,?,?,?,?)",
+                      history_params)
+            conn.commit()
+        except Exception:
+            try: conn.rollback()
+            except Exception: pass
     conn.close()
-    _bg_push_table('user_lists', ['list_type','code','added_at','price_at'],
-                   ['list_type','code'], clear_first=True,
-                   create_sql="""CREATE TABLE IF NOT EXISTS user_lists (
-                       list_type TEXT NOT NULL, code TEXT NOT NULL, added_at TEXT, price_at REAL,
-                       PRIMARY KEY (list_type, code))""")
+    # 只轉發單筆異動到 Render（不推整張表，避免 clear_first 洗掉 Render 前台資料）
+    _bg_forward_user_list(list_type, data)
     return jsonify({"status": "ok"})
 
 # ── 重點追蹤 ──────────────────────────────────────────────
