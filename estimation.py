@@ -151,6 +151,7 @@ def _backfill_actual_eps():
 # ── 系統 EPS 估算核心 ─────────────────────────────────────────
 def _get_est_common_data(code):
     """取得估算所需的共用資料（季度財報 + 月營收 + 年度財報）"""
+    max_ann_year = datetime.now().year - 1  # 排除當年度幽靈記錄
     with sqlite3.get_conn(row_factory=True) as conn:
         hist = [dict(r) for r in conn.execute("""
             SELECT * FROM quarterly_financial WHERE code = ?
@@ -164,9 +165,9 @@ def _get_est_common_data(code):
         """, (code,)).fetchall()
         rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
         ann_rows = [dict(r) for r in conn.execute("""
-            SELECT * FROM financial_annual WHERE code = ?
+            SELECT * FROM financial_annual WHERE code = ? AND year <= ?
             ORDER BY year DESC LIMIT 5
-        """, (code,)).fetchall()]
+        """, (code, max_ann_year)).fetchall()]
     return hist, rev_map, rev_rows, ann_rows
 
 
@@ -493,6 +494,8 @@ def estimate_annual_eps(code):
     """
     import statistics
 
+    west_year = datetime.now().year
+
     with sqlite3.get_conn(row_factory=True) as conn:
         # 月營收
         rev_rows = conn.execute("""
@@ -501,11 +504,12 @@ def estimate_annual_eps(code):
         """, (code,)).fetchall()
         rev_map = {(r['year'], r['month']): r['revenue'] for r in rev_rows}
 
-        # 年度財報
+        # 年度財報（排除當年度，避免只有 EPS 沒有配息的幽靈記錄影響配息率估算）
+        max_year = west_year - 1
         ann_rows = [dict(r) for r in conn.execute("""
-            SELECT * FROM financial_annual WHERE code = ?
+            SELECT * FROM financial_annual WHERE code = ? AND year <= ?
             ORDER BY year DESC LIMIT 5
-        """, (code,)).fetchall()]
+        """, (code, max_year)).fetchall()]
 
         # 季度財報（稅率/歸屬/股數用）
         q_rows = [dict(r) for r in conn.execute("""
@@ -518,7 +522,6 @@ def estimate_annual_eps(code):
     if len(ann_rows) < 2:
         return {"error": "年度財報不足（需至少 2 年）"}
 
-    west_year = datetime.now().year
     roc_year = west_year - 1911
 
     # === Step 1: 年度營收預估 ===
