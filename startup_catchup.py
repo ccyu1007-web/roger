@@ -15,7 +15,7 @@ import time
 import socket
 import subprocess
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
@@ -178,16 +178,22 @@ def reload_all_schedules():
     log(f"已重載 {len(schedules)} 個排程")
 
 
+def _last_trading_date():
+    """取得最近一個交易日（週一~週五）"""
+    d = date.today()
+    if d.weekday() >= 5:
+        # 週六→退到週五，週日→退到週五
+        d -= timedelta(days=(d.weekday() - 4))
+    return d
+
+
 def needs_catchup():
-    """檢查今天是否需要補跑（以股價 updated_at 為準，避免被 quick_update 的快照騙過）"""
+    """檢查是否需要補跑（以股價 updated_at 為準，避免被 quick_update 的快照騙過）"""
     today = date.today()
     now = datetime.now()
-    # 週六日不需要（台股休市）
-    if today.weekday() >= 5:
-        log(f"今天是{'週六' if today.weekday() == 5 else '週日'}，不需要補跑")
-        return False
+    is_weekend = today.weekday() >= 5
+    last_trade = _last_trading_date()
 
-    today_str = today.strftime('%Y-%m-%d')
     try:
         conn = sqlite3.connect(DB_PATH)
         # 檢查股價是否已更新（updated_at 只被股價更新函式設定）
@@ -198,13 +204,29 @@ def needs_catchup():
 
         if row and row[0]:
             last_update = datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
+
+            # 週末：只要最後更新日 >= 上一個交易日（週五）就不用補
+            if is_weekend:
+                if last_update.date() >= last_trade:
+                    log(f"週末，股價已在 {row[0]} 更新（最近交易日 {last_trade}），不需要補跑")
+                    return False
+                else:
+                    log(f"週末，但股價最後更新 {row[0]} 早於最近交易日 {last_trade}，需要補跑")
+                    return True
+
+            # 平日：今天已更新就不用補
             if last_update.date() == today and last_update.hour >= 14:
                 log(f"股價已在 {row[0]} 更新，不需要補跑")
                 return False
 
-        # 盤前（14:00 前）：股價尚未收盤，不需要補跑 run_prices
+        elif is_weekend:
+            log(f"週末，無股價記錄，需要補跑")
+            return True
+
+        # 平日盤前（14:00 前）：股價尚未收盤，不需要補跑 run_prices
         if now.hour < 13 or (now.hour == 13 and now.minute <= 35):
             # 但如果連快照都沒有，跑 quick_update
+            today_str = today.strftime('%Y-%m-%d')
             conn2 = sqlite3.connect(DB_PATH)
             snap = conn2.execute(
                 "SELECT COUNT(*) FROM stock_state WHERE date = ?", (today_str,)
@@ -228,12 +250,14 @@ def run_catchup():
     """執行補跑：先 quick_update 再 run_prices"""
     python = sys.executable
     now = datetime.now()
+    is_weekend = date.today().weekday() >= 5
 
     # 判斷現在時間決定跑什麼
-    # 盤後（13:35 之後）：跑 run_prices（含股價+評價+push）
-    # 盤前或盤中：只跑 quick_update（MOPS 營收/季報）
-    if now.hour >= 14 or (now.hour == 13 and now.minute >= 35):
-        log("盤後時段，執行 run_prices + quick_update...")
+    # 週末或盤後（13:35 之後）：跑 run_prices（含股價+評價+push）
+    # 平日盤前或盤中：只跑 quick_update（MOPS 營收/季報）
+    if is_weekend or now.hour >= 14 or (now.hour == 13 and now.minute >= 35):
+        label = "週末補跑" if is_weekend else "盤後時段"
+        log(f"{label}，執行 run_prices + quick_update...")
         # 先跑 quick_update 更新營收
         log("步驟 1/2：quick_update（MOPS 營收/季報）...")
         r1 = subprocess.run(
