@@ -4079,6 +4079,12 @@ function calcValMethod() {
 function saveValParams() {
   const now = new Date().toLocaleString('zh-TW');
   const params = {
+    q1: document.getElementById('estQ1').value,
+    q2: document.getElementById('estQ2').value,
+    q3: document.getElementById('estQ3').value,
+    q4: document.getElementById('estQ4').value,
+    pr: document.getElementById('annPR').value,
+    div: document.getElementById('annDiv').value,
     peHigh: document.getElementById('peHigh').value,
     peLow: document.getElementById('peLow').value,
     yldHigh: document.getElementById('yldHigh').value,
