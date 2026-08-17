@@ -1914,6 +1914,18 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
       <div style="margin-top:6px;font-size:.78rem;color:#94a3b8">目前股價位置以粗框標示</div>
     </div>
 
+    <!-- 聶夫總報酬率法 -->
+    <div class="matrix-wrap">
+      <div class="matrix-title" style="color:#b45309">聶夫總報酬率法</div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+        <div class="val-inp-group"><label>成長率（%）</label><input id="neffGrowth" type="text" placeholder="%" oninput="calcNeff()" style="width:70px"></div>
+        <div class="val-inp-group"><label>本益比</label><span class="auto-val" id="neffPE">-</span></div>
+        <div class="val-inp-group"><label>殖利率（%）</label><span class="auto-val" id="neffYld">-</span></div>
+        <div class="val-inp-group"><label style="font-weight:700;color:#b45309">Neff 比率</label><span class="auto-val" id="neffResult" style="font-weight:800;font-size:1.05rem">-</span></div>
+      </div>
+      <div id="neffNote" style="font-size:.78rem;color:#94a3b8"></div>
+    </div>
+
     <!-- 逍遙價值投資評價法 -->
     <div class="val-method">
       <div class="val-method-title">逍遙價值投資評價法</div>
@@ -2388,6 +2400,7 @@ async function initEstimator(sharesMillion) {
       if (d.peLow) document.getElementById('peLow').value = d.peLow;
       if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
       if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
+      if (d.neffGrowth) document.getElementById('neffGrowth').value = d.neffGrowth;
       // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
       if (d._vmManual) {
         if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
@@ -3317,6 +3330,42 @@ function calcValuation(annEps) {
   const yld = (div && _estPrice && _estPrice !== 0) ? div / _estPrice * 100 : null;
   document.getElementById('annYield').textContent = yld != null ? yld.toFixed(2) + '%' : '-';
   renderMatrix();
+  calcNeff();
+}
+
+function calcNeff() {
+  const peText = document.getElementById('annPE').textContent;
+  const yldText = document.getElementById('annYield').textContent;
+  const pe = peText !== '-' ? parseFloat(peText) : null;
+  const yld = yldText !== '-' ? parseFloat(yldText) : null;
+  const growth = parseFloat(document.getElementById('neffGrowth').value);
+
+  document.getElementById('neffPE').textContent = pe != null ? pe.toFixed(2) : '-';
+  document.getElementById('neffYld').textContent = yld != null ? yld.toFixed(2) + '%' : '-';
+
+  const resultEl = document.getElementById('neffResult');
+  const noteEl = document.getElementById('neffNote');
+
+  if (isNaN(growth) || pe == null || yld == null) {
+    resultEl.textContent = '-';
+    resultEl.style.color = '#334155';
+    noteEl.textContent = '';
+    return;
+  }
+
+  const totalReturn = growth + yld;
+  if (totalReturn <= 0 || pe <= 0) {
+    resultEl.textContent = '無意義';
+    resultEl.style.color = '#94a3b8';
+    noteEl.textContent = `總報酬率 = ${growth.toFixed(2)}% + ${yld.toFixed(2)}% = ${totalReturn.toFixed(2)}%（≤ 0，無法計算）`;
+    return;
+  }
+
+  const neff = totalReturn / pe;
+  resultEl.textContent = neff.toFixed(2);
+  resultEl.style.color = neff >= 0.7 ? '#dc2626' : '#64748b';
+  noteEl.textContent = `(成長率 ${growth.toFixed(2)}% + 殖利率 ${yld.toFixed(2)}%) / PE ${pe.toFixed(2)} = ${neff.toFixed(2)}` +
+    (neff >= 1.0 ? '　極具吸引力' : neff >= 0.7 ? '　具吸引力' : '　未達門檻');
 }
 
 function _updateSysValLabels() {
@@ -3949,6 +3998,7 @@ function _applyEstimateData(d) {
   if (d.peLow) document.getElementById('peLow').value = d.peLow;
   if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
   if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
+  if (d.neffGrowth) document.getElementById('neffGrowth').value = d.neffGrowth;
   // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
   if (d._vmManual) {
     if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
@@ -4089,6 +4139,7 @@ function saveValParams() {
     peLow: document.getElementById('peLow').value,
     yldHigh: document.getElementById('yldHigh').value,
     yldMax: document.getElementById('yldMax').value,
+    neffGrowth: document.getElementById('neffGrowth').value,
   };
   // vmEps/vmDiv/vmLtDiv 只在使用者手動編輯過時才存（避免自動帶入的值被當成手動設定）
   if (_vmManual) {
@@ -4141,8 +4192,8 @@ function clearValParams() {
   ['estQ1','estQ2','estQ3','estQ4','annPR','annDiv'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  // 清除 PE/殖利率
-  ['peHigh','peLow','yldHigh','yldMax'].forEach(id => {
+  // 清除 PE/殖利率 + 聶夫成長率
+  ['peHigh','peLow','yldHigh','yldMax','neffGrowth'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   // 清除逍遙評價法
@@ -4157,7 +4208,7 @@ function clearValParams() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
   ['q1','q2','q3','q4','pr','div','peHigh','peLow','yldHigh','yldMax',
-   'vmEps','vmDiv','vmLtDiv','_vmManual','valParamsDate',
+   'vmEps','vmDiv','vmLtDiv','_vmManual','valParamsDate','neffGrowth',
    'ddmEps','ddmDiv1','ddmDiv2','ddmDiv3','ddmPE','ddmRate','ddmMargin',
    'dcfFcf','dcfRate','dcfGrowth','dcfGrowthYears','dcfTermGrowth','dcfMargin'].forEach(k => delete saved[k]);
   _vmManual = false;
