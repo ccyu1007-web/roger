@@ -3043,7 +3043,7 @@ function render() {
       <td class="g-est" data-col="est_yld">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est" data-col="est_eps">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est" data-col="est_div">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
-      <td class="g-est col-div-r" data-col="est_date" style="font-size:.76rem${r.est_date && (() => { const m = r.est_date.match(/^(\d{4})\/(\d{1,2})/); const now = new Date(); return m && +m[1] === now.getFullYear() && +m[2] === now.getMonth()+1 ? ';color:#2563eb;font-weight:600' : ''; })()}">${r.est_date ? r.est_date.replace(/:\d{2}$/, '') : '－'}</td>
+      <td class="g-est col-div-r" data-col="est_date" style="font-size:.76rem${r.est_date && (() => { const m = r.est_date.match(/^(\d{4})\/(\d{1,2})/); const now = new Date(); return m && +m[1] === now.getFullYear() && +m[2] === now.getMonth()+1 ? ';color:#dc2626;font-weight:600' : ''; })()}">${r.est_date ? r.est_date.replace(/:\d{2}$/, '') : '－'}</td>
       <!-- 系統估算 -->
       <td class="g-sys col-div" data-col="sys_grade">${gradeHtml(r.sys_grade)}</td>
       <td class="g-sys" data-col="sys_pe">${r.sys_ann_pe != null ? r.sys_ann_pe.toFixed(2) : '－'}</td>
