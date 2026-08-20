@@ -557,6 +557,7 @@
           <th class="g-est" data-col="est_yld" onclick="sortBy('est_yld')">預估殖利率<span class="sort-icon" id="si_est_yld">↕</span></th>
           <th class="g-est" data-col="est_eps" onclick="sortBy('est_eps')">預估EPS<span class="sort-icon" id="si_est_eps">↕</span></th>
           <th class="g-est" data-col="est_div" onclick="sortBy('est_div')">預估股利<span class="sort-icon" id="si_est_div">↕</span></th>
+          <th class="g-est" data-col="est_neff" onclick="sortBy('est_neff')">預估Neff<span class="sort-icon" id="si_est_neff">↕</span></th>
           <th class="g-est col-div-r" data-col="est_date" onclick="sortBy('est_date')">預估日期<span class="sort-icon" id="si_est_date">↕</span></th>
           <!-- 系統估算 -->
           <th class="g-sys col-div" data-col="sys_grade" onclick="sortBy('sys_grade')">系統等級<span class="sort-icon" id="si_sys_grade">↕</span></th>
@@ -783,7 +784,7 @@ const CUSTOM_COLS = [
   ]},
   { group: '預估明細', cols: [
     { id: 'est_grade', label: '等級' }, { id: 'est_pe', label: 'PE' }, { id: 'est_yld', label: '殖利率' },
-    { id: 'est_eps', label: 'EPS' }, { id: 'est_div', label: '股利' }, { id: 'est_date', label: '日期' }
+    { id: 'est_eps', label: 'EPS' }, { id: 'est_div', label: '股利' }, { id: 'est_neff', label: 'Neff' }, { id: 'est_date', label: '日期' }
   ]},
   { group: '系統估算', cols: [
     { id: 'sys_grade', label: '等級' }, { id: 'sys_pe', label: 'PE' }, { id: 'sys_yld', label: '殖利率' },
@@ -2730,7 +2731,7 @@ function sortBy(col) {
 function applySort() {
   const numCols = ['close','change','open','high','low','volume',
                    'inst_foreign','inst_trust','inst_dealer',
-                   'change_240d','eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld',
+                   'change_240d','eps_4q_sum','trailing_pe','trailing_div','trailing_yld','trailing_grade','val_aa','val_a1','val_a2','val_a','val_lt6','shen_eps','shen_pe','shen_div','shen_yld','shen_grade','price_pos','est_eps','est_pe','est_div','est_yld','est_neff',
                    'sys_grade','sys_ann_eps','sys_ann_pe','sys_ann_yld','sys_ann_div','sys_ann_confidence',
                    'revenue_cum_yoy','revenue_yoy','revenue_mom',
                    'eps_1','eps_2','eps_3','eps_4','eps_5',
@@ -3043,6 +3044,7 @@ function render() {
       <td class="g-est" data-col="est_yld">${r.est_yld != null ? r.est_yld.toFixed(2) + '%' : '－'}</td>
       <td class="g-est" data-col="est_eps">${r.est_eps != null ? r.est_eps.toFixed(2) : '－'}</td>
       <td class="g-est" data-col="est_div">${r.est_div != null ? r.est_div.toFixed(2) : '－'}</td>
+      <td class="g-est" data-col="est_neff" style="font-weight:${r.est_neff != null && r.est_neff >= 0.7 ? '700' : '400'};color:${r.est_neff != null && r.est_neff >= 1.0 ? '#dc2626' : r.est_neff != null && r.est_neff >= 0.7 ? '#dc2626' : '#64748b'}">${r.est_neff != null ? r.est_neff.toFixed(2) : '－'}</td>
       <td class="g-est col-div-r" data-col="est_date" style="font-size:.76rem${r.est_date && (() => { const m = r.est_date.match(/^(\d{4})\/(\d{1,2})/); const now = new Date(); return m && +m[1] === now.getFullYear() && +m[2] === now.getMonth()+1 ? ';color:#dc2626;font-weight:600' : ''; })()}">${r.est_date ? r.est_date.replace(/:\d{2}$/, '') : '－'}</td>
       <!-- 系統估算 -->
       <td class="g-sys col-div" data-col="sys_grade">${gradeHtml(r.sys_grade)}</td>

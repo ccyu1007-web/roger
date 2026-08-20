@@ -321,7 +321,7 @@ DERIVED_COLS = [
     'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
     'val_aa','val_a1','val_a2','val_a','val_lt6','val_eps_used','val_div_used','val_source',
     'val_pe','val_yld',
-    'est_eps','est_div','est_pe','est_yld','est_grade','est_date',
+    'est_eps','est_div','est_pe','est_yld','est_grade','est_neff','est_date',
     'sys_pe','sys_yld','sys_grade',
     'gb_roic','gb_ey','gb_roic_rank','gb_ey_rank','gb_total_rank'
 ]
@@ -567,6 +567,16 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         r['est_grade'] = _calc_matrix_grade(r['est_pe'], r['est_yld'], pe_hi, pe_lo, y_max, y_high, y_floor)
     else:
         r['est_grade'] = None
+    # 預估Neff比率: (成長率 + 殖利率) / PE
+    _neff_growth = None
+    if user_params and user_params.get('neffGrowth'):
+        try: _neff_growth = float(user_params['neffGrowth'])
+        except (ValueError, TypeError): pass
+    if _neff_growth is not None and r['est_pe'] and r['est_pe'] > 0 and r['est_yld'] is not None:
+        _total_return = _neff_growth + r['est_yld']
+        r['est_neff'] = round(_total_return / r['est_pe'], 2) if _total_return > 0 else None
+    else:
+        r['est_neff'] = None
     # 預估日期
     r['est_date'] = user_params.get('date') or user_params.get('valParamsDate') if user_params else None
 
@@ -2179,7 +2189,7 @@ def get_stocks():
                        payout_1, payout_2, payout_3, payout_4, payout_5, payout_6,
                        val_aa, val_a1, val_a2, val_a, val_lt6,
                        val_eps_used, val_div_used,
-                       est_eps, est_div, est_pe, est_yld, est_grade, est_date,
+                       est_eps, est_div, est_pe, est_yld, est_grade, est_neff, est_date,
                        sys_pe, sys_yld, sys_grade,
                        gb_roic, gb_ey, gb_roic_rank, gb_ey_rank, gb_total_rank
                 FROM stocks WHERE 1=1"""
@@ -3057,7 +3067,7 @@ def sync_annual():
                        'payout_1','payout_2','payout_3','payout_4','payout_5','payout_6',
                        'val_aa','val_a1','val_a2','val_a','val_lt6',
                        'val_eps_used','val_div_used','val_pe','val_yld','val_source',
-                       'est_eps','est_div','est_pe','est_yld','est_grade','est_date',
+                       'est_eps','est_div','est_pe','est_yld','est_grade','est_neff','est_date',
                        'sys_pe','sys_yld','sys_grade',
                        'gb_roic','gb_ey','gb_roic_rank','gb_ey_rank','gb_total_rank']:
             if extra in r:
@@ -5147,7 +5157,7 @@ def _init_all_db():
             ('val_aa','REAL'),('val_a1','REAL'),('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
             ('val_eps_used','REAL'),('val_div_used','REAL'),
             ('val_pe','REAL'),('val_yld','REAL'),('val_source','TEXT'),
-            ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),('est_date','TEXT'),
+            ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),('est_neff','REAL'),('est_date','TEXT'),
             ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT'),
             ('gb_roic','REAL'),('gb_ey','REAL'),('gb_roic_rank','INTEGER'),('gb_ey_rank','INTEGER'),('gb_total_rank','INTEGER'),
         ]
