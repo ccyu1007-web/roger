@@ -578,8 +578,13 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
         r['est_neff'] = round(_total_return / r['est_pe'], 2) if _total_return > 0 else None
     else:
         r['est_neff'] = None
-    # 預估日期
-    r['est_date'] = user_params.get('date') or user_params.get('valParamsDate') if user_params else None
+    # 預估日期（取兩者中較新的）
+    if user_params:
+        _d1 = user_params.get('date') or ''
+        _d2 = user_params.get('valParamsDate') or ''
+        r['est_date'] = max(_d1, _d2) or None
+    else:
+        r['est_date'] = None
 
     # ── 系統估算等級 ──
     _sys_eps = r.get('sys_ann_eps')

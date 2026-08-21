@@ -233,7 +233,7 @@ def _pull_user_estimates_from_render():
             existing = conn.execute('SELECT params FROM user_estimates WHERE code=?', (code,)).fetchone()
             if existing and existing[0]:
                 local_params = json.loads(existing[0])
-                merged = {**params, **local_params}  # 本機 key 優先
+                merged = {**local_params, **params}  # Render 優先（使用者主要在 Render 操作）
                 merged_str = json.dumps(merged, ensure_ascii=False)
                 if merged_str != existing[0]:
                     conn.execute('UPDATE user_estimates SET params=?, updated_at=? WHERE code=?',
