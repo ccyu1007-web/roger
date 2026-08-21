@@ -6133,6 +6133,9 @@ def save_user_estimate(code):
     # 即時重算該股衍生欄位（評價門檻等）+ 檢核表
     try: recalc_all_derived(codes=[code])
     except Exception: pass
+    global _stocks_cache_time
+    with _cache_lock:
+        _stocks_cache_time = 0  # 清快取，讓總表立刻反映新預估值
     # Render 不跑 checklist 重算（financial_annual 欄位不完整會算出 null，蓋掉本機推過去的正確資料）
     if not os.environ.get('DATABASE_URL'):
         try: _recalc_checklist_single(code)
