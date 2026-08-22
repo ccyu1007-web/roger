@@ -5250,8 +5250,9 @@ def _init_user_lists():
         try: conn.rollback()
         except: pass
     # 質性研究結構化欄位
-    for col in ['moat_strength', 'moat_source', 'structural_risk',
-                'structural_risk_desc', 'growth_catalyst', 'confidence', 'lynch_override']:
+    for col in ['moat_strength', 'moat_source', 'moat_trend', 'structural_risk',
+                'structural_risk_desc', 'growth_catalyst', 'investment_monitor',
+                'confidence', 'lynch_override']:
         try:
             c.execute(f"ALTER TABLE user_notes ADD COLUMN {col} TEXT")
             conn.commit()
