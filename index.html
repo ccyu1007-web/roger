@@ -1231,7 +1231,7 @@ function openHoldPanel() {
 function renderHoldPanel(panel) {
   if (!panel) panel = document.getElementById('holdPanel');
   if (!panel) return;
-  const items = [...holdSet].map(code => {
+  const items = [...holdSet].sort().map(code => {
     const stock = allData.find(r => r.code === code);
     const name = stock ? stock.name : '';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9">
