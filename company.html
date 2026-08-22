@@ -2649,6 +2649,40 @@ function _renderNotesPreview() {
   }
 }
 
+function _getMonitorTags() {
+  const tags = [];
+  document.querySelectorAll('#monitorTags span[data-tag]').forEach(el => tags.push(el.getAttribute('data-tag')));
+  return tags;
+}
+
+function _renderMonitorTags(items) {
+  const container = document.getElementById('monitorTags');
+  if (!container) return;
+  container.innerHTML = items.map((item, i) =>
+    `<span data-tag="${item.replace(/"/g,'&quot;')}" style="display:inline-flex;align-items:center;gap:2px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:12px;font-size:.78rem">${item}<span onclick="removeMonitorTag(${i})" style="cursor:pointer;margin-left:2px;color:#94a3b8;font-weight:700">&times;</span></span>`
+  ).join('');
+}
+
+function addMonitorTag() {
+  const input = document.getElementById('monitorInput');
+  const val = (input?.value || '').trim();
+  if (!val) return;
+  const tags = _getMonitorTags();
+  if (!tags.includes(val)) {
+    tags.push(val);
+    _renderMonitorTags(tags);
+    onMetaChange();
+  }
+  input.value = '';
+}
+
+function removeMonitorTag(idx) {
+  const tags = _getMonitorTags();
+  tags.splice(idx, 1);
+  _renderMonitorTags(tags);
+  onMetaChange();
+}
+
 function _collectMeta() {
   const moatEl = document.querySelector('input[name="nm_moat"]:checked');
   const moatTrendEl = document.querySelector('input[name="nm_moat_trend"]:checked');
@@ -2663,7 +2697,7 @@ function _collectMeta() {
     structural_risk: riskEl ? riskEl.value : '',
     structural_risk_desc: (document.getElementById('riskDesc')?.value || '').trim(),
     growth_catalyst: (document.getElementById('growthCat')?.value || '').trim(),
-    investment_monitor: (document.getElementById('investMonitor')?.value || '').trim(),
+    investment_monitor: JSON.stringify(_getMonitorTags()),
     confidence: confEl ? confEl.value : '',
     lynch_override: document.getElementById('lynchOver')?.value || ''
   };
@@ -2748,6 +2782,8 @@ async function loadNotes() {
     const m = window._notesMeta;
     let moatSources = [];
     try { moatSources = JSON.parse(m.moat_source || '[]'); } catch(e) { moatSources = []; }
+    let monitorItems = [];
+    try { monitorItems = JSON.parse(m.investment_monitor || '[]'); } catch(e) { monitorItems = []; }
     const moatOpts = ['品牌','轉換成本','網路效應','成本優勢','技術與專利','認證與客戶驗證','規模經濟','供應鏈地位'];
     const lynchOpts = ['','緩慢成長','穩健股','快速成長','景氣循環','轉機股','資產股'];
 
@@ -2782,7 +2818,13 @@ async function loadNotes() {
           </div>
           <div>
             <label style="font-weight:600;color:#334155">追蹤指標</label><br>
-            <input id="investMonitor" type="text" value="${(m.investment_monitor||'').replace(/"/g,'&quot;')}" placeholder="未來追蹤的指標或事件（JSON array）" onchange="onMetaChange()" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem;width:300px">
+            <div id="monitorTags" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">
+              ${monitorItems.map((item, i) => `<span data-tag="${item.replace(/"/g,'&quot;')}" style="display:inline-flex;align-items:center;gap:2px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:12px;font-size:.78rem">${item}<span onclick="removeMonitorTag(${i})" style="cursor:pointer;margin-left:2px;color:#94a3b8;font-weight:700">&times;</span></span>`).join('')}
+            </div>
+            <div style="display:flex;gap:4px">
+              <input id="monitorInput" type="text" placeholder="輸入追蹤指標，按 Enter 新增" onkeydown="if(event.key==='Enter'){event.preventDefault();addMonitorTag()}" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem;width:240px">
+              <button onclick="addMonitorTag()" style="padding:2px 8px;border:1px solid #0369a1;border-radius:4px;background:#fff;color:#0369a1;font-size:.75rem;cursor:pointer">+</button>
+            </div>
           </div>
           <div>
             <label style="font-weight:600;color:#334155">信心度</label><br>
