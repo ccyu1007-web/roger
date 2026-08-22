@@ -4160,6 +4160,7 @@ function saveValParams() {
   }
   Object.assign(saved, params);
   saved.valParamsDate = now;
+  saved.date = now;
   localStorage.setItem('estimate_' + CODE, JSON.stringify(saved));
   // 同步到 DB（後端會觸發 recalc_all_derived 重算門檻）
   fetch(`/api/user-estimates/${CODE}`, {
@@ -4183,6 +4184,7 @@ function saveValParams() {
     }
   }).catch(() => {});
   document.getElementById('valParamsDate').textContent = '已儲存：' + now;
+  document.getElementById('estDate').textContent = '已儲存：' + now;
   renderMatrix();
 }
 
@@ -4297,6 +4299,7 @@ function saveEstimate() {
     yldHigh: document.getElementById('yldHigh').value,
     yldMax: document.getElementById('yldMax').value,
     date: now,
+    valParamsDate: now,
   };
   // vmEps/vmDiv/vmLtDiv 只在手動編輯過時才存（避免自動帶入的值被當成手動設定）
   if (_vmManual) {
@@ -4339,6 +4342,7 @@ function saveEstimate() {
     }
   }).catch(() => {});
   document.getElementById('estDate').textContent = '已儲存：' + now;
+  document.getElementById('valParamsDate').textContent = '已儲存：' + now;
 }
 
 function clearEstimateQ() {
