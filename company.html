@@ -1917,20 +1917,13 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <!-- 聶夫總報酬率法 -->
     <div class="matrix-wrap">
       <div class="matrix-title" style="color:#b45309">聶夫總報酬率法</div>
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
         <div class="val-inp-group"><label>自訂成長率（%）</label><input id="neffGrowth" type="text" placeholder="%" oninput="calcNeff()" style="width:70px"></div>
         <div class="val-inp-group"><label>預估本益比</label><span class="auto-val" id="neffPE">-</span></div>
         <div class="val-inp-group"><label>預估殖利率（%）</label><span class="auto-val" id="neffYld">-</span></div>
         <div class="val-inp-group"><label style="font-weight:700;color:#b45309">前瞻性 Neff 比率</label><span class="auto-val" id="neffResult" style="font-weight:800;font-size:1.05rem">-</span></div>
       </div>
       <div id="neffNote" style="font-size:.78rem;color:#94a3b8"></div>
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0">
-        <div class="val-inp-group"><label style="color:#64748b">EPS 成長率（%）</label><span class="auto-val" id="neffTrailGrowth" style="color:#64748b">-</span></div>
-        <div class="val-inp-group"><label style="color:#64748b">近4季本益比</label><span class="auto-val" id="neffTrailPE" style="color:#64748b">-</span></div>
-        <div class="val-inp-group"><label style="color:#64748b">近4季殖利率（%）</label><span class="auto-val" id="neffTrailYld" style="color:#64748b">-</span></div>
-        <div class="val-inp-group"><label style="font-weight:700;color:#64748b">原始 Neff 比率</label><span class="auto-val" id="neffTrailResult" style="font-weight:800;font-size:1.05rem;color:#64748b">-</span></div>
-      </div>
-      <div id="neffTrailNote" style="font-size:.78rem;color:#94a3b8"></div>
     </div>
 
     <!-- 逍遙價值投資評價法 -->
@@ -3371,62 +3364,8 @@ function calcNeff() {
         (neff >= 1.0 ? '　極具吸引力' : neff >= 0.7 ? '　具吸引力' : '　未達門檻');
     }
   }
-
-  // === 對照組：原始 Neff 比率 ===
-  const trailGrowthEl = document.getElementById('neffTrailGrowth');
-  const trailPEEl = document.getElementById('neffTrailPE');
-  const trailYldEl = document.getElementById('neffTrailYld');
-  const trailResultEl = document.getElementById('neffTrailResult');
-  const trailNoteEl = document.getElementById('neffTrailNote');
-
-  const stock = _stockData;
-  if (!stock || !_estPrice || _estPrice <= 0) {
-    trailGrowthEl.textContent = '-'; trailPEEl.textContent = '-';
-    trailYldEl.textContent = '-'; trailResultEl.textContent = '-';
-    trailNoteEl.textContent = '';
     return;
   }
-
-  // 近4季EPS加總
-  const eps4 = [1,2,3,4].map(i => stock[`eps_${i}`]).filter(v => v != null);
-  const trail4qEps = eps4.length === 4 ? Math.round(eps4.reduce((a,v) => a+v, 0) * 100) / 100 : null;
-
-  // 預估年EPS（從估計表讀取）
-  const q1 = parseNum('estQ1'), q2 = parseNum('estQ2'), q3 = parseNum('estQ3'), q4 = parseNum('estQ4');
-  const estParts = [q1, q2, q3, q4].filter(v => v != null);
-  const estAnnEps = estParts.length > 0 ? estParts.reduce((a, b) => a + b, 0) : null;
-
-  // EPS成長率 = (預估EPS - 近4季EPS) / 近4季EPS * 100
-  const epsGrowth = (estAnnEps != null && trail4qEps != null && trail4qEps > 0)
-    ? (estAnnEps - trail4qEps) / trail4qEps * 100 : null;
-
-  // 近4季本益比
-  const trailPE = (trail4qEps != null && trail4qEps > 0) ? _estPrice / trail4qEps : null;
-
-  // 近4季殖利率 = (最近一期現金股利 + 最近一期股票股利) / 目前股價
-  const latestCashDiv = stock.div_c1 || 0;
-  const latestStockDiv = stock.div_s1 || 0;
-  const latestTotalDiv = latestCashDiv + latestStockDiv;
-  const trailYld = (latestTotalDiv > 0 && _estPrice > 0) ? latestTotalDiv / _estPrice * 100 : null;
-
-  trailGrowthEl.textContent = epsGrowth != null ? epsGrowth.toFixed(2) + '%' : '-';
-  trailPEEl.textContent = trailPE != null ? trailPE.toFixed(2) : '-';
-  trailYldEl.textContent = trailYld != null ? trailYld.toFixed(2) + '%' : '-';
-
-  if (epsGrowth == null || trailPE == null || trailYld == null) {
-    trailResultEl.textContent = '-'; trailNoteEl.textContent = ''; return;
-  }
-  const trailTotal = epsGrowth + trailYld;
-  if (trailTotal <= 0 || trailPE <= 0) {
-    trailResultEl.textContent = '無意義'; trailResultEl.style.color = '#94a3b8';
-    trailNoteEl.textContent = `總報酬率 = ${epsGrowth.toFixed(2)}% + ${trailYld.toFixed(2)}% = ${trailTotal.toFixed(2)}%（≤ 0，無法計算）`;
-    return;
-  }
-  const trailNeff = trailTotal / trailPE;
-  trailResultEl.textContent = trailNeff.toFixed(2);
-  trailResultEl.style.color = trailNeff >= 0.7 ? '#dc2626' : '#94a3b8';
-  trailNoteEl.textContent = `(EPS成長率 ${epsGrowth.toFixed(2)}% + 殖利率 ${trailYld.toFixed(2)}%) / PE ${trailPE.toFixed(2)} = ${trailNeff.toFixed(2)}` +
-    (trailNeff >= 1.0 ? '　極具吸引力' : trailNeff >= 0.7 ? '　具吸引力' : '　未達門檻');
 }
 
 function _updateSysValLabels() {
