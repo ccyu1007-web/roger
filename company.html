@@ -2463,35 +2463,62 @@ function getAnalysisPrompt() {
 4. 優先查閱：公開資訊觀測站(MOPS)、公司年報、法說會簡報/紀錄、MoneyDJ，其次才用新聞報導。
 5. 用 Markdown 格式回傳（## 標題、**粗體**、條列、段落間空行）。
 6. 估值與財務體質已由系統處理，本分析不涵蓋。
+7. 來源只能支持「事實」，不能把來源本身當成「判斷的證明」。所有因果關係、競爭優勢、成長推論及風險重要性仍須標示 [判斷]。管理層的預期、目標、展望或預測，應標示為公司說法，不得直接視為已發生事實；若據此推導未來影響，仍須標示 [判斷]。
+8. 涉及目前競爭地位、客戶結構、訂單、產能、產品需求或產業環境的判斷，應優先採用最近一期年報、季報、法說會或其他近期公開資料；若只有舊資料，須明確標示資料年份，不得將歷史資料直接視為目前狀況。
+9. 產業層面的風險或趨勢不得直接視為公司風險。必須說明該產業因素如何透過產品、客戶、價格、市佔率、成本或競爭地位實際影響該公司，才能列為公司的重大風險。[判斷]
 
 ---
 
 ## 一、公司速描（3~5行）
-主營業務、怎麼賺錢、營收結構（依產品線/地區/客戶佔比，附來源，查不到標待查證）。最近完整年度營收與 EPS。產業處於成長/成熟/衰退哪個階段。
+主營業務、怎麼賺錢、營收結構（依產品線/地區/客戶佔比，附來源，查不到標待查證）。最近完整年度營收與 EPS（附來源）。產業處於成長/成熟/衰退哪個階段。[判斷]
 
-## 二、護城河
-- 第一行給結論：護城河強度（寬/窄/無）+ 核心來源。
-- 針對最關鍵的 1~2 個護城河來源展開（每個 3~5 行，含具體數據、客戶名、市佔率佐證，附來源）。不需要四個來源都列，只講真正構成優勢的。
-- 前五大客戶/供應商集中度（附來源，查不到標待查證）。
+## 二、核心投資論點（2~3句話）[判斷]
+1. 投資人目前買這家公司，主要是在買什麼？
+2. 未來 1~2 年的主要成長來源是什麼？
+3. 什麼近期可觀察的事件或指標出現時，代表這個投資論點可能失效？
+
+若分析後判斷公司目前不具備明確且具說服力的投資論點，應直接寫明「目前未找到具說服力的投資理由」，不得為了完成格式而強行建立投資論點。
+
+## 三、護城河
+- 第一行給結論：護城河強度（強/中/弱/無）+ 核心來源 + 趨勢（變強/穩定/變弱）。
+- 針對最關鍵的 1~2 個護城河來源展開（每個 3~5 行，含具體數據、客戶名、市佔率佐證，附來源）。不需要所有來源都列，只講真正構成優勢的。
+- 不得僅以市佔率、營收規模或獲利率高判定護城河。必須說明競爭者為何難以複製該優勢，以及該優勢是否能長期維持。
+- 護城河趨勢必須根據近年可觀察的競爭地位、客戶黏著度、市佔率、產品認證、技術能力、成本優勢或競爭者進入情況判定，不得僅因營收或獲利成長即判定護城河變強。
+- 前五大客戶及前五大供應商集中度（附來源，查不到者標「待查證」）。
 - 最後一行：最可能讓護城河變淺的單一最大威脅。
 
-## 三、成長亮點（未來 1~2 年）
+## 四、成長亮點（未來 1~2 年）
 - 已發生的近期催化劑（新合約、擴產、法說會釋出訊息，附來源與時間）。
-- 未來 1~2 年最可能推動營收或獲利的 1~2 個驅動力，說明邏輯鏈 [來源/判斷]。
+- 未來 1~2 年最可能推動營收或獲利的 1~2 個驅動力。必須區分「已發生／已確認事實」與「推論判斷」，事實附來源，推論標 [判斷]。
 
-## 四、注意事項
-- 目前好數字在什麼情境下不持續？（景氣循環、一次性收益、客戶流失等）[來源/判斷]
-- 最強空方論點（一段話）[判斷]。
-- 本次分析的資料盲區（查不到或來源過舊的關鍵數據）。
+## 五、注意事項
+- **目前好數字在什麼情境下不持續？**
+  聚焦未來 24 個月內可能發生、且已有近期證據支持的 1~2 個核心因素（景氣循環、產品價格、客戶訂單、競爭、產能、一次性收益等）。[來源/判斷]
+  不得僅以缺乏近期證據的長期假設推演。
+
+- **最強空方論點（一段話）[判斷]**
+  只提出一個目前最值得投資人關注的空方因素。必須同時考量「發生可能性 × 對獲利影響 × 發生時間 × 可驗證性」。優先選擇未來 24 個月內已有證據、且足以使目前投資論點失效的風險。優先選擇能以未來財報、法說會、訂單、客戶動態或產業數據持續驗證的風險。
+  空方論點必須同時檢查近期是否存在反向證據——若公司近期數據已明顯反駁該風險，降低其重要性，不得僅因理論上可能發生就列為重大風險。
+  若目前沒有足以推翻投資論點的重大空方因素，明確寫「目前未發現足以推翻投資論點的重大空方因素」，不得為了湊出空方論點而強行推演。
+
+- **長期潛在風險（最多 1~2 項）**
+  若存在主要影響時間在 3~5 年以上的結構性風險，不得與近期空方風險混為一談；若目前缺乏明確證據，僅列為「長期觀察事項」。[判斷]
+  若不存在具體且值得追蹤的長期結構性風險，則不需列出。
+  此項不等同於 structural_risk；只有目前已出現且已有近期證據支持的結構性問題，才能填 structural_risk＝「有」。
+
+- **本次分析的資料盲區**
+  列出真正會影響判斷、但目前查不到或來源過舊的關鍵資料。
 
 【完成後自動寫入 Render（含結構化摘要）】
 分析完成後，根據分析內容填寫結構化欄位，然後連同筆記一起寫入 Render：
 - moat_strength：從分析中判斷，填「強/中/弱/無」
-- moat_source：JSON array，從「品牌/轉換成本/網路效應/成本優勢」中選
-- structural_risk：填「有/無」
+- moat_source：JSON array，從「品牌/轉換成本/網路效應/成本優勢/技術與專利/認證與客戶驗證/規模經濟/供應鏈地位」中選
+- moat_trend：填「變強/穩定/變弱」
+- structural_risk：只有在公司目前已出現、已有近期證據支持，且可能持續影響未來 24 個月以上競爭地位或獲利能力的結構性問題時才填「有」。景氣循環、短期需求下降、原物料波動或尚無近期證據的長期假設，不得判定為結構性風險
 - structural_risk_desc：有風險時簡述
-- growth_catalyst：從第三段摘要近期催化劑
-- confidence：綜合資料完整度判斷，填「高/中/低」
+- growth_catalyst：從成長亮點摘要近期催化劑
+- investment_monitor：未來 6~24 個月最值得持續追蹤的 2~3 個指標或事件，JSON array。不僅包含風險，也包含用來驗證成長與投資論點是否如預期發展的正面指標
+- confidence：綜合判斷「資料完整度」+「關鍵判斷是否有直接證據」，填「高/中/低」。資料多但關鍵問題（客戶集中度、訂單能見度、競爭地位）缺乏直接證據時，不得填「高」。若核心投資論點主要建立於管理層預期、產業推估或間接證據，而非已發生的客觀數據，不得填「高」
 - lynch_override：通常留空（自動判斷），除非分類明顯不合理才填
 
 python3 << 'PYEOF'
@@ -2500,9 +2527,11 @@ content = """（完整 Markdown 質性研究筆記）"""
 meta = {
     "moat_strength": "（強/中/弱/無）",
     "moat_source": "（JSON array，如 [\\"品牌\\",\\"轉換成本\\"]）",
+    "moat_trend": "（變強/穩定/變弱）",
     "structural_risk": "（有/無）",
     "structural_risk_desc": "（風險說明，無則空字串）",
     "growth_catalyst": "（近期催化劑摘要）",
+    "investment_monitor": "（JSON array，如 [\\"主要客戶訂單趨勢\\",\\"新產能稼動率\\"]）",
     "confidence": "（高/中/低）",
     "lynch_override": ""
 }
@@ -2533,7 +2562,7 @@ function copyFormatPrompt() {
   const prompt = `請幫我將以下 ${CODE} ${name} 的質性研究筆記重新排版為 Markdown 格式，然後直接用 API 寫入 Render。
 
 【排版規則】
-1. 用 ## 標題分區（一、二、三、四）
+1. 用 ## 標題分區（一、二、三、四、五）
 2. 用 **粗體** 標示重點
 3. 用 - 條列呈現清單
 4. 段落間空行
@@ -2542,11 +2571,11 @@ function copyFormatPrompt() {
 7. 不改動任何內容文字，只調整格式
 
 【完成後直接寫入 Render（含結構化摘要）】
-排版完成後，根據筆記內容填寫結構化欄位（moat_strength/moat_source/structural_risk/structural_risk_desc/growth_catalyst/confidence/lynch_override），連同排版後的內容一起用 POST 寫入：
+排版完成後，根據筆記內容填寫結構化欄位（moat_strength/moat_source/moat_trend/structural_risk/structural_risk_desc/growth_catalyst/investment_monitor/confidence/lynch_override），連同排版後的內容一起用 POST 寫入：
 python3 -c "
 import json, urllib.request
 content = '''（排版後的內容）'''
-meta = {'moat_strength':'','moat_source':'[]','structural_risk':'','structural_risk_desc':'','growth_catalyst':'','confidence':'','lynch_override':''}
+meta = {'moat_strength':'','moat_source':'[]','moat_trend':'','structural_risk':'','structural_risk_desc':'','growth_catalyst':'','investment_monitor':'[]','confidence':'','lynch_override':''}
 data = json.dumps({'content': content, 'meta': meta}).encode('utf-8')
 req = urllib.request.Request('https://tock-system.onrender.com/api/user-notes/${CODE}', data=data, headers={'Content-Type': 'application/json'}, method='POST')
 print(urllib.request.urlopen(req, timeout=30).read().decode())
@@ -2622,6 +2651,7 @@ function _renderNotesPreview() {
 
 function _collectMeta() {
   const moatEl = document.querySelector('input[name="nm_moat"]:checked');
+  const moatTrendEl = document.querySelector('input[name="nm_moat_trend"]:checked');
   const riskEl = document.querySelector('input[name="nm_risk"]:checked');
   const confEl = document.querySelector('input[name="nm_conf"]:checked');
   const srcs = [];
@@ -2629,9 +2659,11 @@ function _collectMeta() {
   return {
     moat_strength: moatEl ? moatEl.value : '',
     moat_source: JSON.stringify(srcs),
+    moat_trend: moatTrendEl ? moatTrendEl.value : '',
     structural_risk: riskEl ? riskEl.value : '',
     structural_risk_desc: (document.getElementById('riskDesc')?.value || '').trim(),
     growth_catalyst: (document.getElementById('growthCat')?.value || '').trim(),
+    investment_monitor: (document.getElementById('investMonitor')?.value || '').trim(),
     confidence: confEl ? confEl.value : '',
     lynch_override: document.getElementById('lynchOver')?.value || ''
   };
@@ -2693,9 +2725,11 @@ async function loadNotes() {
     window._notesMeta = {
       moat_strength: noteData.moat_strength || '',
       moat_source: noteData.moat_source || '',
+      moat_trend: noteData.moat_trend || '',
       structural_risk: noteData.structural_risk || '',
       structural_risk_desc: noteData.structural_risk_desc || '',
       growth_catalyst: noteData.growth_catalyst || '',
+      investment_monitor: noteData.investment_monitor || '',
       confidence: noteData.confidence || '',
       lynch_override: noteData.lynch_override || ''
     };
@@ -2714,7 +2748,7 @@ async function loadNotes() {
     const m = window._notesMeta;
     let moatSources = [];
     try { moatSources = JSON.parse(m.moat_source || '[]'); } catch(e) { moatSources = []; }
-    const moatOpts = ['品牌','轉換成本','網路效應','成本優勢'];
+    const moatOpts = ['品牌','轉換成本','網路效應','成本優勢','技術與專利','認證與客戶驗證','規模經濟','供應鏈地位'];
     const lynchOpts = ['','緩慢成長','穩健股','快速成長','景氣循環','轉機股','資產股'];
 
     const structPanel = `
@@ -2733,6 +2767,10 @@ async function loadNotes() {
             ${moatOpts.map(v => `<label style="margin-right:8px"><input type="checkbox" class="cb_moat_src" value="${v}" ${moatSources.includes(v)?'checked':''} onchange="onMetaChange()"> ${v}</label>`).join('')}
           </div>
           <div>
+            <label style="font-weight:600;color:#334155">護城河趨勢</label><br>
+            ${['變強','穩定','變弱'].map(v => `<label style="margin-right:8px"><input type="radio" name="nm_moat_trend" value="${v}" ${m.moat_trend===v?'checked':''} onchange="onMetaChange()"> ${v}</label>`).join('')}
+          </div>
+          <div>
             <label style="font-weight:600;color:#334155">結構性風險</label><br>
             <label style="margin-right:8px"><input type="radio" name="nm_risk" value="有" ${m.structural_risk==='有'?'checked':''} onchange="onMetaChange()"> 有</label>
             <label><input type="radio" name="nm_risk" value="無" ${m.structural_risk==='無'?'checked':''} onchange="onMetaChange()"> 無</label>
@@ -2741,6 +2779,10 @@ async function loadNotes() {
           <div>
             <label style="font-weight:600;color:#334155">成長催化劑</label><br>
             <input id="growthCat" type="text" value="${(m.growth_catalyst||'').replace(/"/g,'&quot;')}" placeholder="近期成長驅動因素" onchange="onMetaChange()" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem;width:240px">
+          </div>
+          <div>
+            <label style="font-weight:600;color:#334155">追蹤指標</label><br>
+            <input id="investMonitor" type="text" value="${(m.investment_monitor||'').replace(/"/g,'&quot;')}" placeholder="未來追蹤的指標或事件（JSON array）" onchange="onMetaChange()" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem;width:300px">
           </div>
           <div>
             <label style="font-weight:600;color:#334155">信心度</label><br>
