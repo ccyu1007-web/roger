@@ -197,6 +197,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
             prev = rev_map.get((west_year - 1, m))
             est_m = 0
             if prev:
+                # 方法1: 近12個月逐月YoY平均
                 growths = []
                 for rm in rev_rows:
                     ry, rmm = rm['year'], rm['month']
@@ -205,8 +206,25 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
                         growths.append(rm['revenue'] / prev_rev)
                         if len(growths) >= 12:
                             break
-                avg_growth = statistics.mean(growths) if growths else 1.0
-                est_m = prev * avg_growth
+                avg_12m = statistics.mean(growths) if growths else 1.0
+
+                # 方法2: 累積YTD YoY
+                ytd_cur = sum(rev_map.get((west_year, mm), 0)
+                              for mm in range(1, m) if rev_map.get((west_year, mm)))
+                ytd_prev = sum(rev_map.get((west_year - 1, mm), 0)
+                               for mm in range(1, m) if rev_map.get((west_year, mm)))
+                if ytd_cur > 0 and ytd_prev > 0:
+                    ytd_yoy = ytd_cur / ytd_prev
+                else:
+                    ytd_yoy = avg_12m
+
+                # 動態混合：已公佈月數越多，越信任累積YoY
+                n_ytd = sum(1 for mm in range(1, m)
+                            if rev_map.get((west_year, mm)))
+                w = n_ytd / 12
+                blended_growth = w * ytd_yoy + (1 - w) * avg_12m
+
+                est_m = prev * blended_growth
             elif hist and hist[0].get('revenue'):
                 est_m = hist[0]['revenue'] / 3
             est_rev_total += est_m
