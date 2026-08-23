@@ -540,6 +540,11 @@ Render 上群益被擋、公開資訊觀測站也不穩，所以**所有資料�
 35. Render 端 `/api/sync/table` 萬用接收 API（白名單控管），支援自動建表 + UPSERT
 36. 目前同步的表：stocks/quarterly_financial/financial_annual/pe_history/monthly_revenue/stock_state/material_news/etf_holdings/etf_changes/user_lists/user_notes/daily_notes/industry_news/user_settings/user_estimates/stock_checklist/daily_price/focus_tracking/focus_signals/portfolios/portfolio_holdings
 
+#### Agent 背景任務（重大踩坑！）
+35a. **Agent 不可自行寫入 DB 或 Render**：用 Agent 背景跑質性研究筆記、投資報告等產出任務時，prompt 必須明確寫「只回傳內容，不要自行寫入任何 DB、API 或檔案」。由主流程統一寫入：本機 DB 先寫 → push Render。
+35b. **踩坑教訓**：2026-08-22 跑 10 支持股質性筆記，金洲/華研的 agent 自作主張寫入本機 stocks.db，觸發同步後把所有股票的舊版筆記推上 Render，覆蓋已寫入的新版。4536 拓凱被覆蓋兩次。
+35c. **質性筆記/投資報告寫入流程**：產出內容 → 寫入本機 `user_notes`/`investment_report` → POST 到 Render API。不可跳過本機 DB 直接寫 Render（否則下次同步會用本機舊版覆蓋）。
+
 ---
 
 ### 系統架構原則：資料一致性
