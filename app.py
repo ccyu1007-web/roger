@@ -5220,10 +5220,160 @@ if os.environ.get('DATABASE_URL'):
                 _gi_cache = None
                 _gi_cache_time = 0
 
+        def _cloud_update_prices():
+            """Render 雲端股價更新：政府 API 批次收盤價 + 衍生重算 + 快照。
+            本機近 20 分鐘內已更新則跳過（避免重複計算）。"""
+            import gc
+            from datetime import datetime, date, timedelta
+            try:
+                # 週末不跑
+                if datetime.now().weekday() >= 5:
+                    return
+                # 本機近 20 分鐘內已 push → 跳過
+                try:
+                    with db.get_conn() as conn:
+                        row = conn.execute(
+                            "SELECT updated_at FROM stocks WHERE updated_at IS NOT NULL ORDER BY updated_at DESC LIMIT 1"
+                        ).fetchone()
+                    if row and row[0]:
+                        last = datetime.strptime(str(row[0])[:19], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() - last < timedelta(minutes=20):
+                            print("[雲端股價] 本機近期已更新，跳過")
+                            return
+                except Exception:
+                    pass
+
+                from scraper import fetch_twse, fetch_tpex, _sync_eps_from_quarterly
+                twse_rows = fetch_twse()
+                tpex_rows = fetch_tpex()
+                all_rows = twse_rows + tpex_rows
+                if not all_rows:
+                    print("[雲端股價] 無資料")
+                    return
+
+                now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                today_str = date.today().strftime('%Y-%m-%d')
+                with db.get_conn() as conn:
+                    c = conn.cursor()
+                    for r in all_rows:
+                        c.execute("""UPDATE stocks SET
+                            close=?, change=?, open=?, high=?, low=?, volume=?, updated_at=?
+                            WHERE code=?""",
+                            (r.get('close'), r.get('change'), r.get('open'),
+                             r.get('high'), r.get('low'), r.get('volume'),
+                             now_str, r['code']))
+                        if r.get('close'):
+                            c.execute("""INSERT INTO daily_price (code, date, close_price, volume)
+                                VALUES (?, ?, ?, ?)
+                                ON CONFLICT(code, date) DO UPDATE SET
+                                close_price=excluded.close_price, volume=excluded.volume""",
+                                (r['code'], today_str, r['close'], r.get('volume')))
+                    conn.commit()
+                print(f"[雲端股價] 更新 {len(all_rows)} 支")
+                gc.collect()
+
+                try:
+                    _sync_eps_from_quarterly()
+                    recalc_all_derived()
+                except Exception as e:
+                    print(f"[雲端股價] 重算失敗: {e}")
+                gc.collect()
+
+                try:
+                    from guardian import snapshot_stock_states
+                    snapshot_stock_states()
+                except Exception as e:
+                    print(f"[雲端股價] 快照失敗: {e}")
+
+                try:
+                    calc_all_checklists()
+                except Exception as e:
+                    print(f"[雲端股價] checklist失敗: {e}")
+
+            except Exception as e:
+                print(f"[雲端股價] 失敗: {e}")
+                import traceback; traceback.print_exc()
+            gc.collect()
+            # 清快取
+            global _stocks_cache, _stocks_cache_time, _gi_cache, _gi_cache_time
+            with _cache_lock:
+                _stocks_cache = None
+                _stocks_cache_time = 0
+                _gi_cache = None
+                _gi_cache_time = 0
+
+        def _cloud_quick_update():
+            """Render 雲端營收/季報更新（MOPS + 政府 API，不含群益）。
+            本機近 20 分鐘內已更新則跳過。"""
+            import gc
+            from datetime import datetime, date, timedelta
+            try:
+                # 本機近 20 分鐘內已 push → 跳過
+                try:
+                    with db.get_conn() as conn:
+                        row = conn.execute(
+                            "SELECT updated_at FROM stocks WHERE updated_at IS NOT NULL ORDER BY updated_at DESC LIMIT 1"
+                        ).fetchone()
+                    if row and row[0]:
+                        last = datetime.strptime(str(row[0])[:19], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() - last < timedelta(minutes=20):
+                            print("[雲端營收] 本機近期已更新，跳過")
+                            return
+                except Exception:
+                    pass
+
+                # MOPS 即時營收
+                try:
+                    from mops_fetcher import fetch_mops_monthly_revenue
+                    cnt = fetch_mops_monthly_revenue()
+                    if cnt:
+                        print(f"[雲端營收] MOPS: {cnt} 筆")
+                except Exception as e:
+                    print(f"[雲端營收] MOPS失敗: {e}")
+                gc.collect()
+
+                # MOPS 季報
+                try:
+                    from mops_fetcher import fetch_latest_mops_quarterly
+                    cnt = fetch_latest_mops_quarterly()
+                    if cnt and cnt > 0:
+                        from scraper import _sync_eps_from_quarterly
+                        _sync_eps_from_quarterly()
+                        print(f"[雲端季報] MOPS: {cnt} 筆")
+                except Exception as e:
+                    print(f"[雲端季報] 失敗: {e}")
+                gc.collect()
+
+                # MOPS 季度 BS（存貨/合約負債）
+                try:
+                    from mops_fetcher import fetch_mops_quarterly_bs
+                    fetch_mops_quarterly_bs()
+                except Exception as e:
+                    print(f"[雲端BS] 失敗: {e}")
+
+                # 政府 API 批次營收
+                try:
+                    from scraper import _quick_gov_revenue
+                    _quick_gov_revenue(date.today().strftime('%Y-%m-%d'))
+                except Exception as e:
+                    print(f"[雲端營收] 政府API失敗: {e}")
+
+            except Exception as e:
+                print(f"[雲端營收] 整體失敗: {e}")
+                import traceback; traceback.print_exc()
+            gc.collect()
+
         _news_scheduler.add_job(_cloud_fetch_news, 'interval', minutes=60, id='cloud_news',
                                 next_run_time=None)  # 啟動後第一次由 cron 觸發
         # 每小時的第 5 分鐘跑（避免整點擁擠）
         _news_scheduler.add_job(_cloud_fetch_news, 'cron', minute=5, id='cloud_news_cron')
+        # 雲端股價：週一~五 16:00（批次 API 通常 16:00 後更新，本機 14:30 已 push 則跳過）
+        _news_scheduler.add_job(_cloud_update_prices, 'cron',
+                                day_of_week='mon-fri', hour=16, minute=0,
+                                id='cloud_prices')
+        # 雲端營收/季報：每小時第 35 分鐘（與新聞 :05、本機 :00 錯開）
+        _news_scheduler.add_job(_cloud_quick_update, 'cron', minute=35,
+                                id='cloud_quick_update')
         _news_scheduler.start()
         print("[雲端新聞] 排程已啟動（每小時第 5 分鐘）")
     except Exception as e:
