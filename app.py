@@ -2166,27 +2166,25 @@ def get_stocks():
     market = request.args.get("market", "")
 
     sql    = """SELECT code, name, market, industry, close, change, change_240d, volume,
-                       revenue_date, revenue_year, revenue_month,
+                       revenue_date,
                        revenue_yoy, revenue_mom, revenue_cum_yoy,
-                       eps_date, eps_1, eps_1q, eps_2, eps_2q,
-                       eps_3, eps_3q, eps_4, eps_4q, eps_5, eps_5q,
-                       eps_y1, eps_y1_label, eps_y2, eps_y2_label,
-                       eps_y3, eps_y3_label, eps_y4, eps_y4_label,
-                       eps_y5, eps_y5_label, eps_y6, eps_y6_label,
+                       eps_date, eps_1, eps_1q, eps_2,
+                       eps_3, eps_4, eps_5,
+                       eps_y1, eps_y1_label, eps_y2,
+                       eps_y3, eps_y4, eps_y5, eps_y6,
                        eps_ytd, eps_ytd_label,
-                       div_c1, div_s1, div_1_label, div_c2, div_s2, div_2_label,
-                       div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
-                       div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
-                       contract_1, contract_1q, contract_2, contract_2q,
-                       contract_3, contract_3q,
-                       fin_grade_1, fin_grade_1y, fin_grade_2, fin_grade_2y,
-                       fin_grade_3, fin_grade_3y, fin_grade_4, fin_grade_4y,
-                       fin_grade_5, fin_grade_5y,
-                       fin_grade_6, fin_grade_6y,
-                       price_pos, fair_low, fair_high,
+                       div_c1, div_s1, div_c2, div_s2,
+                       div_c3, div_s3, div_c4, div_s4,
+                       div_c5, div_s5, div_c6, div_s6,
+                       contract_1, contract_1q, contract_2,
+                       contract_3,
+                       fin_grade_1, fin_grade_2,
+                       fin_grade_3, fin_grade_4,
+                       fin_grade_5, fin_grade_6,
+                       price_pos,
                        inst_foreign, inst_trust, inst_dealer,
                        revenue_note,
-                       sys_est_eps, sys_est_quarter, sys_est_confidence,
+                       sys_est_eps, sys_est_quarter,
                        sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, sys_ann_confidence,
                        shen_eps, shen_div,
                        shen_pe, shen_yld, shen_grade,
@@ -2196,7 +2194,6 @@ def get_stocks():
                        contract_chg, listed_date,
                        payout_1, payout_2, payout_3, payout_4, payout_5, payout_6,
                        val_aa, val_a1, val_a2, val_a, val_lt6,
-                       val_eps_used, val_div_used,
                        est_eps, est_div, est_pe, est_yld, est_grade, est_neff, est_growth, est_date,
                        sys_pe, sys_yld, sys_grade,
                        gb_roic, gb_ey, gb_roic_rank, gb_ey_rank, gb_total_rank
@@ -5202,17 +5199,26 @@ if os.environ.get('DATABASE_URL'):
                 print(f"[雲端新聞] 重大訊息: {r1.get('new', 0)} 則")
             except Exception as e:
                 print(f"[雲端新聞] 重大訊息失敗: {e}")
+            gc.collect()
             try:
                 r2 = fetch_moneydj_news()
                 print(f"[雲端新聞] MoneyDJ: {r2.get('new', 0)} 則")
             except Exception as e:
                 print(f"[雲端新聞] MoneyDJ失敗: {e}")
+            gc.collect()
             try:
                 r3 = fetch_industry_news()
                 print(f"[雲端新聞] 產業新聞: {r3} 則")
             except Exception as e:
                 print(f"[雲端新聞] 產業新聞失敗: {e}")
             gc.collect()
+            # 清快取，讓下次 API 請求重建較小的回應
+            global _stocks_cache, _stocks_cache_time, _gi_cache, _gi_cache_time
+            with _cache_lock:
+                _stocks_cache = None
+                _stocks_cache_time = 0
+                _gi_cache = None
+                _gi_cache_time = 0
 
         _news_scheduler.add_job(_cloud_fetch_news, 'interval', minutes=60, id='cloud_news',
                                 next_run_time=None)  # 啟動後第一次由 cron 觸發
