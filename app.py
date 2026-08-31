@@ -2165,7 +2165,7 @@ def get_stocks():
     q      = request.args.get("q", "").strip()
     market = request.args.get("market", "")
 
-    sql    = """SELECT code, name, market, industry, close, change, change_240d, volume,
+    sql    = """SELECT code, name, market, industry, close, change, change_240d, open, high, low, volume,
                        revenue_date,
                        revenue_yoy, revenue_mom, revenue_cum_yoy,
                        eps_date, eps_1, eps_1q, eps_2, eps_2q,
