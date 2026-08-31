@@ -2525,6 +2525,8 @@ def quick_update():
     try:
         from mops_fetcher import fetch_mops_quarterly_bs
         mops_bs_count = fetch_mops_quarterly_bs() or 0
+        if mops_bs_count > 0:
+            _sync_contract_from_quarterly()
     except Exception as e:
         print(f"[MOPS-BS] 失敗: {e}")
 
@@ -2549,6 +2551,11 @@ def quick_update():
                 _push_single_table('quarterly_financial')
             except Exception as e:
                 print(f"[季報BS同步Render] 失敗: {e}")
+            try:
+                from render_sync import _push_annual_to_render
+                _push_annual_to_render()
+            except Exception as e:
+                print(f"[合約負債同步Render] 失敗: {e}")
 
     # ══ 可跳過步驟（需 lock，被 run() 擋住就跳過）══
     # 14:10~14:50 平日讓出 lock，確保 run_prices 能在 14:30 順利執行
