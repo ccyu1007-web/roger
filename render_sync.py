@@ -337,15 +337,14 @@ def _pull_user_lists_from_render():
                 added += 1
 
         # 本機有但 Render 沒有 → 使用者在 Render 取消了，本機也刪除
-        # 只處理 Render 有管理的 list_type（Render 至少有一筆該 type 的資料，或曾經有過）
-        render_types = set(render_data.keys())
-        # 也把空陣列的 type 算進去（代表 Render 知道這個 type 但清空了）
+        # 只處理「使用者在 Render 手動管理」的清單類型
+        # quality/watch 由本機 autoCheck 計算後 push，不從 Render pull 刪除
+        # （避免 Render 部署或推送失敗導致本機資料被誤刪的惡性循環）
+        _user_managed_types = ('hold', 'track', 'focus', 'skip')
         for key in local_items:
             if key not in render_items:
                 lt = key[0]
-                # 只刪除 Render 端也有管理的 type（避免刪除 Render API 沒回傳的 type）
-                # quality/watch 由前端 autoCheck 管理，也需要同步
-                if lt in render_types or lt in ('track', 'skip', 'watch', 'hold', 'focus', 'quality'):
+                if lt in _user_managed_types:
                     conn.execute(
                         'DELETE FROM user_lists WHERE list_type=? AND code=?',
                         (key[0], key[1])
