@@ -2552,8 +2552,11 @@ def quick_update():
             except Exception as e:
                 print(f"[季報BS同步Render] 失敗: {e}")
             try:
-                from render_sync import _push_annual_to_render
-                _push_annual_to_render()
+                _push_table_to_render(
+                    table='stocks',
+                    columns=['code','contract_1','contract_1q','contract_2','contract_2q','contract_3','contract_3q','contract_chg'],
+                    pk=['code'],
+                )
             except Exception as e:
                 print(f"[合約負債同步Render] 失敗: {e}")
 
