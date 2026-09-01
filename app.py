@@ -4,7 +4,7 @@
 """
 
 import logging
-from flask import Flask, jsonify, request, make_response, send_from_directory
+from flask import Flask, jsonify, request, make_response, send_from_directory, redirect
 import os
 import db as sqlite3
 import threading
@@ -5140,6 +5140,11 @@ def archive_industry_news(nid):
 # ── 前端首頁 ────────────────────────────────────────────────
 @app.route("/")
 def index():
+    # 手機自動跳轉營收速報（螢幕小的裝置）
+    if 'desktop' not in request.args:
+        ua = request.headers.get('User-Agent', '').lower()
+        if ('mobile' in ua or 'android' in ua) and 'tablet' not in ua and 'ipad' not in ua:
+            return redirect('/m')
     import time
     with open(os.path.join(app.static_folder, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
