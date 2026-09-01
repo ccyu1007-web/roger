@@ -302,9 +302,13 @@ async function loadData() {
 
   try {
     const resp = await fetch(`/api/revenue-today?date=${date}`);
-    allData = await resp.json();
+    const result = await resp.json();
+    allData = result.data || [];
+    const actualDate = result.date || date;
 
-    document.getElementById('updateInfo').textContent = `${date} 更新`;
+    document.getElementById('dateInput').value = actualDate;
+    const label = actualDate === date ? `${actualDate} 公佈` : `${date} 無資料，顯示 ${actualDate}`;
+    document.getElementById('updateInfo').textContent = label;
     document.getElementById('stockCount').textContent = `${allData.length} 家`;
 
     renderCards();

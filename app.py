@@ -2364,7 +2364,23 @@ def api_revenue_today():
         WHERE revenue_date = ?
         ORDER BY code ASC
     """, [date_str])
-    return jsonify([dict(r) for r in rows])
+    actual_date = date_str
+    if not rows:
+        # 回溯最近一個有營收公佈的日期
+        fallback = query_db(
+            "SELECT MAX(revenue_date) as d FROM stocks WHERE revenue_date <= ?",
+            [date_str])
+        if fallback and fallback[0]['d']:
+            actual_date = fallback[0]['d']
+            rows = query_db("""
+                SELECT code, name, market, close, change,
+                       revenue_yoy, revenue_mom, revenue_cum_yoy,
+                       shen_pe, shen_yld, revenue_date
+                FROM stocks
+                WHERE revenue_date = ?
+                ORDER BY code ASC
+            """, [actual_date])
+    return jsonify({"date": actual_date, "data": [dict(r) for r in rows]})
 
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
 @app.route("/api/status")
