@@ -2344,6 +2344,37 @@ def get_stocks():
             _stocks_cache_time = _time.time()
     return resp
 
+# ── 手機版：今日營收更新 ────────────────────────────────
+@app.route("/m")
+def mobile_page():
+    return send_from_directory(".", "mobile.html")
+
+@app.route("/api/revenue-today")
+def api_revenue_today():
+    """回傳今天有更新月營收的股票，含股價/漲跌/營收指標/沈董評價"""
+    date_str = request.args.get("date", "")
+    if not date_str:
+        from datetime import datetime
+        date_str = datetime.now().strftime('%Y-%m-%d')
+    # 找出今天有更新營收的股票代碼
+    updated_codes = query_db(
+        "SELECT DISTINCT code FROM monthly_revenue WHERE updated_at >= ? AND updated_at < date(?, '+1 day')",
+        [date_str, date_str]
+    )
+    if not updated_codes:
+        return jsonify([])
+    codes = [r['code'] for r in updated_codes]
+    placeholders = ','.join(['?'] * len(codes))
+    rows = query_db(f"""
+        SELECT code, name, market, close, change,
+               revenue_yoy, revenue_mom, revenue_cum_yoy,
+               shen_pe, shen_yld, revenue_date
+        FROM stocks
+        WHERE code IN ({placeholders})
+        ORDER BY code ASC
+    """, codes)
+    return jsonify([dict(r) for r in rows])
+
 # ── 狀態（資料筆數 + 最後更新時間）────────────────────────
 @app.route("/api/status")
 def status():

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>逍遙投資 - 營收速報</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  padding: 0 0 80px 0;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 頂部導覽 */
+.header {
+  background: #fff;
+  padding: 16px;
+  border-bottom: 1px solid #e5e5e5;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.header-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #86868b;
+}
+.stock-count {
+  font-weight: 500;
+  color: #1d1d1f;
+}
+
+/* 日期選擇 */
+.date-bar {
+  background: #fff;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.date-bar input[type="date"] {
+  font-size: 16px;
+  padding: 6px 10px;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  background: #f5f5f7;
+  flex: 1;
+}
+.date-bar button {
+  padding: 6px 14px;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  background: #007aff;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* 排序列 */
+.sort-bar {
+  background: #fff;
+  padding: 8px 16px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid #e5e5e5;
+  -webkit-overflow-scrolling: touch;
+}
+.sort-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #d2d2d7;
+  border-radius: 14px;
+  background: #fff;
+  color: #1d1d1f;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sort-btn.active {
+  background: #007aff;
+  color: #fff;
+  border-color: #007aff;
+}
+
+/* 搜尋 */
+.search-bar {
+  background: #fff;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.search-bar input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 16px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  background: #f5f5f7;
+  outline: none;
+}
+.search-bar input:focus {
+  border-color: #007aff;
+}
+
+/* 卡片 */
+.card-list {
+  padding: 8px;
+}
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.stock-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+.stock-code {
+  font-size: 13px;
+  color: #86868b;
+  margin-left: 6px;
+}
+.stock-market {
+  font-size: 11px;
+  color: #86868b;
+  background: #f5f5f7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.price-section {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.price {
+  font-size: 22px;
+  font-weight: 700;
+}
+.change {
+  font-size: 15px;
+  font-weight: 500;
+}
+.change.up { color: #ff3b30; }
+.change.down { color: #34c759; }
+
+/* 指標網格 */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.metric {
+  text-align: center;
+  padding: 6px 0;
+  background: #f5f5f7;
+  border-radius: 8px;
+}
+.metric-label {
+  font-size: 11px;
+  color: #86868b;
+  margin-bottom: 2px;
+}
+.metric-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+.metric-value.positive { color: #ff3b30; }
+.metric-value.negative { color: #34c759; }
+.metric-value.na { color: #c7c7cc; font-size: 13px; }
+
+/* 沈董評價區 */
+.valuation {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.val-item {
+  text-align: center;
+  padding: 6px 0;
+  background: #fff3e0;
+  border-radius: 8px;
+}
+
+/* 空狀態 */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #86868b;
+}
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+.empty-state p {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #86868b;
+  font-size: 15px;
+}
+
+/* 連結到完整版 */
+.full-link {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #e5e5e5;
+  padding: 12px 16px;
+  text-align: center;
+  z-index: 100;
+}
+.full-link a {
+  color: #007aff;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>營收速報</h1>
+  <div class="header-info">
+    <span id="updateInfo">載入中...</span>
+    <span class="stock-count" id="stockCount"></span>
+  </div>
+</div>
+
+<div class="date-bar">
+  <input type="date" id="dateInput">
+  <button onclick="loadData()">查詢</button>
+</div>
+
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="搜尋代碼或名稱..." oninput="filterCards()">
+</div>
+
+<div class="sort-bar">
+  <button class="sort-btn active" data-sort="code" onclick="sortBy(this)">代碼</button>
+  <button class="sort-btn" data-sort="revenue_yoy" onclick="sortBy(this)">年增率</button>
+  <button class="sort-btn" data-sort="revenue_mom" onclick="sortBy(this)">月增率</button>
+  <button class="sort-btn" data-sort="revenue_cum_yoy" onclick="sortBy(this)">累積成長</button>
+  <button class="sort-btn" data-sort="change" onclick="sortBy(this)">漲跌</button>
+  <button class="sort-btn" data-sort="shen_pe" onclick="sortBy(this)">本益比</button>
+  <button class="sort-btn" data-sort="shen_yld" onclick="sortBy(this)">殖利率</button>
+</div>
+
+<div class="card-list" id="cardList">
+  <div class="loading">載入中...</div>
+</div>
+
+<div class="full-link">
+  <a href="/">開啟完整版總表</a>
+</div>
+
+<script>
+let allData = [];
+let currentSort = 'code';
+let sortAsc = true;
+
+// 初始化日期為今天
+function initDate() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('dateInput').value = `${yyyy}-${mm}-${dd}`;
+}
+
+async function loadData() {
+  const date = document.getElementById('dateInput').value;
+  const cardList = document.getElementById('cardList');
+  cardList.innerHTML = '<div class="loading">載入中...</div>';
+
+  try {
+    const resp = await fetch(`/api/revenue-today?date=${date}`);
+    allData = await resp.json();
+
+    document.getElementById('updateInfo').textContent = `${date} 更新`;
+    document.getElementById('stockCount').textContent = `${allData.length} 家`;
+
+    renderCards();
+  } catch (e) {
+    cardList.innerHTML = '<div class="empty-state"><div class="icon">!</div><p>載入失敗，請稍後再試</p></div>';
+  }
+}
+
+function renderCards() {
+  const cardList = document.getElementById('cardList');
+  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+
+  let data = allData;
+  if (search) {
+    data = data.filter(s => s.code.toLowerCase().includes(search) || (s.name && s.name.toLowerCase().includes(search)));
+  }
+
+  // 排序
+  data = [...data].sort((a, b) => {
+    let va = a[currentSort], vb = b[currentSort];
+    if (currentSort === 'code' || currentSort === 'name') {
+      va = va || ''; vb = vb || '';
+      return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    va = va ?? -Infinity; vb = vb ?? -Infinity;
+    return sortAsc ? va - vb : vb - va;
+  });
+
+  if (data.length === 0) {
+    cardList.innerHTML = '<div class="empty-state"><div class="icon">--</div><p>該日期沒有營收更新資料<br>營收申報密集期為每月 1~10 日</p></div>';
+    return;
+  }
+
+  cardList.innerHTML = data.map(s => {
+    const changeVal = s.change || 0;
+    const changeClass = changeVal > 0 ? 'up' : changeVal < 0 ? 'down' : '';
+    const changeSign = changeVal > 0 ? '+' : '';
+    const changePct = s.close && s.close > 0 ? ((changeVal / (s.close - changeVal)) * 100).toFixed(2) : '0.00';
+    const changePctSign = changeVal > 0 ? '+' : '';
+
+    return `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <span class="stock-name">${s.name || ''}</span>
+          <span class="stock-code">${s.code}</span>
+        </div>
+        <span class="stock-market">${s.market || ''}</span>
+      </div>
+      <div class="price-section">
+        <span class="price">${s.close != null ? s.close.toFixed(2) : '--'}</span>
+        <span class="change ${changeClass}">${changeSign}${changeVal.toFixed(2)} (${changePctSign}${changePct}%)</span>
+      </div>
+      <div class="metrics">
+        ${metricBox('累積成長', s.revenue_cum_yoy, '%')}
+        ${metricBox('年增率', s.revenue_yoy, '%')}
+        ${metricBox('月增率', s.revenue_mom, '%')}
+      </div>
+      <div class="valuation">
+        ${valBox('沈董本益比', s.shen_pe, '倍')}
+        ${valBox('沈董殖利率', s.shen_yld, '%')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function metricBox(label, val, unit) {
+  if (val == null) return `<div class="metric"><div class="metric-label">${label}</div><div class="metric-value na">--</div></div>`;
+  const cls = val > 0 ? 'positive' : val < 0 ? 'negative' : '';
+  const sign = val > 0 ? '+' : '';
+  return `<div class="metric"><div class="metric-label">${label}</div><div class="metric-value ${cls}">${sign}${val.toFixed(2)}${unit}</div></div>`;
+}
+
+function valBox(label, val, unit) {
+  if (val == null) return `<div class="val-item"><div class="metric-label">${label}</div><div class="metric-value na">--</div></div>`;
+  return `<div class="val-item"><div class="metric-label">${label}</div><div class="metric-value">${val.toFixed(2)}${unit}</div></div>`;
+}
+
+function filterCards() {
+  renderCards();
+}
+
+function sortBy(btn) {
+  const sort = btn.dataset.sort;
+  if (currentSort === sort) {
+    sortAsc = !sortAsc;
+  } else {
+    currentSort = sort;
+    // 數值欄位預設降序（大到小），代碼預設升序
+    sortAsc = (sort === 'code');
+  }
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCards();
+}
+
+// 啟動
+initDate();
+loadData();
+</script>
+</body>
+</html>
