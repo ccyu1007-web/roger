@@ -3055,7 +3055,7 @@ def sync_prices():
             continue
         fields = []
         vals = []
-        for col in ['close', 'change', 'open', 'high', 'low', 'volume',
+        for col in ['name', 'market', 'close', 'change', 'open', 'high', 'low', 'volume',
                     'revenue_date', 'revenue_year', 'revenue_month',
                     'revenue_yoy', 'revenue_mom', 'revenue_cum_yoy']:
             if col in r and r[col] is not None:
@@ -3066,6 +3066,14 @@ def sync_prices():
             c.execute(f"UPDATE stocks SET {', '.join(fields)} WHERE code=?", vals)
             if c.rowcount:
                 updated += 1
+            else:
+                # 新股：INSERT
+                try:
+                    c.execute("INSERT INTO stocks (code, name, market) VALUES (?, ?, ?)",
+                              (code, r.get('name'), r.get('market')))
+                    updated += 1
+                except Exception:
+                    pass  # 已存在但無欄位匹配
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "updated": updated})

@@ -1107,11 +1107,11 @@ def _push_prices_to_render(since=None):
     try:
         _where = f" AND updated_at >= '{since}'" if since else ""
         with sqlite3.get_conn() as conn:
-            rows = conn.execute(f"""SELECT code, close, change, open, high, low, volume,
+            rows = conn.execute(f"""SELECT code, name, market, close, change, open, high, low, volume,
                                   revenue_date, revenue_year, revenue_month,
                                   revenue_yoy, revenue_mom, revenue_cum_yoy
-                                  FROM stocks WHERE close IS NOT NULL{_where}""").fetchall()
-        cols = ['code', 'close', 'change', 'open', 'high', 'low', 'volume',
+                                  FROM stocks WHERE (close IS NOT NULL OR name IS NOT NULL){_where}""").fetchall()
+        cols = ['code', 'name', 'market', 'close', 'change', 'open', 'high', 'low', 'volume',
                 'revenue_date', 'revenue_year', 'revenue_month',
                 'revenue_yoy', 'revenue_mom', 'revenue_cum_yoy']
         data = [{cols[j]: r[j] for j in range(len(cols))} for r in rows]
