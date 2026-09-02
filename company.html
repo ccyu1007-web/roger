@@ -1924,6 +1924,7 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
         <div class="val-inp-group"><label style="font-weight:700;color:#b45309">前瞻性 Neff 比率</label><span class="auto-val" id="neffResult" style="font-weight:800;font-size:1.05rem">-</span></div>
       </div>
       <div id="neffNote" style="font-size:.78rem;color:#94a3b8"></div>
+      <div id="neffRefNote" style="font-size:.75rem;color:#94a3b8;margin-top:8px;line-height:1.8;border-top:1px dashed #e2e8f0;padding-top:8px"></div>
     </div>
 
     <!-- 逍遙價值投資評價法 -->
@@ -3447,6 +3448,26 @@ function calcNeff() {
         (neff >= 1.0 ? '　極具吸引力' : neff >= 0.7 ? '　具吸引力' : '　未達門檻');
     }
   }
+  _updateNeffRef();
+}
+function _updateNeffRef() {
+  const el = document.getElementById('neffRefNote');
+  if (!el) return;
+  const cumYoy = _stockData ? _stockData.revenue_cum_yoy : null;
+  const cumStr = cumYoy != null ? (cumYoy >= 0 ? '+' : '') + cumYoy.toFixed(1) + '%' : '-';
+  let suggestG = '-';
+  if (cumYoy != null) {
+    if (cumYoy < 0) suggestG = '3';
+    else if (cumYoy < 5) suggestG = '5';
+    else if (cumYoy < 10) suggestG = '7';
+    else if (cumYoy < 15) suggestG = '10';
+    else if (cumYoy < 20) suggestG = '12';
+    else if (cumYoy < 30) suggestG = '15';
+    else suggestG = '15~20';
+  }
+  el.innerHTML = `<span style="color:#b45309;font-weight:600">目前累積營收YoY：${cumStr}</span>` +
+    `<span style="margin-left:12px">→ 建議 g = ${suggestG}%</span>` +
+    `<br><span style="color:#aab">對照表：&lt;0%→3 ｜ 0~5%→5 ｜ 5~10%→7 ｜ 10~15%→10 ｜ 15~20%→12 ｜ 20~30%→15 ｜ &gt;30%→15~20（上限）</span>`;
 }
 
 function _updateSysValLabels() {
