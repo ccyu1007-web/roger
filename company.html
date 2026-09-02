@@ -3465,16 +3465,14 @@ function _updateNeffRef() {
   let suggestG = '-';
   if (cumYoy != null) {
     if (cumYoy < 0) suggestG = '3';
-    else if (cumYoy < 5) suggestG = '5';
-    else if (cumYoy < 10) suggestG = '7';
-    else if (cumYoy < 15) suggestG = '10';
-    else if (cumYoy < 20) suggestG = '12';
-    else if (cumYoy < 30) suggestG = '15';
-    else suggestG = '15~20';
+    else if (cumYoy < 10) suggestG = '5';
+    else if (cumYoy < 20) suggestG = '8';
+    else if (cumYoy < 30) suggestG = '10';
+    else suggestG = '12';
   }
   el.innerHTML = `<span style="color:#b45309;font-weight:600">目前累積營收YoY：${cumStr}</span>` +
     `<span style="margin-left:12px">→ 建議 g = ${suggestG}%</span>` +
-    `<br><span style="color:#aab">對照表：&lt;0%→3 ｜ 0~5%→5 ｜ 5~10%→7 ｜ 10~15%→10 ｜ 15~20%→12 ｜ 20~30%→15 ｜ &gt;30%→15~20（上限）</span>`;
+    `<br><span style="color:#aab">對照表：&lt;0%→3 ｜ 0~10%→5 ｜ 10~20%→8 ｜ 20~30%→10 ｜ &gt;30%→12（天花板） ｜ 護城河龍頭特例→15（上限）</span>`;
 }
 
 function _updateSysValLabels() {
