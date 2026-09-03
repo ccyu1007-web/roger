@@ -46,12 +46,12 @@ DB_PATH = "stocks.db"
 _USER_NOTES_COLS = ['code','content','news_archive','updated_at',
                     'moat_strength','moat_source','moat_trend','structural_risk',
                     'structural_risk_desc','growth_catalyst','investment_monitor',
-                    'confidence','lynch_override']
+                    'confidence','neff_g','lynch_override']
 _USER_NOTES_CREATE = """CREATE TABLE IF NOT EXISTS user_notes (
     code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT,
     moat_strength TEXT, moat_source TEXT, moat_trend TEXT, structural_risk TEXT,
     structural_risk_desc TEXT, growth_catalyst TEXT, investment_monitor TEXT,
-    confidence TEXT, lynch_override TEXT)"""
+    confidence TEXT, neff_g TEXT, lynch_override TEXT)"""
 
 _REPORT_COLS = ['code','content','updated_at','snapshot_price','snapshot_grade','snapshot_eps','snapshot_judgment']
 _REPORT_CREATE = """CREATE TABLE IF NOT EXISTS investment_reports (
@@ -5460,7 +5460,7 @@ def _init_user_lists():
     # 質性研究結構化欄位
     for col in ['moat_strength', 'moat_source', 'moat_trend', 'structural_risk',
                 'structural_risk_desc', 'growth_catalyst', 'investment_monitor',
-                'confidence', 'lynch_override']:
+                'confidence', 'neff_g', 'lynch_override']:
         try:
             c.execute(f"ALTER TABLE user_notes ADD COLUMN {col} TEXT")
             conn.commit()
@@ -5778,7 +5778,7 @@ def delete_daily_note(date):
 def get_user_note(code):
     _meta_cols = ['moat_strength','moat_source','moat_trend','structural_risk',
                   'structural_risk_desc','growth_catalyst','investment_monitor',
-                  'confidence','lynch_override']
+                  'confidence','neff_g','lynch_override']
     try:
         rows = query_db(
             "SELECT content, news_archive, updated_at, " +
@@ -5820,13 +5820,14 @@ def save_user_note(code):
                 "INSERT OR REPLACE INTO user_notes "
                 "(code, content, news_archive, updated_at, "
                 "moat_strength, moat_source, moat_trend, structural_risk, structural_risk_desc, "
-                "growth_catalyst, investment_monitor, confidence, lynch_override) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "growth_catalyst, investment_monitor, confidence, neff_g, lynch_override) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (code, content, news_archive, now,
                  meta.get('moat_strength'), meta.get('moat_source'),
                  meta.get('moat_trend'), meta.get('structural_risk'),
                  meta.get('structural_risk_desc'), meta.get('growth_catalyst'),
                  meta.get('investment_monitor'), meta.get('confidence'),
+                 meta.get('neff_g'),
                  meta.get('lynch_override')))
         else:
             # 向下相容：只更新 content，保留其他欄位
