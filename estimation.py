@@ -183,6 +183,13 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
     quarter_key = f"{roc_year}Q{q_num}"
 
     # --- Step 1: 月營收 ---
+    # 先收集該季已公布的實際月營收
+    actual_revs = []  # [(month, revenue), ...]
+    for m in months:
+        actual = rev_map.get((west_year, m))
+        if actual:
+            actual_revs.append((m, actual))
+
     est_rev_total = 0
     rev_actual = 0
     rev_estimated = 0
@@ -194,39 +201,19 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
             rev_actual += 1
             monthly_revs.append({"month": m, "revenue": round(actual), "is_actual": True})
         else:
-            prev = rev_map.get((west_year - 1, m))
-            est_m = 0
-            if prev:
-                # 方法1: 近12個月逐月YoY平均
-                growths = []
-                for rm in rev_rows:
-                    ry, rmm = rm['year'], rm['month']
-                    prev_rev = rev_map.get((ry - 1, rmm))
-                    if prev_rev and prev_rev > 0:
-                        growths.append(rm['revenue'] / prev_rev)
-                        if len(growths) >= 12:
-                            break
-                avg_12m = statistics.mean(growths) if growths else 1.0
-
-                # 方法2: 累積YTD YoY
-                ytd_cur = sum(rev_map.get((west_year, mm), 0)
-                              for mm in range(1, m) if rev_map.get((west_year, mm)))
-                ytd_prev = sum(rev_map.get((west_year - 1, mm), 0)
-                               for mm in range(1, m) if rev_map.get((west_year, mm)))
-                if ytd_cur > 0 and ytd_prev > 0:
-                    ytd_yoy = ytd_cur / ytd_prev
-                else:
-                    ytd_yoy = avg_12m
-
-                # 動態混合：已公佈月數越多，越信任累積YoY
-                n_ytd = sum(1 for mm in range(1, m)
-                            if rev_map.get((west_year, mm)))
-                w = n_ytd / 12
-                blended_growth = w * ytd_yoy + (1 - w) * avg_12m
-
-                est_m = prev * blended_growth
+            # 用同季已公布月營收水準補缺
+            if len(actual_revs) >= 2:
+                # 2個月已公布：近月×70% + 遠月×30%
+                sorted_revs = sorted(actual_revs, key=lambda x: x[0])
+                est_m = sorted_revs[-1][1] * 0.7 + sorted_revs[-2][1] * 0.3
+            elif len(actual_revs) == 1:
+                # 1個月已公布：直接用該月的值
+                est_m = actual_revs[0][1]
             elif hist and hist[0].get('revenue'):
+                # 同季完全沒營收：fallback 用最近一季營收÷3
                 est_m = hist[0]['revenue'] / 3
+            else:
+                est_m = 0
             est_rev_total += est_m
             rev_estimated += 1
             monthly_revs.append({"month": m, "revenue": round(est_m), "is_actual": False})
