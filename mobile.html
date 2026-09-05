@@ -3,18 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>逍遙投資 - 營收速報</title>
+<title>逍遙投資 - 手機版</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: #f5f5f7;
   color: #1d1d1f;
-  padding: 0 0 80px 0;
+  padding: 0 0 60px 0;
   -webkit-text-size-adjust: 100%;
 }
 
-/* 頂部導覽 */
+/* 底部 Tab Bar */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  z-index: 200;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0 6px;
+  font-size: 11px;
+  color: #86868b;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.tab-item.active {
+  color: #007aff;
+  font-weight: 600;
+}
+.tab-item .tab-icon {
+  font-size: 20px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* 頁面切換 */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ========== 營收速報 ========== */
 .header {
   background: #fff;
   padding: 16px;
@@ -40,7 +75,6 @@ body {
   color: #1d1d1f;
 }
 
-/* 日期選擇 */
 .date-bar {
   background: #fff;
   padding: 10px 16px;
@@ -67,7 +101,6 @@ body {
   cursor: pointer;
 }
 
-/* 排序列 */
 .sort-bar {
   background: #fff;
   padding: 8px 16px;
@@ -93,7 +126,6 @@ body {
   border-color: #007aff;
 }
 
-/* 搜尋 */
 .search-bar {
   background: #fff;
   padding: 10px 16px;
@@ -112,10 +144,7 @@ body {
   border-color: #007aff;
 }
 
-/* 卡片 */
-.card-list {
-  padding: 8px;
-}
+.card-list { padding: 8px; }
 .card {
   background: #fff;
   border-radius: 12px;
@@ -129,39 +158,18 @@ body {
   align-items: center;
   margin-bottom: 10px;
 }
-.stock-name {
-  font-size: 16px;
-  font-weight: 600;
-}
-.stock-code {
-  font-size: 13px;
-  color: #86868b;
-  margin-left: 6px;
-}
+.stock-name { font-size: 16px; font-weight: 600; }
+.stock-code { font-size: 13px; color: #86868b; margin-left: 6px; }
 .stock-market {
-  font-size: 11px;
-  color: #86868b;
-  background: #f5f5f7;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 11px; color: #86868b;
+  background: #f5f5f7; padding: 2px 6px; border-radius: 4px;
 }
-.price-section {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.price {
-  font-size: 22px;
-  font-weight: 700;
-}
-.change {
-  font-size: 15px;
-  font-weight: 500;
-}
+.price-section { display: flex; align-items: baseline; gap: 8px; }
+.price { font-size: 22px; font-weight: 700; }
+.change { font-size: 15px; font-weight: 500; }
 .change.up { color: #ff3b30; }
 .change.down { color: #34c759; }
 
-/* 指標網格 */
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -169,25 +177,15 @@ body {
   margin-top: 10px;
 }
 .metric {
-  text-align: center;
-  padding: 6px 0;
-  background: #f5f5f7;
-  border-radius: 8px;
+  text-align: center; padding: 6px 0;
+  background: #f5f5f7; border-radius: 8px;
 }
-.metric-label {
-  font-size: 11px;
-  color: #86868b;
-  margin-bottom: 2px;
-}
-.metric-value {
-  font-size: 15px;
-  font-weight: 600;
-}
+.metric-label { font-size: 11px; color: #86868b; margin-bottom: 2px; }
+.metric-value { font-size: 15px; font-weight: 600; }
 .metric-value.positive { color: #ff3b30; }
 .metric-value.negative { color: #34c759; }
 .metric-value.na { color: #c7c7cc; font-size: 13px; }
 
-/* 沈董評價區 */
 .valuation {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -195,98 +193,218 @@ body {
   margin-top: 8px;
 }
 .val-item {
-  text-align: center;
-  padding: 6px 0;
-  background: #fff3e0;
-  border-radius: 8px;
+  text-align: center; padding: 6px 0;
+  background: #fff3e0; border-radius: 8px;
 }
 
-/* 空狀態 */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: #86868b;
-}
-.empty-state .icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-.empty-state p {
-  font-size: 15px;
-  line-height: 1.5;
-}
+.empty-state { text-align: center; padding: 60px 20px; color: #86868b; }
+.empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+.empty-state p { font-size: 15px; line-height: 1.5; }
+.loading { text-align: center; padding: 40px; color: #86868b; font-size: 15px; }
 
-/* Loading */
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #86868b;
-  font-size: 15px;
-}
-
-/* 連結到完整版 */
-.full-link {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+/* ========== 個股新聞 ========== */
+.news-header {
   background: #fff;
-  border-top: 1px solid #e5e5e5;
-  padding: 12px 16px;
-  text-align: center;
+  padding: 16px;
+  border-bottom: 1px solid #e5e5e5;
+  position: sticky;
+  top: 0;
   z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-.full-link a {
+.news-header h1 { font-size: 20px; font-weight: 600; }
+.news-refresh {
+  padding: 6px 14px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  background: #007aff;
+  color: #fff;
+  cursor: pointer;
+}
+
+.news-section {
+  margin: 8px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.news-section-header {
+  padding: 12px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.news-section-header .arrow {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+.news-section-header .arrow.open { transform: rotate(90deg); }
+.header-my { background: #e8535a; }
+.header-other { background: #e8a735; }
+.header-macro { background: #8b5cf6; }
+
+.news-section-body { display: none; }
+.news-section-body.open { display: block; }
+
+/* 日期 tabs */
+.news-date-tabs {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+.news-date-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #86868b;
+  white-space: nowrap;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  flex-shrink: 0;
+}
+.news-date-tab.active {
   color: #007aff;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
+  border-bottom-color: #007aff;
+  font-weight: 600;
 }
+.news-date-tab .tab-cnt {
+  font-size: 11px;
+  color: #aaa;
+  margin-left: 2px;
+}
+.news-date-tab.active .tab-cnt { color: #007aff; }
+
+.news-date-panel { display: none; }
+.news-date-panel.active { display: block; }
+
+/* 新聞項目 */
+.news-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.news-item:last-child { border-bottom: none; }
+.news-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.news-source {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.src-udn { background: #e8f5e9; color: #2e7d32; }
+.src-ct { background: #e3f2fd; color: #1565c0; }
+.news-time { font-size: 11px; color: #aaa; flex-shrink: 0; }
+.news-title {
+  font-size: 14px;
+  line-height: 1.4;
+  flex: 1;
+}
+.news-title a {
+  color: #1d1d1f;
+  text-decoration: none;
+}
+.news-title a:visited { color: #86868b; }
+.news-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.news-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tag-my { background: #fee2e2; color: #dc2626; }
+.tag-other { background: #f3f4f6; color: #6b7280; }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>營收速報</h1>
-  <div class="header-info">
-    <span id="updateInfo">載入中...</span>
-    <span class="stock-count" id="stockCount"></span>
+<!-- ===== 頁面 1: 營收速報 ===== -->
+<div class="page active" id="page-revenue">
+  <div class="header">
+    <h1>營收速報</h1>
+    <div class="header-info">
+      <span id="updateInfo">載入中...</span>
+      <span class="stock-count" id="stockCount"></span>
+    </div>
+  </div>
+  <div class="date-bar">
+    <input type="date" id="dateInput">
+    <button onclick="loadRevenue()">查詢</button>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="搜尋代碼或名稱..." oninput="filterCards()">
+  </div>
+  <div class="sort-bar">
+    <button class="sort-btn active" data-sort="code" onclick="sortBy(this)">代碼</button>
+    <button class="sort-btn" data-sort="revenue_yoy" onclick="sortBy(this)">年增率</button>
+    <button class="sort-btn" data-sort="revenue_mom" onclick="sortBy(this)">月增率</button>
+    <button class="sort-btn" data-sort="revenue_cum_yoy" onclick="sortBy(this)">累積成長</button>
+    <button class="sort-btn" data-sort="change" onclick="sortBy(this)">漲跌</button>
+    <button class="sort-btn" data-sort="shen_pe" onclick="sortBy(this)">本益比</button>
+    <button class="sort-btn" data-sort="shen_yld" onclick="sortBy(this)">殖利率</button>
+  </div>
+  <div class="card-list" id="cardList">
+    <div class="loading">載入中...</div>
   </div>
 </div>
 
-<div class="date-bar">
-  <input type="date" id="dateInput">
-  <button onclick="loadData()">查詢</button>
+<!-- ===== 頁面 2: 個股新聞 ===== -->
+<div class="page" id="page-news">
+  <div class="news-header">
+    <h1>個股新聞</h1>
+    <button class="news-refresh" onclick="refreshNews()">更新</button>
+  </div>
+  <div id="newsContent">
+    <div class="loading">載入中...</div>
+  </div>
 </div>
 
-<div class="search-bar">
-  <input type="text" id="searchInput" placeholder="搜尋代碼或名稱..." oninput="filterCards()">
-</div>
-
-<div class="sort-bar">
-  <button class="sort-btn active" data-sort="code" onclick="sortBy(this)">代碼</button>
-  <button class="sort-btn" data-sort="revenue_yoy" onclick="sortBy(this)">年增率</button>
-  <button class="sort-btn" data-sort="revenue_mom" onclick="sortBy(this)">月增率</button>
-  <button class="sort-btn" data-sort="revenue_cum_yoy" onclick="sortBy(this)">累積成長</button>
-  <button class="sort-btn" data-sort="change" onclick="sortBy(this)">漲跌</button>
-  <button class="sort-btn" data-sort="shen_pe" onclick="sortBy(this)">本益比</button>
-  <button class="sort-btn" data-sort="shen_yld" onclick="sortBy(this)">殖利率</button>
-</div>
-
-<div class="card-list" id="cardList">
-  <div class="loading">載入中...</div>
-</div>
-
-<div class="full-link">
-  <a href="/?desktop">開啟完整版總表</a>
+<!-- ===== 底部 Tab Bar ===== -->
+<div class="tab-bar">
+  <div class="tab-item active" onclick="switchPage('revenue')">
+    <span class="tab-icon">$</span>
+    營收速報
+  </div>
+  <div class="tab-item" onclick="switchPage('news')">
+    <span class="tab-icon">N</span>
+    個股新聞
+  </div>
 </div>
 
 <script>
+// ===== Tab 切換 =====
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (page === 'news' && !newsLoaded) loadNews();
+}
+
+// ===== 營收速報 =====
 let allData = [];
 let currentSort = 'code';
 let sortAsc = true;
 
-// 初始化日期為今天
 function initDate() {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -295,22 +413,19 @@ function initDate() {
   document.getElementById('dateInput').value = `${yyyy}-${mm}-${dd}`;
 }
 
-async function loadData() {
+async function loadRevenue() {
   const date = document.getElementById('dateInput').value;
   const cardList = document.getElementById('cardList');
   cardList.innerHTML = '<div class="loading">載入中...</div>';
-
   try {
     const resp = await fetch(`/api/revenue-today?date=${date}`);
     const result = await resp.json();
     allData = result.data || [];
     const actualDate = result.date || date;
-
     document.getElementById('dateInput').value = actualDate;
     const label = actualDate === date ? `${actualDate} 公佈` : `${date} 無資料，顯示 ${actualDate}`;
     document.getElementById('updateInfo').textContent = label;
     document.getElementById('stockCount').textContent = `${allData.length} 家`;
-
     renderCards();
   } catch (e) {
     cardList.innerHTML = '<div class="empty-state"><div class="icon">!</div><p>載入失敗，請稍後再試</p></div>';
@@ -320,13 +435,10 @@ async function loadData() {
 function renderCards() {
   const cardList = document.getElementById('cardList');
   const search = document.getElementById('searchInput').value.trim().toLowerCase();
-
   let data = allData;
   if (search) {
     data = data.filter(s => s.code.toLowerCase().includes(search) || (s.name && s.name.toLowerCase().includes(search)));
   }
-
-  // 排序
   data = [...data].sort((a, b) => {
     let va = a[currentSort], vb = b[currentSort];
     if (currentSort === 'code' || currentSort === 'name') {
@@ -336,19 +448,16 @@ function renderCards() {
     va = va ?? -Infinity; vb = vb ?? -Infinity;
     return sortAsc ? va - vb : vb - va;
   });
-
   if (data.length === 0) {
     cardList.innerHTML = '<div class="empty-state"><div class="icon">--</div><p>該日期沒有營收更新資料<br>營收申報密集期為每月 1~10 日</p></div>';
     return;
   }
-
   cardList.innerHTML = data.map(s => {
     const changeVal = s.change || 0;
     const changeClass = changeVal > 0 ? 'up' : changeVal < 0 ? 'down' : '';
     const changeSign = changeVal > 0 ? '+' : '';
     const changePct = s.close && s.close > 0 ? ((changeVal / (s.close - changeVal)) * 100).toFixed(2) : '0.00';
     const changePctSign = changeVal > 0 ? '+' : '';
-
     return `
     <div class="card">
       <div class="card-header">
@@ -387,9 +496,7 @@ function valBox(label, val, unit) {
   return `<div class="val-item"><div class="metric-label">${label}</div><div class="metric-value">${val.toFixed(2)}${unit}</div></div>`;
 }
 
-function filterCards() {
-  renderCards();
-}
+function filterCards() { renderCards(); }
 
 function sortBy(btn) {
   const sort = btn.dataset.sort;
@@ -397,7 +504,6 @@ function sortBy(btn) {
     sortAsc = !sortAsc;
   } else {
     currentSort = sort;
-    // 數值欄位預設降序（大到小），代碼預設升序
     sortAsc = (sort === 'code');
   }
   document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
@@ -405,9 +511,162 @@ function sortBy(btn) {
   renderCards();
 }
 
-// 啟動
+// ===== 個股新聞 =====
+let newsLoaded = false;
+let userCodes = new Set();
+let indNewsData = [];
+
+async function loadNews() {
+  const container = document.getElementById('newsContent');
+  container.innerHTML = '<div class="loading">載入中...</div>';
+  try {
+    const [indRes, listRes] = await Promise.all([
+      fetch('/api/industry-news?days=7'),
+      fetch('/api/user-lists')
+    ]);
+    indNewsData = await indRes.json();
+    const lists = await listRes.json();
+
+    userCodes = new Set();
+    (lists.watch || []).forEach(c => userCodes.add(c));
+    (lists.hold || []).forEach(c => userCodes.add(c));
+    (lists.quality || []).forEach(c => userCodes.add(c));
+    (lists.focus || []).forEach(c => userCodes.add(c));
+
+    renderNews();
+    newsLoaded = true;
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><p>載入失敗，請稍後再試</p></div>';
+  }
+}
+
+function renderNews() {
+  const myNews = [];
+  const otherNews = [];
+  const macroNews = [];
+
+  indNewsData.forEach(n => {
+    const matched = n.matched_stocks || [];
+    if (matched.length === 0) {
+      macroNews.push(n);
+      return;
+    }
+    const inList = matched.filter(m => userCodes.has(m.code));
+    const notInList = matched.filter(m => !userCodes.has(m.code));
+    if (inList.length > 0) {
+      n._inList = inList;
+      n._other = notInList;
+      myNews.push(n);
+    } else {
+      n._other = notInList;
+      otherNews.push(n);
+    }
+  });
+
+  const container = document.getElementById('newsContent');
+  container.innerHTML =
+    renderNewsSection('我的個股新聞', myNews, 'header-my', 'my', true) +
+    renderNewsSection('其他個股新聞', otherNews, 'header-other', 'other', false) +
+    renderNewsSection('總經產業新聞', macroNews, 'header-macro', 'macro', false);
+}
+
+function renderNewsSection(title, news, headerCls, prefix, defaultOpen) {
+  const count = news.length;
+
+  // 按日期分組
+  const groups = {};
+  news.forEach(n => {
+    const d = (n.created_at || n.time || '').slice(0, 10);
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(n);
+  });
+  const dates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+  const tabs = dates.map((d, i) => {
+    const label = d.slice(5).replace('-', '/');
+    return `<div class="news-date-tab ${i === 0 ? 'active' : ''}" onclick="switchDateTab(this,'${prefix}','${d}')">${label}<span class="tab-cnt">(${groups[d].length})</span></div>`;
+  }).join('');
+
+  const panels = dates.map((d, i) => {
+    const items = groups[d].map(n => renderNewsItem(n)).join('');
+    return `<div class="news-date-panel ${i === 0 ? 'active' : ''}" id="panel-${prefix}-${d}">${items}</div>`;
+  }).join('');
+
+  const bodyClass = defaultOpen ? 'open' : '';
+  const arrowClass = defaultOpen ? 'arrow open' : 'arrow';
+
+  return `<div class="news-section">
+    <div class="news-section-header ${headerCls}" onclick="toggleSection(this)">
+      <span>${title} (${count})</span>
+      <span class="${arrowClass}">&#9654;</span>
+    </div>
+    <div class="news-section-body ${bodyClass}">
+      <div class="news-date-tabs">${tabs}</div>
+      ${panels}
+    </div>
+  </div>`;
+}
+
+function renderNewsItem(n) {
+  const isUdn = (n.source || '').includes('經濟');
+  const srcCls = isUdn ? 'src-udn' : 'src-ct';
+  const srcName = isUdn ? '經濟' : '工商';
+  let timeStr = '';
+  if (n.time) {
+    const m = n.time.match(/(\d{2}:\d{2})/);
+    if (m) timeStr = m[1];
+  }
+  const inListTags = (n._inList || []).map(m =>
+    `<span class="news-tag tag-my" onclick="window.open('/company.html?code=${m.code}','_blank')">${m.code} ${m.name}</span>`
+  ).join('');
+  const otherTags = (n._other || []).map(m =>
+    `<span class="news-tag tag-other" onclick="window.open('/company.html?code=${m.code}','_blank')">${m.code} ${m.name}</span>`
+  ).join('');
+  const tagsHtml = inListTags || otherTags ? `<div class="news-tags">${inListTags}${otherTags}</div>` : '';
+
+  return `<div class="news-item">
+    <div class="news-item-top">
+      <span class="news-source ${srcCls}">${srcName}</span>
+      <span class="news-title"><a href="${n.link || '#'}" target="_blank">${n.title || ''}</a></span>
+      ${timeStr ? `<span class="news-time">${timeStr}</span>` : ''}
+    </div>
+    ${tagsHtml}
+  </div>`;
+}
+
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function switchDateTab(tab, prefix, date) {
+  const section = tab.closest('.news-section');
+  section.querySelectorAll('.news-date-tab').forEach(t => t.classList.remove('active'));
+  section.querySelectorAll('.news-date-panel').forEach(p => p.classList.remove('active'));
+  tab.classList.add('active');
+  const panel = document.getElementById(`panel-${prefix}-${date}`);
+  if (panel) panel.classList.add('active');
+}
+
+async function refreshNews() {
+  const btn = document.querySelector('.news-refresh');
+  btn.textContent = '更新中...';
+  btn.disabled = true;
+  try {
+    await fetch('/api/industry-news/refresh', { method: 'POST' });
+    await loadNews();
+  } catch (e) {
+    // ignore
+  }
+  btn.textContent = '更新';
+  btn.disabled = false;
+}
+
+// ===== 啟動 =====
 initDate();
-loadData();
+loadRevenue();
 </script>
 </body>
 </html>
