@@ -141,7 +141,7 @@ def load_all_data():
     codes = list(stocks.keys())
     if not codes:
         conn.close()
-        return stocks, {}, {}
+        return stocks, {}, {}, {}, set(), set()
 
     ph = ','.join('?' * len(codes))
 
@@ -191,12 +191,26 @@ def load_all_data():
             stocks[c]['_gm_latest'] = gms[0]
             stocks[c]['_gm_avg5'] = round(sum(gms) / len(gms), 2)
 
+    # 使用者清單（track / watch / quality）
+    track_set = set()
+    watch_set = set()
+    quality_set = set()
+    for row in conn.execute("SELECT list_type, code FROM user_lists WHERE list_type IN ('track','watch','quality')"):
+        lt = row['list_type']
+        c = row['code']
+        if lt == 'track':
+            track_set.add(c)
+        elif lt == 'watch':
+            watch_set.add(c)
+        elif lt == 'quality':
+            quality_set.add(c)
+
     conn.close()
-    return stocks, pe_data, gm_data
+    return stocks, pe_data, gm_data, track_set, watch_set, quality_set
 
 
 def load_previous_picks():
-    """從 Render 讀取上次選股推薦，按區塊提取代碼"""
+    """從 Render 讀取上次選股推薦，提取所有代碼"""
     try:
         req = urllib.request.Request(RENDER_PICKS_URL)
         resp = urllib.request.urlopen(req, timeout=15)
@@ -204,20 +218,9 @@ def load_previous_picks():
     except Exception:
         content = ''
 
-    def _extract(text, section):
-        # 找到 "## ...{section}..." 到下一個 "## 一/二/三/四" 之間的所有內容
-        # 包含子 section（### 小買候選、### 觀望等）
-        pattern = rf'## [^#]*{re.escape(section)}.*?(?=\n## [一二三四]|$)'
-        m = re.search(pattern, text, re.DOTALL)
-        if m:
-            return set(re.findall(r'\|\s*(\d{4,6})\s*\|', m.group()))
-        return set()
-
-    return {
-        'value': _extract(content, '價值精選'),
-        'growth': _extract(content, '成長精選'),
-        'cycle': _extract(content, '循環反轉'),
-    }
+    # 提取所有表格中的股票代碼
+    all_codes = set(re.findall(r'\|\s*(\d{4,6})\s*\|', content))
+    return all_codes
 
 
 # ══════════════════════════════════════════════════════════════
@@ -744,6 +747,54 @@ def fmt_cycle(r):
     return f"| {c} | {n}{_liq(r)} | {r.get('fin_grade_1', '')} | {cl} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} | {_fmt_yld(r)} | {e4} | {ne_s} | {rp} | {sd} | {_fl(r)} |"
 
 
+# ── 統一格式（新版四區塊用）──────────────────────────────────
+
+def _fmt_key_indicator(r):
+    """依林區分類產出關鍵指標欄"""
+    lt = r.get('_lt', '')
+    if lt in ('緩慢成長', '穩健股'):
+        cl = r['close']
+        vl = ''
+        if r.get('val_aa') and cl <= r['val_aa']: vl = 'AA'
+        elif r.get('val_a1') and cl <= r['val_a1']: vl = 'A1'
+        elif r.get('val_a2') and cl <= r['val_a2']: vl = 'A2'
+        elif r.get('val_a') and cl <= r['val_a']: vl = 'A'
+        ch = r.get('val_cheap_days') or 0
+        return f'評價{vl} {ch}天' if vl else f'Above {ch}天'
+    elif lt == '快速成長':
+        sp = f"沈董PE={r['shen_pe']:.1f}" if r.get('shen_pe') else 'PE—'
+        pg = f"PEG={r['gi_lynch_d']:.2f}" if r.get('gi_lynch_d') else ''
+        nf = f"Neff={r['gi_neff_d']:.2f}" if r.get('gi_neff_d') else ''
+        parts = [sp]
+        if pg: parts.append(pg)
+        if nf: parts.append(nf)
+        return ' '.join(parts)
+    elif lt in ('景氣循環', '轉機股'):
+        npe = f"正常化PE={r['_norm_pe']:.1f}" if r.get('_norm_pe') else 'PE—'
+        rp = f"進度{r['_rp']:.2f}" if r.get('_rp') is not None else ''
+        sd = r.get('_sd', '')
+        parts = [npe]
+        if rp: parts.append(rp)
+        if sd: parts.append(f'訊號{sd}')
+        return ' '.join(parts)
+    return '—'
+
+
+def _type_label(r):
+    """林區分類的簡短標籤"""
+    lt = r.get('_lt', '')
+    labels = {'緩慢成長': '價值', '穩健股': '價值', '快速成長': '成長', '景氣循環': '循環', '轉機股': '循環'}
+    return labels.get(lt, '—')
+
+
+def fmt_unified(r):
+    """統一格式行"""
+    c, n, cl = r['code'], (r.get('name') or '')[:8], r['close']
+    return (f"| {c} | {n}{_liq(r)} | {_type_label(r)} | {r.get('fin_grade_1', '')} | {cl} "
+            f"| {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} "
+            f"| {_fmt_yld(r)} | {_fmt_key_indicator(r)} | {_fl(r)} |")
+
+
 # ══════════════════════════════════════════════════════════════
 # 排序（決議#12）
 # ══════════════════════════════════════════════════════════════
@@ -778,351 +829,189 @@ def sort_cycle(codes, stocks):
 # 主流程
 # ══════════════════════════════════════════════════════════════
 
-def run_full(dry_run=False):
-    """完整篩選"""
-    stocks, _, _ = load_all_data()
-    prev = load_previous_picks()
+def _evaluate_stock(r):
+    """對單支股票執行林區分類 + 防呆 + 估值，回傳 (level, reason, eval_type)
+    level: 'heavy'/'small'/'watch'/None
+    eval_type: '價值'/'成長'/'循環'/None
+    """
+    lt, amp, cls_reason = classify_lynch(r)
+    if lt is None:
+        return None, f'分類失敗: {cls_reason}', None
+    r['_lt'] = lt
 
-    # 信任門檻
-    passed = {}
-    excluded = {}
-    for code, r in stocks.items():
-        ok, reason = check_trust(r)
-        if ok:
-            passed[code] = r
-        else:
-            excluded[code] = reason
+    flags, ml = check_defenses(r)
 
-    # 林區分類 + 排除 CAGR NULL
-    classified = {}
-    for code, r in passed.items():
-        lt, amp, reason = classify_lynch(r)
-        if lt is None:
-            excluded[code] = f'林區分類失敗: {reason}'
-            continue
-        r['_lt'] = lt
-        classified[code] = r
+    if '股本變動>50%' in flags and lt == '景氣循環':
+        return None, '股本變動>50%排除', '循環'
 
-    # 防呆 + 估值
-    vh, vs, vw = [], [], []
-    gh, gs, gw = [], [], []
-    cyh, cys, cyw = [], [], []
-    eval_log = {}  # 每支的判斷路徑
+    if lt in ('緩慢成長', '穩健股'):
+        level, reason = evaluate_value(r)
+        return level, reason, '價值'
+    elif lt == '快速成長':
+        level, reason = evaluate_growth(r)
+        return level, reason, '成長'
+    elif lt in ('景氣循環', '轉機股'):
+        level, reason = evaluate_cycle(r)
+        return level, reason, '循環'
+    return None, '', None
 
-    for code, r in classified.items():
-        flags, ml = check_defenses(r)
-        lt = r['_lt']
-        cl = r['close']
 
-        # 股本變動>50% 且循環股排除
-        if '股本變動>50%' in flags and lt == '景氣循環':
-            eval_log[code] = f'{lt} → 股本變動>50%排除'
-            continue
-
+def _sort_section(codes, stocks_dict):
+    """區塊內排序：重倉/小買/觀望各自按估值類型排"""
+    def _key(c):
+        r = stocks_dict[c]
+        lt = r.get('_lt', '')
         if lt in ('緩慢成長', '穩健股'):
-            level, reason = evaluate_value(r)
-            eval_log[code] = f'{lt}/價值 → {level or "未達標"}: {reason}'
-            if level == 'heavy': vh.append(code)
-            elif level == 'small': vs.append(code)
-            elif level == 'watch': vw.append(code)
-
+            val_aa = r.get('val_aa')
+            if val_aa and val_aa > 0:
+                return (r['close'] - val_aa) / val_aa
+            return 999
         elif lt == '快速成長':
-            level, reason = evaluate_growth(r)
-            eval_log[code] = f'{lt}/成長 → {level or "未達標"}: {reason}'
-            if level == 'heavy': gh.append(code)
-            elif level == 'small': gs.append(code)
-            elif level == 'watch': gw.append(code)
-
+            peg = r.get('gi_lynch_d')
+            return peg if peg is not None else 999
         elif lt in ('景氣循環', '轉機股'):
-            level, reason = evaluate_cycle(r)
-            eval_log[code] = f'{lt}/循環 → {level or "未達標"}: {reason}'
-            if level == 'heavy': cyh.append(code)
-            elif level == 'small': cys.append(code)
-            elif level == 'watch': cyw.append(code)
+            return r.get('_norm_pe', 999)
+        return 999
+    return sorted(codes, key=_key)
 
-    # 排序（決議#12）
-    vh = sort_value(vh, classified)
-    vs = sort_value(vs, classified)
-    vw = sort_value(vw, classified)
-    gh = sort_growth(gh, classified)
-    gs = sort_growth(gs, classified)
-    gw = sort_growth(gw, classified)
-    cyh = sort_cycle(cyh, classified)
-    cys = sort_cycle(cys, classified)
-    cyw = sort_cycle(cyw, classified)
 
-    # 產出 Markdown
-    cv = set(vh + vs + vw)
-    cg = set(gh + gs + gw)
-    cc = set(cyh + cys + cyw)
-    total = len(cv) + len(cg) + len(cc)
+def _render_section(L, title, desc, heavy, small, watch, stocks_dict, eval_log):
+    """渲染單一區塊（追蹤/觀察/體質/全市場）的 markdown"""
+    total = len(heavy) + len(small) + len(watch)
+    L.append(f"---\n## {title}\n")
+    if desc:
+        L.append(f"> {desc}\n")
+    L.append(f"**小計：** {len(heavy)}重/{len(small)}小/{len(watch)}望，合計 {total}\n")
+
+    TH = "| 代碼 | 名稱 | 類型 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 關鍵指標 | 防呆 |\n|------|------|------|------|------|-----|------|------|------|--------|----------|----------|------|"
+    TH_W = "| 代碼 | 名稱 | 類型 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 關鍵指標 | 等什麼 |\n|------|------|------|------|------|-----|------|------|------|--------|----------|----------|--------|"
+
+    if heavy:
+        L.append("### 重倉候選\n")
+        L.append(TH)
+        for c in heavy:
+            L.append(fmt_unified(stocks_dict[c]))
+        L.append("")
+
+    if small:
+        L.append("### 小買候選\n")
+        L.append(TH)
+        for c in small:
+            L.append(fmt_unified(stocks_dict[c]))
+        L.append("")
+
+    if watch:
+        L.append("### 觀望\n")
+        L.append(TH_W)
+        for c in watch:
+            row = fmt_unified(stocks_dict[c])
+            reason = eval_log.get(c, '').split('→')[-1].split(':')[-1].strip() if c in eval_log else ''
+            # 替換最後的防呆欄為等什麼
+            parts = row.rsplit('|', 2)
+            L.append(f"{parts[0]}| {reason} |")
+        L.append("")
+
+    if not heavy and not small and not watch:
+        L.append("無符合條件的標的。\n")
+
+
+def run_full(dry_run=False):
+    """完整篩選 — 四區塊架構（追蹤→觀察→體質→全市場）"""
+    stocks, _, _, track_set, watch_set, quality_set = load_all_data()
     today = date.today().isoformat()
 
+    # 去重分組（優先順序：追蹤 > 觀察 > 體質 > 未勾選）
+    # 只取有股價資料的
+    track_codes = sorted(c for c in track_set if c in stocks)
+    watch_codes = sorted(c for c in watch_set - track_set if c in stocks)
+    quality_codes = sorted(c for c in quality_set - track_set - watch_set if c in stocks)
+    remaining_codes = sorted(c for c in stocks if c not in track_set and c not in watch_set and c not in quality_set)
+
+    # 對各組執行估值
+    eval_log = {}
+    all_results = {}  # code -> (level, eval_type)
+
+    def _process_group(codes, skip_trust=False):
+        """處理一組股票，回傳 (heavy, small, watch) 的 code 列表"""
+        h, s, w = [], [], []
+        for code in codes:
+            r = stocks[code]
+
+            # 信任門檻（追蹤/觀察/體質跳過）
+            if not skip_trust:
+                ok, reason = check_trust(r)
+                if not ok:
+                    eval_log[code] = f'信任門檻排除: {reason}'
+                    continue
+
+            level, reason, eval_type = _evaluate_stock(r)
+            if eval_type:
+                eval_log[code] = f'{r.get("_lt", "")}/{eval_type} → {level or "未達標"}: {reason}'
+            else:
+                eval_log[code] = f'分類失敗: {reason}'
+
+            if level == 'heavy':
+                h.append(code)
+            elif level == 'small':
+                s.append(code)
+            elif level == 'watch':
+                w.append(code)
+
+            if level:
+                all_results[code] = (level, eval_type)
+
+        h = _sort_section(h, stocks)
+        s = _sort_section(s, stocks)
+        w = _sort_section(w, stocks)
+        return h, s, w
+
+    t_h, t_s, t_w = _process_group(track_codes, skip_trust=True)
+    w_h, w_s, w_w = _process_group(watch_codes, skip_trust=True)
+    q_h, q_s, q_w = _process_group(quality_codes, skip_trust=True)
+    r_h, r_s, r_w = _process_group(remaining_codes, skip_trust=False)
+
+    # 統計
+    t_total = len(t_h) + len(t_s) + len(t_w)
+    w_total = len(w_h) + len(w_s) + len(w_w)
+    q_total = len(q_h) + len(q_s) + len(q_w)
+    r_total = len(r_h) + len(r_s) + len(r_w)
+    grand_total = t_total + w_total + q_total + r_total
+
+    # 產出 Markdown
     L = []
     L.append(f"# 選股推薦 {today}\n")
-    L.append(f"**統計：** 價值 {len(vh)}重/{len(vs)}小/{len(vw)}望 | 成長 {len(gh)}重/{len(gs)}小/{len(gw)}望 | 循環 {len(cyh)}重/{len(cys)}小/{len(cyw)}望 | 合計 {total}\n")
+    L.append(f"**統計：** 追蹤 {t_total} | 觀察 {w_total} | 體質 {q_total} | 全市場 {r_total} | 合計 {grand_total}\n")
+    L.append("> **估值框架**：依林區分類自動套用 — 價值（逍遙評價法）/ 成長（PEG/Neff）/ 循環（正常化PE+復甦進度）")
+    L.append("> **類型欄**：價值=緩慢成長+穩健股 / 成長=快速成長 / 循環=景氣循環+轉機股")
+    L.append("> **追蹤/觀察/體質**：跳過信任門檻 / **全市場**：套用信任門檻（排除KY、金融、上市<5年等）")
+    L.append("> **同一支股票只出現在最高優先區塊**（追蹤 > 觀察 > 體質 > 全市場）\n")
 
-    # ── 價值精選 ──
-    L.append("---\n## 一、價值精選\n")
-    L.append("> **適用**：緩慢成長 + 穩健股（3年營收CAGR < 15%、EPS振幅 < 2.5倍）")
-    L.append("> **估值框架**：逍遙評價法 — 門檻 = min(EPS×PE, 股利/殖利率%, 綜合股利/6%+股利)")
-    L.append("> **EPS來源**：min(沈董EPS, 綜合EPS)，取較低者作為安全帽｜**股利**：跟隨EPS來源（沈董→沈董股利，綜合→綜合股利）")
-    L.append("> **PE面/殖利率面**：同樣使用 min(沈董,綜合) 的EPS和股利計算，與評價門檻同源")
-    L.append("> **PE區間**：個股歷史5年PE中位數（低～高，高點封頂20），五分法判斷位置")
-    L.append(">")
-    L.append("> **重倉條件**：股價 <= AA門檻 + 3M營收 >= 0 + 3M >= 12M（加速中）+ 累積營收 > 0 + 防呆通過 + 近2年財務等級皆A級以上")
-    L.append("> **小買條件**：股價 <= A門檻 + 3M營收 >= 0 + 累積營收 > 0")
-    L.append("> **觀望條件**：財務等級A級以上 + 股價 <= A門檻 + 營收未到位（3M < 0 或累積 < 0，等轉正）\n")
-    VH = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 便宜天 | 防呆 |\n|------|------|------|------|------|-----|------|------|------|--------|----------|--------|------|"
-    VW_H = "| 代碼 | 名稱 | 等級 | 評價 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 便宜天 | 等什麼 |\n|------|------|------|------|------|-----|------|------|------|--------|----------|--------|--------|"
+    _render_section(L, f'一、追蹤清單（{len(track_codes)}支）',
+                    '你最關注的標的，優先處理',
+                    t_h, t_s, t_w, stocks, eval_log)
 
-    if vh:
-        L.append("### 重倉候選（需完成質性研究確認）\n")
-        L.append(VH)
-        for c in vh: L.append(fmt_value(classified[c]))
-        L.append("")
-    else:
-        L.append("無符合重倉條件的標的。\n")
-    if vs:
-        L.append("### 小買候選（需完成質性研究確認）\n")
-        L.append(VH)
-        for c in vs: L.append(fmt_value(classified[c]))
-        L.append("")
-    if vw:
-        L.append("### 價值觀望\n")
-        L.append(VW_H)
-        for c in vw:
-            row = fmt_value(classified[c])
-            reason = eval_log.get(c, '').split('→')[-1].split(':')[-1].strip()
-            parts = row.rsplit('|', 2)
-            L.append(f"{parts[0]}| {reason} |")
-        L.append("")
+    _render_section(L, f'二、觀察清單（{len(watch_codes)}支）',
+                    '已進入觀察但還沒追蹤的標的',
+                    w_h, w_s, w_w, stocks, eval_log)
 
-    vn = sorted(cv - prev['value'])
-    vr = sorted(prev['value'] - cv)
-    if vn: L.append("> 新進：" + "、".join(f"{c} {classified[c].get('name', '')}" for c in vn if c in classified))
-    if vn and vr: L.append(">")
-    if vr: L.append("> 移出：" + "、".join(vr))
-    if not vn and not vr: L.append("> 無變動")
-    L.append("")
+    _render_section(L, f'三、體質清單（{len(quality_codes)}支）',
+                    '機器篩出體質好的標的（扣除追蹤+觀察）',
+                    q_h, q_s, q_w, stocks, eval_log)
 
-    # ── 成長精選 ──
-    L.append("---\n## 二、成長精選\n")
-    L.append("> **適用**：快速成長股（3年營收CAGR > 15%，非景氣循環、非轉機股）")
-    L.append("> **估值框架**：PEG / Neff 成長性估值 + 沈董PE <= 20 門檻")
-    L.append("> **PE門檻**：沈董PE（股價/沈董EPS）<= 20，超過不列入")
-    L.append("> **PEG/Neff**：檢核表計算值，PE和殖利率用 min(沈董EPS, 綜合EPS) 與逍遙評價法一致")
-    L.append("> **PE面/殖利率面/PE區間**：與價值精選相同邏輯（min(沈董,綜合)、五分法中位數）")
-    L.append(">")
-    L.append("> **重倉條件**：沈董PE <= 20 + (PEG <= 0.8 或 Neff >= 1.2) + 3M營收 > 0 + 累積營收 > 0 + 3M > 12M（加速中）+ 防呆通過")
-    L.append("> **小買條件**：沈董PE <= 20 + (PEG <= 1.2 或 Neff >= 0.8) + 3M營收 > 0 + 累積營收 > 0 + 防呆通過")
-    L.append("> **觀望條件**：PEG <= 1.2 或 Neff >= 0.8 + 防呆通過 + 營收未到位（3M < 0 或累積 < 0，等轉正）\n")
-    GH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | CAGR3 | PEG | Neff | 沈董PE | 防呆 |\n|------|------|------|------|-----|------|------|------|--------|----------|-------|-----|------|--------|------|"
-    GW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | CAGR3 | PEG | Neff | 沈董PE | 等什麼 |\n|------|------|------|------|-----|------|------|------|--------|----------|-------|-----|------|--------|--------|"
+    _render_section(L, f'四、全市場掃描（達標 {r_total} 支）',
+                    '不在任何清單中但估值達標的標的（套用信任門檻）',
+                    r_h, r_s, r_w, stocks, eval_log)
 
-    if gh:
-        L.append("### 重倉候選（需完成質性研究確認）\n")
-        L.append(GH)
-        for c in gh: L.append(fmt_growth(classified[c]))
-        L.append("")
-    else:
-        L.append("無符合重倉條件的標的。\n")
-    if gs:
-        L.append("### 小買候選（需完成質性研究確認）\n")
-        L.append(GH)
-        for c in gs: L.append(fmt_growth(classified[c]))
-        L.append("")
-    if gw:
-        L.append("### 成長觀望\n")
-        L.append(GW_H)
-        for c in gw:
-            row = fmt_growth(classified[c])
-            reason = eval_log.get(c, '').split('→')[-1].split(':')[-1].strip()
-            parts = row.rsplit('|', 2)
-            L.append(f"{parts[0]}| {reason} |")
-        L.append("")
-
-    gn = sorted(cg - prev['growth'])
-    gr = sorted(prev['growth'] - cg)
-    if gn: L.append("> 新進：" + "、".join(f"{c} {classified[c].get('name', '')}" for c in gn if c in classified))
-    if gn and gr: L.append(">")
-    if gr: L.append("> 移出：" + "、".join(gr))
-    if not gn and not gr: L.append("> 無變動")
-    L.append("")
-
-    # ── 循環反轉 ──
-    L.append("---\n## 三、循環反轉\n")
-    L.append("> **適用**：景氣循環股（EPS振幅 > 2.5倍）+ 轉機股（前年C/D/X → 今年B2A以上）")
-    L.append("> **估值框架**：正常化PE + 復甦進度 + 復甦訊號，不用逍遙評價法（循環股的一般PE和CAGR會誤導）")
-    L.append("> **正常化EPS**：6年EPS，max/均值 > 1.8 用中位數，否則用平均 → 正常化PE = 股價/正常化EPS")
-    L.append("> **復甦進度**：近4季EPS加總 / 正常化EPS（>2.0排除高峰、1.5～2.0降級、0.5～1.5正常、<0.5谷底觀望）")
-    L.append("> **復甦訊號（0～3）**：3M營收>0 + 毛利率>=5年均值95% + 累積營收>0")
-    L.append("> **PE面/殖利率面/PE區間**：與價值精選相同邏輯（min(沈董,綜合)、五分法中位數），輔助觀察非篩選依據")
-    L.append(">")
-    L.append("> **重倉條件**：正常化PE <= 10 + 進度0.5～1.5 + 訊號3/3 + 3M > 12M（加速中）+ 防呆通過")
-    L.append("> **小買條件**：正常化PE <= 12 + 進度0.5～1.5 + 訊號 >= 2/3 + 防呆通過")
-    L.append("> **觀望條件**：正常化PE <= 15 + 進度<0.5或訊號不足")
-    L.append("> **排除**：近4季EPS <= 0 或復甦進度 > 2.0\n")
-    CH = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 4Q EPS | 正常化EPS | 復甦進度 | 訊號 | 防呆 |\n|------|------|------|------|-----|------|------|------|--------|----------|--------|----------|----------|------|------|"
-    CW_H = "| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 4Q EPS | 正常化EPS | 復甦進度 | 訊號 | 等什麼 |\n|------|------|------|------|-----|------|------|------|--------|----------|--------|----------|----------|------|--------|"
-
-    if cyh:
-        L.append("### 重倉候選（需完成質性研究確認）\n")
-        L.append(CH)
-        for c in cyh: L.append(fmt_cycle(classified[c]))
-        L.append("")
-    else:
-        L.append("無符合重倉條件的標的。\n")
-    if cys:
-        L.append("### 小買候選（需完成質性研究確認）\n")
-        L.append(CH)
-        for c in cys: L.append(fmt_cycle(classified[c]))
-        L.append("")
-    if cyw:
-        L.append("### 循環觀望\n")
-        L.append(CW_H)
-        for c in cyw:
-            reason = eval_log.get(c, '').split('→')[-1].split(':')[-1].strip()
-            row = fmt_cycle(classified[c])
-            parts = row.rsplit('|', 2)
-            L.append(f"{parts[0]}| {reason} |")
-        L.append("")
-
-    cn = sorted(cc - prev['cycle'])
-    cr = sorted(prev['cycle'] - cc)
-    if cn: L.append("> 新進：" + "、".join(f"{c} {classified[c].get('name', '')}" for c in cn if c in classified))
-    if cn and cr: L.append(">")
-    if cr: L.append("> 移出：" + "、".join(cr))
-    if not cn and not cr: L.append("> 無變動")
-    L.append("")
-    # ── 交叉比對（漏網之魚偵測）──
-    engine_all = cv | cg | cc  # 引擎已選到的所有代碼
-
-    # 從 DB 讀體質清單、觀察清單、葛林布萊前50
-    conn_x = sqlite3.connect(DB_PATH)
-    conn_x.row_factory = sqlite3.Row
-    quality_set = set()
-    watch_set = set()
-    for row in conn_x.execute("SELECT list_type, code FROM user_lists WHERE list_type IN ('quality','watch')"):
-        if row['list_type'] == 'quality':
-            quality_set.add(row['code'])
-        else:
-            watch_set.add(row['code'])
-    gb50 = set()
-    for row in conn_x.execute("SELECT code FROM stocks WHERE gb_total_rank IS NOT NULL AND gb_total_rank <= 50"):
-        gb50.add(row['code'])
-    conn_x.close()
-
-    # 找出引擎沒選到但其他篩選有選到的
-    quality_miss = sorted((quality_set & watch_set) - engine_all)  # 體質+觀察都通過但引擎沒選
-    gb_miss = sorted(gb50 - engine_all)  # 葛林布萊前50但引擎沒選
-
-    def _cross_detail(code):
-        """產出單支股票的 PE面/殖利率面位置說明"""
-        r = stocks.get(code)
-        if not r:
-            return f"| {code} | — | — | 不在資料中 |"
-        name = (r.get('name') or '')[:8]
-        cl = r.get('close')
-
-        # 引擎未選原因（具體化）
-        reason = '—'
-        if code in excluded:
-            reason = excluded[code]
-        elif code not in passed:
-            reason = '信任門檻未通過'
-        elif code in eval_log:
-            raw = eval_log[code]
-            detail = raw.split('→')[-1].strip()
-            if detail and '未達標' not in detail:
-                reason = detail
-            else:
-                # 從資料判斷具體卡關原因
-                lt = r.get('_lt', '')
-                reasons = []
-                if lt in ('緩慢成長', '穩健股'):
-                    val_a = r.get('val_a')
-                    if val_a and cl and cl > val_a:
-                        reasons.append(f'股價{cl}高於A門檻{val_a}')
-                    m3 = r.get('gi_rev_3m_yoy')
-                    rc = r.get('revenue_cum_yoy')
-                    if m3 is not None and m3 < 0:
-                        reasons.append(f'3M營收{m3:.1f}%')
-                    if rc is not None and rc < 0:
-                        reasons.append(f'累積營收{rc:.1f}%')
-                elif lt == '快速成長':
-                    spe = r.get('shen_pe')
-                    if spe and spe > 20:
-                        reasons.append(f'沈董PE {spe:.1f}>20')
-                    peg = r.get('gi_lynch_d')
-                    neff = r.get('gi_neff_d')
-                    if peg and peg > 1.2 and (neff is None or neff < 0.8):
-                        reasons.append(f'PEG {peg:.2f}/Neff {neff:.2f}未達')
-                elif lt in ('景氣循環', '轉機股'):
-                    npe = r.get('_norm_pe')
-                    if npe and npe > 15:
-                        reasons.append(f'正常化PE {npe:.1f}>15')
-                    rp = r.get('_rp')
-                    if rp and rp > 2.0:
-                        reasons.append(f'復甦進度{rp:.1f}過高')
-                    e4q = r.get('eps_4q_sum')
-                    if not e4q or e4q <= 0:
-                        reasons.append('近4季EPS<=0')
-                if not reasons:
-                    reasons.append(f'{lt}估值未達標')
-                reason = '；'.join(reasons)
-        elif code in classified:
-            reason = '分類後未進入估值'
-
-        return f"| {code} | {name} | {r.get('fin_grade_1', '')} | {cl or '—'} | {_fmt_m3(r)} | {_fmt_m12(r)} | {_fmt_rc(r)} | {_fmt_pe(r)} | {_fmt_pe_range(r)} | {_fmt_yld(r)} | {reason} |"
-
-    if quality_miss or gb_miss:
-        L.append("---\n## 四、交叉比對（漏網之魚偵測）\n")
-        L.append("> **目的**：找出引擎三大區塊沒選到，但其他篩選機制認為值得關注的股票")
-        L.append("> **比對來源**：(1) 體質清單 ∩ 觀察清單（你的自訂條件篩選）(2) 葛林布萊前50（ROIC+盈餘殖利率排名）")
-        L.append("> **PE面**：min(沈董EPS,綜合EPS) 與逍遙評價法一致，五分法位置（偏低以下=V）")
-        L.append("> **PE區間**：個股歷史5年PE中位數（低～高，高點封頂20）")
-        L.append("> **殖利率面**：綜合股利，門檻5.5%")
-        L.append("> **原因欄**：具體說明為何引擎沒選（股價高於門檻/正常化PE>15/沈董PE>20/營收負成長等）\n")
-
-        if quality_miss:
-            L.append("### 體質+觀察通過但引擎未列\n")
-            L.append("> 你的體質判斷+觀察挑選都通過，但逍遙評價法/成長估值/循環估值都沒選上的股票\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|-----|------|------|------|--------|----------|------|")
-            for c in quality_miss:
-                L.append(_cross_detail(c))
-            L.append("")
-
-        if gb_miss:
-            L.append("### 葛林布萊前50但引擎未列\n")
-            L.append("> ROIC + 盈餘殖利率加總排名前50，但引擎沒選上的股票（可能因產業排除、股價太高、信任門檻等）\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|-----|------|------|------|--------|----------|------|")
-            for c in gb_miss:
-                gb_rank = stocks.get(c, {}).get('gb_total_rank', '—')
-                L.append(_cross_detail(c) + f" GB#{gb_rank}")
-            L.append("")
-
-        # 反向：引擎有列但體質未通過
-        engine_no_quality = sorted(engine_all - quality_set)
-        if engine_no_quality:
-            L.append("### 引擎有列但體質未通過\n")
-            L.append("> 引擎選上了但你的體質判斷沒通過，可能是體質門檻設定過嚴，或該股票體質確實有疑慮\n")
-            L.append("| 代碼 | 名稱 | 等級 | 股價 | 3M | 12M | 累積 | PE面 | PE區間 | 殖利率面 | 原因 |")
-            L.append("|------|------|------|------|-----|------|------|------|--------|----------|------|")
-            for c in engine_no_quality:
-                L.append(_cross_detail(c))
-            L.append("")
-
-    L.append(f"分析日期：{today}")
+    L.append(f"\n分析日期：{today}")
 
     content = "\n".join(L)
 
     # 輸出統計
-    print(f"信任門檻通過: {len(passed)} / {len(stocks)}")
-    print(f"分類後: {len(classified)}")
-    print(f"結果: 價值 {len(vh)}H/{len(vs)}S/{len(vw)}W | 成長 {len(gh)}H/{len(gs)}S/{len(gw)}W | 循環 {len(cyh)}H/{len(cys)}S/{len(cyw)}W | 合計 {total}")
+    print(f"追蹤: {len(track_codes)}支 → {t_total}達標 ({len(t_h)}H/{len(t_s)}S/{len(t_w)}W)")
+    print(f"觀察: {len(watch_codes)}支 → {w_total}達標 ({len(w_h)}H/{len(w_s)}S/{len(w_w)}W)")
+    print(f"體質: {len(quality_codes)}支 → {q_total}達標 ({len(q_h)}H/{len(q_s)}S/{len(q_w)}W)")
+    print(f"全市場: {len(remaining_codes)}支 → {r_total}達標 ({len(r_h)}H/{len(r_s)}S/{len(r_w)}W)")
+    print(f"合計: {grand_total}")
 
     if not dry_run:
         try:
@@ -1141,21 +1030,30 @@ def run_full(dry_run=False):
 
 def run_check(code):
     """驗證單支股票的完整判斷路徑"""
-    stocks, _, _ = load_all_data()
+    stocks, _, _, track_set, watch_set, quality_set = load_all_data()
     if code not in stocks:
         print(f"找不到 {code}")
         return
 
     r = stocks[code]
+    in_lists = []
+    if code in track_set: in_lists.append('追蹤')
+    if code in watch_set: in_lists.append('觀察')
+    if code in quality_set: in_lists.append('體質')
+    list_info = '、'.join(in_lists) if in_lists else '未勾選'
     print(f"═══ {code} {r.get('name', '')} ═══")
     print(f"股價: {r['close']}  產業: {r.get('industry', '')}  日均量: {r.get('volume', 0)}")
+    print(f"清單: {list_info}（{'跳過信任門檻' if in_lists else '需通過信任門檻'}）")
     print()
 
-    # 信任門檻
-    ok, reason = check_trust(r)
-    print(f"【信任門檻】{'通過' if ok else f'排除 — {reason}'}")
-    if not ok:
-        return
+    # 信任門檻（追蹤/觀察/體質跳過）
+    if not in_lists:
+        ok, reason = check_trust(r)
+        print(f"【信任門檻】{'通過' if ok else f'排除 — {reason}'}")
+        if not ok:
+            return
+    else:
+        print(f"【信任門檻】跳過（在{list_info}清單中）")
 
     # 林區分類
     lt, amp, cls_reason = classify_lynch(r)
@@ -1206,7 +1104,7 @@ def run_check(code):
 
 def run_excluded():
     """列出所有被排除的股票及原因"""
-    stocks, _, _ = load_all_data()
+    stocks, _, _, _, _, _ = load_all_data()
 
     reasons = {}
     for code, r in stocks.items():
