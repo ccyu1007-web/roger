@@ -54,23 +54,11 @@ CHECKLIST_SAFETY = [
 ]
 
 CHECKLIST_VALUE = [
-    ('shen_pe_ok', '沈董本益比 <= 15'),
-    ('shen_vs_avg5', '沈董EPS >= 近5年平均EPS'),
-    ('shen_vs_avg3', '沈董EPS >= 近3年平均EPS'),
-    ('eps_5y_pos', '近5年EPS皆大於0'),
-    ('eps_5y_stable', '近5年最高EPS/最低EPS < 3'),
-    ('core_ratio', '累計營業利益/累計稅前淨利 > 80%'),
-    ('wt_yld_ok', '綜合殖利率 >= 5%'),
-    ('wt_payout_ok', '加權配息率 > 50%'),
-    ('eps_vs_10y', '沈董EPS / 10年平均EPS >= 1'),
-    ('grade_a_ok', '沈董等級為A級以上'),
-    ('price_in_a', 'AA級評價 <= 股價 <= A級評價'),
-    ('price_below_aa_v', '股價 <= AA級評價'),
-    ('val_ddm_return', '股利折現模式年報酬 >= 10%'),
-    ('dcf_safe_ok', '現價 <= 現金流量折現安全邊際價'),
-    ('ge_neff_ratio', 'Neff 比率 >= 0.7'),
-    ('ge_lynch_peg', 'PEG <= 1.0'),
-    ('ge_lynch_consist', '林區成長一致性 >= 0.5'),
+    ('grade_a_ok', '預估(沈董)等級為A級以上'),
+    ('eps_vs_median5', '預估(沈董)EPS >= 近5年EPS中位數'),
+    ('core_ratio', '累計營業利益/累計稅前淨利 > 70%'),
+    ('price_val_ok', '現價 <= A級評價；<= AA更佳'),
+    ('ge_neff_ratio', 'Neff 比率 >= 1.0'),
 ]
 
 CHECKLIST_GROWTH = [

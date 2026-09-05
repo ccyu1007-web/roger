@@ -3064,11 +3064,11 @@ function copyReportPrompt() {
   const prompt = `請執行投資報告書引擎產出資料簡報，然後根據資料簡報撰寫報告：
 python3 /Users/roger/Documents/AI機器人/stock_system/investment_report_engine.py ${CODE}
 
-腳本會輸出完整的資料簡報（含所有數據、檢核表45項、質性筆記、報告格式指令），直接根據輸出內容撰寫報告並存入 Render。`;
+腳本會輸出完整的資料簡報（含所有數據、檢核表36項、質性筆記、報告格式指令），直接根據輸出內容撰寫報告並存入 Render。`;
 /* 舊版 prompt 已移除 — 所有邏輯在 investment_report_engine.py
 從逍遙投資系統 DB（stocks.db）讀取：
 1. stocks 表：EPS（5季+6年）、股利（6年）、財務等級（6年）、評價門檻、營收年增率、配息率payout_1~5
-2. stock_checklist 表：45項檢核全部欄位（含 chk_ 前綴的逐項通過/未通過 + detail_ 前綴的實際值）
+2. stock_checklist 表：36項檢核全部欄位（含 chk_ 前綴的逐項通過/未通過 + detail_ 前綴的實際值）
 3. financial_annual 表：年度三表（6年）
 4. quarterly_financial 表：季度EPS與損益
 5. monthly_revenue 表：月營收趨勢
@@ -3149,12 +3149,12 @@ ROIC 逐項解讀（4項）：5年均值X% vs 門檻15%、最新年X%、趨勢�
 
 ## 三、價值評估
 
-**檢核通過：X/15**
+**檢核通過：X/5**
 
 評價門檻表（AA/A1/A2/A vs 股價，折溢價%）
 PE/殖利率表（沈董/綜合/席勒）
 PE歷史區間（5年低/中/高，目前位置）
-EPS穩定性（5年皆正、高低比）、配息率趨勢、核心比率、DDM/DCF結果。
+等級判定、EPS vs 中位數水準、本業比率、Neff比率。
 
 以林區分類角度解讀：
 - 價值股：評價門檻和殖利率是核心判斷

@@ -789,21 +789,12 @@ CHECKLIST_ITEMS = [
     {'key': 'qinv_4v20',      'category': 'safety', 'label': '近4季存貨週轉天數 < 近20季平均', 'threshold': '是', 'weight': '輔助', 'hint': '用季度資料捕捉更即時的存貨變化趨勢'},
     {'key': 'ar_days_avg',    'category': 'safety', 'label': '應收帳款週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要', 'hint': '收款速度正常，沒有客戶賴帳風險'},
     {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助', 'hint': '應收天數創新高可能代表客戶還款能力變差'},
-    # ── C 價值評估檢核（13項）──
-    {'key': 'grade_a_ok',     'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '矩陣等級A以上代表PE和殖利率都在合理範圍'},
-    {'key': 'blend_grade_ok', 'category': 'value', 'label': '綜合等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '綜合EPS加權後的矩陣等級，A以上代表整體評價合理'},
-    {'key': 'eps_vs_multi',   'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年/近3年/十年均EPS 中至少2個', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認EPS不是異常偏低，估值基礎可靠'},
-    {'key': 'eps_vs_10y',     'category': 'value', 'label': '預估(沈董)EPS / 十年平均EPS', 'threshold': '≥ 1', 'weight': '重要', 'group': '沈董法', 'hint': '長期視角確認EPS水準，排除短期高低波動'},
-    {'key': 'core_ratio',     'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 80%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
-    {'key': 'price_val_ok',   'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '股價低於評價門檻，有安全邊際'},
-    {'key': 'eps_5y_pos',     'category': 'value', 'label': '近5年EPS逐年皆 > 0', 'threshold': '是', 'weight': '核心', 'group': 'EPS 品質', 'hint': '穩定獲利是估值的前提，有虧損年度代表風險高'},
-    {'key': 'eps_5y_stable',  'category': 'value', 'label': '近5年最高EPS / 最低EPS', 'threshold': '< 3', 'weight': '重要', 'group': 'EPS 品質', 'hint': 'EPS波動太大代表獲利不穩定，估值可靠性低'},
-    {'key': 'wt_yld_ok',      'category': 'value', 'label': '綜合殖利率', 'threshold': '≥ 5%', 'weight': '核心', 'group': '殖利率法', 'hint': '股利報酬率夠高，提供持有期間的現金回報'},
-    {'key': 'wt_payout_ok',   'category': 'value', 'label': '加權配息率', 'threshold': '40%~80%', 'weight': '重要', 'group': '殖利率法', 'hint': '配息率太低代表股利少，太高代表可能超發不可持續'},
-    {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現現價潛在年報酬', 'threshold': '≥ 10%', 'weight': '重要', 'group': 'DDM', 'hint': '以股利折現模型估算，現價買入的預期年化報酬'},
-    {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 ≤ DCF安全邊際價', 'threshold': '是', 'weight': '重要', 'group': 'DCF', 'hint': '自由現金流折現後，現價低於內在價值打折後的安全價'},
-    {'key': 'ge_neff_ratio',  'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 0.7', 'weight': '輔助', 'group': '林區／聶夫法', 'hint': '(EPS成長率+殖利率)/PE，越高代表成長性相對股價越被低估'},
-    {'key': 'ge_lynch_peg',   'category': 'value', 'label': '林區 PEG', 'threshold': '≤ 1.0', 'weight': '輔助', 'group': '林區／聶夫法', 'hint': 'PE/EPS成長率，越低代表股價相對成長越便宜'},
+    # ── C 價值評估檢核（5項）──
+    {'key': 'grade_a_ok',      'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '矩陣等級A以上代表PE和殖利率都在合理範圍'},
+    {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年EPS中位數', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認目前獲利水準不低於中期常態，不受極端值影響'},
+    {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 70%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
+    {'key': 'price_val_ok',    'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '股價低於評價門檻，有安全邊際'},
+    {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(EPS成長率+殖利率)/PE，>=1代表成長性相對股價被低估'},
     # ── D 成長性檢核（6項）──
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '今年以來累積營收是否成長，反映整體趨勢'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '近12個月累計營收年增率，過濾短期波動看長期趨勢'},
@@ -1140,80 +1131,21 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         _grade_parts.append(f'殖利率={_used_yld:.2f}%')
     detail['grade_a_ok'] = '　'.join(_grade_parts)
 
-    # 綜合等級為A級以上
-    _blend_grade = r.get('blend_grade')
-    _blend_pe = r.get('blend_pe')
-    _blend_yld = r.get('blend_yld')
-    checks['blend_grade_ok'] = 1 if _blend_grade in ('A', 'A1', 'A2', 'AA') else 0
-    _bg_parts = [f'綜合等級={_blend_grade or "無"}']
-    if _blend_pe is not None:
-        _bg_parts.append(f'PE={_blend_pe:.2f}倍')
-    if _blend_yld is not None:
-        _bg_parts.append(f'殖利率={_blend_yld:.2f}%')
-    detail['blend_grade_ok'] = '　'.join(_bg_parts)
-
     # EPS 來源判斷：有預估EPS用預估，沒有用沈董
     _est_eps_val = r.get('est_eps')
     _used_eps = _est_eps_val if _est_eps_val is not None and _est_eps_val > 0 else _shen_eps
     _eps_src = '預估' if _est_eps_val is not None and _est_eps_val > 0 else '沈董'
-    _eps_avg5 = sum(_eps_y_valid) / len(_eps_y_valid) if _eps_y_valid else None
-    _eps_y3_valid = [e for e in _eps_y[:3] if e is not None]
-    _eps_avg3 = sum(_eps_y3_valid) / len(_eps_y3_valid) if _eps_y3_valid else None
 
-    # 近五年EPS皆大於0
-    checks['eps_5y_pos'] = 1 if len(_eps_y_valid) >= 5 and all(e > 0 for e in _eps_y_valid) else 0
-    detail['eps_5y_pos'] = f'{len(_eps_y_valid)}年資料，正值{sum(1 for e in _eps_y_valid if e > 0)}年' if _eps_y_valid else '無資料'
-
-    # 近五年最高EPS/最低EPS < 3
-    if len(_eps_y_valid) >= 5 and all(e > 0 for e in _eps_y_valid):
-        _eps_max = max(_eps_y_valid)
-        _eps_min = min(_eps_y_valid)
-        _eps_ratio = round(_eps_max / _eps_min, 2) if _eps_min > 0 else None
-        checks['eps_5y_stable'] = 1 if _eps_ratio is not None and _eps_ratio < 3 else 0
-        detail['eps_5y_stable'] = f'最高{_eps_max:.2f}/最低{_eps_min:.2f}={_eps_ratio:.2f}倍' if _eps_ratio is not None else '無資料'
+    # 預估(沈董)EPS >= 近5年EPS中位數
+    if _eps_y_valid and _used_eps is not None:
+        _sorted_eps = sorted(_eps_y_valid)
+        _n = len(_sorted_eps)
+        _eps_median5 = _sorted_eps[_n // 2] if _n % 2 == 1 else (_sorted_eps[_n // 2 - 1] + _sorted_eps[_n // 2]) / 2
+        checks['eps_vs_median5'] = 1 if _used_eps >= _eps_median5 else 0
+        detail['eps_vs_median5'] = f'{_eps_src}EPS={_used_eps:.2f} vs 近{_n}年中位數={_eps_median5:.2f}'
     else:
-        checks['eps_5y_stable'] = 0
-        detail['eps_5y_stable'] = 'EPS資料不足或有負值'
-
-    # 綜合殖利率 >= 5%
-    _blend_yld = r.get('blend_yld')
-    checks['wt_yld_ok'] = 1 if _blend_yld is not None and _blend_yld >= 5 else 0
-    detail['wt_yld_ok'] = f'綜合殖利率={_blend_yld:.2f}%' if _blend_yld is not None else '無資料'
-
-    # 加權配息率 40%~80%
-    _wt_payout = r.get('weighted_payout')
-    checks['wt_payout_ok'] = 1 if _wt_payout is not None and 40 <= _wt_payout <= 80 else 0
-    detail['wt_payout_ok'] = f'加權配息率={_wt_payout:.2f}%' if _wt_payout is not None else '無資料'
-
-    # 沈董EPS / 十年平均EPS >= 1
-    _avg_eps_10y = (r.get('_gi') or {}).get('shiller_avg_eps')
-    _eps_ratio_10y = None
-    if _used_eps is not None and _avg_eps_10y is not None and _avg_eps_10y > 0:
-        _eps_ratio_10y = round(_used_eps / _avg_eps_10y, 2)
-        checks['eps_vs_10y'] = 1 if _eps_ratio_10y >= 1 else 0
-        detail['eps_vs_10y'] = f'{_eps_src}EPS={_used_eps:.2f} / 10年均EPS={_avg_eps_10y:.2f} = {_eps_ratio_10y:.2f}'
-    else:
-        checks['eps_vs_10y'] = 0
-        detail['eps_vs_10y'] = '10年均EPS<=0或無資料' if _avg_eps_10y is not None and _avg_eps_10y <= 0 else '無資料'
-
-    # 沈董EPS >= 近5年/近3年/十年均EPS 中至少2個
-    _pass_count = 0
-    _cmp_parts = []
-    if _used_eps is not None:
-        if _eps_avg5 is not None:
-            _p5 = _used_eps >= _eps_avg5
-            _pass_count += 1 if _p5 else 0
-            _cmp_parts.append(f'5年均{_eps_avg5:.2f} {"V" if _p5 else "X"}')
-        if _eps_avg3 is not None:
-            _p3 = _used_eps >= _eps_avg3
-            _pass_count += 1 if _p3 else 0
-            _cmp_parts.append(f'3年均{_eps_avg3:.2f} {"V" if _p3 else "X"}')
-        if _avg_eps_10y is not None and _avg_eps_10y > 0:
-            _p10 = _used_eps >= _avg_eps_10y
-            _pass_count += 1 if _p10 else 0
-            _cmp_parts.append(f'10年均{_avg_eps_10y:.2f} {"V" if _p10 else "X"}')
-    checks['eps_vs_multi'] = 1 if _pass_count >= 2 else 0
-    detail['eps_vs_multi'] = f'{_eps_src}EPS={_used_eps:.2f}　' + '　'.join(_cmp_parts) + f'　通過{_pass_count}/3' if _used_eps is not None and _cmp_parts else '無資料'
+        checks['eps_vs_median5'] = 0
+        detail['eps_vs_median5'] = '無資料'
 
     # 現價 ≤ A級評價；≤ AA更佳
     if close and val_a:
@@ -1226,10 +1158,10 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['price_val_ok'] = 0
         detail['price_val_ok'] = '無評價門檻'
 
-    # 沈董法累計營業利益 / 累計稅前淨利 > 80%
+    # 累計營業利益 / 累計稅前淨利 > 70%
     _cr = r.get('_core_ratio')
     if _cr:
-        checks['core_ratio'] = 1 if _cr['ratio'] > 80 else 0
+        checks['core_ratio'] = 1 if _cr['ratio'] > 70 else 0
         detail['core_ratio'] = f'累計營業利益/稅前淨利={_cr["ratio"]:.2f}%（{_cr["quarters"]}季）'
     else:
         checks['core_ratio'] = 0
@@ -1271,90 +1203,16 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['growth_green'] = 1 if _ge_signal == 'green' else 0
     detail['growth_green'] = f'燈號={_ge_signal or "無"}'
 
-    # Neff 比率 >= 0.7
+    # Neff 比率 >= 1.0
     _ge_neff_d = _gi.get('neff_d')
     _ge_neff_c = _gi.get('neff_c')
     _ge_yld = _gi.get('yield')
     _ge_pe = _gi.get('pe')
-    checks['ge_neff_ratio'] = 1 if _ge_neff_d is not None and _ge_neff_d >= 0.7 else 0
+    checks['ge_neff_ratio'] = 1 if _ge_neff_d is not None and _ge_neff_d >= 1.0 else 0
     if _ge_neff_d is not None and _ge_neff_c is not None and _ge_yld is not None and _ge_pe:
         detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}　(保守成長率{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) / PE{_ge_pe:.2f} = {round(_ge_neff_c + _ge_yld, 2)}/{_ge_pe:.2f}'
     else:
         detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}' if _ge_neff_d is not None else '無資料'
-
-    # PEG <= 1.0
-    _ge_lynch_d = _gi.get('lynch_d')
-    checks['ge_lynch_peg'] = 1 if _ge_lynch_d is not None and _ge_lynch_d <= 1.0 else 0
-    if _ge_lynch_d is not None and _ge_neff_c is not None and _ge_yld is not None and _ge_pe:
-        detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}　PE{_ge_pe:.2f} / (成長率{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) = {_ge_pe:.2f}/{round(_ge_neff_c + _ge_yld, 2)}'
-    else:
-        detail['ge_lynch_peg'] = f'PEG={_ge_lynch_d:.2f}' if _ge_lynch_d is not None else '無資料'
-
-    # === DDM / DCF 計算（價值評估共用） ===
-
-    # ddm_return: 股利折現模式現價潛在年報酬 >= 10%
-    ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
-    ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
-    # EPS 取用順序：預估 > 系統 > 沈董（與 recalc_all_derived 一致）
-    ddm_eps = est_eps
-    if ddm_eps is None:
-        sys_eps_val = r.get('sys_ann_eps')
-        if sys_eps_val is not None and shen_eps is not None:
-            ddm_eps = min(sys_eps_val, shen_eps)
-        else:
-            ddm_eps = sys_eps_val or shen_eps
-    ddm_div = blend_div or shen_div
-    ddm_ann_ret = None
-    if ddm_eps and ddm_eps > 0 and close and close > 0:
-        sell_price = ddm_eps * ddm_pe
-        total_div = (ddm_div * 3) if ddm_div and ddm_div > 0 else 0
-        ddm_div_display = f'{ddm_div}×3' if ddm_div else '0'
-        if total_div > 0 or sell_price > close:
-            target_price = sell_price + total_div
-            total_ret = (target_price - close) / close
-            ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
-    checks['val_ddm_return'] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
-    if ddm_ann_ret is not None:
-        detail['val_ddm_return'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
-    else:
-        detail['val_ddm_return'] = None
-
-    # dcf_safe_ok: 現價 <= DCF 安全邊際價
-    _dcf_fcf = r.get('_fcf_latest')  # 最新年 FCF (元)
-    _dcf_cs = r.get('_common_stock')  # 股本 (元)
-    _dcf_safe_price = None
-    if _dcf_fcf and _dcf_fcf > 0 and _dcf_cs and _dcf_cs > 0:
-        # 讀使用者自訂參數，沒有用預設
-        _up = user_params or {}
-        _dcf_rate = float(_up['dcfRate']) / 100 if _up.get('dcfRate') else 0.10
-        _ig = (r.get('_gi') or {}).get('intrinsic_growth')
-        _dcf_growth = float(_up['dcfGrowth']) / 100 if _up.get('dcfGrowth') else (
-            _ig / 100 if _ig is not None else 0.05)
-        _dcf_n = int(float(_up['dcfGrowthYears'])) if _up.get('dcfGrowthYears') else 5
-        _dcf_tg = float(_up['dcfTermGrowth']) / 100 if _up.get('dcfTermGrowth') else 0.02
-        _dcf_mg = float(_up['dcfMargin']) / 100 if _up.get('dcfMargin') else 0.80
-        if _up.get('dcfFcf'):
-            _dcf_fcf = float(_up['dcfFcf']) * 1000000  # 使用者輸入百萬，轉元
-        # DCF 計算
-        if _dcf_rate > _dcf_tg:
-            _pv = 0
-            _cf = _dcf_fcf
-            for _i in range(1, _dcf_n + 1):
-                _cf = (_dcf_fcf * (1 + _dcf_growth) if _i == 1 else _cf * (1 + _dcf_growth))
-                _pv += _cf / (1 + _dcf_rate) ** _i
-            _tv = _cf * (1 + _dcf_tg) / (_dcf_rate - _dcf_tg)
-            _pv_tv = _tv / (1 + _dcf_rate) ** _dcf_n
-            _total = _pv + _pv_tv
-            _shares = _dcf_cs / 10
-            _per_share = _total / _shares
-            _dcf_safe_price = round(_per_share * _dcf_mg, 2)
-
-    if _dcf_safe_price is not None and close:
-        checks['dcf_safe_ok'] = 1 if close <= _dcf_safe_price + 0.005 else 0
-        detail['dcf_safe_ok'] = f'股價{close} vs 安全邊際價{_dcf_safe_price}'
-    else:
-        checks['dcf_safe_ok'] = 0
-        detail['dcf_safe_ok'] = 'FCF<=0或無資料' if _dcf_fcf and _dcf_fcf <= 0 else '無資料'
 
     profit_count = sum(checks.get(k, 0) for k in CHECKLIST_PROFIT_KEYS)
     safety_count = sum(checks.get(k, 0) for k in CHECKLIST_SAFETY_KEYS)
@@ -1383,19 +1241,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _bl('icr_min5', _icr_min, 3)
     _bl('eq_ok', _eq_latest, 70)
     _bl('eq_min5', _eq_min, 60)
-    # grade_a_ok 是等級判斷，無數值壓線
-    _bl('wt_yld_ok', _blend_yld, 5)
-    if _eps_ratio_10y is not None:
-        _bl('eps_vs_10y', _eps_ratio_10y, 1)
-    if ddm_ann_ret is not None:
-        _bl('val_ddm_return', ddm_ann_ret, 10)
-    _bl('ge_neff_ratio', _ge_neff_d, 0.7)
-    _bl('ge_lynch_peg', _ge_lynch_d, 1.0)
-    if _wt_payout is not None:
-        if _wt_payout < 40 and _wt_payout >= 36:
-            borderline['wt_payout_ok'] = True
-        elif _wt_payout > 80 and _wt_payout <= 88:
-            borderline['wt_payout_ok'] = True
+    # grade_a_ok / price_val_ok 是等級/區間判斷，無數值壓線
+    _bl('ge_neff_ratio', _ge_neff_d, 1.0)
 
     # === 紅旗偵測（核心題不過 → 標記）===
     _core_keys = [it['key'] for it in CHECKLIST_ITEMS if it.get('weight') == '核心']
