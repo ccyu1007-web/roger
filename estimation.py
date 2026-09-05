@@ -221,7 +221,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
     if est_rev_total <= 0:
         return {"error": "無營收資料"}
 
-    # --- Step 2: 毛利率（年度×0.7 + 季度×0.3 錨定） ---
+    # --- Step 2: 毛利率（季度×0.6 + 年度×0.4 錨定） ---
     recent = [r for r in hist[:4] if r.get('revenue') and r['revenue'] > 0
               and r.get('gross_profit') is not None]
 
@@ -241,7 +241,7 @@ def _estimate_quarter_core(hist, rev_map, rev_rows, roc_year, q_num, west_year, 
                 if ar.get('revenue') and ar['revenue'] > 0 and ar.get('gross_profit') is not None:
                     ann_gm = ar['gross_profit'] / ar['revenue']
                     break
-        est_gm = gm_q * 0.3 + ann_gm * 0.7 if ann_gm is not None else gm_q
+        est_gm = gm_q * 0.6 + ann_gm * 0.4 if ann_gm is not None else gm_q
     else:
         est_gm = gm_pool[0]
 
@@ -625,7 +625,7 @@ def estimate_annual_eps(code):
                     anomaly = True
                     break
 
-    # === Step 2: 毛利率（年度×0.7 + 季度×0.3） ===
+    # === Step 2: 毛利率（季度×0.6 + 年度×0.4） ===
     gm_list = []
     for r in q_rows[:4]:
         if r.get('revenue') and r['revenue'] > 0 and r.get('gross_profit') is not None:
@@ -639,7 +639,7 @@ def estimate_annual_eps(code):
             if ar.get('revenue') and ar['revenue'] > 0 and ar.get('gross_profit') is not None:
                 ann_gm = ar['gross_profit'] / ar['revenue']
                 break
-        est_gm = gm_q * 0.3 + ann_gm * 0.7 if ann_gm is not None else gm_q
+        est_gm = gm_q * 0.6 + ann_gm * 0.4 if ann_gm is not None else gm_q
     elif gm_list:
         est_gm = gm_list[0]
     else:
