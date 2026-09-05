@@ -528,10 +528,10 @@ async function loadNews() {
     const lists = await listRes.json();
 
     userCodes = new Set();
-    (lists.watch || []).forEach(c => userCodes.add(c));
-    (lists.hold || []).forEach(c => userCodes.add(c));
-    (lists.quality || []).forEach(c => userCodes.add(c));
-    (lists.focus || []).forEach(c => userCodes.add(c));
+    (lists.watch || []).forEach(c => userCodes.add(c.code || c));
+    (lists.hold || []).forEach(c => userCodes.add(c.code || c));
+    (lists.quality || []).forEach(c => userCodes.add(c.code || c));
+    (lists.focus || []).forEach(c => userCodes.add(c.code || c));
 
     renderNews();
     newsLoaded = true;
