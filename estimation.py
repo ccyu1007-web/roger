@@ -679,35 +679,65 @@ def estimate_annual_eps(code):
 
     est_oi = est_gross_profit - est_opex
 
-    # === Step 4: 業外（年度加權×0.7 + 季度加權×0.3） ===
-    nonop_ann = [r['non_operating'] for r in ann_rows if r.get('non_operating') is not None]
-    nonop_q = [r['non_operating'] for r in q_rows[:4] if r.get('non_operating') is not None]
+    # === Step 4: 業外（已公布季度用實際值 + 未公布季度用歷史同季預估） ===
     nonop_level = 'stable'
-    if nonop_ann:
-        # 年度加權（近年權重高）
-        w_ann = [0.4, 0.3, 0.2, 0.1][:len(nonop_ann)]
-        ann_avg = sum(nonop_ann[i] * w_ann[i] for i in range(len(w_ann))) / sum(w_ann)
 
-        # 季度加權 × 4 → 年化
-        if nonop_q:
-            w_q = [0.4, 0.3, 0.2, 0.1][:len(nonop_q)]
-            q_annual = sum(nonop_q[i] * w_q[i] for i in range(len(w_q))) / sum(w_q) * 4
-        else:
-            q_annual = ann_avg
+    # 當年度已公布的業外（從季報取）
+    ytd_nonop = 0
+    ytd_nonop_quarters = 0
+    for r in q_rows:
+        q = r.get('quarter', '')
+        if 'Q' not in q:
+            continue
+        q_year = int(q.split('Q')[0])
+        if q_year == roc_year and r.get('non_operating') is not None:
+            ytd_nonop += r['non_operating']
+            ytd_nonop_quarters += 1
 
-        est_nonop = ann_avg * 0.7 + q_annual * 0.3
+    # 未公布季度：用近年同季業外加權預估
+    remaining_quarters = 4 - ytd_nonop_quarters
+    est_remaining_nonop = 0
+    if remaining_quarters > 0:
+        # 收集歷史各季業外（按季分組）
+        hist_by_q = {}  # {季號: [近年值]}
+        for r in q_rows:
+            q = r.get('quarter', '')
+            if 'Q' not in q:
+                continue
+            q_year = int(q.split('Q')[0])
+            q_num = int(q.split('Q')[1])
+            if q_year < roc_year and r.get('non_operating') is not None:
+                hist_by_q.setdefault(q_num, []).append(r['non_operating'])
 
-        # 穩定度判斷（信心等級用）
-        if len(nonop_ann) >= 3:
-            avg = statistics.mean(nonop_ann)
-            sd = statistics.stdev(nonop_ann)
-            cv = sd / abs(avg) if abs(avg) > 0 else 0
-            if cv >= 1.0: nonop_level = 'volatile'
-            elif cv >= 0.5: nonop_level = 'moderate'
-    elif nonop_q:
-        est_nonop = sum(nonop_q) / len(nonop_q) * 4
-    else:
-        est_nonop = 0
+        for qn in range(1, 5):
+            # 跳過已公布的季度
+            already_published = any(
+                r.get('quarter') == f'{roc_year}Q{qn}' and r.get('non_operating') is not None
+                for r in q_rows
+            )
+            if already_published:
+                continue
+            # 用歷史同季數據加權（近年權重高）
+            vals = hist_by_q.get(qn, [])
+            if vals:
+                w = [0.5, 0.3, 0.2][:len(vals)]
+                est_q = sum(vals[i] * w[i] for i in range(len(w))) / sum(w)
+            elif ann_rows and ann_rows[0].get('non_operating') is not None:
+                est_q = ann_rows[0]['non_operating'] / 4
+            else:
+                est_q = 0
+            est_remaining_nonop += est_q
+
+    est_nonop = ytd_nonop + est_remaining_nonop
+
+    # 穩定度判斷（信心等級用）
+    nonop_ann = [r['non_operating'] for r in ann_rows if r.get('non_operating') is not None]
+    if len(nonop_ann) >= 3:
+        avg = statistics.mean(nonop_ann)
+        sd = statistics.stdev(nonop_ann)
+        cv = sd / abs(avg) if abs(avg) > 0 else 0
+        if cv >= 1.0: nonop_level = 'volatile'
+        elif cv >= 0.5: nonop_level = 'moderate'
 
     est_pti = est_oi + est_nonop
 
