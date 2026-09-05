@@ -3632,6 +3632,25 @@ def _save_daily_price():
             rows = conn.execute(
                 "SELECT code, close, volume FROM stocks WHERE close IS NOT NULL"
             ).fetchall()
+
+            # 防呆：檢測價格是否全部與前一交易日相同（可能表示 stocks 未更新）
+            if rows and datetime.now().weekday() < 5:  # 平日才檢查
+                prev_prices = {}
+                prev_rows = c.execute(
+                    "SELECT code, close_price FROM daily_price WHERE date = "
+                    "(SELECT MAX(date) FROM daily_price WHERE date < ?)", (today_str,)
+                ).fetchall()
+                for code, price in prev_rows:
+                    prev_prices[code] = price
+                if prev_prices:
+                    same_count = sum(1 for code, close, _ in rows
+                                     if prev_prices.get(code) == close)
+                    same_rate = same_count / len(prev_prices) if prev_prices else 0
+                    if same_rate > 0.99:
+                        print(f"[每日價量] 警告：{same_rate*100:.1f}% 股票與前日完全相同，"
+                              f"stocks 表可能未更新，跳過寫入！")
+                        return
+
             for code, close, volume in rows:
                 c.execute("""INSERT OR REPLACE INTO daily_price
                              (code, date, close_price, volume) VALUES (?,?,?,?)""",
@@ -4311,6 +4330,12 @@ def _run_prices_inner(scheduled=True):
         tpex_rows = f_tpex.result()
     all_rows = twse_rows + tpex_rows
     print(f"[1.股價] {len(all_rows)} 支，{time.time()-t1:.1f}s")
+
+    # 防呆：清單完全抓不到（DNS/網路異常）→ 中止，避免把舊價格寫入今天的 daily_price
+    if not all_rows:
+        print("[股價更新] 清單抓取全部失敗（可能 DNS/網路異常），本次跳過所有寫入")
+        print(f"\n股價更新中止！0 支，總耗時 {time.time()-t0:.1f}s")
+        return
 
     # 2. 寫入股價（批次日期不對時只新增新股，不覆蓋股價）
     t1 = time.time()
