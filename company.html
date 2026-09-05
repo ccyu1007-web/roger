@@ -2450,13 +2450,25 @@ async function initEstimator(sharesMillion) {
 }
 
 let _notesTimer = null;
-function getAnalysisPrompt() {
+async function getAnalysisPrompt() {
   const name = document.querySelector('.chk-price')?.textContent?.split(' ')[1] || '';
+  // 從系統拉取近期重大新聞，餵入 prompt 避免遺漏
+  let newsBlock = '';
+  try {
+    const nRes = await fetch(`/api/news?code=${CODE}&days=180&limit=30`);
+    if (nRes.ok) {
+      const newsList = await nRes.json();
+      if (newsList.length > 0) {
+        const lines = newsList.map(n => `- ${n.date || ''}：${n.subject || n.description || ''}`).join('\n');
+        newsBlock = `\n【系統已知近期事件（過去 6 個月重大新聞）】\n${lines}\n\n請將上述事件中與公司營運、財務、策略相關者納入對應章節分析，搜尋驗證細節後寫入。不相關的市場新聞可忽略。\n\n---\n`;
+      }
+    }
+  } catch(e) { /* 拉新聞失敗不影響主流程 */ }
   return `# 公司質性分析
 
 **分析標的**：${CODE} ${name}
 **分析日期**：${new Date().toISOString().slice(0,10)}
-
+${newsBlock}
 【規則】
 1. 所有事實必須附可驗證來源與時間，例：[2024年報]、[2025/Q1法說]、[MoneyDJ/2025-07]。
 2. 查不到的資料直接寫「待查證」，禁止用「約/大概」掩飾，禁止編造。
@@ -2572,9 +2584,11 @@ print(urllib.request.urlopen(req, timeout=30).read().decode())
 PYEOF`;
 }
 
-function copyAnalysisPrompt() {
-  navigator.clipboard.writeText(getAnalysisPrompt()).then(() => {
-    const el = document.getElementById('notesStatus');
+async function copyAnalysisPrompt() {
+  const el = document.getElementById('notesStatus');
+  if (el) el.textContent = '載入近期新聞中...';
+  const prompt = await getAnalysisPrompt();
+  navigator.clipboard.writeText(prompt).then(() => {
     if (el) el.textContent = '分析指令已複製到剪貼簿';
     setTimeout(() => { if (el) el.textContent = ''; }, 2000);
   });
@@ -2621,11 +2635,12 @@ ${content}`;
   });
 }
 
-function togglePromptPreview() {
+async function togglePromptPreview() {
   const el = document.getElementById('promptPreview');
   if (el.style.display === 'none') {
-    el.textContent = getAnalysisPrompt();
+    el.textContent = '載入中...';
     el.style.display = 'block';
+    el.textContent = await getAnalysisPrompt();
   } else {
     el.style.display = 'none';
   }
