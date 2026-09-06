@@ -245,16 +245,16 @@
   <div class="section-body">
     <table>
       <tr><th width="120">欄位</th><th width="280">說明</th><th>來源</th></tr>
-      <tr><td class="field">5年端點CAGR</td><td>(最新EPS/5年前EPS)^(1/5)-1</td><td><span class="src-calc">計算</span> <div class="note">只用EPS>0的年份，虧損年跳過</div></td></tr>
-      <tr><td class="field">5年平滑CAGR</td><td>(近3年均值/遠3年均值)^(1/5)-1</td><td><span class="src-calc">計算</span> <div class="note">含虧損年，用平均抑制雜訊</div></td></tr>
-      <tr><td class="field">3年端點CAGR</td><td>(最新EPS/3年前EPS)^(1/3)-1</td><td><span class="src-calc">計算</span></td></tr>
-      <tr><td class="field">3年平滑CAGR</td><td>(近2年均值/遠2年均值)^(1/3)-1</td><td><span class="src-calc">計算</span></td></tr>
-      <tr><td class="field">營收CAGR</td><td>5年營收複合成長率</td><td><span class="src-calc">計算</span> <span class="formula">(最新年營收/5年前營收)^(1/5)-1</span><div class="note">封頂20%，不受業外損益影響</div></td></tr>
+      <tr><td class="field">5年端點CAGR</td><td>(最新EPS/5年前EPS)^(1/5)-1</td><td><span class="src-calc">參考值</span> <div class="note">EPS CAGR 保留作為參考，不再決定保守成長率</div></td></tr>
+      <tr><td class="field">5年平滑CAGR</td><td>(近3年均值/遠3年均值)^(1/5)-1</td><td><span class="src-calc">參考值</span></td></tr>
+      <tr><td class="field">3年端點CAGR</td><td>(最新EPS/3年前EPS)^(1/3)-1</td><td><span class="src-calc">參考值</span></td></tr>
+      <tr><td class="field">3年平滑CAGR</td><td>(近2年均值/遠2年均值)^(1/3)-1</td><td><span class="src-calc">參考值</span></td></tr>
+      <tr><td class="field">營收CAGR</td><td>5年營收複合成長率（=保守成長率）</td><td><span class="src-calc">計算</span> <span class="formula">(最新年營收/5年前營收)^(1/5)-1</span><div class="note">顯示真實值不封頂，Neff/PEG計算時超過20%以20%計</div></td></tr>
       <tr><td class="field">Neff比率</td><td>總報酬率 / PE</td>
         <td><span class="src-calc">計算</span> <span class="formula">(營收CAGR + 殖利率) / PE</span>
         <div class="note">
-        PE = 股價 / 綜合EPS（有預估用預估）<br>
-        殖利率 = 綜合股利 / 股價（有預估用預估）<br>
+        PE = 股價 / EPS（預估 > min(沈董, 系統預估)）<br>
+        殖利率 = 股利（預估 > min(沈董, 系統預估)）/ 股價<br>
         <span style="color:#dc2626;font-weight:700">≥ 1.0</span> 紅色粗體（好訊號）<br>
         <span style="color:#94a3b8">< 1.0</span> 灰色
         </div></td></tr>
