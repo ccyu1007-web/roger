@@ -1964,7 +1964,7 @@ def snapshot_stock_states():
                          ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
                          ('discount_pct','REAL'),('neff_d','REAL'),('lynch_d','REAL'),
                          ('shen_grade','TEXT'),('est_grade','TEXT'),('blend_grade','TEXT'),
-                         ('gb_total_rank','INTEGER')]:
+                         ('gb_total_rank','INTEGER'),('neff_group','TEXT')]:
             try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
             except Exception: pass
         # stocks 表加欄位
@@ -2028,7 +2028,8 @@ def snapshot_stock_states():
                                 div_c1, div_s1, deepest_val_level, val_cheap_days,
                                 sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld,
                                 val_aa, val_a1, val_a2, val_a, val_lt6,
-                                shen_grade, est_grade, gb_total_rank
+                                shen_grade, est_grade, gb_total_rank,
+                                revenue_cum_yoy
                          FROM stocks WHERE close IS NOT NULL""")
         except Exception as e:
             print(f"[評價快照] 查詢失敗，用舊查詢: {e}")
@@ -2046,12 +2047,17 @@ def snapshot_stock_states():
         r = c.fetchone()
         data_date = r[0][:10] if r and r[0] else date.today().strftime('%Y-%m-%d')
 
-        # 讀取 neff_d / lynch_d（從 stock_checklist）
+        # 讀取 neff_d / lynch_d / 檢核通過率（從 stock_checklist）
         _growth_map = {}
         try:
-            c.execute("SELECT code, gi_neff_d, gi_lynch_d FROM stock_checklist")
+            c.execute("SELECT code, gi_neff_d, gi_lynch_d, gi_neff_gray, profit_count, safety_count, gi_rev_3m_yoy, gi_rev_12m_yoy FROM stock_checklist")
             for gr in c.fetchall():
-                _growth_map[gr['code']] = {'neff_d': gr['gi_neff_d'], 'lynch_d': gr['gi_lynch_d']}
+                _growth_map[gr['code']] = {
+                    'neff_d': gr['gi_neff_d'], 'lynch_d': gr['gi_lynch_d'],
+                    'neff_gray': gr.get('gi_neff_gray'),
+                    'profit_count': gr.get('profit_count'), 'safety_count': gr.get('safety_count'),
+                    'rev_3m_yoy': gr.get('gi_rev_3m_yoy'), 'rev_12m_yoy': gr.get('gi_rev_12m_yoy'),
+                }
         except Exception:
             pass
 
@@ -2139,6 +2145,28 @@ def snapshot_stock_states():
             _gm = _growth_map.get(code, {})
             _neff_d = _gm.get('neff_d')
             _lynch_d = _gm.get('lynch_d')
+            _neff_gray = _gm.get('neff_gray')
+
+            # Neff 群組判定：精選/價值/動能/全部/null
+            _neff_group = None
+            if _neff_d is not None and _neff_d >= 1.0 and not _neff_gray:
+                _pc = _gm.get('profit_count') or 0
+                _sc = _gm.get('safety_count') or 0
+                _quality_ok = _pc >= 5 and _sc >= 7  # A≥5/7 且 B≥7/10
+                _cum_yoy = row.get('revenue_cum_yoy')
+                _r3m = _gm.get('rev_3m_yoy')
+                _r12m = _gm.get('rev_12m_yoy')
+                _momentum_ok = (_cum_yoy is not None and _cum_yoy >= 0 and
+                               _r3m is not None and _r3m >= 0 and
+                               _r12m is not None and _r12m >= 0)
+                if _quality_ok and _momentum_ok:
+                    _neff_group = '精選'
+                elif _quality_ok:
+                    _neff_group = '價值'
+                elif _momentum_ok:
+                    _neff_group = '動能'
+                else:
+                    _neff_group = '全部'
 
             _shen_grade = row.get('shen_grade')
             _est_grade = row.get('est_grade')
@@ -2149,8 +2177,8 @@ def snapshot_stock_states():
                           shen_eps, shen_pe, shen_yld, fin_grade,
                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
                           neff_d, lynch_d, shen_grade, est_grade, blend_grade,
-                          gb_total_rank, updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                          gb_total_rank, neff_group, updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
                          price=excluded.price, price_pos=excluded.price_pos,
                          fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
@@ -2165,13 +2193,14 @@ def snapshot_stock_states():
                          shen_grade=excluded.shen_grade, est_grade=excluded.est_grade,
                          blend_grade=excluded.blend_grade,
                          gb_total_rank=excluded.gb_total_rank,
+                         neff_group=excluded.neff_group,
                          updated_at=excluded.updated_at""",
                       (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
                        shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
                        vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
                        vl['val_a'], vl['val_lt6'], vl['discount_pct'],
                        _neff_d, _lynch_d, _shen_grade, _est_grade, _blend_grade,
-                       row.get('gb_total_rank'), now_str))
+                       row.get('gb_total_rank'), _neff_group, now_str))
 
             # 更新便宜天數和歷史最深等級
             cur_level = vl['val_level']
@@ -2648,7 +2677,7 @@ def get_daily_briefing():
         val_dist_delta[lv] = val_dist[lv] - val_dist_prev.get(lv, 0)
 
     # 成長評價變動（Neff/PEG 新增/刪除）
-    growth_changes = {'neff_new': [], 'neff_removed': [], 'peg_new': [], 'peg_removed': []}
+    growth_changes = {'neff_new': [], 'neff_removed': [], 'peg_new': [], 'peg_removed': [], 'neff_group_changes': []}
 
     # 沈董/綜合等級變動追蹤
     _GRADE_ALL = {'AA', 'A1', 'A2', 'A', 'B1A', 'B2A', 'B1', 'B2', '觀察', '臨界點', 'X'}
@@ -2702,6 +2731,14 @@ def get_daily_briefing():
             growth_changes['neff_new'].append(sid)
         elif not cur_neff_ok and prev_neff_ok:
             growth_changes['neff_removed'].append(sid)
+        # Neff 群組異動
+        cur_grp = cur.get('neff_group')
+        prev_grp = prev.get('neff_group')
+        if cur_grp != prev_grp and (cur_grp or prev_grp):
+            growth_changes['neff_group_changes'].append({
+                'code': sid, 'name': name,
+                'from': prev_grp, 'to': cur_grp,
+            })
         # PEG: > 0 且 <= 1 為合格
         cur_peg = cur.get('lynch_d')
         prev_peg = prev.get('lynch_d')

@@ -221,9 +221,10 @@ let _currentTab = 'selected';
 let _changeBlockOpen = true;
 let _briefData = null;
 
-// neff_new / neff_removed（今日異動）
+// 今日異動
 let _neffNewSet = new Set();
 let _neffRemovedSet = new Set();
+let _neffGroupChanges = []; // {code, name, from, to}
 
 // ─── 工具函式 ─────────────────────────────────────────
 function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '—'; }
@@ -314,6 +315,7 @@ async function load() {
     _growthChanges = _briefData.growth_changes || {};
     _neffNewSet     = new Set(_growthChanges.neff_new     || []);
     _neffRemovedSet = new Set(_growthChanges.neff_removed || []);
+    _neffGroupChanges = _growthChanges.neff_group_changes || [];
 
     const stocksJson = await stocksRes.json();
     _stocks = stocksJson.data || [];
@@ -353,42 +355,75 @@ function _toggleChangeBlock() {
 }
 
 function renderChangeBlock() {
-  const hasNew = _neffNewSet.size > 0;
-  const hasRm  = _neffRemovedSet.size > 0;
-  if (!hasNew && !hasRm) return;
+  // 分類群組異動
+  const upgrades = [];   // 升級（往精選方向）
+  const downgrades = []; // 降級（往全部/剔除方向）
+  const newEntries = []; // 新進 Neff ≥ 1.0
+  const removed = [];    // 剔除 Neff < 1.0
 
-  const block = document.getElementById('changeBlock');
-  block.style.display = '';
-
-  const newCount = _neffNewSet.size;
-  const rmCount  = _neffRemovedSet.size;
-  document.getElementById('changeBlockTitle').textContent =
-    `Neff 今日異動（新增 ${newCount} 支 / 剔除 ${rmCount} 支）`;
-
-  // 取得 stock 名稱
+  const grpRank = {'精選': 4, '價值': 3, '動能': 2, '全部': 1};
   const codeMap = {};
   _stocks.forEach(s => { codeMap[s.code] = s.name || ''; });
 
+  _neffGroupChanges.forEach(c => {
+    c.name = c.name || codeMap[c.code] || '';
+    const fromR = grpRank[c.from] || 0;
+    const toR   = grpRank[c.to]   || 0;
+    if (!c.from && c.to) {
+      newEntries.push(c);
+    } else if (c.from && !c.to) {
+      removed.push(c);
+    } else if (toR > fromR) {
+      upgrades.push(c);
+    } else if (toR < fromR) {
+      downgrades.push(c);
+    }
+  });
+  // 也把 neff_new/removed 中沒在 group_changes 的補進來
+  _neffNewSet.forEach(code => {
+    if (!_neffGroupChanges.some(c => c.code === code)) {
+      newEntries.push({code, name: codeMap[code] || '', from: null, to: '新進'});
+    }
+  });
+  _neffRemovedSet.forEach(code => {
+    if (!_neffGroupChanges.some(c => c.code === code)) {
+      removed.push({code, name: codeMap[code] || '', from: '剔除', to: null});
+    }
+  });
+
+  const total = upgrades.length + downgrades.length + newEntries.length + removed.length;
+  if (!total) return;
+
+  const block = document.getElementById('changeBlock');
+  block.style.display = '';
+  document.getElementById('changeBlockTitle').textContent =
+    `Neff 群組異動（升級 ${upgrades.length} / 降級 ${downgrades.length} / 新進 ${newEntries.length} / 剔除 ${removed.length}）`;
+
+  const _pill = (c, cls, arrow) => {
+    const label = arrow ? `${c.from||'—'}→${c.to||'—'}` : '';
+    return `<a href="/company.html?code=${c.code}" target="_blank" class="change-pill ${cls}" title="${label}">${c.code} ${c.name}${arrow ? ' <span style="font-size:.7rem;opacity:.8">'+label+'</span>' : ''}</a>`;
+  };
+
   let html = '';
-  if (hasNew) {
+  if (upgrades.length) {
     html += `<div style="margin-bottom:10px">
-      <span style="font-size:.78rem;font-weight:700;color:#166534;margin-right:8px">新增進榜</span>
-      <div class="change-row" style="margin-top:6px">`;
-    _neffNewSet.forEach(code => {
-      const name = codeMap[code] || '';
-      html += `<a href="/company.html?code=${code}" target="_blank" class="change-pill pill-new">${code} ${name}</a>`;
-    });
-    html += '</div></div>';
+      <span style="font-size:.78rem;font-weight:700;color:#059669;margin-right:8px">升級 (${upgrades.length})</span>
+      <div class="change-row" style="margin-top:6px">${upgrades.map(c => _pill(c, 'pill-new', true)).join('')}</div></div>`;
   }
-  if (hasRm) {
+  if (newEntries.length) {
+    html += `<div style="margin-bottom:10px">
+      <span style="font-size:.78rem;font-weight:700;color:#166534;margin-right:8px">新進榜 (${newEntries.length})</span>
+      <div class="change-row" style="margin-top:6px">${newEntries.map(c => _pill(c, 'pill-new', true)).join('')}</div></div>`;
+  }
+  if (downgrades.length) {
+    html += `<div style="margin-bottom:10px">
+      <span style="font-size:.78rem;font-weight:700;color:#d97706;margin-right:8px">降級 (${downgrades.length})</span>
+      <div class="change-row" style="margin-top:6px">${downgrades.map(c => _pill(c, 'pill-rm', true)).join('')}</div></div>`;
+  }
+  if (removed.length) {
     html += `<div>
-      <span style="font-size:.78rem;font-weight:700;color:#991b1b;margin-right:8px">今日剔除</span>
-      <div class="change-row" style="margin-top:6px">`;
-    _neffRemovedSet.forEach(code => {
-      const name = codeMap[code] || '';
-      html += `<a href="/company.html?code=${code}" target="_blank" class="change-pill pill-rm">${code} ${name}</a>`;
-    });
-    html += '</div></div>';
+      <span style="font-size:.78rem;font-weight:700;color:#991b1b;margin-right:8px">剔除 (${removed.length})</span>
+      <div class="change-row" style="margin-top:6px">${removed.map(c => _pill(c, 'pill-rm', true)).join('')}</div></div>`;
   }
   document.getElementById('changeBlockBody').innerHTML = html;
 }
