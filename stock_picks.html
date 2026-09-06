@@ -4,26 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>選股推薦</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
-
-  /* Tab L1 */
-  .tab-bar-L1 { display: flex; gap: 0; }
-  .tab-L1 {
-    padding: 10px 22px; font-size: .92rem; font-weight: 700; cursor: pointer;
-    border: 2px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
-  }
-  .tab-L1:first-child { border-radius: 8px 0 0 8px; }
-  .tab-L1:last-child  { border-radius: 0 8px 8px 0; }
-  .tab-L1:not(:first-child) { border-left-width: 1px; }
-  .tab-L1.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
-  .count-badge-L1 {
-    display: inline-block; font-size: .72rem; font-weight: 700;
-    padding: 1px 7px; border-radius: 10px; margin-left: 5px;
-  }
-  .tab-L1.active .count-badge-L1 { background: rgba(255,255,255,.25); color: #fff; }
-  .tab-L1:not(.active) .count-badge-L1 { background: #e2e8f0; color: #475569; }
   header {
     background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
     color: #fff; padding: 16px 28px;
@@ -32,162 +16,61 @@
   header h1 { font-size: 1.3rem; font-weight: 700; }
   header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
   header a:hover { color: #fff; }
-  .container { max-width: 1300px; margin: 0 auto; padding: 20px 16px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
   .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
 
-  /* 統計列 */
-  .stat-bar {
-    display: flex; align-items: center; gap: 0; margin-bottom: 20px;
-    background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
-    overflow: hidden; flex-wrap: wrap;
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+    background: #fff; border-radius: 10px; padding: 12px 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
   }
-  .stat-item {
-    flex: 1; min-width: 100px; padding: 14px 16px; text-align: center;
-    border-right: 1px solid #e2e8f0;
+  .toolbar-btn {
+    padding: 6px 16px; border: 1px solid #e2e8f0; border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: .82rem; color: #475569; font-weight: 600;
   }
-  .stat-item:last-child { border-right: none; }
-  .stat-label { font-size: .72rem; color: #64748b; font-weight: 600; margin-bottom: 2px; }
-  .stat-num { font-size: 1.5rem; font-weight: 800; }
-  .stat-heavy { color: #16a34a; }
-  .stat-small { color: #2563eb; }
-  .stat-watch { color: #d97706; }
-  .stat-research { color: #7c3aed; }
-  .stat-approach { color: #64748b; }
-  .stat-quality-wrap {
-    padding: 14px 20px; display: flex; align-items: center; gap: 8px;
-    border-left: 2px solid #e2e8f0;
+  .toolbar-btn:hover { background: #f8fafc; }
+  .toolbar-btn.primary { border-color: #2563eb; color: #2563eb; }
+  .toolbar-btn.primary:hover { background: #eff6ff; }
+  .toolbar-info { font-size: .8rem; color: #94a3b8; margin-left: auto; }
+
+  .report-wrap {
+    background: #fff; border-radius: 10px; padding: 24px 28px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08); min-height: 300px;
   }
-  .stat-quality-wrap label { font-size: .85rem; color: #475569; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+  .report-wrap h1,.report-wrap h2,.report-wrap h3 { margin: 16px 0 8px; color: #1e3a5f; }
+  .report-wrap h1 { font-size: 1.15rem; }
+  .report-wrap h2 { font-size: 1.05rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+  .report-wrap h3 { font-size: .95rem; }
+  .report-wrap table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: .84rem; }
+  .report-wrap th,.report-wrap td { border: 1px solid #d1d5db; padding: 6px 10px; text-align: left; }
+  .report-wrap th { background: #f1f5f9; font-weight: 600; color: #334155; }
+  .report-wrap tbody tr:nth-child(even) { background: #f8fafc; }
+  .report-wrap ul,.report-wrap ol { padding-left: 20px; margin: 6px 0; }
+  .report-wrap p { margin: 6px 0; line-height: 1.8; }
+  .report-wrap strong { color: #1e3a5f; }
+  .report-wrap blockquote { border-left: 3px solid #059669; padding-left: 12px; color: #64748b; margin: 8px 0; }
+  .report-wrap code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; }
+  .report-wrap a { color: #2563eb; text-decoration: none; }
+  .report-wrap hr { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
 
-  /* 區塊 */
-  .section-block {
-    background: #fff; border-radius: 10px; margin-bottom: 16px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden;
+  .empty { text-align: center; padding: 60px; color: #94a3b8; font-size: .92rem; line-height: 2; }
+
+  /* 說明區 */
+  .desc-section {
+    background: #fff; border-radius: 10px; padding: 16px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-top: 20px;
+    font-size: .82rem; color: #475569; line-height: 1.8;
   }
-  .section-header {
-    padding: 13px 18px; font-size: .95rem; font-weight: 700; cursor: pointer;
-    display: flex; align-items: center; justify-content: space-between;
-    user-select: none;
-  }
-  .section-header:hover { filter: brightness(.97); }
-  .section-header .title-left { display: flex; align-items: center; gap: 10px; }
-  .section-header .cnt { font-size: .82rem; font-weight: 600; opacity: .85; }
-  .section-header .arrow { font-size: .8rem; transition: transform .2s; }
-  .section-header.collapsed .arrow { transform: rotate(-90deg); }
-
-  .sh-heavy   { background: #f0fdf4; color: #166534; border-left: 4px solid #16a34a; }
-  .sh-small   { background: #eff6ff; color: #1d4ed8; border-left: 4px solid #2563eb; }
-  .sh-watch   { background: #fffbeb; color: #92400e; border-left: 4px solid #d97706; }
-  .sh-research { background: #f5f3ff; color: #5b21b6; border-left: 4px solid #7c3aed; }
-  .sh-approach { background: #f8fafc; color: #475569; border-left: 4px solid #94a3b8; }
-
-  .section-body { padding: 12px 16px 16px; }
-  .section-body.collapsed { display: none; }
-
-  /* 卡片列表 */
-  .card-list { display: flex; flex-direction: column; gap: 10px; }
-  .card-list .scard:nth-child(even) { background: #f8fafc; }
-
-  .scard {
-    border-radius: 8px; background: #fff;
-    border: 1px solid #e2e8f0;
-    overflow: hidden;
-  }
-  .scard-heavy   { border-left: 4px solid #16a34a; }
-  .scard-small   { border-left: 4px solid #2563eb; }
-  .scard-watch   { border-left: 4px solid #d97706; }
-  .scard-research { border-left: 4px solid #7c3aed; }
-  .scard-approach { border-left: 4px solid #94a3b8; }
-
-  .scard-body { padding: 12px 16px; }
-
-  /* 卡片頂列 */
-  .scard-top {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
-    margin-bottom: 7px;
-  }
-  .scard-code { font-size: 1rem; font-weight: 800; color: #2563eb; text-decoration: none; }
-  .scard-code:hover { text-decoration: underline; }
-  .scard-name { font-size: .92rem; font-weight: 600; color: #1a202c; }
-  .scard-sep { color: #cbd5e1; }
-  .scard-price { font-size: .88rem; color: #475569; }
-  .scard-neff { font-size: .95rem; font-weight: 800; }
-  .neff-hi  { color: #dc2626; }
-  .neff-mid { color: #ea580c; }
-  .neff-lo  { color: #94a3b8; }
-  .scard-grade { font-size: .86rem; font-weight: 700; }
-  .grade-a { color: #dc2626; }
-  .grade-b { color: #d97706; }
-  .grade-c { color: #94a3b8; }
-  .scard-chks { font-size: .8rem; color: #64748b; }
-  .chk-pass { color: #16a34a; font-weight: 700; }
-  .chk-mid  { color: #92400e; }
-  .chk-fail { color: #dc2626; font-weight: 700; }
-  .scard-track { margin-left: auto; display: flex; align-items: center; gap: 4px; font-size: .75rem; color: #94a3b8; white-space: nowrap; cursor: pointer; }
-
-  /* 推薦理由 */
-  .scard-reason {
-    font-size: .82rem; color: #334155;
-    padding: 5px 0 5px;
-    border-top: 1px solid #f1f5f9;
-    border-bottom: 1px solid #f1f5f9;
-    margin-bottom: 7px;
-  }
-  .scard-reason .reason-label { font-size: .72rem; color: #94a3b8; font-weight: 600; margin-right: 4px; }
-
-  /* 質性摘要 v2（分行標題+內容） */
-  .scard-notes-v2 {
-    margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;
-    font-size: .82rem; color: #334155;
-  }
-  .nv2-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
-  .nv2-lbl {
-    flex-shrink: 0; width: 80px; font-size: .75rem; color: #94a3b8;
-    font-weight: 700; text-align: right;
-  }
-  .nv2-val { color: #334155; line-height: 1.5; }
-  .nv2-val b { color: #1e3a5f; }
-  .nv2-val .good   { color: #16a34a; font-weight: 700; }
-  .nv2-val .warn   { color: #ea580c; font-weight: 700; }
-  .nv2-val .danger { color: #dc2626; font-weight: 700; }
-  .nv2-val .muted  { color: #94a3b8; }
-
-  /* 接近名單距離進場 */
-  .dist-badge {
-    display: inline-block; padding: 2px 9px; border-radius: 10px;
-    font-size: .75rem; font-weight: 700;
-    background: #fff7ed; color: #c2410c;
-  }
-  .stale-badge {
-    display: inline-block; padding: 1px 7px; border-radius: 8px;
-    font-size: .7rem; font-weight: 700;
-    background: #fef2f2; color: #991b1b;
-  }
-
-  /* 空狀態 */
-  .empty { text-align: center; padding: 32px; color: #94a3b8; font-size: .9rem; }
-
-  /* 底部說明 */
-  .desc-section { background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-top: 24px; }
-  .desc-section h3 { font-size: .95rem; font-weight: 700; margin-bottom: 12px; color: #1e3a5f; }
-  table.desc-table { border-collapse: collapse; width: 100%; font-size: .84rem; margin-bottom: 12px; }
-  table.desc-table th { background: #f1f5f9; padding: 8px 12px; text-align: left; font-weight: 700; color: #475569; border: 1px solid #e2e8f0; }
-  table.desc-table td { padding: 8px 12px; border: 1px solid #e2e8f0; }
-  .formula { font-size: .84rem; background: #f8fafc; border-radius: 6px; padding: 10px 14px; color: #334155; margin-top: 10px; }
-  .formula code { font-family: monospace; color: #1d4ed8; }
 
   @media print {
     body { background: #fff; }
     header { background: #1e3a5f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    header button { display: none; }
-    .tab-bar-L1, .stat-bar label { display: none; }
-    .container { max-width: 100%; padding: 0 12px; }
-    .section-block { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; }
-    .scard { break-inside: avoid; }
-    .desc-section { break-inside: avoid; }
-    .sh-heavy, .sh-small, .sh-watch, .sh-research, .sh-approach {
-      -webkit-print-color-adjust: exact; print-color-adjust: exact;
-    }
+    .toolbar { display: none; }
+    .desc-section { display: none; }
+    .container { max-width: 100%; padding: 0; }
+    .report-wrap { box-shadow: none; padding: 12px 0; }
+    .report-wrap th { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .report-wrap tbody tr:nth-child(even) { background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
@@ -207,679 +90,149 @@
 
 <div class="container">
 
-  <!-- Tab 篩選 + 體質佳 -->
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
-    <div class="tab-bar-L1">
-      <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_tab_selected">0</span></button>
-      <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_tab_value">0</span></button>
-      <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_tab_momentum">0</span></button>
-      <button class="tab-L1" onclick="switchTab('neffonly',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_tab_neffonly">0</span></button>
-    </div>
-    <label style="font-size:.85rem;color:#475569;cursor:pointer">
-      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
-      僅體質佳
-    </label>
-    <button onclick="window.print()" style="padding:5px 14px;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;font-size:.8rem;color:#475569;font-weight:600">匯出PDF</button>
+  <div class="toolbar">
+    <button class="toolbar-btn primary" onclick="copyPrompt()">複製分析指令</button>
+    <button class="toolbar-btn" onclick="window.print()">匯出PDF</button>
+    <span class="toolbar-info" id="toolbarInfo"></span>
   </div>
 
-  <!-- 統計列 -->
-  <div class="stat-bar">
-    <div class="stat-item">
-      <div class="stat-label">重倉候選</div>
-      <div class="stat-num stat-heavy" id="cnt_heavy">—</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">其中建議</div>
-      <div class="stat-num" style="color:#16a34a" id="cnt_recommend">—</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">小買候選</div>
-      <div class="stat-num stat-small" id="cnt_small">—</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">待質性研究</div>
-      <div class="stat-num stat-research" id="cnt_need_research">—</div>
-    </div>
+  <div class="report-wrap" id="reportArea">
+    <div class="empty">載入中...</div>
   </div>
 
-  <!-- 分層說明 -->
-  <div style="background:#fff;border-radius:10px;padding:14px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.82rem;color:#475569;line-height:1.8">
-    <b style="color:#1e3a5f">分層邏輯</b><br>
-    <b>Tab 決定量化群組，質性決定重倉或小買：</b><br>
-    <span style="color:#16a34a;font-weight:700">重倉候選</span>：質性全達標（<span style="color:#16a34a">建議</span>）或無質性研究（<span style="color:#7c3aed">待質性研究</span>）<br>
-    <span style="color:#2563eb;font-weight:700">小買候選</span>：質性部分達標（<span style="color:#2563eb">參考</span>）或有疑慮（<span style="color:#ea580c">質性疑慮</span>/<span style="color:#d97706">質性偏弱</span>）<br>
-    <br>
-    做完質性研究後自動歸類：全達標→留重倉、部分達標→降小買、有疑慮→降小買帶警示<br>
-    <span style="margin-top:4px;display:block;color:#94a3b8">
-      信心度由質性研究判定：<b>高</b>=關鍵判斷有直接證據　<b>中</b>=部分間接證據　<b>低</b>=主要依賴推估。護城河強度：<b>強</b>=競爭者難以複製　<b>中</b>=有一定防禦力　<b>弱</b>=容易被取代
-    </span>
-  </div>
-
-  <!-- 五個區塊 -->
-  <div class="section-block" id="block_heavy">
-    <div class="section-header sh-heavy" onclick="_toggleSection('heavy',this)">
-      <div class="title-left">
-        <span>重倉推薦</span>
-        <span class="cnt" id="hdr_heavy"></span>
-      </div>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="section-body" id="body_heavy"></div>
-  </div>
-
-  <div class="section-block" id="block_small">
-    <div class="section-header sh-small" onclick="_toggleSection('small',this)">
-      <div class="title-left">
-        <span>小買推薦</span>
-        <span class="cnt" id="hdr_small"></span>
-      </div>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="section-body" id="body_small"></div>
-  </div>
-
-  <div class="section-block" id="block_watch">
-    <div class="section-header sh-watch" onclick="_toggleSection('watch',this)">
-      <div class="title-left">
-        <span>觀望</span>
-        <span class="cnt" id="hdr_watch"></span>
-      </div>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="section-body" id="body_watch"></div>
-  </div>
-
-  <div class="section-block" id="block_research">
-    <div class="section-header sh-research" onclick="_toggleSection('research',this)">
-      <div class="title-left">
-        <span>待研究</span>
-        <span class="cnt" id="hdr_research"></span>
-      </div>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="section-body" id="body_research"></div>
-  </div>
-
-  <div class="section-block" id="block_approach">
-    <div class="section-header sh-approach" onclick="_toggleSection('approach',this)">
-      <div class="title-left">
-        <span>接近名單</span>
-        <span class="cnt" id="hdr_approach"></span>
-      </div>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="section-body" id="body_approach"></div>
-  </div>
-
-  <!-- 底部說明 -->
   <div class="desc-section">
-    <h3>分層推薦邏輯</h3>
-    <table class="desc-table">
-      <thead>
-        <tr><th>層級</th><th>量化條件</th><th>質性條件</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><b style="color:#16a34a">重倉</b></td>
-          <td>精選（Neff≥1+A≥5/7+B≥7/10+動能全正）</td>
-          <td>護城河≥中 + 信心≥中 + 無結構性風險 + 研究&lt;90天</td>
-        </tr>
-        <tr>
-          <td><b style="color:#2563eb">小買</b></td>
-          <td>精選</td>
-          <td>護城河或信心其一≥中（非兩者都達標）+ 無結構性風險 + 研究&lt;90天</td>
-        </tr>
-        <tr>
-          <td><b style="color:#d97706">觀望</b></td>
-          <td>精選 / 價值型（品質達標但動能未全正）</td>
-          <td>有結構性風險；或研究過期（>90天）；或價值型+護城河≥中</td>
-        </tr>
-        <tr>
-          <td><b style="color:#7c3aed">待研究</b></td>
-          <td>精選 或 價值型</td>
-          <td>無質性研究（或研究過期歸入待研究同時標記於觀望）</td>
-        </tr>
-        <tr>
-          <td><b style="color:#64748b">接近</b></td>
-          <td>Neff 0.7~1.0 + A≥5/7 + B≥7/10</td>
-          <td>—（顯示距進場跌幅）</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="formula">
-      <code>Neff 比率 = (5年營收CAGR + 殖利率) / PE</code>
-      &nbsp;｜&nbsp; Neff ≥ 1.0 表示成長性被低估
-      <br>
-      <span style="font-size:.8rem;color:#64748b;margin-top:4px;display:block">
-        精選 = Neff≥1 + A≥5/7 + B≥7/10 + 累積YoY≥0 + 3M≥0 + 12M≥0
-        &nbsp;｜&nbsp;
-        價值型 = Neff≥1 + A≥5/7 + B≥7/10 + 動能未全正
-      </span>
-    </div>
+    <b style="color:#1e3a5f">選股推薦使用方式</b><br>
+    1. 按「複製分析指令」→ 貼給 Claude → Claude 讀取量化數據+質性研究筆記 → 產出深度分析報告<br>
+    2. 報告自動存入系統，刷新此頁即可看到最新報告<br>
+    3. 有質性研究的股票：量化+質化綜合判斷 → 重倉/小買/觀望<br>
+    4. 無質性研究的股票：純量化分析 + 標註「待質性研究」<br>
+    5. 質性研究更新後，重新複製指令跑一次即可更新報告<br>
+    <br>
+    <span style="color:#94a3b8">報告來源：每日價值評估精選/價值型/動能型 → AI 深度分析 → 重倉/小買/觀望分類</span>
   </div>
 
-</div><!-- /container -->
+</div>
 
 <script>
-// ─── 全域狀態 ─────────────────────────────────────────
-let _stocks       = [];
-let _qualitySet   = new Set();
-let _focusTrackSet = new Set();
-let _qualityOnly  = false;
-let _currentTab   = 'selected';
-
-// ─── 收合狀態 ─────────────────────────────────────────
-const _collapsed = {};
-function _toggleSection(key, hdrEl) {
-  _collapsed[key] = !_collapsed[key];
-  const body = document.getElementById('body_' + key);
-  if (_collapsed[key]) {
-    body.classList.add('collapsed');
-    hdrEl.classList.add('collapsed');
-  } else {
-    body.classList.remove('collapsed');
-    hdrEl.classList.remove('collapsed');
-  }
-}
-
-// ─── 工具函式 ─────────────────────────────────────────
-function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '—'; }
-function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
-
-function _gradeCls(g) {
-  if (!g) return 'grade-c';
-  if (['AA','A1','A2','A','B1A','B2A'].includes(g)) return 'grade-a';
-  if (['B1','B2'].includes(g)) return 'grade-b';
-  return 'grade-c';
-}
-
-function _chkFmt(pass, total) {
-  if (pass == null || !total) return { html: '—', cls: '' };
-  const pct = pass / total;
-  const cls = pct >= 0.7 ? 'chk-pass' : pct < 0.5 ? 'chk-fail' : 'chk-mid';
-  return { html: `${pass}/${total}`, cls };
-}
-
-function _neffCls(v) {
-  if (v == null) return 'neff-lo';
-  if (v >= 1.5)  return 'neff-hi';
-  if (v >= 1.0)  return 'neff-mid';
-  return 'neff-lo';
-}
-
-// ─── 篩選輔助 ─────────────────────────────────────────
-function _isHighQuality(s) {
-  const ap = s._chk_profit, bp = s._chk_safety;
-  if (ap == null || bp == null) return false;
-  return ap >= 5 && bp >= 7;
-}
-
-function _isPositiveMomentum(s) {
-  const gi  = s._gi || {};
-  const cum = s.revenue_cum_yoy;
-  const m3  = gi.rev_3m_yoy;
-  const m12 = gi.rev_12m_yoy;
-  return cum != null && cum >= 0 && m3 != null && m3 >= 0 && m12 != null && m12 >= 0;
-}
-
-function _isNeffPass(s) {
-  const gi = s._gi || {};
-  return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
-}
-
-function _isApproaching(s) {
-  const gi = s._gi || {};
-  return gi.neff_d != null && gi.neff_d >= 0.7 && gi.neff_d < 1.0 && !gi.neff_gray && _isHighQuality(s);
-}
-
-function _isSelected(s) {
-  return _isNeffPass(s) && _isHighQuality(s) && _isPositiveMomentum(s);
-}
-function _isValueType(s) {
-  return _isNeffPass(s) && _isHighQuality(s) && !_isPositiveMomentum(s);
-}
-
-function _isStale(s) {
-  if (!s._notes || !s._notes.notes_date) return true;
-  const d = new Date(s._notes.notes_date);
-  return (Date.now() - d.getTime()) > 90 * 24 * 60 * 60 * 1000;
-}
-function _isFresh(s) {
-  return !!s._notes && !_isStale(s);
-}
-
-function _noRisk(s) {
-  const n = s._notes;
-  if (!n) return true;
-  return !n.structural_risk || n.structural_risk === '無' || n.structural_risk.trim() === '';
-}
-
-function _moatOk(s) {
-  const n = s._notes;
-  return n && ['強','中'].includes(n.moat_strength);
-}
-
-function _confOk(s) {
-  const n = s._notes;
-  return n && ['高','中'].includes(n.confidence);
-}
-
-// ─── Tab 切換 ─────────────────────────────────────────
-function switchTab(tab, btn) {
-  _currentTab = tab;
-  document.querySelectorAll('.tab-L1').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderAll();
-}
-
-function _getTabPool(arr) {
-  // 根據 Tab 篩選股票池
-  if (_currentTab === 'selected')  return arr.filter(s => _isNeffPass(s) && _isHighQuality(s) && _isPositiveMomentum(s));
-  if (_currentTab === 'value')     return arr.filter(s => _isNeffPass(s) && _isHighQuality(s) && !_isPositiveMomentum(s));
-  if (_currentTab === 'momentum')  return arr.filter(s => _isNeffPass(s) && !_isHighQuality(s) && _isPositiveMomentum(s));
-  if (_currentTab === 'neffonly')  return arr.filter(s => _isNeffPass(s) && !_isHighQuality(s) && !_isPositiveMomentum(s));
-  return arr.filter(s => _isNeffPass(s));
-}
-
-// ─── 質性標籤判定 ─────────────────────────────────────
-function _qualTag(s) {
-  if (!_isFresh(s)) return 'research';       // 無研究或超過3個月
-  if (!_noRisk(s)) return 'risk';            // 有結構性風險
-  if (_moatOk(s) && _confOk(s)) return 'recommend';  // 全達標
-  if (_moatOk(s) || _confOk(s)) return 'partial';    // 部分達標
-  return 'weak';                              // 護城河+信心皆弱
-}
-
-// ─── 篩選分群（量化決定位置，質性決定標籤）─────────────
-function _classifyAll(arr) {
-  const tabPool = _getTabPool(arr);
-  const heavy    = [];  // 重倉候選
-  const small    = [];  // 小買候選
-  const approach = [];
-
-  // Tab 已決定量化群組，質性標籤決定重倉或小買
-  tabPool.forEach(s => {
-    s._qualTag = _qualTag(s);
-    if (s._qualTag === 'recommend' || s._qualTag === 'research') {
-      // 全達標或無研究 → 重倉候選
-      heavy.push(s);
-    } else {
-      // 部分達標/疑慮/弱 → 小買候選
-      small.push(s);
-    }
-  });
-
-  // 排序：質性標籤優先，同標籤按 Neff 高到低
-  const tagOrder = {recommend: 0, research: 1, partial: 0, weak: 1, risk: 2};
-  const _sortFn = (a, b) => {
-    const ta = tagOrder[a._qualTag] ?? 9;
-    const tb = tagOrder[b._qualTag] ?? 9;
-    if (ta !== tb) return ta - tb;
-    return ((b._gi || {}).neff_d || 0) - ((a._gi || {}).neff_d || 0);
-  };
-  heavy.sort(_sortFn);
-  small.sort(_sortFn);
-
-  // 接近名單（獨立計算，不受 Tab 影響）
-  arr.forEach(s => {
-    if (_isApproaching(s)) approach.push(s);
-  });
-
-  return { heavy, small, approach };
-}
-
-function _sortByNeff(arr) {
-  return [...arr].sort((a, b) => {
-    const nA = (a._gi || {}).neff_d || 0;
-    const nB = (b._gi || {}).neff_d || 0;
-    return nB - nA;
-  });
-}
-
-function _applyQuality(arr) {
-  return _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
-}
-
-// ─── 自動推薦理由 ─────────────────────────────────────
-function _genReason(s, level) {
-  const gi = s._gi || {};
-  const n  = s._notes;
-  const parts = [];
-
-  const cum = s.revenue_cum_yoy;
-  const m3  = gi.rev_3m_yoy;
-  const m12 = gi.rev_12m_yoy;
-  const neffStr = gi.neff_d != null ? gi.neff_d.toFixed(2) : '—';
-
-  if (level === 'heavy' || level === 'small') {
-    if (n && n.moat_strength) {
-      const t = n.moat_trend ? `（${n.moat_trend}）` : '';
-      parts.push(`護城河${n.moat_strength}${t}`);
-    }
-    parts.push(`Neff ${neffStr}`);
-    if (m3 != null && m12 != null && m3 > 0 && m12 > 0) {
-      if (m3 > m12) parts.push(`營收加速中（3M ${_revStr(m3)} > 12M ${_revStr(m12)}）`);
-      else parts.push(`短中期動能正（3M ${_revStr(m3)}、12M ${_revStr(m12)}）`);
-    } else if (m3 != null && m3 > 0) {
-      parts.push(`短期動能正（3M ${_revStr(m3)}）`);
-    }
-    if (cum != null && cum > 0) parts.push(`累積YoY ${_revStr(cum)}`);
-    if (n && n.confidence) parts.push(`信心${n.confidence}`);
-    if (level === 'small') {
-      if (!_moatOk(s)) parts.push('護城河偏弱，不足重倉');
-      if (!_confOk(s)) parts.push('信心偏低，不足重倉');
-    }
-
-  } else if (level === 'watch') {
-    const reasons = s._watchReasons || [];
-    if (reasons.includes('structural_risk')) {
-      const desc = n && n.structural_risk_desc ? n.structural_risk_desc : (n && n.structural_risk ? n.structural_risk : '有');
-      parts.push(`結構性風險：${desc}`);
-    }
-    if (reasons.includes('stale')) {
-      parts.push('質性研究超過3個月，建議更新');
-    }
-    if (reasons.includes('both_weak')) {
-      parts.push('護城河與信心均未達中等');
-    }
-    if (reasons.includes('value_moat')) {
-      parts.push('品質達標護城河良好，但動能未全正');
-      if (m12 != null && m12 < 0) parts.push(`12M營收 ${_revStr(m12)}`);
-      if (cum != null && cum < 0) parts.push(`累積YoY ${_revStr(cum)}`);
-    }
-    parts.push(`Neff ${neffStr}`);
-    if (n && n.moat_strength) parts.push(`護城河${n.moat_strength}`);
-
-  } else if (level === 'research') {
-    const group = _isSelected(s) ? '精選' : '價值型';
-    if (_isSelected(s)) {
-      parts.push(`<b style="color:#16a34a">量化達標，優先研究</b>`);
-    }
-    parts.push(`Neff ${neffStr}、${group}`);
-    if (!s._notes) parts.push('尚無質性研究筆記');
-    else if (_isStale(s)) parts.push('質性研究內容已逾3個月，建議更新');
-
-  } else if (level === 'approach') {
-    parts.push(`Neff ${neffStr}`);
-    if (m3 != null) parts.push(`3M ${_revStr(m3)}`);
-    if (m12 != null) parts.push(`12M ${_revStr(m12)}`);
-    if (n && n.moat_strength) parts.push(`護城河${n.moat_strength}`);
-  }
-
-  return parts.filter(Boolean).join('、');
-}
-
-// ─── 建置卡片 HTML ────────────────────────────────────
-function _buildCard(s, level) {
-  const gi       = s._gi || {};
-  const n        = s._notes;
-  const nv       = gi.neff_d;
-  const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
-  const priceStr = s.close != null ? s.close.toFixed(2) : '—';
-  const neffStr  = nv != null ? nv.toFixed(2) : '—';
-  const isFocused = _focusTrackSet.has(s.code);
-  const isQual   = _qualitySet.has(s.code);
-
-  const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
-  const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
-  const chkC = _chkFmt(s._chk_value,  s._chk_value_total  || 5);
-  const chkD = _chkFmt(s._chk_growth, s._chk_growth_total || 5);
-
-  const reason = _genReason(s, level);
-  const reasonLabel = {
-    heavy: '重倉理由', small: '小買理由', watch: '觀望原因',
-    research: '待研究', approach: '接近原因'
-  }[level];
-
-  // 接近名單距離進場
-  let distHtml = '';
-  if (level === 'approach' && nv != null && nv > 0) {
-    const pct = (1.0 - nv) / nv * 100;
-    distHtml = `<span class="dist-badge">再跌 ${pct.toFixed(1)}% 進場</span>`;
-  }
-
-  // 過期標記
-  const staleHtml = (s._notes && _isStale(s)) ? `<span class="stale-badge">研究過期</span>` : '';
-
-  // 質性摘要列
-  let notesHtml = '';
-  if (n) {
-    const qualG = n.neff_g   != null ? parseFloat(n.neff_g) : null;
-    const sysG  = gi.neff_c  != null ? parseFloat(gi.neff_c) : null;
-    let gStr = '—';
-    if (qualG != null && sysG != null) {
-      const diff = Math.abs(qualG - sysG);
-      gStr = diff >= 3
-        ? `<span class="warn">質性${qualG.toFixed(1)}% vs 系統${sysG.toFixed(1)}%（差${diff.toFixed(1)}%）</span>`
-        : `質性${qualG.toFixed(1)}% vs 系統${sysG.toFixed(1)}%`;
-    } else if (qualG != null) {
-      gStr = `質性${qualG.toFixed(1)}%`;
-    } else if (sysG != null) {
-      gStr = `系統${sysG.toFixed(1)}%`;
-    }
-
-    const hasRisk = n.structural_risk && n.structural_risk !== '無' && n.structural_risk.trim() !== '';
-    const riskHtml = hasRisk
-      ? `<span class="danger">${n.structural_risk}</span>`
-      : `<span class="good">無</span>`;
-
-    const confCls = n.confidence === '高' ? 'good' : n.confidence === '中' ? '' : 'warn';
-    const moatStr = [n.moat_strength, n.moat_trend].filter(Boolean).join(' ');
-    const notesDate = n.notes_date ? n.notes_date.slice(0,10) : '—';
-
-    // g 顯示用5年營收CAGR
-    const gLabel = qualG != null && sysG != null
-      ? `質性g ${qualG.toFixed(0)}% vs 5年營收CAGR ${sysG.toFixed(1)}%`
-      : qualG != null ? `質性g ${qualG.toFixed(0)}%`
-      : sysG != null ? `5年營收CAGR ${sysG.toFixed(1)}%` : '—';
-    const gDiffWarn = qualG != null && sysG != null && Math.abs(qualG - sysG) >= 3;
-
-    notesHtml = `
-    <div class="scard-notes-v2">
-      <div class="nv2-row"><span class="nv2-lbl">護城河</span><span class="nv2-val"><b>${n.moat_strength || '—'}</b>（${n.moat_trend || '—'}）${n.moat_desc ? '— ' + n.moat_desc : ''}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">信心度</span><span class="nv2-val"><b class="${confCls}">${n.confidence || '—'}</b>${n.confidence_desc ? ' — ' + n.confidence_desc : ''}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">成長催化劑</span><span class="nv2-val">${n.growth_catalyst || '—'}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">成長率 g</span><span class="nv2-val${gDiffWarn ? ' warn' : ''}">${gLabel}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">結構性風險</span><span class="nv2-val">${riskHtml}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">筆記日期</span><span class="nv2-val muted">${notesDate}</span></div>
-    </div>`;
-  }
-
-  const qualBadge = isQual
-    ? `<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:.7rem;font-weight:700;background:#dcfce7;color:#166534;margin-left:4px">體質佳</span>`
-    : '';
-  // 質性標籤
-  const qt = s._qualTag || '';
-  const qualTagMap = {
-    'recommend': {bg:'#dcfce7', color:'#166534', text:'建議'},
-    'partial':   {bg:'#dbeafe', color:'#1d4ed8', text:'參考'},
-    'weak':      {bg:'#fef3c7', color:'#92400e', text:'質性偏弱'},
-    'risk':      {bg:'#fee2e2', color:'#991b1b', text:'質性疑慮'},
-    'research':  {bg:'#f3e8ff', color:'#7c3aed', text:'待質性研究'},
-  };
-  const qtInfo = qualTagMap[qt];
-  const qualTagHtml = qtInfo
-    ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;font-size:.72rem;font-weight:700;background:${qtInfo.bg};color:${qtInfo.color};margin-left:6px">${qtInfo.text}</span>`
-    : '';
-
-  return `
-<div class="scard scard-${level}">
-  <div class="scard-body">
-    <div class="scard-top">
-      <input type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;flex-shrink:0" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)" title="追蹤">
-      <a class="scard-code" href="/company.html?code=${s.code}" target="_blank">${s.code}</a>
-      <span class="scard-name">${s.name || ''}</span>
-      ${qualBadge}${qualTagHtml}
-      <span class="scard-sep">｜</span>
-      <span class="scard-price">股價 ${priceStr}</span>
-      <span class="scard-sep">｜</span>
-      <span class="scard-neff ${_neffCls(nv)}">Neff ${neffStr}</span>
-      <span class="scard-sep">｜</span>
-      <span class="scard-grade ${_gradeCls(grade)}">${grade || '—'}</span>
-      <span class="scard-sep">｜</span>
-      <span class="scard-chks">
-        A:<span class="${chkA.cls}">${chkA.html}</span>
-        B:<span class="${chkB.cls}">${chkB.html}</span>
-        C:<span class="${chkC.cls}">${chkC.html}</span>
-        D:<span class="${chkD.cls}">${chkD.html}</span>
-      </span>
-      ${distHtml}
-      ${staleHtml}
-    </div>
-    ${reason ? `
-    <div class="scard-reason">
-      <span class="reason-label">${reasonLabel}：</span>${reason}
-    </div>` : ''}
-    ${notesHtml}
-  </div>
-</div>`;
-}
-
-// ─── 渲染各區塊 ───────────────────────────────────────
-function _renderSection(key, items, level) {
-  const cnt = items.length;
-  document.getElementById('cnt_' + key).textContent = cnt;
-  document.getElementById('hdr_' + key).textContent = `(${cnt})`;
-  const body = document.getElementById('body_' + key);
-  if (!cnt) {
-    body.innerHTML = `<div class="empty">目前無符合條件的股票</div>`;
-    return;
-  }
-  const sorted = _sortByNeff(items);
-  body.innerHTML = `<div class="card-list">${sorted.map(s => _buildCard(s, level)).join('')}</div>`;
-}
-
-function renderAll() {
-  const base = _applyQuality(_stocks);
-  const { heavy, small, approach } = _classifyAll(base);
-
-  _renderSection('heavy',    heavy,    'heavy');
-  _renderSection('small',    small,    'small');
-
-  // 隱藏不用的區塊
-  ['watch', 'research', 'approach'].forEach(k => {
-    const el = document.getElementById('block_' + k);
-    if (el) el.style.display = 'none';
-  });
-  // 顯示小買區塊
-  const smallEl = document.getElementById('block_small');
-  if (smallEl) smallEl.style.display = '';
-
-  // 統計：建議數 + 待研究數
-  const recommendCnt = heavy.filter(s => s._qualTag === 'recommend').length;
-  const needResearchCnt = heavy.filter(s => s._qualTag === 'research').length;
-  const setCnt2 = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
-  setCnt2('cnt_recommend', recommendCnt);
-  setCnt2('cnt_need_research', needResearchCnt);
-
-  // 隱藏不用的區塊
-  ['small', 'research'].forEach(k => {
-    const el = document.getElementById('block_' + k);
-    if (el) el.style.display = 'none';
-  });
-
-  // Tab 數量（不受 Tab 切換影響，始終顯示各群總數）
-  const all = _applyQuality(_stocks);
-  const setCnt = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
-  setCnt('cnt_tab_selected',  all.filter(s => _isNeffPass(s) && _isHighQuality(s) && _isPositiveMomentum(s)).length);
-  setCnt('cnt_tab_value',     all.filter(s => _isNeffPass(s) && _isHighQuality(s) && !_isPositiveMomentum(s)).length);
-  setCnt('cnt_tab_momentum',  all.filter(s => _isNeffPass(s) && !_isHighQuality(s) && _isPositiveMomentum(s)).length);
-  setCnt('cnt_tab_neffonly',  all.filter(s => _isNeffPass(s) && !_isHighQuality(s) && !_isPositiveMomentum(s)).length);
-}
-
-// ─── 載入 ─────────────────────────────────────────────
 async function load() {
   try {
-    const [listRes, stocksRes] = await Promise.all([
-      fetch('/api/user-lists'),
-      fetch('/api/stocks'),
-    ]);
-    const lists = await listRes.json();
-    _qualitySet    = new Set((lists.quality || []).map(r => r.code));
-    _focusTrackSet = new Set((lists.track   || []).map(r => r.code));
-
-    const stocksJson = await stocksRes.json();
-    _stocks = stocksJson.data || [];
-
-    const today = new Date().toISOString().slice(0,10);
-    document.getElementById('dateLabel').textContent = `報表日期：${today}`;
-
-    renderAll();
+    const res = await fetch('/api/stock-picks');
+    const data = await res.json();
+    const area = document.getElementById('reportArea');
+    if (data.content && data.content.trim()) {
+      area.innerHTML = marked.parse(data.content);
+      if (data.updated_at) {
+        document.getElementById('dateLabel').textContent = `報告日期：${data.updated_at.slice(0,10)}`;
+        document.getElementById('toolbarInfo').textContent = `最後更新：${data.updated_at}`;
+      }
+    } else {
+      area.innerHTML = `<div class="empty">
+        尚未產出選股推薦報告。<br><br>
+        按「複製分析指令」→ 貼給 Claude → 即可產出深度分析報告。
+      </div>`;
+    }
   } catch(e) {
-    console.error('stock_picks load error:', e);
-    document.getElementById('body_heavy').innerHTML =
-      `<div class="empty" style="color:#ef4444">無法載入：${e.message}</div>`;
+    document.getElementById('reportArea').innerHTML =
+      `<div class="empty" style="color:#ef4444">載入失敗：${e.message}</div>`;
   }
 }
 
-// ─── 複製研究指令 ─────────────────────────────────────
-function _copyResearchPrompt() {
-  const base = _applyQuality(_stocks);
-  const { heavy, small } = _classifyAll(base);
-  const tab = _currentTab;
-  const tabLabel = {selected:'精選', value:'價值型', momentum:'動能型', neffonly:'僅Neff≥1.0'}[tab] || tab;
+function copyPrompt() {
   const today = new Date().toISOString().slice(0,10);
+  const prompt = `請根據逍遙投資系統的每日價值評估，產出選股推薦深度分析報告。
 
-  let prompt = `請根據每日價值評估的數據，產出「${tabLabel}」群組的選股推薦報表。\n`;
-  prompt += `報表日期：${today}\n`;
-  prompt += `篩選條件：Neff ≥ 1.0${_qualityOnly ? ' + 僅體質佳' : ''}\n\n`;
+報告日期：${today}
 
-  const _fmt = (s, tag) => {
-    const gi = s._gi || {};
-    const n = s._notes;
-    let line = `${s.code} ${s.name} | 股價${s.close} | Neff ${gi.neff_d?.toFixed(2)||'—'} | 營收CAGR ${gi.neff_c?.toFixed(1)||'—'}% | PE ${gi.pe?.toFixed(1)||'—'}(${gi.pe_src||''}) | 殖利率 ${gi.yield?.toFixed(1)||'—'}%(${gi.yld_src||''})`;
-    const grade = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
-    line += ` | 等級${grade} | A:${s._chk_profit}/${s._chk_profit_total||7} B:${s._chk_safety}/${s._chk_safety_total||10}`;
-    line += ` | 累積${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M${gi.rev_12m_yoy?.toFixed(1)||'—'}%`;
-    if (n) {
-      line += `\n  質性：護城河${n.moat_strength||'—'}(${n.moat_trend||'—'}) | 信心${n.confidence||'—'} | g=${n.neff_g||'—'}`;
-      if (n.moat_desc) line += ` | ${n.moat_desc}`;
-      if (n.growth_catalyst) line += `\n  催化劑：${n.growth_catalyst}`;
-    }
-    return line;
-  };
+【步驟一：讀取每日價值評估的股票】
+從 Render API 讀取所有股票，篩選出 Neff ≥ 1.0 的精選組（A≥5/7 + B≥7/10 + 累積/3M/12M YoY 皆≥0）。
+如果要加上體質佳篩選，也從 user_lists 讀取 quality 清單交叉比對。
 
-  if (heavy.length) {
-    prompt += `【重倉候選】（${heavy.length} 支）\n`;
-    heavy.forEach(s => {
-      const tag = s._qualTag === 'recommend' ? '建議' : '待質性研究';
-      prompt += `[${tag}] ${_fmt(s, tag)}\n\n`;
-    });
-  }
-  if (small.length) {
-    prompt += `【小買候選】（${small.length} 支）\n`;
-    small.forEach(s => {
-      const tag = s._qualTag === 'partial' ? '參考' : (s._qualTag === 'risk' ? '質性疑慮' : '質性偏弱');
-      prompt += `[${tag}] ${_fmt(s, tag)}\n\n`;
-    });
-  }
+curl -s "https://tock-system.onrender.com/api/stocks" | python3 -c "
+import sys,json
+d = json.load(sys.stdin)
+for s in d['data']:
+    gi = s.get('_gi') or {}
+    if not gi.get('neff_d') or gi['neff_d'] < 1.0 or gi.get('neff_gray'): continue
+    ap, bp = s.get('_chk_profit',0), s.get('_chk_safety',0)
+    if ap < 5 or bp < 7: continue
+    cum = s.get('revenue_cum_yoy')
+    m3, m12 = gi.get('rev_3m_yoy'), gi.get('rev_12m_yoy')
+    if cum is None or cum < 0 or m3 is None or m3 < 0 or m12 is None or m12 < 0: continue
+    n = s.get('_notes') or {}
+    has_notes = '有' if n else '無'
+    print(f\\"{s['code']} {s.get('name','')} | Neff={gi['neff_d']:.2f} | PE={gi.get('pe','—')}({gi.get('pe_src','')}) | 殖利率={gi.get('yield','—')}%({gi.get('yld_src','')}) | CAGR={gi.get('neff_c','—')}% | 等級={s.get('est_grade') or s.get('shen_grade','')} | A:{ap}/7 B:{bp}/10 | 累積={cum}% 3M={m3}% 12M={m12}% | 質性={has_notes}\\")
+"
 
-  prompt += `\n請根據以上數據，以表格形式產出選股推薦報表，每支股票一行，包含：代碼/名稱/推薦層級(重倉/小買)/Neff/股價/等級/簡短理由。有質性研究的帶質性判斷，沒有的標「待質性研究」。`;
+【步驟二：逐支讀取質性研究筆記】
+對每支精選組股票，讀取質性研究筆記：
+curl -s "https://tock-system.onrender.com/api/user-notes/{code}"
+
+有筆記的 → 讀取完整內容，整合量化+質化分析
+無筆記的 → 純量化分析，標註「待質性研究」
+
+【步驟三：深度分析與分類】
+對每支股票進行深度分析，分類為重倉/小買/觀望：
+
+**重倉條件**（量化+質性全達標）：
+- Neff ≥ 1.0 + 精選組
+- 質性研究在3個月內
+- 護城河 ≥ 中 + 信心度 ≥ 中 + 無結構性風險
+- 無明顯近期逆風
+- 綜合判斷後認為值得重倉配置
+
+**小買條件**：
+- 精選組 + 質性部分達標
+- 或有輕微疑慮但整體正面
+
+**觀望條件**：
+- 有結構性風險或重大逆風
+- 質性研究顯示護城河弱或信心低
+- 估值雖便宜但基本面有明顯隱憂
+
+**待質性研究**：
+- 無質性筆記 → 純量化分析後給初步判斷 + 標註
+
+【步驟四：產出報告格式（Markdown）】
+
+## 選股推薦報告
+**報告日期**：${today}
+**篩選條件**：Neff ≥ 1.0 精選組
+
+---
+
+### 重倉推薦（X 支）
+每支一段：代碼/名稱/股價/Neff/等級 + 2~3句推薦理由（整合量化+質性）
+
+### 小買推薦（X 支）
+同上格式 + 說明為何不是重倉（哪裡不足）
+
+### 觀望（X 支）
+同上格式 + 說明觀望原因
+
+### 待質性研究（X 支）
+純量化數據 + 初步判斷 + 標註需補質性研究
+
+---
+
+*報告產出時間：${today} | 篩選母體：每日價值評估精選組*
+
+【步驟五：寫入 Render】
+報告完成後先輸出供檢查，確認後執行：
+python3 << 'PYEOF'
+import json, urllib.request
+content = """（完整 Markdown 報告）"""
+data = json.dumps({"content": content}).encode("utf-8")
+req = urllib.request.Request(
+    "https://tock-system.onrender.com/api/stock-picks",
+    data=data, headers={"Content-Type": "application/json"}, method="POST")
+print(urllib.request.urlopen(req, timeout=30).read().decode())
+PYEOF`;
 
   navigator.clipboard.writeText(prompt).then(() => {
-    alert('選股推薦指令已複製到剪貼簿');
+    alert('分析指令已複製到剪貼簿');
   });
 }
 
-// ─── 追蹤功能 ─────────────────────────────────────────
-function _toggleFocusTrack(cb) {
-  const code = cb.dataset.code;
-  if (cb.checked) {
-    _focusTrackSet.add(code);
-    fetch('/api/user-lists/track', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action:'add', code})
-    });
-  } else {
-    _focusTrackSet.delete(code);
-    fetch('/api/user-lists/track', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action:'remove', code})
-    });
-  }
-}
-
-// ─── 啟動 ─────────────────────────────────────────────
 load();
 </script>
 </body>
