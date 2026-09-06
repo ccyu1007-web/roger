@@ -837,7 +837,7 @@ def _init_checklist_db():
                  ('gi_lynch_a','REAL'),('gi_lynch_b','REAL'),
                  ('gi_lynch_c','REAL'),('gi_lynch_d','REAL'),
                  ('gi_rev_cagr_3y','REAL'),('gi_rev_cagr_5y','REAL'),('gi_shares_change','REAL'),
-                 ('gi_yield','REAL'),('gi_pe','REAL'),
+                 ('gi_yield','REAL'),('gi_pe','REAL'),('gi_pe_src','TEXT'),('gi_yld_src','TEXT'),
                  ('gi_gray','INTEGER'),('gi_neff_gray','INTEGER'),('gi_lynch_gray','INTEGER'),
                  ('gi_warnings','TEXT'),
                  ('gi_shiller_avg_eps','REAL'),('gi_shiller_pe','REAL'),('gi_shiller_alert','REAL'),
@@ -1294,6 +1294,8 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         'gi_shares_change': gi.get('shares_change'),
         'gi_yield': gi.get('yield'),
         'gi_pe': gi.get('pe'),
+        'gi_pe_src': gi.get('pe_src'),
+        'gi_yld_src': gi.get('yld_src'),
         'gi_gray': 1 if gi.get('gray') else 0,
         'gi_neff_gray': 1 if gi.get('neff_gray') else 0,
         'gi_lynch_gray': 1 if gi.get('lynch_gray') else 0,
@@ -1869,7 +1871,7 @@ def calc_all_checklists():
                        'gi_neff_a', 'gi_neff_b', 'gi_neff_3a', 'gi_neff_3b',
                        'gi_neff_c', 'gi_neff_d', 'gi_intrinsic_growth',
                        'gi_lynch_a', 'gi_lynch_b', 'gi_lynch_c', 'gi_lynch_d',
-                       'gi_rev_cagr_3y', 'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe',
+                       'gi_rev_cagr_3y', 'gi_rev_cagr_5y', 'gi_shares_change', 'gi_yield', 'gi_pe', 'gi_pe_src', 'gi_yld_src',
                        'gi_gray', 'gi_neff_gray', 'gi_lynch_gray', 'gi_warnings',
                        'gi_shiller_avg_eps', 'gi_shiller_pe', 'gi_shiller_alert',
                        'gi_roic_avg', 'gi_roe_avg', 'gi_opm_avg', 'gi_fcf_rev_avg',
@@ -2209,6 +2211,7 @@ def get_stocks():
                 'rev_cagr_3y': chk['gi_rev_cagr_3y'],
                 'rev_cagr_5y': chk['gi_rev_cagr_5y'], 'shares_change': chk['gi_shares_change'],
                 'yield': chk['gi_yield'], 'pe': chk['gi_pe'],
+                'pe_src': chk.get('gi_pe_src'), 'yld_src': chk.get('gi_yld_src'),
                 'gray': bool(chk['gi_gray']), 'neff_gray': bool(chk['gi_neff_gray']),
                 'lynch_gray': bool(chk['gi_lynch_gray']),
                 'warnings': _json_mod.loads(chk['gi_warnings']) if chk['gi_warnings'] else [],
@@ -4115,11 +4118,13 @@ def _calc_growth_indicators(_json, _dt):
         # ── 殖利率：預估 > min(沈董, 系統預估)股利
         ue = ue_map.get(code, {})
         div_val = None
+        yld_src = None
         # 優先用 user_estimates 的預估股利
         vm_div = ue.get('vmDiv')
         if vm_div and str(vm_div).strip():
             try:
                 div_val = float(vm_div)
+                yld_src = '預'
             except Exception:
                 pass
         # fallback: min(沈董股利, 系統預估股利)
@@ -4130,15 +4135,19 @@ def _calc_growth_indicators(_json, _dt):
             _sys_d = _sys_div if _sys_div and _sys_div > 0 else None
             if _s_d is not None and _sys_d is not None:
                 div_val = min(_s_d, _sys_d)
+                yld_src = '沈' if _s_d <= _sys_d else '系'
             elif _s_d is not None:
                 div_val = _s_d
+                yld_src = '沈'
             elif _sys_d is not None:
                 div_val = _sys_d
+                yld_src = '系'
 
         yld = (div_val / close * 100) if div_val and close > 0 else 0
 
         # ── PE：預估 > min(沈董, 系統預估)
         pe = None
+        pe_src = None
         # 優先用 user_estimates 的預估EPS算PE
         vm_eps = ue.get('vmEps')
         if vm_eps and str(vm_eps).strip():
@@ -4146,6 +4155,7 @@ def _calc_growth_indicators(_json, _dt):
                 est_eps = float(vm_eps)
                 if est_eps > 0:
                     pe = close / est_eps
+                    pe_src = '預'
             except Exception:
                 pass
         # fallback: min(沈董, 系統預估)
@@ -4156,10 +4166,13 @@ def _calc_growth_indicators(_json, _dt):
             _sys_pos = _sys_eps if _sys_eps and _sys_eps > 0 else None
             if _s_pos is not None and _sys_pos is not None:
                 _use_eps = min(_s_pos, _sys_pos)
+                pe_src = '沈' if _s_pos <= _sys_pos else '系'
             elif _s_pos is not None:
                 _use_eps = _s_pos
+                pe_src = '沈'
             elif _sys_pos is not None:
                 _use_eps = _sys_pos
+                pe_src = '系'
             else:
                 _use_eps = None
             if _use_eps and _use_eps > 0:
@@ -4311,6 +4324,8 @@ def _calc_growth_indicators(_json, _dt):
             'shares_change': round(shares_change, 2) if shares_change is not None else None,
             'yield': round(yld, 2),
             'pe': round(pe, 2),
+            'pe_src': pe_src,
+            'yld_src': yld_src,
             'gray': gray,
             'neff_gray': neff_gray,
             'lynch_gray': lynch_gray,

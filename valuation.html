@@ -454,11 +454,13 @@ function _buildTable(items) {
     const cagrStr = cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—';
     const cagrColor = _revColor(cagrV);
 
-    // PE、殖利率
+    // PE、殖利率（含來源標籤）
     const peV  = gi.pe;
     const yldV = gi.yield !== undefined ? gi['yield'] : gi.yld;
-    const peStr  = peV  != null ? peV.toFixed(1)  : '—';
-    const yldStr = yldV != null ? yldV.toFixed(1) + '%' : '—';
+    const peSrc  = gi.pe_src  ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.pe_src}</span>` : '';
+    const yldSrc = gi.yld_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.yld_src}</span>` : '';
+    const peStr  = peV  != null ? peV.toFixed(1) + peSrc  : '—';
+    const yldStr = yldV != null ? yldV.toFixed(1) + '%' + yldSrc : '—';
 
     // 等級（預估優先，其次沈董）
     const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
