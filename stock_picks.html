@@ -816,11 +816,13 @@ async function load() {
 // ─── 複製研究指令 ─────────────────────────────────────
 function _copyResearchPrompt() {
   const base = _applyQuality(_stocks);
-  const { research } = _classifyAll(base);
-  const selected = research.filter(s => _isSelected(s));
-  const valueType = research.filter(s => !_isSelected(s));
+  const { heavy, small } = _classifyAll(base);
+  // 找出所有待質性研究的股票（qualTag === 'research'）
+  const needResearch = [...heavy, ...small].filter(s => s._qualTag === 'research');
+  const selected = needResearch.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
+  const others = needResearch.filter(s => !(_isHighQuality(s) && _isPositiveMomentum(s)));
 
-  let prompt = `請幫我對以下股票執行質性研究筆記，依照個股頁面的質性研究 prompt 格式產出，每支都要完整四章節+結構化欄位，完成後寫入 Render。\n\n`;
+  let prompt = `請幫我對以下股票執行質性研究筆記，依照個股頁面的質性研究 prompt 格式產出，每支都要完整四章節+結構化欄位（含 moat_desc 和 confidence_desc），完成後寫入 Render。\n\n`;
   if (selected.length) {
     prompt += `【優先研究（精選組，量化達標）】\n`;
     selected.forEach(s => {
@@ -829,15 +831,15 @@ function _copyResearchPrompt() {
     });
     prompt += '\n';
   }
-  if (valueType.length) {
-    prompt += `【一般研究（價值型）】\n`;
-    valueType.forEach(s => {
+  if (others.length) {
+    prompt += `【一般研究】\n`;
+    others.forEach(s => {
       const gi = s._gi || {};
       prompt += `- ${s.code} ${s.name}（Neff ${gi.neff_d?.toFixed(2) || '—'}）\n`;
     });
   }
-  if (!selected.length && !valueType.length) {
-    prompt = '目前沒有待研究的股票，所有精選/價值型都已完成質性研究。';
+  if (!needResearch.length) {
+    prompt = '目前沒有待研究的股票，所有股票都已完成質性研究。';
   }
 
   navigator.clipboard.writeText(prompt).then(() => {
