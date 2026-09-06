@@ -40,6 +40,8 @@ CHECKLIST_ITEMS = [
     {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS >= 近5年EPS中位數'},
     {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利 > 70%'},
     {'key': 'price_val_ok',    'category': 'value', 'label': '現價 <= A級評價；<= AA更佳'},
+    {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現現價潛在年報酬 >= 10%'},
+    {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 <= DCF安全邊際價'},
     {'key': 'rev_cagr5_ok',   'category': 'growth_eval', 'label': '近5年營收CAGR > 5%'},
     {'key': 'eps_cagr5_ok',   'category': 'growth_eval', 'label': '近5年保守成長率(EPS) > 5%'},
     {'key': 'rev_accel',      'category': 'growth_eval', 'label': '近3年營收CAGR > 近5年營收CAGR'},

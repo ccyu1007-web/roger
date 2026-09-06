@@ -58,6 +58,8 @@ CHECKLIST_VALUE = [
     ('eps_vs_median5', '預估(沈董)EPS >= 近5年EPS中位數'),
     ('core_ratio', '累計營業利益/累計稅前淨利 > 70%'),
     ('price_val_ok', '現價 <= A級評價；<= AA更佳'),
+    ('val_ddm_return', '股利折現現價潛在年報酬 >= 10%'),
+    ('dcf_safe_ok', '現價 <= DCF安全邊際價'),
     ('ge_neff_ratio', 'Neff 比率 >= 1.0'),
 ]
 
