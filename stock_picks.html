@@ -7,6 +7,23 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+
+  /* Tab L1 */
+  .tab-bar-L1 { display: flex; gap: 0; }
+  .tab-L1 {
+    padding: 10px 22px; font-size: .92rem; font-weight: 700; cursor: pointer;
+    border: 2px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
+  }
+  .tab-L1:first-child { border-radius: 8px 0 0 8px; }
+  .tab-L1:last-child  { border-radius: 0 8px 8px 0; }
+  .tab-L1:not(:first-child) { border-left-width: 1px; }
+  .tab-L1.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+  .count-badge-L1 {
+    display: inline-block; font-size: .72rem; font-weight: 700;
+    padding: 1px 7px; border-radius: 10px; margin-left: 5px;
+  }
+  .tab-L1.active .count-badge-L1 { background: rgba(255,255,255,.25); color: #fff; }
+  .tab-L1:not(.active) .count-badge-L1 { background: #e2e8f0; color: #475569; }
   header {
     background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
     color: #fff; padding: 16px 28px;
