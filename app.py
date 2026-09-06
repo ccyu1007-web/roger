@@ -3878,7 +3878,7 @@ def _calc_growth_indicators(_json, _dt):
 
     # ── 2. 抓 stocks 表（股價、沈董估算）
     st_rows = query_db(
-        "SELECT code, close, sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, blend_eps, blend_div FROM stocks"
+        "SELECT code, close, shen_eps, shen_div, sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld, blend_eps, blend_div FROM stocks"
     )
     st_map = {r['code']: r for r in st_rows}
 
@@ -4070,7 +4070,7 @@ def _calc_growth_indicators(_json, _dt):
             if s_start and s_start > 0:
                 shares_change = (s_end - s_start) / s_start * 100
 
-        # ── 殖利率：預估 > min(沈董, 綜合)股利，與逍遙評價法一致
+        # ── 殖利率：預估 > min(沈董, 系統預估)股利
         ue = ue_map.get(code, {})
         div_val = None
         # 優先用 user_estimates 的預估股利
@@ -4080,22 +4080,22 @@ def _calc_growth_indicators(_json, _dt):
                 div_val = float(vm_div)
             except Exception:
                 pass
-        # fallback: min(沈董股利, 綜合股利)
+        # fallback: min(沈董股利, 系統預估股利)
         if not div_val:
             _s_div = st.get('shen_div')
-            _b_div = st.get('blend_div')
+            _sys_div = st.get('sys_ann_div')
             _s_d = _s_div if _s_div and _s_div > 0 else None
-            _b_d = _b_div if _b_div and _b_div > 0 else None
-            if _s_d is not None and _b_d is not None:
-                div_val = min(_s_d, _b_d)
+            _sys_d = _sys_div if _sys_div and _sys_div > 0 else None
+            if _s_d is not None and _sys_d is not None:
+                div_val = min(_s_d, _sys_d)
             elif _s_d is not None:
                 div_val = _s_d
-            elif _b_d is not None:
-                div_val = _b_d
+            elif _sys_d is not None:
+                div_val = _sys_d
 
         yld = (div_val / close * 100) if div_val and close > 0 else 0
 
-        # ── PE：預估 > min(沈董, 綜合)，與逍遙評價法一致
+        # ── PE：預估 > min(沈董, 系統預估)
         pe = None
         # 優先用 user_estimates 的預估EPS算PE
         vm_eps = ue.get('vmEps')
@@ -4106,18 +4106,18 @@ def _calc_growth_indicators(_json, _dt):
                     pe = close / est_eps
             except Exception:
                 pass
-        # fallback: min(沈董, 綜合)
+        # fallback: min(沈董, 系統預估)
         if pe is None:
             _s_eps = st.get('shen_eps')
-            _b_eps = st.get('blend_eps')
+            _sys_eps = st.get('sys_ann_eps')
             _s_pos = _s_eps if _s_eps and _s_eps > 0 else None
-            _b_pos = _b_eps if _b_eps and _b_eps > 0 else None
-            if _s_pos is not None and _b_pos is not None:
-                _use_eps = min(_s_pos, _b_pos)
+            _sys_pos = _sys_eps if _sys_eps and _sys_eps > 0 else None
+            if _s_pos is not None and _sys_pos is not None:
+                _use_eps = min(_s_pos, _sys_pos)
             elif _s_pos is not None:
                 _use_eps = _s_pos
-            elif _b_pos is not None:
-                _use_eps = _b_pos
+            elif _sys_pos is not None:
+                _use_eps = _sys_pos
             else:
                 _use_eps = None
             if _use_eps and _use_eps > 0:
