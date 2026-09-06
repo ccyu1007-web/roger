@@ -17,16 +17,23 @@
   .container { max-width: 1300px; margin: 0 auto; padding: 20px 16px; }
   .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
 
-  /* 統計卡片 */
-  .stat-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-  .stat-card { flex: 1; min-width: 130px; padding: 16px; border-radius: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-  .stat-card .label { font-size: .78rem; font-weight: 600; margin-bottom: 4px; }
-  .stat-card .num { font-size: 1.8rem; font-weight: 800; }
-  .stat-card .delta { font-size: .82rem; margin-top: 2px; }
-  .sc-total { background: #eff6ff; color: #1d4ed8; }
-  .sc-quality { background: #f0fdf4; color: #166534; }
-  .sc-new { background: #fef9c3; color: #854d0e; }
-  .sc-rm { background: #fef2f2; color: #991b1b; }
+  /* 統計列 */
+  .stat-bar {
+    display: flex; align-items: center; gap: 0; margin-bottom: 20px;
+    background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    overflow: hidden; flex-wrap: wrap;
+  }
+  .stat-item {
+    flex: 1; min-width: 100px; padding: 14px 16px; text-align: center;
+    border-right: 1px solid #e2e8f0;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-label { font-size: .72rem; color: #64748b; font-weight: 600; margin-bottom: 2px; }
+  .stat-num { font-size: 1.5rem; font-weight: 800; }
+  .sc-total { color: #1d4ed8; }
+  .sc-quality { color: #166534; }
+  .sc-new { color: #854d0e; }
+  .sc-rm { color: #991b1b; }
 
   /* Tab L1 */
   .tab-bar-L1 { display: flex; gap: 0; margin-bottom: 0; }
@@ -132,27 +139,23 @@
 
 <div class="container">
 
-  <!-- 統計卡片 -->
-  <div class="stat-row" id="statRow">
-    <div class="stat-card sc-total">
-      <div class="label">Neff ≥ 1.0</div>
-      <div class="num" id="sc-total">—</div>
-      <div class="delta" id="sc-total-delta"></div>
+  <!-- 統計列 -->
+  <div class="stat-bar">
+    <div class="stat-item">
+      <div class="stat-label">Neff ≥ 1.0</div>
+      <div class="stat-num sc-total" id="sc-total">—</div>
     </div>
-    <div class="stat-card sc-quality">
-      <div class="label">其中體質佳</div>
-      <div class="num" id="sc-quality">—</div>
-      <div class="delta" style="opacity:0">-</div>
+    <div class="stat-item">
+      <div class="stat-label">其中體質佳</div>
+      <div class="stat-num sc-quality" id="sc-quality">—</div>
     </div>
-    <div class="stat-card sc-new">
-      <div class="label">今日新增</div>
-      <div class="num" id="sc-new">—</div>
-      <div class="delta">Neff 從 &lt; 1 升 ≥ 1</div>
+    <div class="stat-item">
+      <div class="stat-label">今日新增</div>
+      <div class="stat-num sc-new" id="sc-new">—</div>
     </div>
-    <div class="stat-card sc-rm">
-      <div class="label">今日剔除</div>
-      <div class="num" id="sc-rm">—</div>
-      <div class="delta">Neff 從 ≥ 1 跌 &lt; 1</div>
+    <div class="stat-item">
+      <div class="stat-label">今日剔除</div>
+      <div class="stat-num sc-rm" id="sc-rm">—</div>
     </div>
   </div>
 
