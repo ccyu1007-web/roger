@@ -2054,9 +2054,9 @@ def snapshot_stock_states():
             for gr in c.fetchall():
                 _growth_map[gr['code']] = {
                     'neff_d': gr['gi_neff_d'], 'lynch_d': gr['gi_lynch_d'],
-                    'neff_gray': gr.get('gi_neff_gray'),
-                    'profit_count': gr.get('profit_count'), 'safety_count': gr.get('safety_count'),
-                    'rev_3m_yoy': gr.get('gi_rev_3m_yoy'), 'rev_12m_yoy': gr.get('gi_rev_12m_yoy'),
+                    'neff_gray': gr['gi_neff_gray'],
+                    'profit_count': gr['profit_count'], 'safety_count': gr['safety_count'],
+                    'rev_3m_yoy': gr['gi_rev_3m_yoy'], 'rev_12m_yoy': gr['gi_rev_12m_yoy'],
                 }
         except Exception:
             pass
