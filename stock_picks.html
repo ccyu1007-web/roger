@@ -171,6 +171,20 @@
 
 <div class="container">
 
+  <!-- Tab 篩選 + 體質佳 -->
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="tab-bar-L1">
+      <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_tab_selected">0</span></button>
+      <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_tab_value">0</span></button>
+      <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_tab_momentum">0</span></button>
+      <button class="tab-L1" onclick="switchTab('neffonly',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_tab_neffonly">0</span></button>
+    </div>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer">
+      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
+      僅體質佳
+    </label>
+  </div>
+
   <!-- 統計列 -->
   <div class="stat-bar">
     <div class="stat-item">
@@ -192,12 +206,6 @@
     <div class="stat-item">
       <div class="stat-label">接近</div>
       <div class="stat-num stat-approach" id="cnt_approach">—</div>
-    </div>
-    <div class="stat-quality-wrap">
-      <label>
-        <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="accent-color:#2563eb;width:16px;height:16px">
-        體質佳
-      </label>
     </div>
   </div>
 
@@ -312,6 +320,7 @@ let _stocks       = [];
 let _qualitySet   = new Set();
 let _focusTrackSet = new Set();
 let _qualityOnly  = false;
+let _currentTab   = 'selected';
 
 // ─── 收合狀態 ─────────────────────────────────────────
 const _collapsed = {};
@@ -409,76 +418,72 @@ function _confOk(s) {
   return n && ['高','中'].includes(n.confidence);
 }
 
+// ─── Tab 切換 ─────────────────────────────────────────
+function switchTab(tab, btn) {
+  _currentTab = tab;
+  document.querySelectorAll('.tab-L1').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAll();
+}
+
+function _getTabPool(arr) {
+  // 根據 Tab 篩選股票池
+  if (_currentTab === 'selected')  return arr.filter(s => _isNeffPass(s) && _isHighQuality(s) && _isPositiveMomentum(s));
+  if (_currentTab === 'value')     return arr.filter(s => _isNeffPass(s) && _isHighQuality(s) && !_isPositiveMomentum(s));
+  if (_currentTab === 'momentum')  return arr.filter(s => _isNeffPass(s) && !_isHighQuality(s) && _isPositiveMomentum(s));
+  if (_currentTab === 'neffonly')  return arr.filter(s => _isNeffPass(s) && !_isHighQuality(s) && !_isPositiveMomentum(s));
+  return arr.filter(s => _isNeffPass(s));
+}
+
 // ─── 篩選分群 ─────────────────────────────────────────
 function _classifyAll(arr) {
+  const tabPool = _getTabPool(arr);
   const heavy    = [];
   const small    = [];
   const watch    = [];
   const research = [];
   const approach = [];
-  const usedCodes = new Set();
 
-  arr.forEach(s => {
-    const gi = s._gi || {};
+  tabPool.forEach(s => {
     const code = s.code;
 
-    // 接近名單（Neff 0.7~1.0 + 品質達標，不含 Neff≥1）
-    if (_isApproaching(s)) {
-      approach.push(s);
-    }
-
-    const isSel = _isSelected(s);
-    const isVal = _isValueType(s);
-    if (!isSel && !isVal) return;
-
-    // 重倉條件
-    if (isSel && _isFresh(s) && _moatOk(s) && _confOk(s) && _noRisk(s)) {
+    // 重倉條件：質性全達標
+    if (_isFresh(s) && _moatOk(s) && _confOk(s) && _noRisk(s)) {
       heavy.push(s);
-      usedCodes.add(code);
       return;
     }
 
-    // 小買條件
-    if (isSel && _isFresh(s) && _noRisk(s)) {
-      const moat = _moatOk(s), conf = _confOk(s);
-      // 至少一個達標但不是兩個都達標（已排除重倉）
-      if (moat || conf) {
-        small.push(s);
-        usedCodes.add(code);
-        return;
-      }
+    // 小買條件：質性部分達標
+    if (_isFresh(s) && _noRisk(s) && (_moatOk(s) || _confOk(s))) {
+      small.push(s);
+      return;
     }
 
     // 觀望條件
     let watchReasons = [];
-    if (isSel && _isFresh(s) && !_noRisk(s)) {
+    if (_isFresh(s) && !_noRisk(s)) {
       watchReasons.push('structural_risk');
     }
-    if (isSel && !_noRisk(s) && _isStale(s)) {
-      watchReasons.push('stale');
-    }
-    if (isSel && _isFresh(s) && _noRisk(s) && !_moatOk(s) && !_confOk(s)) {
+    if (_isFresh(s) && _noRisk(s) && !_moatOk(s) && !_confOk(s)) {
       watchReasons.push('both_weak');
     }
-    if (isVal && _isFresh(s) && _moatOk(s)) {
-      watchReasons.push('value_moat');
-    }
-    if (isSel && s._notes && _isStale(s)) {
-      if (!watchReasons.includes('stale')) watchReasons.push('stale');
+    if (s._notes && _isStale(s)) {
+      watchReasons.push('stale');
     }
 
     if (watchReasons.length > 0) {
       s._watchReasons = watchReasons;
       watch.push(s);
-      usedCodes.add(code);
       return;
     }
 
-    // 待研究：精選或價值型 + 無質性研究（或過期）
-    const noFresh = !_isFresh(s);
-    if ((isSel || isVal) && noFresh) {
-      research.push(s);
-    }
+    // 待研究：無質性研究或過期
+    research.push(s);
+  });
+
+  // 接近名單（獨立計算，不受 Tab 影響）
+  arr.forEach(s => {
+    if (_isApproaching(s)) approach.push(s);
   });
 
   return { heavy, small, watch, research, approach };
@@ -692,6 +697,14 @@ function renderAll() {
   _renderSection('watch',    watch,    'watch');
   _renderSection('research', research, 'research');
   _renderSection('approach', approach, 'approach');
+
+  // Tab 數量（不受 Tab 切換影響，始終顯示各群總數）
+  const all = _applyQuality(_stocks);
+  const setCnt = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  setCnt('cnt_tab_selected',  all.filter(s => _isNeffPass(s) && _isHighQuality(s) && _isPositiveMomentum(s)).length);
+  setCnt('cnt_tab_value',     all.filter(s => _isNeffPass(s) && _isHighQuality(s) && !_isPositiveMomentum(s)).length);
+  setCnt('cnt_tab_momentum',  all.filter(s => _isNeffPass(s) && !_isHighQuality(s) && _isPositiveMomentum(s)).length);
+  setCnt('cnt_tab_neffonly',  all.filter(s => _isNeffPass(s) && !_isHighQuality(s) && !_isPositiveMomentum(s)).length);
 }
 
 // ─── 載入 ─────────────────────────────────────────────
