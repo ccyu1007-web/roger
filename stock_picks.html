@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>選股推薦</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
@@ -16,47 +15,154 @@
   header h1 { font-size: 1.3rem; font-weight: 700; }
   header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
   header a:hover { color: #fff; }
-  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+  .container { max-width: 1300px; margin: 0 auto; padding: 20px 16px; }
+  .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
 
-  .notes-wrap { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
-  .notes-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-  .notes-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; }
-  .notes-mode-btn {
-    padding: 3px 12px; border: 1px solid #e2e8f0; border-radius: 5px;
-    background: #fff; cursor: pointer; font-size: .78rem; color: #64748b; font-weight: 600;
+  /* Tab L1 */
+  .tab-bar-L1 { display: flex; gap: 0; margin-bottom: 0; }
+  .tab-L1 {
+    padding: 10px 22px; font-size: .92rem; font-weight: 700; cursor: pointer;
+    border: 2px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
   }
-  .notes-mode-btn.active { background: #059669; color: #fff; border-color: #059669; }
+  .tab-L1:first-child { border-radius: 8px 0 0 8px; }
+  .tab-L1:last-child  { border-radius: 0 8px 8px 0; }
+  .tab-L1:not(:first-child) { border-left-width: 1px; }
+  .tab-L1.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+  .count-badge-L1 {
+    display: inline-block; font-size: .72rem; font-weight: 700;
+    padding: 1px 7px; border-radius: 10px; margin-left: 5px;
+    background: rgba(255,255,255,.25); color: inherit;
+  }
+  .tab-L1.active .count-badge-L1 { background: rgba(255,255,255,.25); color: #fff; }
+  .tab-L1:not(.active) .count-badge-L1 { background: #e2e8f0; color: #475569; }
 
-  .notes-preview {
-    min-height: 200px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px;
-    font-size: .85rem; line-height: 1.8; cursor: text;
-  }
-  .notes-preview h1,.notes-preview h2,.notes-preview h3 { margin: 12px 0 6px; color: #1e3a5f; }
-  .notes-preview h1 { font-size: 1.1rem; }
-  .notes-preview h2 { font-size: 1rem; }
-  .notes-preview h3 { font-size: .92rem; }
-  .notes-preview table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: .84rem; }
-  .notes-preview th,.notes-preview td { border: 1px solid #d1d5db; padding: 5px 10px; text-align: left; }
-  .notes-preview th { background: #f1f5f9; font-weight: 600; color: #334155; }
-  .notes-preview tbody tr:nth-child(even) { background: #eff6ff; }
-  .notes-preview ul,.notes-preview ol { padding-left: 20px; margin: 6px 0; }
-  .notes-preview p { margin: 6px 0; }
-  .notes-preview strong { color: #1e3a5f; }
-  .notes-preview blockquote { border-left: 3px solid #059669; padding-left: 12px; color: #64748b; margin: 8px 0; }
-  .notes-preview code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: .82rem; }
-  .notes-preview a { color: #2563eb; text-decoration: none; }
-  .notes-preview a:hover { text-decoration: underline; }
+  /* 主內容區 */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
 
-  @media print {
-    body { background: #fff; }
-    header { background: #1e3a5f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .notes-header { display: none; }
-    .container { max-width: 100%; padding: 0; }
-    .notes-wrap { box-shadow: none; padding: 12px 0; }
-    .notes-preview { border: none; padding: 0; }
-    .notes-preview th { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .notes-preview tbody tr:nth-child(even) { background: #eff6ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* 表格 */
+  .table-wrap { overflow-x: auto; border-radius: 10px; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.07); margin-bottom: 20px; }
+  table.neff-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  table.neff-table th {
+    background: #f8fafc; color: #475569; font-size: .76rem; font-weight: 700;
+    padding: 9px 11px; text-align: left; border-bottom: 2px solid #e2e8f0;
+    position: sticky; top: 0; z-index: 1; white-space: nowrap;
   }
+  table.neff-table th.r { text-align: right; }
+  table.neff-table th.c { text-align: center; }
+  table.neff-table td { padding: 8px 11px; border-bottom: 1px solid #f1f5f9; }
+  table.neff-table td.r { text-align: right; }
+  table.neff-table td.c { text-align: center; }
+  table.neff-table tr:hover { background: #f8fafc; }
+
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: .72rem; font-weight: 700; margin-left: 3px; }
+  .tag-qual { background: #dcfce7; color: #166534; }
+
+  .chk-cell { white-space: nowrap; }
+  .chk-pass  { color: #16a34a; font-weight: 700; }
+  .chk-mid   { color: #92400e; }
+  .chk-fail  { color: #dc2626; font-weight: 700; }
+
+  /* Neff 色彩 */
+  .neff-hi  { color: #dc2626; font-weight: 800; }
+  .neff-mid { color: #ea580c; font-weight: 600; }
+  .neff-lo  { color: #94a3b8; }
+
+  /* 等級色彩 */
+  .grade-a { color: #dc2626; font-weight: 700; }
+  .grade-b { color: #d97706; font-weight: 600; }
+  .grade-c { color: #94a3b8; }
+
+  /* 空狀態 */
+  .empty { text-align: center; padding: 48px; color: #94a3b8; font-size: .9rem; }
+
+  /* ── 決策卡片 ── */
+  .decision-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+
+  .dcard {
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08);
+    display: flex; overflow: hidden;
+  }
+
+  /* 左側標籤條 */
+  .dcard-label {
+    width: 6px; flex-shrink: 0;
+  }
+  .dcard-label.recommend { background: #16a34a; }
+  .dcard-label.reference { background: #94a3b8; }
+
+  .dcard-body { flex: 1; padding: 14px 18px; }
+
+  /* 上半部資訊行 */
+  .dcard-top {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 10px; padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .dcard-code {
+    font-size: 1rem; font-weight: 800; color: #2563eb; text-decoration: none;
+  }
+  .dcard-code:hover { text-decoration: underline; }
+  .dcard-name { font-size: .92rem; font-weight: 600; color: #1a202c; }
+  .dcard-sep { color: #cbd5e1; }
+  .dcard-price { font-size: .92rem; color: #475569; }
+  .dcard-neff { font-size: .95rem; font-weight: 800; }
+  .dcard-grade { font-size: .88rem; font-weight: 700; }
+  .dcard-chks { font-size: .8rem; color: #64748b; white-space: nowrap; }
+  .dcard-chks span { font-weight: 700; }
+  .dcard-chk-pass { color: #16a34a; }
+  .dcard-chk-fail { color: #dc2626; }
+  .dcard-chk-mid  { color: #d97706; }
+
+  /* 標籤徽章 */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: .72rem; font-weight: 700;
+  }
+  .badge-recommend { background: #dcfce7; color: #166534; }
+  .badge-reference { background: #f1f5f9; color: #64748b; }
+  .badge-pending   { background: #ede9fe; color: #6d28d9; }
+  .badge-qual      { background: #dcfce7; color: #166534; }
+
+  /* 下半部質性摘要 */
+  .dcard-notes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px 16px;
+  }
+  .dcard-note-item { display: flex; flex-direction: column; gap: 2px; }
+  .dcard-note-label { font-size: .7rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .dcard-note-val { font-size: .82rem; color: #334155; }
+  .dcard-note-val.warn { color: #ea580c; font-weight: 700; }
+  .dcard-note-val.danger { color: #dc2626; font-weight: 700; }
+  .dcard-note-val.good { color: #16a34a; font-weight: 600; }
+
+  /* 追蹤 checkbox（卡片內） */
+  .dcard-track {
+    display: flex; align-items: center; gap: 4px; font-size: .75rem; color: #94a3b8;
+    margin-left: auto; white-space: nowrap;
+  }
+
+  /* 簡潔行（待研究）＋ 主表格 共用 */
+  .pending-row td { opacity: .85; }
+
+  /* 底部說明 */
+  .desc-section { background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-top: 24px; }
+  .desc-section h3 { font-size: .95rem; font-weight: 700; margin-bottom: 12px; color: #1e3a5f; }
+  table.desc-table { border-collapse: collapse; width: 100%; font-size: .84rem; margin-bottom: 12px; }
+  table.desc-table th { background: #f1f5f9; padding: 8px 12px; text-align: left; font-weight: 700; color: #475569; border: 1px solid #e2e8f0; }
+  table.desc-table td { padding: 8px 12px; border: 1px solid #e2e8f0; }
+  .formula { font-size: .84rem; background: #f8fafc; border-radius: 6px; padding: 10px 14px; color: #334155; margin-top: 10px; }
+  .formula code { font-family: monospace; color: #1d4ed8; }
+
+  /* 控制列 */
+  .ctrl-bar {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .ctrl-stats { font-size: .83rem; color: #64748b; display: flex; gap: 12px; flex-wrap: wrap; }
+  .ctrl-stats span { white-space: nowrap; }
+  .ctrl-stats b { color: #1e3a5f; }
 </style>
 </head>
 <body>
@@ -64,205 +170,587 @@
 <header>
   <div>
     <h1>選股推薦</h1>
-    <span style="font-size:.82rem;color:rgba(255,255,255,.7)" id="updatedAt"></span>
+    <span class="date-label" id="dateLabel"></span>
   </div>
   <div style="display:flex;gap:16px;align-items:center">
     <a href="/">回總表</a>
     <a href="/briefing.html">逍遙日報</a>
-    <a href="/valuation.html">價值評估</a>
+    <a href="/valuation.html">每日價值評估</a>
   </div>
 </header>
 
 <div class="container">
-  <div class="notes-wrap">
-    <div class="notes-header">
-      <span class="notes-title">選股推薦</span>
-      <button class="notes-mode-btn active" id="btnPreview" onclick="switchMode('preview')">預覽</button>
-      <button class="notes-mode-btn" id="btnEdit" onclick="switchMode('edit')">編輯</button>
-      <button onclick="copyPrompt()" style="padding:3px 10px;border:1px solid #059669;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#059669;font-weight:600">複製選股指令</button>
-      <button onclick="exportPDF()" style="padding:3px 10px;border:1px solid #2563eb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;color:#2563eb;font-weight:600">匯出 PDF</button>
-      <span id="statusEl" style="font-size:.75rem;color:#94a3b8"></span>
+
+  <!-- 控制列 -->
+  <div class="ctrl-bar">
+    <div class="tab-bar-L1" id="tabBarL1">
+      <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
+      <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
+      <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_momentum">0</span></button>
+      <button class="tab-L1" onclick="switchTab('all',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_all">0</span></button>
+      <button class="tab-L1" onclick="switchTab('approaching',this)">接近名單<span class="count-badge-L1" id="cnt_approaching">0</span></button>
     </div>
-    <div class="notes-preview" id="preview" onclick="switchMode('edit')">
-      <div style="color:#cbd5e1">載入中...</div>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
+      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
+    </label>
+    <div class="ctrl-stats" id="ctrlStats">
+      <span>精選 <b id="stat_selected">—</b> 支</span>
+      <span>價值型 <b id="stat_value">—</b> 支</span>
+      <span>動能型 <b id="stat_momentum">—</b> 支</span>
+      <span>接近 <b id="stat_approaching">—</b> 支</span>
     </div>
-    <textarea id="editor" oninput="onInput()" style="display:none;width:100%;min-height:500px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:.85rem;font-family:'Microsoft JhengHei','Segoe UI',monospace;resize:vertical;line-height:1.6"></textarea>
   </div>
-</div>
+
+  <!-- Tab 內容 -->
+  <div id="tab_selected"   class="tab-content active"></div>
+  <div id="tab_value"      class="tab-content"></div>
+  <div id="tab_momentum"   class="tab-content"></div>
+  <div id="tab_all"        class="tab-content"></div>
+  <div id="tab_approaching" class="tab-content"></div>
+
+  <!-- 底部說明 -->
+  <div class="desc-section">
+    <h3>分群邏輯說明</h3>
+    <table class="desc-table">
+      <thead>
+        <tr><th>群組</th><th>品質條件</th><th>動能條件</th><th>含義</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>精選</b></td><td>A≥5/7 且 B≥7/10</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>好公司、便宜、成長中</td></tr>
+        <tr><td><b>價值型</b></td><td>A≥5/7 且 B≥7/10</td><td>動能未全正</td><td>好公司便宜但成長停滯</td></tr>
+        <tr><td><b>動能型</b></td><td>品質未達標</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>成長中但品質有疑慮</td></tr>
+        <tr><td><b>僅Neff ≥ 1.0</b></td><td>不限</td><td>不限</td><td>僅 Neff 過關，品質或動能未達標</td></tr>
+        <tr><td><b>接近名單</b></td><td>A≥5/7 且 B≥7/10</td><td>不限</td><td>Neff 0.7~1.0，好公司快到便宜價</td></tr>
+      </tbody>
+    </table>
+    <table class="desc-table" style="margin-top:12px">
+      <thead>
+        <tr><th>標籤</th><th>條件</th><th>說明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="badge badge-recommend">建議</span></td><td>有質性研究 + 護城河≥中 + 信心度≥中 + 無結構性風險</td><td>研究完整且各面向達標</td></tr>
+        <tr><td><span class="badge badge-reference">參考</span></td><td>有質性研究但未全部達標</td><td>有研究但需留意未達標項目</td></tr>
+        <tr><td><span class="badge badge-pending">待研究</span></td><td>無質性研究筆記</td><td>點代碼連到個股頁進行質性研究</td></tr>
+      </tbody>
+    </table>
+    <div class="formula">
+      <code>Neff 比率 = (5年營收CAGR + 殖利率) / PE</code>
+      &nbsp;｜&nbsp; Neff ≥ 1.0 表示成長性被低估
+      <br>
+      <span style="font-size:.8rem;color:#64748b;margin-top:4px;display:block">
+        品質條件：A 檢（獲利品質）至少 5/7 且 B 檢（安全體質）至少 7/10
+      </span>
+    </div>
+  </div>
+
+</div><!-- /container -->
 
 <script>
-let _timer = null;
+// ─── 全域狀態 ─────────────────────────────────────────
+let _stocks = [];
+let _qualitySet = new Set();
+let _focusTrackSet = new Set();
+let _qualityOnly = false;
+let _currentTab = 'selected';
 
-async function load() {
-  try {
-    const res = await fetch('/api/stock-picks');
-    const data = await res.json();
-    const content = data.content || '';
-    document.getElementById('editor').value = content;
-    if (data.updated_at) {
-      document.getElementById('updatedAt').textContent = '最後更新：' + data.updated_at;
-    }
-    renderPreview();
-  } catch(e) {
-    document.getElementById('preview').innerHTML = '<div style="color:#ef4444">載入失敗: ' + e.message + '</div>';
+// ─── 工具函式 ─────────────────────────────────────────
+function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '—'; }
+function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
+
+function _gradeCls(g) {
+  if (!g) return 'grade-c';
+  if (['AA','A1','A2','A','B1A','B2A'].includes(g)) return 'grade-a';
+  if (['B1','B2'].includes(g)) return 'grade-b';
+  return 'grade-c';
+}
+
+function _chkFmt(pass, total) {
+  if (pass == null || !total) return { html: '—', cls: '' };
+  const pct = pass / total;
+  const cls = pct >= 0.7 ? 'chk-pass' : pct < 0.5 ? 'chk-fail' : 'chk-mid';
+  return { html: `${pass}/${total}`, cls };
+}
+
+function _neffCls(v) {
+  if (v == null) return 'neff-lo';
+  if (v >= 1.5) return 'neff-hi';
+  if (v >= 1.0) return 'neff-mid';
+  return 'neff-lo';
+}
+
+// ─── 篩選函式 ─────────────────────────────────────────
+function _isHighQuality(s) {
+  const ap = s._chk_profit, at = s._chk_profit_total || 7;
+  const bp = s._chk_safety, bt = s._chk_safety_total || 10;
+  if (ap == null || bp == null) return false;
+  return ap >= 5 && bp >= 7;
+}
+
+function _isPositiveMomentum(s) {
+  const gi = s._gi || {};
+  const cum = s.revenue_cum_yoy;
+  const m3  = gi.rev_3m_yoy;
+  const m12 = gi.rev_12m_yoy;
+  return cum != null && cum >= 0 && m3 != null && m3 >= 0 && m12 != null && m12 >= 0;
+}
+
+function _isNeffPass(s) {
+  const gi = s._gi || {};
+  return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
+}
+
+function _isApproaching(s) {
+  const gi = s._gi || {};
+  return gi.neff_d != null && gi.neff_d >= 0.7 && gi.neff_d < 1.0 && !gi.neff_gray && _isHighQuality(s);
+}
+
+function _hasNotes(s) { return !!s._notes; }
+
+function _isRecommended(s) {
+  const n = s._notes;
+  if (!n) return false;
+  const moatOk = ['強', '中'].includes(n.moat_strength);
+  const confOk = ['高', '中'].includes(n.confidence);
+  const noRisk = !n.structural_risk || n.structural_risk === '無';
+  return moatOk && confOk && noRisk;
+}
+
+function _neffPool() {
+  return _stocks.filter(s => _isNeffPass(s));
+}
+
+function _applyQuality(arr) {
+  return _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
+}
+
+function _tabItems(tab) {
+  if (tab === 'approaching') {
+    const pool = _qualityOnly
+      ? _stocks.filter(s => _isApproaching(s) && _qualitySet.has(s.code))
+      : _stocks.filter(s => _isApproaching(s));
+    return pool;
   }
+  let pool = _applyQuality(_neffPool());
+  if (tab === 'selected')  return pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
+  if (tab === 'value')     return pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s));
+  if (tab === 'momentum')  return pool.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s));
+  return pool; // all
 }
 
-function renderPreview() {
-  const text = document.getElementById('editor').value || '';
-  const preview = document.getElementById('preview');
-  if (text.trim()) {
-    preview.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text.replace(/\n/g, '<br>');
-    // 讓表格內的股票代碼可以點擊
-    preview.querySelectorAll('td').forEach(td => {
-      const code = td.textContent.trim();
-      if (/^\d{4}$/.test(code)) {
-        td.innerHTML = `<a href="/company.html?code=${code}" target="_blank" style="font-weight:700;color:#2563eb">${code}</a>`;
-      }
-    });
-  } else {
-    preview.innerHTML = '<span style="color:#cbd5e1">無推薦內容，點擊編輯或複製選股指令</span>';
-  }
-}
-
-function switchMode(mode) {
-  const editor = document.getElementById('editor');
-  const preview = document.getElementById('preview');
-  const btnEdit = document.getElementById('btnEdit');
-  const btnPreview = document.getElementById('btnPreview');
-  if (mode === 'edit') {
-    editor.style.display = '';
-    preview.style.display = 'none';
-    btnEdit.classList.add('active');
-    btnPreview.classList.remove('active');
-    editor.focus();
-  } else {
-    renderPreview();
-    editor.style.display = 'none';
-    preview.style.display = '';
-    btnPreview.classList.add('active');
-    btnEdit.classList.remove('active');
-  }
-}
-
-function onInput() {
-  const statusEl = document.getElementById('statusEl');
-  if (statusEl) statusEl.textContent = '編輯中...';
-  clearTimeout(_timer);
-  _timer = setTimeout(() => {
-    const text = document.getElementById('editor').value;
-    fetch('/api/stock-picks', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({content: text})
-    });
-    if (statusEl) statusEl.textContent = '已自動儲存 ' + new Date().toLocaleTimeString('zh-TW');
-  }, 800);
-}
-
-function copyPrompt() {
-  const prompt = `請執行選股推薦引擎並產出決策分析，寫入選股推薦頁面。
-
-## 步驟一：執行引擎
-python3 /Users/roger/Documents/AI機器人/stock_system/stock_picks_engine.py --dry-run
-
-讀取完整輸出（四區塊：追蹤→觀察→體質→全市場），並從 DB 查詢所有重倉+小買標的的 fin_grade_1, fin_grade_2 欄位。
-
-## 步驟二：計算信心指數
-
-對每支重倉+小買標的計算 5 維信心指數（各 +1）：
-- PE面：五分法位置為「極低/很便宜/偏低」= V，「合理/偏高/偏貴/極高」= X
-- 殖利率面：>= 5.5% = V
-- 趨勢面：3M >= 0 且 累積 > 0 = V
-- 品質面：fin_grade_1 和 fin_grade_2 的 base（去+/-）都在 {AA,A1,A2,A,B1A} 內 = V
-- 風險面：防呆欄為「-」（無旗標）= V
-
-## 步驟三：按以下固定格式產出 markdown
-
----格式開始---
-
-# 選股決策分析 {日期}
-
-## 總覽
-
-- **追蹤**：X重/X小/X望 — {一句話}
-- **觀察**：X重/X小/X望 — {一句話}
-- **體質**：X重/X小/X望 — {一句話}
-- **全市場**：X重/X小/X望 — {一句話}
-
----
-
-## 一、追蹤清單
-
-> 你最關注的標的，優先處理
-
-### 行動清單（信心指數排序）
-
-> 信心指數 = PE面(偏低以下) + 殖利率面(>=5.5%) + 趨勢(3M>=0且累積>0) + 品質(近2年A級) + 風險(無防呆旗標)，各1分
-
-| 代碼 | 名稱 | 類型 | 層級 | 信心 | PE面 | 殖利率 | 趨勢 | 品質 | 風險 | 結論 |
-|------|------|------|------|------|------|--------|------|------|------|------|
-| {code} | {name} | {價值/成長/循環} | {重倉/小買} | {X/5} | {V/X 描述} | {V/X 數值%} | {V/X 3M/累積} | {V/X fg1/fg2} | {V/X 旗標} | {一句話} |
-
-（追蹤清單中未達標的也要列出，標註「未達標」及原因）
-
-### 觀望
-
-| 代碼 | 名稱 | 類型 | 等什麼 | 距離 |
-|------|------|------|--------|------|
-
----
-
-## 二、觀察清單
-
-（同上格式）
-
----
-
-## 三、體質清單
-
-（同上格式，只列達標的）
-
----
-
-## 四、全市場掃描
-
-（同上格式，只列達標的，按信心指數排序取前15支）
-
----
-
-## 等候區（快到位的觀望標的）
-
-從所有區塊的觀望標的中，篩出 3M > -5% 或 累積 > -3% 的，最多10支。
-
-| 代碼 | 名稱 | 類型 | 來源 | 等什麼 | 距離 |
-|------|------|------|------|--------|------|
-
-> 已隱藏 N 支遠期觀望
-
----
-
-*分析日期：{日期} | 信心指數僅為量化篩選輔助，實際決策需搭配個股頁質性研究*
-
----格式結束---
-
-## 步驟四：推送
-
-用 python 腳本 POST 到 https://tock-system.onrender.com/api/stock-picks，body 為 {"content": "...markdown..."}。
-注意：不要跑不帶 --dry-run 的引擎，否則會覆蓋決策分析。
-
-如需驗證單支：python3 stock_picks_engine.py --check 代碼`;
-
-  navigator.clipboard.writeText(prompt).then(() => {
-    const el = document.getElementById('statusEl');
-    if (el) el.textContent = '選股指令已複製到剪貼簿';
+// ─── 排序：建議 > 參考 > 待研究，同層按 Neff 高到低 ────
+function _sortItems(items) {
+  return [...items].sort((a, b) => {
+    const rankA = _hasNotes(a) ? (_isRecommended(a) ? 2 : 1) : 0;
+    const rankB = _hasNotes(b) ? (_isRecommended(b) ? 2 : 1) : 0;
+    if (rankA !== rankB) return rankB - rankA;
+    const nA = (a._gi || {}).neff_d || 0;
+    const nB = (b._gi || {}).neff_d || 0;
+    return nB - nA;
   });
 }
 
-function exportPDF() {
-  switchMode('preview');
-  setTimeout(() => window.print(), 200);
+// ─── 載入 ─────────────────────────────────────────────
+async function load() {
+  try {
+    const [listRes, stocksRes] = await Promise.all([
+      fetch('/api/user-lists'),
+      fetch('/api/stocks'),
+    ]);
+    const lists = await listRes.json();
+    _qualitySet    = new Set((lists.quality || []).map(r => r.code));
+    _focusTrackSet = new Set((lists.track   || []).map(r => r.code));
+
+    const stocksJson = await stocksRes.json();
+    _stocks = stocksJson.data || [];
+
+    if (stocksJson.date) {
+      document.getElementById('dateLabel').textContent = `資料日期：${stocksJson.date}`;
+    }
+
+    renderAll();
+  } catch(e) {
+    console.error('stock_picks load error:', e);
+    document.getElementById('tab_selected').innerHTML =
+      `<div class="empty" style="color:#ef4444">無法載入：${e.message}</div>`;
+  }
 }
 
+// ─── Tab 切換 ─────────────────────────────────────────
+function switchTab(tab, btn) {
+  _currentTab = tab;
+  document.querySelectorAll('.tab-L1').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab_' + tab).classList.add('active');
+}
+
+// ─── 渲染所有 Tab ─────────────────────────────────────
+function renderAll() {
+  ['selected','value','momentum','all','approaching'].forEach(tab => {
+    const items = _tabItems(tab);
+    document.getElementById('cnt_' + tab).textContent = items.length;
+    const el = document.getElementById('tab_' + tab);
+    if (!items.length) {
+      el.innerHTML = `<div class="empty">目前無符合條件的股票</div>`;
+      return;
+    }
+    const sorted = _sortItems(items);
+    if (tab === 'approaching') {
+      el.innerHTML = _buildApproachingTable(sorted);
+    } else {
+      el.innerHTML = _buildMixedContent(sorted);
+    }
+  });
+
+  // 統計列
+  document.getElementById('stat_selected').textContent    = _tabItems('selected').length;
+  document.getElementById('stat_value').textContent       = _tabItems('value').length;
+  document.getElementById('stat_momentum').textContent    = _tabItems('momentum').length;
+  document.getElementById('stat_approaching').textContent = _tabItems('approaching').length;
+}
+
+// ─── 混合內容：決策卡片 + 待研究表格 ──────────────────
+function _buildMixedContent(items) {
+  const withNotes = items.filter(s => _hasNotes(s));
+  const noNotes   = items.filter(s => !_hasNotes(s));
+
+  let html = '';
+
+  if (withNotes.length) {
+    html += `<div class="decision-cards">`;
+    withNotes.forEach(s => { html += _buildDecisionCard(s); });
+    html += `</div>`;
+  }
+
+  if (noNotes.length) {
+    if (withNotes.length) {
+      html += `<div style="font-size:.8rem;color:#94a3b8;margin-bottom:8px;margin-top:4px;font-weight:600">
+        待研究（${noNotes.length} 支）— 點代碼進個股頁進行質性研究
+      </div>`;
+    }
+    html += `<div class="table-wrap">${_buildPendingTable(noNotes)}</div>`;
+  }
+
+  return html;
+}
+
+// ─── 決策卡片 ─────────────────────────────────────────
+function _buildDecisionCard(s) {
+  const gi    = s._gi || {};
+  const n     = s._notes || {};
+  const nv    = gi.neff_d;
+  const grade = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
+  const isRec = _isRecommended(s);
+  const isFocused = _focusTrackSet.has(s.code);
+  const isQual = _qualitySet.has(s.code);
+
+  const neffStr = nv != null ? nv.toFixed(2) : '—';
+  const neffCl  = _neffCls(nv);
+  const gradeCl = _gradeCls(grade);
+  const priceStr = s.close != null ? s.close.toFixed(2) : '—';
+
+  const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
+  const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
+  const chkC = _chkFmt(s._chk_value,  s._chk_value_total  || 5);
+  const chkD = _chkFmt(s._chk_growth, s._chk_growth_total || 5);
+
+  // 質性g vs 系統CAGR 差異
+  const qualG = n.neff_g != null ? parseFloat(n.neff_g) : null;
+  const sysG  = gi.neff_c != null ? parseFloat(gi.neff_c) : null;
+  let gDiffHtml = '—';
+  if (qualG != null && sysG != null) {
+    const diff = Math.abs(qualG - sysG);
+    const diffStr = `質性 ${qualG.toFixed(1)}% vs 系統 ${sysG.toFixed(1)}%`;
+    gDiffHtml = diff >= 3
+      ? `<span class="warn">${diffStr}（差異 ${diff.toFixed(1)}%）</span>`
+      : `<span>${diffStr}</span>`;
+  } else if (qualG != null) {
+    gDiffHtml = `質性 ${qualG.toFixed(1)}%`;
+  } else if (sysG != null) {
+    gDiffHtml = `系統 ${sysG.toFixed(1)}%`;
+  }
+
+  // 護城河
+  const moatStr = [n.moat_strength, n.moat_trend].filter(Boolean).join(' ');
+
+  // 結構性風險
+  const hasRisk = n.structural_risk && n.structural_risk !== '無' && n.structural_risk.trim() !== '';
+  const riskHtml = hasRisk
+    ? `<span class="danger">${n.structural_risk}</span>`
+    : `<span class="good">無</span>`;
+
+  // 信心度
+  const confCl = n.confidence === '高' ? 'good' : n.confidence === '中' ? '' : 'warn';
+
+  // 筆記日期
+  const notesDate = n.notes_date ? n.notes_date.slice(0,10) : '';
+
+  // 推薦徽章
+  const badgeHtml = isRec
+    ? `<span class="badge badge-recommend">建議</span>`
+    : `<span class="badge badge-reference">參考</span>`;
+
+  const qualBadge = isQual ? `<span class="badge badge-qual">體質佳</span>` : '';
+
+  return `
+<div class="dcard">
+  <div class="dcard-label ${isRec ? 'recommend' : 'reference'}"></div>
+  <div class="dcard-body">
+    <div class="dcard-top">
+      <a class="dcard-code" href="/company.html?code=${s.code}" target="_blank">${s.code}</a>
+      <span class="dcard-name">${s.name || ''}</span>
+      <span class="dcard-sep">｜</span>
+      <span class="dcard-price">股價 ${priceStr}</span>
+      <span class="dcard-sep">｜</span>
+      <span class="dcard-neff ${neffCl}">Neff ${neffStr}</span>
+      <span class="dcard-sep">｜</span>
+      <span class="dcard-grade ${gradeCl}">${grade || '—'}</span>
+      <span class="dcard-sep">｜</span>
+      <span class="dcard-chks">
+        A:<span class="${chkA.cls}">${chkA.html}</span>
+        B:<span class="${chkB.cls}">${chkB.html}</span>
+        C:<span class="${chkC.cls}">${chkC.html}</span>
+        D:<span class="${chkD.cls}">${chkD.html}</span>
+      </span>
+      ${badgeHtml}
+      ${qualBadge}
+      <span class="dcard-track" style="margin-left:auto">
+        <input type="checkbox" style="cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"> 追蹤
+      </span>
+    </div>
+    <div class="dcard-notes">
+      <div class="dcard-note-item">
+        <div class="dcard-note-label">護城河</div>
+        <div class="dcard-note-val">${moatStr || '—'}</div>
+      </div>
+      <div class="dcard-note-item">
+        <div class="dcard-note-label">成長催化劑</div>
+        <div class="dcard-note-val">${n.growth_catalyst || '—'}</div>
+      </div>
+      <div class="dcard-note-item">
+        <div class="dcard-note-label">質性g vs 系統CAGR</div>
+        <div class="dcard-note-val">${gDiffHtml}</div>
+      </div>
+      <div class="dcard-note-item">
+        <div class="dcard-note-label">信心度</div>
+        <div class="dcard-note-val ${confCl}">${n.confidence || '—'}</div>
+      </div>
+      <div class="dcard-note-item">
+        <div class="dcard-note-label">結構性風險</div>
+        <div class="dcard-note-val">${riskHtml}</div>
+      </div>
+      <div class="dcard-note-item">
+        <div class="dcard-note-label">筆記日期</div>
+        <div class="dcard-note-val" style="color:#94a3b8">${notesDate || '—'}</div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ─── 待研究表格 ───────────────────────────────────────
+function _buildPendingTable(items) {
+  let html = `<table class="neff-table">
+    <thead><tr>
+      <th class="c" style="width:36px">追蹤</th>
+      <th style="width:58px">代碼</th>
+      <th style="width:80px">名稱</th>
+      <th class="r" style="width:60px">股價</th>
+      <th class="r" style="width:68px">Neff比率</th>
+      <th class="r" style="width:68px">營收CAGR</th>
+      <th class="r" style="width:54px">PE</th>
+      <th class="r" style="width:60px">殖利率</th>
+      <th class="c" style="width:50px">等級</th>
+      <th class="r" style="width:65px">累積YoY</th>
+      <th class="r" style="width:55px">3M</th>
+      <th class="r" style="width:55px">12M</th>
+      <th class="c" style="width:56px">A通過</th>
+      <th class="c" style="width:56px">B通過</th>
+      <th class="c" style="width:90px">標籤</th>
+    </tr></thead><tbody>`;
+
+  items.forEach(s => {
+    const gi      = s._gi || {};
+    const nv      = gi.neff_d;
+    const neffCls_ = _neffCls(nv);
+    const neffStr = nv != null ? nv.toFixed(2) : '—';
+
+    const cagrV   = gi.neff_c;
+    const cagrStr = cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—';
+    const cagrColor = _revColor(cagrV);
+
+    const peV   = gi.pe;
+    const yldV  = gi['yield'] !== undefined ? gi['yield'] : gi.yld;
+    const peSrc  = gi.pe_src  ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.pe_src}</span>` : '';
+    const yldSrc = gi.yld_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.yld_src}</span>` : '';
+    const peStr  = peV  != null ? peV.toFixed(1)  + peSrc  : '—';
+    const yldStr = yldV != null ? yldV.toFixed(1) + '%' + yldSrc : '—';
+
+    const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
+    const gradeCl  = _gradeCls(grade);
+    const priceStr = s.close != null ? s.close.toFixed(2) : '—';
+
+    const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
+    const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
+
+    const cumV  = s.revenue_cum_yoy;
+    const m3V   = gi.rev_3m_yoy;
+    const m12V  = gi.rev_12m_yoy;
+
+    const isQual    = _qualitySet.has(s.code);
+    const isFocused = _focusTrackSet.has(s.code);
+
+    let tagHtml = `<span class="badge badge-pending">待研究</span>`;
+    if (isQual) tagHtml += ` <span class="tag tag-qual">體質佳</span>`;
+
+    html += `<tr class="pending-row">
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+      <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
+      <td>${s.name || ''}</td>
+      <td class="r" style="font-weight:600">${priceStr}</td>
+      <td class="r"><span class="${neffCls_}">${neffStr}</span></td>
+      <td class="r" style="color:${cagrColor}">${cagrStr}</td>
+      <td class="r" style="color:#475569">${peStr}</td>
+      <td class="r" style="color:#475569">${yldStr}</td>
+      <td class="c"><span class="${gradeCl}">${grade || '—'}</span></td>
+      <td class="r" style="color:${_revColor(cumV)}">${_revStr(cumV)}</td>
+      <td class="r" style="color:${_revColor(m3V)}">${_revStr(m3V)}</td>
+      <td class="r" style="color:${_revColor(m12V)}">${_revStr(m12V)}</td>
+      <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
+      <td class="c chk-cell"><span class="${chkB.cls}">${chkB.html}</span></td>
+      <td class="c">${tagHtml}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  return html;
+}
+
+// ─── 接近名單表格 ─────────────────────────────────────
+function _buildApproachingTable(items) {
+  // 接近名單同樣分兩段
+  const withNotes = items.filter(s => _hasNotes(s));
+  const noNotes   = items.filter(s => !_hasNotes(s));
+
+  let html = '';
+
+  const _buildApprTable = (rows, showDistance) => {
+    let t = `<div class="table-wrap"><table class="neff-table">
+      <thead><tr>
+        <th class="c" style="width:36px">追蹤</th>
+        <th style="width:58px">代碼</th>
+        <th style="width:80px">名稱</th>
+        <th class="r" style="width:60px">股價</th>
+        <th class="r" style="width:68px">Neff比率</th>
+        <th class="r" style="width:68px">營收CAGR</th>
+        <th class="r" style="width:54px">PE</th>
+        <th class="r" style="width:60px">殖利率</th>
+        <th class="c" style="width:50px">等級</th>
+        <th class="r" style="width:65px">累積YoY</th>
+        <th class="r" style="width:55px">3M</th>
+        <th class="r" style="width:55px">12M</th>
+        <th class="c" style="width:56px">A通過</th>
+        <th class="c" style="width:56px">B通過</th>
+        <th class="c" style="width:90px">距離進場</th>
+        <th class="c" style="width:80px">標籤</th>
+      </tr></thead><tbody>`;
+
+    rows.forEach(s => {
+      const gi      = s._gi || {};
+      const nv      = gi.neff_d;
+      const neffCls_ = _neffCls(nv);
+      const neffStr = nv != null ? nv.toFixed(2) : '—';
+
+      const cagrV   = gi.neff_c;
+      const cagrStr = cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—';
+
+      const peV   = gi.pe;
+      const yldV  = gi['yield'] !== undefined ? gi['yield'] : gi.yld;
+      const peSrc  = gi.pe_src  ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.pe_src}</span>` : '';
+      const yldSrc = gi.yld_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.yld_src}</span>` : '';
+      const peStr  = peV  != null ? peV.toFixed(1)  + peSrc  : '—';
+      const yldStr = yldV != null ? yldV.toFixed(1) + '%' + yldSrc : '—';
+
+      const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
+      const gradeCl  = _gradeCls(grade);
+      const priceStr = s.close != null ? s.close.toFixed(2) : '—';
+
+      const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
+      const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
+
+      const cumV  = s.revenue_cum_yoy;
+      const m3V   = gi.rev_3m_yoy;
+      const m12V  = gi.rev_12m_yoy;
+
+      // 距離進場：(1.0 - neff_d) / neff_d * 100
+      let distHtml = '—';
+      if (nv != null && nv > 0) {
+        const pct = (1.0 - nv) / nv * 100;
+        distHtml = `<span style="color:#ea580c;font-weight:700">再跌 ${pct.toFixed(1)}%</span>`;
+      }
+
+      const isQual    = _qualitySet.has(s.code);
+      const isFocused = _focusTrackSet.has(s.code);
+      const isRec     = _isRecommended(s);
+      const hasN      = _hasNotes(s);
+
+      let tagHtml = '';
+      if (hasN) {
+        tagHtml += isRec
+          ? `<span class="badge badge-recommend">建議</span>`
+          : `<span class="badge badge-reference">參考</span>`;
+      } else {
+        tagHtml += `<span class="badge badge-pending">待研究</span>`;
+      }
+      if (isQual) tagHtml += ` <span class="tag tag-qual">體質佳</span>`;
+
+      t += `<tr>
+        <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+        <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
+        <td>${s.name || ''}</td>
+        <td class="r" style="font-weight:600">${priceStr}</td>
+        <td class="r"><span class="${neffCls_}">${neffStr}</span></td>
+        <td class="r" style="color:${_revColor(cagrV)}">${cagrStr}</td>
+        <td class="r" style="color:#475569">${peStr}</td>
+        <td class="r" style="color:#475569">${yldStr}</td>
+        <td class="c"><span class="${gradeCl}">${grade || '—'}</span></td>
+        <td class="r" style="color:${_revColor(cumV)}">${_revStr(cumV)}</td>
+        <td class="r" style="color:${_revColor(m3V)}">${_revStr(m3V)}</td>
+        <td class="r" style="color:${_revColor(m12V)}">${_revStr(m12V)}</td>
+        <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
+        <td class="c chk-cell"><span class="${chkB.cls}">${chkB.html}</span></td>
+        <td class="c">${distHtml}</td>
+        <td class="c">${tagHtml}</td>
+      </tr>`;
+    });
+
+    t += '</tbody></table></div>';
+    return t;
+  };
+
+  html += _buildApprTable(items);
+  return html;
+}
+
+// ─── 追蹤功能 ─────────────────────────────────────────
+function _toggleFocusTrack(cb) {
+  const code = cb.dataset.code;
+  if (cb.checked) {
+    _focusTrackSet.add(code);
+    fetch('/api/user-lists/track', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'add', code})
+    });
+  } else {
+    _focusTrackSet.delete(code);
+    fetch('/api/user-lists/track', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action:'remove', code})
+    });
+  }
+}
+
+// ─── 啟動 ─────────────────────────────────────────────
 load();
 </script>
 </body>
