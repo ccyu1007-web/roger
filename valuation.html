@@ -171,7 +171,7 @@
       <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
       <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
       <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_momentum">0</span></button>
-      <button class="tab-L1" onclick="switchTab('all',this)">全部<span class="count-badge-L1" id="cnt_all">0</span></button>
+      <button class="tab-L1" onclick="switchTab('all',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_all">0</span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
@@ -195,7 +195,7 @@
         <tr><td><b>精選</b></td><td>A+B通過率 ≥ 70%（A至少5/7，B至少7/10）</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>好公司、便宜、成長中</td></tr>
         <tr><td><b>價值型</b></td><td>A+B通過率 ≥ 70%</td><td>動能未全正</td><td>好公司便宜但成長停滯</td></tr>
         <tr><td><b>動能型</b></td><td>A+B通過率 &lt; 70%</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>成長中但品質有疑慮</td></tr>
-        <tr><td><b>全部</b></td><td>不限</td><td>不限</td><td>Neff ≥ 1.0 完整清單</td></tr>
+        <tr><td><b>僅Neff ≥ 1.0</b></td><td>不限</td><td>不限</td><td>僅 Neff 過關，品質或動能未達標</td></tr>
       </tbody>
     </table>
     <div class="formula">
