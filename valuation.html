@@ -173,23 +173,8 @@
     </div>
   </div>
 
-  <!-- 異動區（可收合） -->
-  <div class="change-block" id="changeBlock" style="display:none">
-    <div class="change-block-header" onclick="_toggleChangeBlock()">
-      <span id="changeBlockTitle">Neff 今日異動</span>
-      <span id="changeBlockArrow" style="font-size:.9rem;color:#94a3b8">▼</span>
-    </div>
-    <div class="change-block-body" id="changeBlockBody"></div>
-  </div>
-
-  <!-- Tab 內容 -->
-  <div id="tab_selected" class="tab-content active"></div>
-  <div id="tab_value"    class="tab-content"></div>
-  <div id="tab_momentum" class="tab-content"></div>
-  <div id="tab_all"      class="tab-content"></div>
-
-  <!-- 底部說明 -->
-  <div class="desc-section">
+  <!-- 分群說明 -->
+  <div class="desc-section" style="margin-top:0;margin-bottom:16px">
     <h3>分群邏輯說明</h3>
     <table class="desc-table">
       <thead>
@@ -211,6 +196,21 @@
       </span>
     </div>
   </div>
+
+  <!-- 異動區（可收合） -->
+  <div class="change-block" id="changeBlock" style="display:none">
+    <div class="change-block-header" onclick="_toggleChangeBlock()">
+      <span id="changeBlockTitle">Neff 今日異動</span>
+      <span id="changeBlockArrow" style="font-size:.9rem;color:#94a3b8">▼</span>
+    </div>
+    <div class="change-block-body" id="changeBlockBody"></div>
+  </div>
+
+  <!-- Tab 內容 -->
+  <div id="tab_selected" class="tab-content active"></div>
+  <div id="tab_value"    class="tab-content"></div>
+  <div id="tab_momentum" class="tab-content"></div>
+  <div id="tab_all"      class="tab-content"></div>
 
 </div><!-- /container -->
 
