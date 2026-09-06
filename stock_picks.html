@@ -175,6 +175,20 @@
   table.desc-table td { padding: 8px 12px; border: 1px solid #e2e8f0; }
   .formula { font-size: .84rem; background: #f8fafc; border-radius: 6px; padding: 10px 14px; color: #334155; margin-top: 10px; }
   .formula code { font-family: monospace; color: #1d4ed8; }
+
+  @media print {
+    body { background: #fff; }
+    header { background: #1e3a5f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    header button { display: none; }
+    .tab-bar-L1, .stat-bar label { display: none; }
+    .container { max-width: 100%; padding: 0 12px; }
+    .section-block { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; }
+    .scard { break-inside: avoid; }
+    .desc-section { break-inside: avoid; }
+    .sh-heavy, .sh-small, .sh-watch, .sh-research, .sh-approach {
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+  }
 </style>
 </head>
 <body>
@@ -185,6 +199,8 @@
     <span class="date-label" id="dateLabel"></span>
   </div>
   <div style="display:flex;gap:16px;align-items:center">
+    <button onclick="_copyResearchPrompt()" style="padding:4px 12px;border:1px solid rgba(255,255,255,.5);border-radius:5px;background:transparent;color:#fff;cursor:pointer;font-size:.8rem;font-weight:600">複製研究指令</button>
+    <button onclick="window.print()" style="padding:4px 12px;border:1px solid rgba(255,255,255,.5);border-radius:5px;background:transparent;color:#fff;cursor:pointer;font-size:.8rem;font-weight:600">匯出PDF</button>
     <a href="/">回總表</a>
     <a href="/briefing.html">逍遙日報</a>
     <a href="/valuation.html">每日價值評估</a>
@@ -765,9 +781,8 @@ async function load() {
     const stocksJson = await stocksRes.json();
     _stocks = stocksJson.data || [];
 
-    if (stocksJson.date) {
-      document.getElementById('dateLabel').textContent = `資料日期：${stocksJson.date}`;
-    }
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('dateLabel').textContent = `報表日期：${today}`;
 
     renderAll();
   } catch(e) {
@@ -775,6 +790,38 @@ async function load() {
     document.getElementById('body_heavy').innerHTML =
       `<div class="empty" style="color:#ef4444">無法載入：${e.message}</div>`;
   }
+}
+
+// ─── 複製研究指令 ─────────────────────────────────────
+function _copyResearchPrompt() {
+  const base = _applyQuality(_stocks);
+  const { research } = _classifyAll(base);
+  const selected = research.filter(s => _isSelected(s));
+  const valueType = research.filter(s => !_isSelected(s));
+
+  let prompt = `請幫我對以下股票執行質性研究筆記，依照個股頁面的質性研究 prompt 格式產出，每支都要完整四章節+結構化欄位，完成後寫入 Render。\n\n`;
+  if (selected.length) {
+    prompt += `【優先研究（精選組，量化達標）】\n`;
+    selected.forEach(s => {
+      const gi = s._gi || {};
+      prompt += `- ${s.code} ${s.name}（Neff ${gi.neff_d?.toFixed(2) || '—'}、營收CAGR ${gi.neff_c?.toFixed(1) || '—'}%）\n`;
+    });
+    prompt += '\n';
+  }
+  if (valueType.length) {
+    prompt += `【一般研究（價值型）】\n`;
+    valueType.forEach(s => {
+      const gi = s._gi || {};
+      prompt += `- ${s.code} ${s.name}（Neff ${gi.neff_d?.toFixed(2) || '—'}）\n`;
+    });
+  }
+  if (!selected.length && !valueType.length) {
+    prompt = '目前沒有待研究的股票，所有精選/價值型都已完成質性研究。';
+  }
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    alert('研究指令已複製到剪貼簿');
+  });
 }
 
 // ─── 追蹤功能 ─────────────────────────────────────────
