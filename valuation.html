@@ -462,19 +462,19 @@ function _buildTable(items) {
       <th class="c" style="width:36px">追蹤</th>
       <th style="width:58px">代碼</th>
       <th style="width:80px">名稱</th>
+      <th class="r" style="width:60px">股價</th>
       <th class="r" style="width:68px">Neff比率</th>
       <th class="r" style="width:68px">營收CAGR</th>
       <th class="r" style="width:54px">PE</th>
       <th class="r" style="width:60px">殖利率</th>
       <th class="c" style="width:50px">等級</th>
-      <th class="r" style="width:60px">股價</th>
+      <th class="r" style="width:65px">累積YoY</th>
+      <th class="r" style="width:55px">3M</th>
+      <th class="r" style="width:55px">12M</th>
       <th class="c" style="width:56px">A通過</th>
       <th class="c" style="width:56px">B通過</th>
       <th class="c" style="width:56px">C通過</th>
       <th class="c" style="width:56px">D通過</th>
-      <th class="r" style="width:65px">累積YoY</th>
-      <th class="r" style="width:55px">3M</th>
-      <th class="r" style="width:55px">12M</th>
       <th class="c" style="width:90px">標籤</th>
     </tr></thead><tbody>`;
 
@@ -526,19 +526,19 @@ function _buildTable(items) {
       <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
       <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
       <td>${s.name || ''}</td>
+      <td class="r" style="font-weight:600">${priceStr}</td>
       <td class="r"><span class="${neffCls}">${neffStr}</span></td>
       <td class="r" style="color:${cagrColor}">${cagrStr}</td>
       <td class="r" style="color:#475569">${peStr}</td>
       <td class="r" style="color:#475569">${yldStr}</td>
       <td class="c"><span class="${gradeCls}">${grade || '—'}</span></td>
-      <td class="r" style="font-weight:600">${priceStr}</td>
+      <td class="r" style="color:${_revColor(cumV)}">${_revStr(cumV)}</td>
+      <td class="r" style="color:${_revColor(m3V)}">${_revStr(m3V)}</td>
+      <td class="r" style="color:${_revColor(m12V)}">${_revStr(m12V)}</td>
       <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
       <td class="c chk-cell"><span class="${chkB.cls}">${chkB.html}</span></td>
       <td class="c chk-cell"><span class="${chkC.cls}">${chkC.html}</span></td>
       <td class="c chk-cell"><span class="${chkD.cls}">${chkD.html}</span></td>
-      <td class="r" style="color:${_revColor(cumV)}">${_revStr(cumV)}</td>
-      <td class="r" style="color:${_revColor(m3V)}">${_revStr(m3V)}</td>
-      <td class="r" style="color:${_revColor(m12V)}">${_revStr(m12V)}</td>
       <td class="c">${tagHtml}</td>
     </tr>`;
   });
