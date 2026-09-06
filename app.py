@@ -794,9 +794,9 @@ CHECKLIST_ITEMS = [
     {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年EPS中位數', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認目前獲利水準不低於中期常態，不受極端值影響'},
     {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 70%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
     {'key': 'price_val_ok',    'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '股價低於評價門檻，有安全邊際'},
+    {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(5年營收CAGR+殖利率)/PE，>=1代表成長性相對股價被低估'},
     {'key': 'val_ddm_return',  'category': 'value', 'label': '股利折現現價潛在年報酬', 'threshold': '≥ 10%', 'weight': '重要', 'group': 'DDM', 'hint': '以股利折現模型估算，現價買入的預期年化報酬'},
     {'key': 'dcf_safe_ok',     'category': 'value', 'label': '現價 ≤ DCF安全邊際價', 'threshold': '是', 'weight': '重要', 'group': 'DCF', 'hint': '自由現金流折現後，現價低於內在價值打折後的安全價'},
-    {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(5年營收CAGR+殖利率)/PE，>=1代表成長性相對股價被低估'},
     # ── D 成長性檢核（6項）──
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '今年以來累積營收是否成長，反映整體趨勢'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '近12個月累計營收年增率，過濾短期波動看長期趨勢'},
