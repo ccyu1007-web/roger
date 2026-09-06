@@ -2386,6 +2386,17 @@ def refresh_revenue():
         except Exception as e:
             results['errors'].append(f"push: {e}")
 
+    # 4. 重算 checklist（含 Neff）讓每日價值評估即時反映
+    if total > 0:
+        try:
+            calc_all_checklists()
+            recalc_all_derived()
+            if not is_cloud:
+                from render_sync import _push_single_table
+                _push_single_table('stock_checklist')
+        except Exception as e:
+            results['errors'].append(f"checklist: {e}")
+
     total = results['mops_revenue'] + results['mops_quarterly']
     if results['errors']:
         return jsonify({"status": "error", "msg": f"部分失敗: {'; '.join(results['errors'])}", "detail": results})
