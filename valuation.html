@@ -139,6 +139,19 @@
 
 <div class="container">
 
+  <!-- Tab 列 + 體質佳開關 -->
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="tab-bar-L1" id="tabBarL1">
+      <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
+      <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
+      <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_momentum">0</span></button>
+      <button class="tab-L1" onclick="switchTab('all',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_all">0</span></button>
+    </div>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
+      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
+    </label>
+  </div>
+
   <!-- 統計列 -->
   <div class="stat-bar">
     <div class="stat-item">
@@ -166,19 +179,6 @@
       <span id="changeBlockArrow" style="font-size:.9rem;color:#94a3b8">▼</span>
     </div>
     <div class="change-block-body" id="changeBlockBody"></div>
-  </div>
-
-  <!-- Tab 列 + 體質佳開關 -->
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
-    <div class="tab-bar-L1" id="tabBarL1">
-      <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
-      <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
-      <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_momentum">0</span></button>
-      <button class="tab-L1" onclick="switchTab('all',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_all">0</span></button>
-    </div>
-    <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
-      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
-    </label>
   </div>
 
   <!-- Tab 內容 -->
