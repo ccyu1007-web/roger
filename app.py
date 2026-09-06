@@ -794,7 +794,7 @@ CHECKLIST_ITEMS = [
     {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年EPS中位數', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認目前獲利水準不低於中期常態，不受極端值影響'},
     {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 70%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
     {'key': 'price_val_ok',    'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '股價低於評價門檻，有安全邊際'},
-    {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(EPS成長率+殖利率)/PE，>=1代表成長性相對股價被低估'},
+    {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(5年營收CAGR+殖利率)/PE，>=1代表成長性相對股價被低估'},
     # ── D 成長性檢核（6項）──
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '今年以來累積營收是否成長，反映整體趨勢'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '近12個月累計營收年增率，過濾短期波動看長期趨勢'},
@@ -1210,7 +1210,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _ge_pe = _gi.get('pe')
     checks['ge_neff_ratio'] = 1 if _ge_neff_d is not None and _ge_neff_d >= 1.0 else 0
     if _ge_neff_d is not None and _ge_neff_c is not None and _ge_yld is not None and _ge_pe:
-        detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}　(保守成長率{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) / PE{_ge_pe:.2f} = {round(_ge_neff_c + _ge_yld, 2)}/{_ge_pe:.2f}'
+        detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}　(營收CAGR{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) / PE{_ge_pe:.2f} = {round(_ge_neff_c + _ge_yld, 2)}/{_ge_pe:.2f}'
     else:
         detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}' if _ge_neff_d is not None else '無資料'
 
@@ -4030,21 +4030,7 @@ def _calc_growth_indicators(_json, _dt):
         rev_cagr_3y = _rev_cagr_3y
         rev_cagr_5y = _rev_cagr_5y
 
-        # ══ 保守成長率 = min(四種方法中有值的) ══
-        all_cagrs = [c for c in [cagr_5y_endpoint, cagr_5y_smooth, cagr_3y_endpoint, cagr_3y_smooth] if c is not None]
-        if not all_cagrs:
-            # EPS CAGR 全空，但營收 CAGR 可能有值，仍輸出
-            result[code] = {
-                'neff_a': None, 'neff_b': None, 'neff_3a': None, 'neff_3b': None,
-                'neff_c': None, 'neff_d': None, 'intrinsic_growth': None,
-                'lynch_a': None, 'lynch_b': None, 'lynch_c': None, 'lynch_d': None,
-                'rev_cagr_3y': round(rev_cagr_3y, 2) if rev_cagr_3y is not None else None,
-                'rev_cagr_5y': round(rev_cagr_5y, 2) if rev_cagr_5y is not None else None,
-                'shares_change': None, 'yield': 0, 'pe': 0,
-                'gray': True, 'neff_gray': True, 'lynch_gray': True, 'warnings': [],
-            }
-            continue
-
+        # EPS CAGR 四種方法（保留作為參考值，不再決定保守成長率）
         neff_a = cagr_5y_endpoint   # 5年端點
         neff_b = cagr_5y_smooth     # 5年平滑
         neff_3a = cagr_3y_endpoint  # 3年端點
@@ -4055,33 +4041,24 @@ def _calc_growth_indicators(_json, _dt):
         a3_pct = (neff_3a * 100) if neff_3a is not None else None
         b3_pct = (neff_3b * 100) if neff_3b is not None else None
 
-        all_pcts = [p for p in [a_pct, b_pct, a3_pct, b3_pct] if p is not None]
-        neff_c = min(all_pcts)
+        # ══ 保守成長率 = 5年營收CAGR（簡潔、不受業外損益影響）══
+        neff_c = rev_cagr_5y if rev_cagr_5y is not None else None
 
         # ── 警示判斷
         warnings = []
-        if 0 < neff_c < 7:
-            warnings.append('成長率<7%，聶夫法參考用')
-        # 5年兩種方法差距大
-        if a_pct is not None and b_pct is not None:
-            gap5 = abs(a_pct - b_pct)
-            if gap5 > 5:
-                warnings.append(f'5年端點vs平滑差距{gap5:.0f}%，成長穩定性存疑')
-        # 3年 < 5年 = 減速
-        best_5y = min([p for p in [a_pct, b_pct] if p is not None]) if any(p is not None for p in [a_pct, b_pct]) else None
-        best_3y = min([p for p in [a3_pct, b3_pct] if p is not None]) if any(p is not None for p in [a3_pct, b3_pct]) else None
-        if best_5y is not None and best_3y is not None and best_3y < best_5y - 3:
-            warnings.append('近期成長減速')
-        if neff_c > 20:
-            warnings.append('保守成長率>20%，已封頂20%計算')
-        # 中間有虧損年被跳過
+        # 中間有虧損年被跳過（EPS 參考用）
         all_years = [r['year'] for r in rows]
         gap_years = len(all_years) - len(valid)
         if gap_years > 0:
-            warnings.append(f'有{gap_years}年虧損被排除')
-
-        if rev_cagr_5y is not None and a_pct is not None and a_pct > rev_cagr_5y * 1.5 and a_pct > 5:
-            warnings.append('淨利成長遠快於營收，注意利潤率變化')
+            warnings.append(f'有{gap_years}年EPS虧損')
+        if neff_c is not None:
+            if 0 < neff_c < 7:
+                warnings.append('營收成長率<7%，聶夫法參考用')
+            if neff_c > 20:
+                warnings.append('營收成長率>20%，已封頂20%計算')
+            # 營收成長但EPS衰退 → 利潤率可能壓縮
+            if a_pct is not None and neff_c > 5 and a_pct < 0:
+                warnings.append('營收成長但EPS衰退，注意利潤率變化')
 
         # 股本變動率（輔助資訊）
         shares_change = None
@@ -4254,11 +4231,14 @@ def _calc_growth_indicators(_json, _dt):
                 intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
 
         # ── 保守成長率上限封頂
-        neff_c = round(neff_c, 2)
-        if neff_c > 20:
-            neff_c = 20.0  # 超過20%以20%計
-        neff_negative = neff_c <= 0
-        neff_gray = neff_negative or gap_years >= 2
+        if neff_c is None:
+            neff_c = 0
+            neff_gray = True
+        else:
+            neff_c = round(neff_c, 2)
+            if neff_c > 20:
+                neff_c = 20.0  # 超過20%以20%計
+            neff_gray = neff_c <= 0
 
         # total return = 成長率 + 殖利率，> 0 就算（衰退但高殖利率仍有意義）
         total_return = neff_c + yld

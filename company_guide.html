@@ -87,9 +87,9 @@
     <div style="font-weight:700;padding:8px 12px;color:#059669;margin-top:12px">成長加分（8 項）</div>
     <table>
       <tr><th width="40">#</th><th width="260">條件</th><th>判定邏輯</th></tr>
-      <tr><td>11</td><td class="field">聶夫保守成長率 >= 7%</td><td><span class="formula">min(5年端點, 5年平滑, 3年端點, 3年平滑) CAGR</span><div class="note">四種方法取最小值，封頂20%</div></td></tr>
-      <tr><td>12</td><td class="field">聶夫 Neff 比率 >= 0.7</td><td><span class="formula">(保守成長率 + 殖利率) / PE</span></td></tr>
-      <tr><td>13</td><td class="field">林區 PEG <= 1.0</td><td><span class="formula">PE / (保守成長率 + 殖利率)</span><div class="note">Neff 比率的倒數</div></td></tr>
+      <tr><td>11</td><td class="field">5年營收CAGR >= 7%</td><td><span class="formula">(最新年營收/5年前營收)^(1/5)-1</span><div class="note">封頂20%，不受業外損益影響</div></td></tr>
+      <tr><td>12</td><td class="field">聶夫 Neff 比率 >= 0.7</td><td><span class="formula">(營收CAGR + 殖利率) / PE</span></td></tr>
+      <tr><td>13</td><td class="field">林區 PEG <= 1.0</td><td><span class="formula">PE / (營收CAGR + 殖利率)</span><div class="note">Neff 比率的倒數</div></td></tr>
       <tr><td>14</td><td class="field">林區成長一致性 >= 0.5</td><td>月營收60筆 + 季EPS 20筆綜合判斷<div class="note">0.30×正成長月比例 + 0.25×波動度 + 0.25×連續衰退 + 0.20×季EPS正成長</div></td></tr>
       <tr><td>15</td><td class="field">趨勢燈號為綠色</td><td>3M/12M累計營收年增率 + EPS趨勢 + 存貨風險<div class="note">綠=成長、黃=持平、紅=衰退</div></td></tr>
       <tr><td>16</td><td class="field">席勒警示 >= 0.5</td><td><span class="formula">綜合PE / 席勒PE</span>，席勒PE = 股價 / 10年均EPS<div class="note">< 0.5 紅色警示（循環高點假便宜）；EPS不足7年預設通過</div></td></tr>
