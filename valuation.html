@@ -203,6 +203,17 @@
   <div id="tab_momentum" class="tab-content"></div>
   <div id="tab_all"      class="tab-content"></div>
 
+  <!-- 接近名單 -->
+  <div style="margin-top:20px">
+    <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden" id="approachBlock">
+      <div style="padding:13px 18px;font-size:.95rem;font-weight:700;background:#f8fafc;color:#475569;border-left:4px solid #94a3b8;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="document.getElementById('approachBody').style.display=document.getElementById('approachBody').style.display==='none'?'':'none'">
+        <span>接近名單（Neff 0.9~1.0 + 品質達標）<span style="font-weight:400;margin-left:8px" id="approachCnt"></span></span>
+        <span style="color:#94a3b8">▼</span>
+      </div>
+      <div id="approachBody"></div>
+    </div>
+  </div>
+
 </div><!-- /container -->
 
 <script>
@@ -435,18 +446,82 @@ function switchTab(tab, btn) {
 function renderAll() {
   ['selected','value','momentum','all'].forEach(tab => {
     const items = _tabItems(tab);
-    // badge
     document.getElementById('cnt_' + tab).textContent = items.length;
-    // render
     const el = document.getElementById('tab_' + tab);
     if (!items.length) {
       el.innerHTML = `<div class="empty">目前無符合條件的股票</div>`;
     } else {
-      // 排序：Neff 由高到低
       items.sort((a, b) => ((b._gi||{}).neff_d || 0) - ((a._gi||{}).neff_d || 0));
       el.innerHTML = `<div class="table-wrap">${_buildTable(items)}</div>`;
     }
   });
+  // 接近名單（Neff 0.9~1.0 + A≥5/7 + B≥7/10）
+  const pool = _qualityOnly ? _stocks.filter(s => _qualitySet.has(s.code)) : _stocks;
+  const approaching = pool.filter(s => {
+    const gi = s._gi || {};
+    if (gi.neff_d == null || gi.neff_gray) return false;
+    if (gi.neff_d < 0.9 || gi.neff_d >= 1.0) return false;
+    const ap = s._chk_profit, bp = s._chk_safety;
+    return ap != null && bp != null && ap >= 5 && bp >= 7;
+  });
+  approaching.sort((a, b) => ((b._gi||{}).neff_d || 0) - ((a._gi||{}).neff_d || 0));
+  document.getElementById('approachCnt').textContent = `(${approaching.length} 支)`;
+  const abody = document.getElementById('approachBody');
+  if (!approaching.length) {
+    abody.innerHTML = `<div style="text-align:center;padding:30px;color:#94a3b8">目前無接近 Neff 1.0 的品質股</div>`;
+  } else {
+    abody.innerHTML = `<div class="table-wrap">${_buildApproachTable(approaching)}</div>`;
+  }
+}
+
+function _buildApproachTable(items) {
+  let html = `<table class="neff-table"><thead><tr>
+    <th class="c" style="width:36px">追蹤</th>
+    <th style="width:58px">代碼</th><th style="width:80px">名稱</th>
+    <th class="r" style="width:60px">股價</th>
+    <th class="r" style="width:68px">Neff</th>
+    <th class="r" style="width:80px">再跌%進場</th>
+    <th class="r" style="width:68px">營收CAGR</th>
+    <th class="r" style="width:54px">PE</th>
+    <th class="r" style="width:60px">殖利率</th>
+    <th class="c" style="width:50px">等級</th>
+    <th class="c" style="width:56px">A通過</th>
+    <th class="c" style="width:56px">B通過</th>
+  </tr></thead><tbody>`;
+  items.forEach(s => {
+    const gi = s._gi || {};
+    const nv = gi.neff_d;
+    // 再跌多少% → Neff 到 1.0：需要 PE 下降到 (CAGR+yld)/1.0，股價 = PE_target × EPS
+    // 簡化：Neff = total_return / PE，要 Neff=1 → PE=total_return，股價需降到 PE_target×EPS
+    // 更簡化：Neff 跟股價反比，再跌% ≈ (1 - nv/1.0) × 100（近似）
+    const dropPct = nv != null ? ((1.0 - nv) / 1.0 * 100) : null;
+    const dropStr = dropPct != null ? `再跌${Math.abs(dropPct).toFixed(1)}%` : '—';
+    const grade = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
+    const isFocused = _focusTrackSet.has(s.code);
+    const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
+    const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
+    const cagrV = gi.neff_c;
+    const peV = gi.pe;
+    const yldV = gi.yield !== undefined ? gi['yield'] : null;
+    const peSrc = gi.pe_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.pe_src}</span>` : '';
+    const yldSrc = gi.yld_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.yld_src}</span>` : '';
+    html += `<tr>
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+      <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
+      <td>${s.name || ''}</td>
+      <td class="r" style="font-weight:600">${s.close != null ? s.close.toFixed(2) : '—'}</td>
+      <td class="r"><span style="color:#d97706;font-weight:600">${nv != null ? nv.toFixed(2) : '—'}</span></td>
+      <td class="r"><span style="color:#c2410c;font-weight:700;font-size:.82rem">${dropStr}</span></td>
+      <td class="r" style="color:${_revColor(cagrV)}">${cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—'}</td>
+      <td class="r" style="color:#475569">${peV != null ? peV.toFixed(1) + peSrc : '—'}</td>
+      <td class="r" style="color:#475569">${yldV != null ? yldV.toFixed(1) + '%' + yldSrc : '—'}</td>
+      <td class="c"><span class="${_gradeCls(grade)}">${grade || '—'}</span></td>
+      <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
+      <td class="c chk-cell"><span class="${chkB.cls}">${chkB.html}</span></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
 }
 
 // ─── 表格 HTML ─────────────────────────────────────────

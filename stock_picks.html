@@ -241,10 +241,6 @@
       <div class="stat-label">待質性研究</div>
       <div class="stat-num stat-research" id="cnt_need_research">—</div>
     </div>
-    <div class="stat-item">
-      <div class="stat-label">接近</div>
-      <div class="stat-num stat-approach" id="cnt_approach">—</div>
-    </div>
   </div>
 
   <!-- 分層說明 -->
@@ -761,10 +757,9 @@ function renderAll() {
 
   _renderSection('heavy',    heavy,    'heavy');
   _renderSection('small',    small,    'small');
-  _renderSection('approach', approach, 'approach');
 
   // 隱藏不用的區塊
-  ['watch', 'research'].forEach(k => {
+  ['watch', 'research', 'approach'].forEach(k => {
     const el = document.getElementById('block_' + k);
     if (el) el.style.display = 'none';
   });
