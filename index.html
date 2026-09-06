@@ -537,14 +537,13 @@
           <th class="g-val" data-col="val_a2" onclick="sortBy('val_a2')">評價A2<span class="sort-icon" id="si_val_a2">↕</span></th>
           <th class="g-val" data-col="val_a" onclick="sortBy('val_a')">評價A<span class="sort-icon" id="si_val_a">↕</span></th>
           <th class="g-val" data-col="val_lt6" onclick="sortBy('val_lt6')">長期6%<span class="sort-icon" id="si_val_lt6">↕</span></th>
-          <!-- 成長性（精簡：趨勢+3M/12M+營收CAGR+Neff+一致性+PEG） -->
+          <!-- 成長性（精簡：趨勢+3M/12M+營收CAGR+Neff+一致性） -->
           <th class="g-growth col-div no-sort" data-col="growth_signal" style="width:50px;text-align:center;cursor:help" title="多頭＝短期(3M)>長期(12M)>0&#10;轉強＝短期上穿長期&#10;轉弱＝短期下穿長期&#10;空頭＝短期<長期<0">趨勢</th>
           <th class="g-growth" data-col="rev_3m" onclick="sortBy('rev_3m')">短期3M<span class="sort-icon" id="si_rev_3m">↕</span></th>
           <th class="g-growth" data-col="rev_12m" onclick="sortBy('rev_12m')">長期12M<span class="sort-icon" id="si_rev_12m">↕</span></th>
           <th class="g-growth" data-col="neff_c" onclick="sortBy('neff_c')">營收CAGR<span class="sort-icon" id="si_neff_c">↕</span></th>
           <th class="g-growth" data-col="neff_d" onclick="sortBy('neff_d')">Neff比率<span class="sort-icon" id="si_neff_d">↕</span></th>
           <th class="g-growth" data-col="lynch_c" onclick="sortBy('lynch_c')">一致性<span class="sort-icon" id="si_lynch_c">↕</span></th>
-          <th class="g-growth" data-col="lynch_d" onclick="sortBy('lynch_d')">PEG<span class="sort-icon" id="si_lynch_d">↕</span></th>
           <th class="g-revchg col-div" data-col="rev_date" onclick="sortBy('revenue_date')">營收更新<span class="sort-icon" id="si_revenue_date">↕</span></th>
           <!-- 成長性（緊跟股價） -->
           <th class="g-revchg col-div" data-col="rev_cum" onclick="sortBy('revenue_cum_yoy')">累積營收<span class="sort-icon" id="si_revenue_cum_yoy">↕</span></th>
@@ -768,7 +767,7 @@ const CUSTOM_COLS = [
     { id: 'growth_signal', label: '趨勢' },
     { id: 'rev_3m', label: '短期3M' }, { id: 'rev_12m', label: '長期12M' },
     { id: 'neff_c', label: '營收CAGR' }, { id: 'neff_d', label: 'Neff比率' },
-    { id: 'lynch_c', label: '一致性' }, { id: 'lynch_d', label: 'PEG' }
+    { id: 'lynch_c', label: '一致性' }
   ]},
   { group: '營收變化', cols: [
     { id: 'rev_date', label: '營收更新' }, { id: 'rev_cum', label: '累積營收' },
@@ -1536,7 +1535,6 @@ const FIELD_OPTIONS = [
   {label:'聶夫Neff比率', key:'_gi.neff_d'},
   {label:'林區算術平均(%)', key:'_gi.lynch_b'},
   {label:'林區一致性', key:'_gi.lynch_c'},
-  {label:'林區PEG', key:'_gi.lynch_d'},
   {label:'席勒警示', key:'_gi.shiller_alert'},
   {label:'席勒PE(倍)', key:'_gi.shiller_pe'},
   {label:'10年均EPS(元)', key:'_gi.shiller_avg_eps'},
@@ -3028,7 +3026,6 @@ function render() {
       <td class="g-growth${r._gi?.neff_gray ? ' text-muted' : ''}" data-col="neff_c" style="text-align:right">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth" data-col="neff_d" style="${r._gi?.neff_d != null ? (r._gi.neff_d >= 1 ? 'color:#dc2626;font-weight:700' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
       <td class="g-growth${r._gi?.gray ? ' text-muted' : ''}" data-col="lynch_c" style="${r._gi?.lynch_c != null ? (r._gi.lynch_c >= 0.9 ? 'color:#16a34a;font-weight:600' : r._gi.lynch_c < 0.5 ? 'color:#94a3b8' : '') : ''}">${r._gi?.lynch_c != null ? r._gi.lynch_c.toFixed(2) : '－'}</td>
-      <td class="g-growth" data-col="lynch_d" style="${r._gi?.lynch_d != null ? (r._gi.lynch_d <= 1 ? 'color:#dc2626;font-weight:700' : 'color:#94a3b8') : ''}">${r._gi?.lynch_d != null ? r._gi.lynch_d.toFixed(2) : '－'}</td>
       <td class="g-revchg col-div" data-col="rev_date">${revDateHtml}</td>
       <!-- 成長性 -->
       <td class="g-revchg col-div" data-col="rev_cum">${fmtRevPct(r.revenue_cum_yoy)}</td>
