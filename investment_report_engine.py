@@ -56,15 +56,10 @@ CHECKLIST_VALUE = [
 ]
 
 CHECKLIST_GROWTH = [
-    ('rev_cagr5_ok', '近5年營收CAGR > 5%'),
-    ('eps_cagr5_ok', '近5年EPS保守成長率 > 5%'),
-    ('rev_accel', '近3年營收CAGR > 近5年營收CAGR'),
-    ('eps_accel', '近3年EPS CAGR > 近5年EPS CAGR'),
-    ('cum_rev_pos', '累積營收年增率 >= 0%'),
-    ('rev_3m_pos', '短期3M營收年增率 >= 0%'),
-    ('rev_12m_pos', '長期12M營收年增率 >= 0%'),
-    ('rev_3m_gt_12m', '短期3M >= 長期12M'),
-    ('ge_growth_green', '趨勢燈號為多頭'),
+    ('cum_rev_pos', '累積營收年增率 ≥ 0%'),
+    ('rev_12m_pos', '12M營收年增率 ≥ 0%'),
+    ('rev_3m_pos', '3M營收年增率 ≥ 0%'),
+    ('rev_3m_gt_12m', '短期3M ≥ 長期12M'),
 ]
 
 

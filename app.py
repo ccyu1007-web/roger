@@ -789,13 +789,11 @@ CHECKLIST_ITEMS = [
     {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(5年營收CAGR+殖利率)/PE，>=1代表成長性相對股價被低估'},
     {'key': 'val_ddm_return',  'category': 'value', 'label': '股利折現現價潛在年報酬', 'threshold': '≥ 10%', 'weight': '重要', 'group': 'DDM', 'hint': '以股利折現模型估算，現價買入的預期年化報酬'},
     {'key': 'dcf_safe_ok',     'category': 'value', 'label': '現價 ≤ DCF安全邊際價', 'threshold': '是', 'weight': '重要', 'group': 'DCF', 'hint': '自由現金流折現後，現價低於內在價值打折後的安全價'},
-    # ── D 成長性檢核（6項）──
+    # ── D 成長性檢核（4項）──
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '今年以來累積營收是否成長，反映整體趨勢'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '近12個月累計營收年增率，過濾短期波動看長期趨勢'},
     {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '近3個月累計營收年增率，捕捉最近的營收動能'},
-    {'key': 'rev_both_pos',   'category': 'growth_eval', 'label': '短期3M ≥ 0% 且 長期12M ≥ 0%（一致向上）', 'threshold': '是', 'weight': '輔助', 'hint': '短期和長期營收同時正成長，趨勢一致性高'},
     {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M ≥ 長期12M', 'threshold': '是', 'weight': '重要', 'hint': '短期成長加速，營收動能正在增強而非減弱'},
-    {'key': 'growth_green',   'category': 'growth_eval', 'label': '趨勢燈號為多頭', 'threshold': 'green', 'weight': '輔助', 'hint': '綜合營收和EPS趨勢的多空判斷'},
 ]
 CHECKLIST_PROFIT_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'profit']
 CHECKLIST_SAFETY_KEYS = [item['key'] for item in CHECKLIST_ITEMS if item['category'] == 'safety']
@@ -1219,10 +1217,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['rev_12m_pos'] = 1 if _rev_12m is not None and _rev_12m >= 0 else 0
     detail['rev_12m_pos'] = f'長期12M={_rev_12m:.2f}%' if _rev_12m is not None else '無資料'
 
-    # 短期3M >= 0% 且 長期12M >= 0%（一致向上）
-    checks['rev_both_pos'] = 1 if _rev_3m is not None and _rev_12m is not None and _rev_3m >= 0 and _rev_12m >= 0 else 0
-    detail['rev_both_pos'] = f'3M={_rev_3m:.2f}% 12M={_rev_12m:.2f}%' if _rev_3m is not None and _rev_12m is not None else '無資料'
-
     # 短期3M >= 長期12M
     if _rev_3m is not None and _rev_12m is not None:
         checks['rev_3m_gt_12m'] = 1 if _rev_3m >= _rev_12m else 0
@@ -1230,11 +1224,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     else:
         checks['rev_3m_gt_12m'] = 0
         detail['rev_3m_gt_12m'] = '無資料'
-
-    # 趨勢燈號為多頭
-    _ge_signal = _gs.get('growth_signal')
-    checks['growth_green'] = 1 if _ge_signal == 'green' else 0
-    detail['growth_green'] = f'燈號={_ge_signal or "無"}'
 
     # Neff 比率 >= 1.0
     _ge_neff_d = _gi.get('neff_d')

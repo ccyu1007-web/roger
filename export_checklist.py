@@ -34,16 +34,11 @@ CHECKLIST_ITEMS = [
     {'key': 'price_val_ok',    'category': 'value', 'label': '現價 <= A級評價；<= AA更佳'},
     {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現現價潛在年報酬 >= 10%'},
     {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 <= DCF安全邊際價'},
-    {'key': 'rev_cagr5_ok',   'category': 'growth_eval', 'label': '近5年營收CAGR > 5%'},
-    {'key': 'eps_cagr5_ok',   'category': 'growth_eval', 'label': '近5年保守成長率(EPS) > 5%'},
-    {'key': 'rev_accel',      'category': 'growth_eval', 'label': '近3年營收CAGR > 近5年營收CAGR'},
-    {'key': 'eps_accel',      'category': 'growth_eval', 'label': '近3年EPS CAGR > 近5年EPS CAGR'},
-    {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率 >= 0%'},
-    {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '短期3M營收年增率 >= 0%'},
-    {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率 >= 0%'},
-    {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M >= 長期12M'},
+    {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率 ≥ 0%'},
+    {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '12M營收年增率 ≥ 0%'},
+    {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '3M營收年增率 ≥ 0%'},
+    {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M ≥ 長期12M'},
     {'key': 'ge_neff_ratio',   'category': 'value', 'label': 'Neff 比率 >= 1.0'},
-    {'key': 'ge_growth_green', 'category': 'growth_eval', 'label': '趨勢燈號為多頭（3M/12M+EPS綜合）'},
 ]
 
 CAT_LABELS = {
