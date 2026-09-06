@@ -23,18 +23,13 @@ RENDER_REPORT_URL = 'https://tock-system.onrender.com/api/investment-report/'
 
 # 檢核表項目定義（對應 export_checklist.py）
 CHECKLIST_PROFIT = [
-    ('roic_avg5', 'ROIC 近5年平均 > 15%'),
-    ('roic_latest', 'ROIC 最近一年 > 15%'),
-    ('roic_trend', 'ROIC 趨勢：近3年均 > 近5年均'),
-    ('roic_min5', 'ROIC 近5年最低值 > 10%'),
-    ('gm_avg5', '毛利率近5年平均 > 30%'),
-    ('gm_latest', '毛利率最近一年 > 30%'),
-    ('gm_3v5', '毛利率趨勢：近3年均 > 近5年均'),
-    ('gm_min5', '毛利率近5年最低值 > 25%'),
-    ('opm_avg5', '營益率近5年平均 > 10%'),
-    ('opm_latest', '營益率最近一年 > 10%'),
-    ('opm_3v5', '營益率趨勢：近3年均 > 近5年均'),
-    ('opm_min5', '營益率近5年最低值 > 5%'),
+    ('roic_avg5', 'ROIC 近5年平均 ≥ 15%'),
+    ('roic_latest', 'ROIC 最近一年 ≥ 15%'),
+    ('roic_min5', 'ROIC 近5年最低值 ≥ 10%'),
+    ('opm_avg5', '營益率近5年平均 ≥ 10%'),
+    ('opm_min5', '營益率近5年最低值 ≥ 5%'),
+    ('gm_median', '毛利率 ≥ 近5年中位數'),
+    ('gm_q_median', '最近一季毛利率 ≥ 近4季中位數'),
 ]
 
 CHECKLIST_SAFETY = [

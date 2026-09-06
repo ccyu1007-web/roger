@@ -762,17 +762,14 @@ def recalc_all_derived(codes=None):
 
 # 檢核項目定義（順序即顯示順序，插入/調序只改這裡）
 CHECKLIST_ITEMS = [
-    # ── A 獲利性檢核（10項）──
+    # ── A 獲利性檢核（7項）──
     {'key': 'roic_avg5',   'category': 'profit', 'label': 'ROIC 近5年平均', 'threshold': '≥ 15%', 'weight': '核心', 'hint': '衡量公司長期投入資本的回報效率，排除財務槓桿影響'},
     {'key': 'roic_latest', 'category': 'profit', 'label': 'ROIC 最近一年', 'threshold': '≥ 15%', 'weight': '核心', 'hint': '確認目前獲利能力仍維持在高水準'},
-    {'key': 'roic_trend',  'category': 'profit', 'label': 'ROIC 趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '重要', 'hint': '確認獲利效率沒有走下坡'},
     {'key': 'roic_min5',   'category': 'profit', 'label': 'ROIC 近5年最低值', 'threshold': '≥ 10%', 'weight': '重要', 'hint': '即使在最差年度仍有基本獲利能力，代表護城河穩固'},
     {'key': 'opm_avg5',    'category': 'profit', 'label': '營益率近5年平均', 'threshold': '≥ 10%', 'weight': '核心', 'hint': '本業獲利能力，排除業外收支干擾'},
-    {'key': 'opm_trend',   'category': 'profit', 'label': '營益率趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '重要', 'hint': '確認本業獲利沒有衰退'},
     {'key': 'opm_min5',    'category': 'profit', 'label': '營益率近5年最低值', 'threshold': '≥ 5%', 'weight': '輔助', 'hint': '景氣谷底仍能維持正營益率，不至於虧損'},
-    {'key': 'gm_trend',    'category': 'profit', 'label': '毛利率趨勢：最近一年 ≥ 近3年平均', 'threshold': '是', 'weight': '輔助', 'hint': '毛利率上升代表產品競爭力或定價權改善'},
     {'key': 'gm_median',   'category': 'profit', 'label': '毛利率位置：最近一年 ≥ 近5年中位數', 'threshold': '是', 'weight': '重要', 'hint': '確認毛利率在歷史水準之上，未被壓縮'},
-    {'key': 'gm_q_trend',  'category': 'profit', 'label': '毛利率季趨勢：近4季平均 ≥ 近12季平均', 'threshold': '是', 'weight': '輔助', 'hint': '用季度資料捕捉更即時的毛利率變化方向'},
+    {'key': 'gm_q_median', 'category': 'profit', 'label': '毛利率季趨勢：最近一季 ≥ 近4季中位數', 'threshold': '是', 'weight': '重要', 'hint': '捕捉最近毛利率方向是否惡化，過濾季節性波動'},
     # ── B 安全性檢核（15項）──
     {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比', 'threshold': '≤ 50%', 'weight': '核心', 'hint': '負債比過高代表財務風險大，景氣反轉時容易出問題'},
     {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比', 'threshold': '< 30%', 'weight': '核心', 'hint': '金融負債（銀行借款）佔比過高代表依賴借貸經營'},
@@ -970,21 +967,12 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     detail['roic_avg5'] = f'5年平均={_roic_avg5:.2f}%' if _roic_avg5 is not None else '無資料'
     checks['roic_latest'] = 1 if _roic_latest is not None and _roic_latest > 15 else 0
     detail['roic_latest'] = f'最近一年={_roic_latest:.2f}%' if _roic_latest is not None else '無資料'
-    checks['roic_trend'] = 1 if _roic_latest is not None and _roic_avg3 is not None and _roic_latest >= _roic_avg3 else 0
-    detail['roic_trend'] = f'最近一年={_roic_latest:.2f}% vs 近3年平均={_roic_avg3:.2f}%' if _roic_latest is not None and _roic_avg3 is not None else '無資料'
     checks['roic_min5'] = 1 if _roic_min5 is not None and _roic_min5 > 10 else 0
     detail['roic_min5'] = f'5年最低={_roic_min5:.2f}%' if _roic_min5 is not None else '無資料'
 
     _gm_5y = r.get('_gm_5y') or []  # [(year, gm%), ...]
     _gm_vals_5 = [v for _, v in _gm_5y if v is not None]
-    _gm_vals_3 = [v for _, v in _gm_5y[:3] if v is not None]
-    _gm_avg5 = sum(_gm_vals_5) / len(_gm_vals_5) if _gm_vals_5 else None
-    _gm_avg3 = sum(_gm_vals_3) / len(_gm_vals_3) if _gm_vals_3 else None
-    _gm_min5 = min(_gm_vals_5) if _gm_vals_5 else None
     _gm_latest = _gm_vals_5[0] if _gm_vals_5 else None
-
-    checks['gm_trend'] = 1 if _gm_latest is not None and _gm_avg3 is not None and _gm_latest >= _gm_avg3 else 0
-    detail['gm_trend'] = f'最近一年={_gm_latest:.2f}% vs 近3年平均={_gm_avg3:.2f}%' if _gm_latest is not None and _gm_avg3 is not None else '無資料'
 
     # 毛利率位置：最近一年 >= 近5年中位數
     _gm_median5 = None
@@ -994,27 +982,23 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['gm_median'] = 1 if _gm_latest is not None and _gm_median5 is not None and _gm_latest >= _gm_median5 else 0
     detail['gm_median'] = f'最近一年={_gm_latest:.2f}% vs 5年中位數={_gm_median5:.2f}%' if _gm_latest is not None and _gm_median5 is not None else '無資料'
 
-    # 毛利率季趨勢：近4季平均 >= 近12季平均
+    # 毛利率季趨勢：最近一季 >= 近4季中位數
     _qgm = r.get('_qgm')
-    if _qgm and _qgm.get('q_avg4') is not None and _qgm.get('q_avg12') is not None:
-        checks['gm_q_trend'] = 1 if _qgm['q_avg4'] >= _qgm['q_avg12'] else 0
-        detail['gm_q_trend'] = f'近4季平均={_qgm["q_avg4"]}% vs 近12季平均={_qgm["q_avg12"]}%'
+    if _qgm and _qgm.get('q_latest') is not None and _qgm.get('q_median4') is not None:
+        checks['gm_q_median'] = 1 if _qgm['q_latest'] >= _qgm['q_median4'] else 0
+        detail['gm_q_median'] = f'最近一季={_qgm["q_latest"]}% vs 近4季中位數={_qgm["q_median4"]}%'
     else:
-        checks['gm_q_trend'] = 0
-        detail['gm_q_trend'] = '季度毛利率資料不足（需12季以上）'
+        checks['gm_q_median'] = 0
+        detail['gm_q_median'] = '季度毛利率資料不足'
 
     _opm_5y = r.get('_opm_5y') or []
     _opm_vals_5 = [v for _, v in _opm_5y if v is not None]
-    _opm_vals_3 = [v for _, v in _opm_5y[:3] if v is not None]
     _opm_avg5 = sum(_opm_vals_5) / len(_opm_vals_5) if _opm_vals_5 else None
-    _opm_avg3 = sum(_opm_vals_3) / len(_opm_vals_3) if _opm_vals_3 else None
     _opm_min5 = min(_opm_vals_5) if _opm_vals_5 else None
     _opm_latest = _opm_vals_5[0] if _opm_vals_5 else None
 
     checks['opm_avg5'] = 1 if _opm_avg5 is not None and _opm_avg5 > 10 else 0
     detail['opm_avg5'] = f'5年平均={_opm_avg5:.2f}%' if _opm_avg5 is not None else '無資料'
-    checks['opm_trend'] = 1 if _opm_latest is not None and _opm_avg3 is not None and _opm_latest >= _opm_avg3 else 0
-    detail['opm_trend'] = f'最近一年={_opm_latest:.2f}% vs 近3年平均={_opm_avg3:.2f}%' if _opm_latest is not None and _opm_avg3 is not None else '無資料'
     checks['opm_min5'] = 1 if _opm_min5 is not None and _opm_min5 > 5 else 0
     detail['opm_min5'] = f'5年最低={_opm_min5:.2f}%' if _opm_min5 is not None else '無資料'
 
@@ -1598,11 +1582,18 @@ def calc_all_checklists():
                 # 季趨勢：近4季平均 vs 近12季平均
                 _gm_q_avg4 = round(sum(q_gms[:4]) / len(q_gms[:4]), 2) if len(q_gms) >= 4 else None
                 _gm_q_avg12 = round(sum(q_gms[:12]) / len(q_gms[:12]), 2) if len(q_gms) >= 12 else None
+                # 最近一季 vs 近4季中位數
+                _gm_q_latest = q_gms[0] if q_gms else None
+                _gm_q_median4 = None
+                if len(q_gms) >= 4:
+                    _sorted_q4 = sorted(q_gms[:4])
+                    _gm_q_median4 = round((_sorted_q4[1] + _sorted_q4[2]) / 2, 2)
                 gm_map[code] = {
                     'latest_q': qs[0]['quarter'], 'latest_gm': gm0,
                     'prev_q': qs[1]['quarter'], 'prev_gm': gm1,
                     'change': round(gm0 - gm1, 2),
                     'q_avg4': _gm_q_avg4, 'q_avg12': _gm_q_avg12,
+                    'q_latest': _gm_q_latest, 'q_median4': _gm_q_median4,
                 }
     except Exception as e:
         print(f"[Checklist] 毛利率查詢失敗: {e}")
