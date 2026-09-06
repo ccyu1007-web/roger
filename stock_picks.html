@@ -817,33 +817,48 @@ async function load() {
 function _copyResearchPrompt() {
   const base = _applyQuality(_stocks);
   const { heavy, small } = _classifyAll(base);
-  // 找出所有待質性研究的股票（qualTag === 'research'）
-  const needResearch = [...heavy, ...small].filter(s => s._qualTag === 'research');
-  const selected = needResearch.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
-  const others = needResearch.filter(s => !(_isHighQuality(s) && _isPositiveMomentum(s)));
+  const tab = _currentTab;
+  const tabLabel = {selected:'精選', value:'價值型', momentum:'動能型', neffonly:'僅Neff≥1.0'}[tab] || tab;
+  const today = new Date().toISOString().slice(0,10);
 
-  let prompt = `請幫我對以下股票執行質性研究筆記，依照個股頁面的質性研究 prompt 格式產出，每支都要完整四章節+結構化欄位（含 moat_desc 和 confidence_desc），完成後寫入 Render。\n\n`;
-  if (selected.length) {
-    prompt += `【優先研究（精選組，量化達標）】\n`;
-    selected.forEach(s => {
-      const gi = s._gi || {};
-      prompt += `- ${s.code} ${s.name}（Neff ${gi.neff_d?.toFixed(2) || '—'}、營收CAGR ${gi.neff_c?.toFixed(1) || '—'}%）\n`;
+  let prompt = `請根據每日價值評估的數據，產出「${tabLabel}」群組的選股推薦報表。\n`;
+  prompt += `報表日期：${today}\n`;
+  prompt += `篩選條件：Neff ≥ 1.0${_qualityOnly ? ' + 僅體質佳' : ''}\n\n`;
+
+  const _fmt = (s, tag) => {
+    const gi = s._gi || {};
+    const n = s._notes;
+    let line = `${s.code} ${s.name} | 股價${s.close} | Neff ${gi.neff_d?.toFixed(2)||'—'} | 營收CAGR ${gi.neff_c?.toFixed(1)||'—'}% | PE ${gi.pe?.toFixed(1)||'—'}(${gi.pe_src||''}) | 殖利率 ${gi.yield?.toFixed(1)||'—'}%(${gi.yld_src||''})`;
+    const grade = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
+    line += ` | 等級${grade} | A:${s._chk_profit}/${s._chk_profit_total||7} B:${s._chk_safety}/${s._chk_safety_total||10}`;
+    line += ` | 累積${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M${gi.rev_12m_yoy?.toFixed(1)||'—'}%`;
+    if (n) {
+      line += `\n  質性：護城河${n.moat_strength||'—'}(${n.moat_trend||'—'}) | 信心${n.confidence||'—'} | g=${n.neff_g||'—'}`;
+      if (n.moat_desc) line += ` | ${n.moat_desc}`;
+      if (n.growth_catalyst) line += `\n  催化劑：${n.growth_catalyst}`;
+    }
+    return line;
+  };
+
+  if (heavy.length) {
+    prompt += `【重倉候選】（${heavy.length} 支）\n`;
+    heavy.forEach(s => {
+      const tag = s._qualTag === 'recommend' ? '建議' : '待質性研究';
+      prompt += `[${tag}] ${_fmt(s, tag)}\n\n`;
     });
-    prompt += '\n';
   }
-  if (others.length) {
-    prompt += `【一般研究】\n`;
-    others.forEach(s => {
-      const gi = s._gi || {};
-      prompt += `- ${s.code} ${s.name}（Neff ${gi.neff_d?.toFixed(2) || '—'}）\n`;
+  if (small.length) {
+    prompt += `【小買候選】（${small.length} 支）\n`;
+    small.forEach(s => {
+      const tag = s._qualTag === 'partial' ? '參考' : (s._qualTag === 'risk' ? '質性疑慮' : '質性偏弱');
+      prompt += `[${tag}] ${_fmt(s, tag)}\n\n`;
     });
   }
-  if (!needResearch.length) {
-    prompt = '目前沒有待研究的股票，所有股票都已完成質性研究。';
-  }
+
+  prompt += `\n請根據以上數據，以表格形式產出選股推薦報表，每支股票一行，包含：代碼/名稱/推薦層級(重倉/小買)/Neff/股價/等級/簡短理由。有質性研究的帶質性判斷，沒有的標「待質性研究」。`;
 
   navigator.clipboard.writeText(prompt).then(() => {
-    alert('研究指令已複製到剪貼簿');
+    alert('選股推薦指令已複製到剪貼簿');
   });
 }
 
