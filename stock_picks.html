@@ -199,8 +199,6 @@
     <span class="date-label" id="dateLabel"></span>
   </div>
   <div style="display:flex;gap:16px;align-items:center">
-    <button onclick="_copyResearchPrompt()" style="padding:4px 12px;border:1px solid rgba(255,255,255,.5);border-radius:5px;background:transparent;color:#fff;cursor:pointer;font-size:.8rem;font-weight:600">複製研究指令</button>
-    <button onclick="window.print()" style="padding:4px 12px;border:1px solid rgba(255,255,255,.5);border-radius:5px;background:transparent;color:#fff;cursor:pointer;font-size:.8rem;font-weight:600">匯出PDF</button>
     <a href="/">回總表</a>
     <a href="/briefing.html">逍遙日報</a>
     <a href="/valuation.html">每日價值評估</a>
@@ -221,25 +219,27 @@
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
       僅體質佳
     </label>
+    <button onclick="_copyResearchPrompt()" style="padding:5px 14px;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;font-size:.8rem;color:#475569;font-weight:600">複製研究指令</button>
+    <button onclick="window.print()" style="padding:5px 14px;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;font-size:.8rem;color:#475569;font-weight:600">匯出PDF</button>
   </div>
 
   <!-- 統計列 -->
   <div class="stat-bar">
     <div class="stat-item">
-      <div class="stat-label">重倉</div>
+      <div class="stat-label">重倉候選</div>
       <div class="stat-num stat-heavy" id="cnt_heavy">—</div>
     </div>
     <div class="stat-item">
-      <div class="stat-label">小買</div>
-      <div class="stat-num stat-small" id="cnt_small">—</div>
+      <div class="stat-label">其中建議</div>
+      <div class="stat-num" style="color:#16a34a" id="cnt_recommend">—</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">待質性研究</div>
+      <div class="stat-num stat-research" id="cnt_need_research">—</div>
     </div>
     <div class="stat-item">
       <div class="stat-label">觀望</div>
       <div class="stat-num stat-watch" id="cnt_watch">—</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label">待研究</div>
-      <div class="stat-num stat-research" id="cnt_research">—</div>
     </div>
     <div class="stat-item">
       <div class="stat-label">接近</div>
@@ -250,10 +250,13 @@
   <!-- 分層說明 -->
   <div style="background:#fff;border-radius:10px;padding:14px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.82rem;color:#475569;line-height:1.8">
     <b style="color:#1e3a5f">分層邏輯</b><br>
-    <span style="color:#16a34a;font-weight:700">重倉</span>：精選 + 質性研究內容在3個月以內 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
-    <span style="color:#2563eb;font-weight:700">小買</span>：精選 + 質性研究內容在3個月以內 + 護城河或信心其一≥中 + 無風險<br>
-    <span style="color:#d97706;font-weight:700">觀望</span>：有結構性風險、質性研究內容超過3個月、或護城河+信心皆弱<br>
-    <span style="color:#7c3aed;font-weight:700">待研究</span>：無質性研究筆記（精選組標示「量化達標，優先研究」）<br>
+    <b>量化決定位置，質性決定標籤：</b><br>
+    <span style="color:#16a34a;font-weight:700">重倉候選</span>：精選組（Neff≥1 + A+B品質 + 動能全正），依質性標籤排序<br>
+    &nbsp;&nbsp;→ <span style="color:#16a34a">建議</span>：質性研究在3個月內 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
+    &nbsp;&nbsp;→ <span style="color:#2563eb">參考</span>：質性部分達標（護城河或信心其一≥中）<br>
+    &nbsp;&nbsp;→ <span style="color:#7c3aed">待質性研究</span>：無研究或超過3個月，量化已達標優先研究<br>
+    &nbsp;&nbsp;→ <span style="color:#ea580c">質性疑慮</span>：有結構性風險或護城河+信心皆弱<br>
+    <span style="color:#d97706;font-weight:700">觀望</span>：非精選組（動能不足或品質不達標）<br>
     <span style="color:#64748b;font-weight:700">接近</span>：Neff 0.7~1.0 + A+B品質達標，再跌一些即進場<br>
     <span style="margin-top:4px;display:block;color:#94a3b8">
       信心度由質性研究判定：<b>高</b>=關鍵判斷有直接證據　<b>中</b>=部分間接證據　<b>低</b>=主要依賴推估。護城河強度：<b>強</b>=競爭者難以複製　<b>中</b>=有一定防禦力　<b>弱</b>=容易被取代
@@ -486,50 +489,47 @@ function _getTabPool(arr) {
   return arr.filter(s => _isNeffPass(s));
 }
 
-// ─── 篩選分群 ─────────────────────────────────────────
+// ─── 質性標籤判定 ─────────────────────────────────────
+function _qualTag(s) {
+  if (!_isFresh(s)) return 'research';       // 無研究或超過3個月
+  if (!_noRisk(s)) return 'risk';            // 有結構性風險
+  if (_moatOk(s) && _confOk(s)) return 'recommend';  // 全達標
+  if (_moatOk(s) || _confOk(s)) return 'partial';    // 部分達標
+  return 'weak';                              // 護城河+信心皆弱
+}
+
+// ─── 篩選分群（量化決定位置，質性決定標籤）─────────────
 function _classifyAll(arr) {
   const tabPool = _getTabPool(arr);
-  const heavy    = [];
-  const small    = [];
-  const watch    = [];
-  const research = [];
+  const heavy    = [];  // 精選組（量化重倉候選）
+  const watch    = [];  // 價值型（動能不足，觀望）
   const approach = [];
 
   tabPool.forEach(s => {
-    const code = s.code;
+    s._qualTag = _qualTag(s);
 
-    // 重倉條件：質性全達標
-    if (_isFresh(s) && _moatOk(s) && _confOk(s) && _noRisk(s)) {
+    if (_isHighQuality(s) && _isPositiveMomentum(s)) {
+      // 精選 = 量化重倉候選
       heavy.push(s);
-      return;
-    }
-
-    // 小買條件：質性部分達標
-    if (_isFresh(s) && _noRisk(s) && (_moatOk(s) || _confOk(s))) {
-      small.push(s);
-      return;
-    }
-
-    // 觀望條件
-    let watchReasons = [];
-    if (_isFresh(s) && !_noRisk(s)) {
-      watchReasons.push('structural_risk');
-    }
-    if (_isFresh(s) && _noRisk(s) && !_moatOk(s) && !_confOk(s)) {
-      watchReasons.push('both_weak');
-    }
-    if (s._notes && _isStale(s)) {
-      watchReasons.push('stale');
-    }
-
-    if (watchReasons.length > 0) {
-      s._watchReasons = watchReasons;
+    } else {
+      // 非精選 = 觀望
       watch.push(s);
-      return;
     }
+  });
 
-    // 待研究：無質性研究或過期
-    research.push(s);
+  // 重倉區內排序：建議 > 參考 > 待研究
+  const tagOrder = {recommend: 0, partial: 1, weak: 2, risk: 3, research: 4};
+  heavy.sort((a, b) => {
+    const ta = tagOrder[a._qualTag] || 9;
+    const tb = tagOrder[b._qualTag] || 9;
+    if (ta !== tb) return ta - tb;
+    return ((b._gi || {}).neff_d || 0) - ((a._gi || {}).neff_d || 0);
+  });
+  watch.sort((a, b) => {
+    const ta = tagOrder[a._qualTag] || 9;
+    const tb = tagOrder[b._qualTag] || 9;
+    if (ta !== tb) return ta - tb;
+    return ((b._gi || {}).neff_d || 0) - ((a._gi || {}).neff_d || 0);
   });
 
   // 接近名單（獨立計算，不受 Tab 影響）
@@ -537,7 +537,7 @@ function _classifyAll(arr) {
     if (_isApproaching(s)) approach.push(s);
   });
 
-  return { heavy, small, watch, research, approach };
+  return { heavy, watch, approach };
 }
 
 function _sortByNeff(arr) {
@@ -700,6 +700,19 @@ function _buildCard(s, level) {
   const qualBadge = isQual
     ? `<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:.7rem;font-weight:700;background:#dcfce7;color:#166534;margin-left:4px">體質佳</span>`
     : '';
+  // 質性標籤
+  const qt = s._qualTag || '';
+  const qualTagMap = {
+    'recommend': {bg:'#dcfce7', color:'#166534', text:'建議'},
+    'partial':   {bg:'#dbeafe', color:'#1d4ed8', text:'參考'},
+    'weak':      {bg:'#fef3c7', color:'#92400e', text:'質性偏弱'},
+    'risk':      {bg:'#fee2e2', color:'#991b1b', text:'質性疑慮'},
+    'research':  {bg:'#f3e8ff', color:'#7c3aed', text:'待質性研究'},
+  };
+  const qtInfo = qualTagMap[qt];
+  const qualTagHtml = qtInfo
+    ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;font-size:.72rem;font-weight:700;background:${qtInfo.bg};color:${qtInfo.color};margin-left:6px">${qtInfo.text}</span>`
+    : '';
 
   return `
 <div class="scard scard-${level}">
@@ -708,7 +721,7 @@ function _buildCard(s, level) {
       <input type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb;flex-shrink:0" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)" title="追蹤">
       <a class="scard-code" href="/company.html?code=${s.code}" target="_blank">${s.code}</a>
       <span class="scard-name">${s.name || ''}</span>
-      ${qualBadge}
+      ${qualBadge}${qualTagHtml}
       <span class="scard-sep">｜</span>
       <span class="scard-price">股價 ${priceStr}</span>
       <span class="scard-sep">｜</span>
@@ -750,13 +763,25 @@ function _renderSection(key, items, level) {
 
 function renderAll() {
   const base = _applyQuality(_stocks);
-  const { heavy, small, watch, research, approach } = _classifyAll(base);
+  const { heavy, watch, approach } = _classifyAll(base);
 
   _renderSection('heavy',    heavy,    'heavy');
-  _renderSection('small',    small,    'small');
   _renderSection('watch',    watch,    'watch');
-  _renderSection('research', research, 'research');
   _renderSection('approach', approach, 'approach');
+
+  // 統計：建議數 + 待研究數
+  const recommendCnt = heavy.filter(s => s._qualTag === 'recommend').length;
+  const needResearchCnt = heavy.filter(s => s._qualTag === 'research').length
+                        + watch.filter(s => s._qualTag === 'research').length;
+  const setCnt2 = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  setCnt2('cnt_recommend', recommendCnt);
+  setCnt2('cnt_need_research', needResearchCnt);
+
+  // 隱藏不用的區塊
+  ['small', 'research'].forEach(k => {
+    const el = document.getElementById('block_' + k);
+    if (el) el.style.display = 'none';
+  });
 
   // Tab 數量（不受 Tab 切換影響，始終顯示各群總數）
   const all = _applyQuality(_stocks);
