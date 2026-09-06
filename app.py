@@ -2157,7 +2157,7 @@ def get_stocks():
                                 gi_neff_a, gi_neff_b, gi_neff_3a, gi_neff_3b,
                                 gi_neff_c, gi_neff_d, gi_intrinsic_growth,
                                 gi_lynch_a, gi_lynch_b, gi_lynch_c, gi_lynch_d,
-                                gi_rev_cagr_3y, gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe,
+                                gi_rev_cagr_3y, gi_rev_cagr_5y, gi_shares_change, gi_yield, gi_pe, gi_pe_src, gi_yld_src,
                                 gi_gray, gi_neff_gray, gi_lynch_gray, gi_warnings,
                                 gi_shiller_avg_eps, gi_shiller_pe, gi_shiller_alert,
                                 gi_roic_avg, gi_roe_avg, gi_opm_avg, gi_fcf_rev_avg,
