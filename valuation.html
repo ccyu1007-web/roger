@@ -14,68 +14,106 @@
   }
   header h1 { font-size: 1.3rem; font-weight: 700; }
   header a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
-  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+  .container { max-width: 1300px; margin: 0 auto; padding: 20px 16px; }
   .date-label { font-size: .82rem; color: rgba(255,255,255,.7); }
 
   /* 統計卡片 */
   .stat-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-  .stat-card { flex: 1; min-width: 120px; padding: 16px; border-radius: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .stat-card { flex: 1; min-width: 130px; padding: 16px; border-radius: 10px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
   .stat-card .label { font-size: .78rem; font-weight: 600; margin-bottom: 4px; }
   .stat-card .num { font-size: 1.8rem; font-weight: 800; }
   .stat-card .delta { font-size: .82rem; margin-top: 2px; }
-  .sc-aa { background: #fee2e2; color: #dc2626; }
-  .sc-a1 { background: #fef3c7; color: #92400e; }
-  .sc-a2 { background: #dbeafe; color: #1d4ed8; }
-  .sc-a { background: #dcfce7; color: #166534; }
+  .sc-total { background: #eff6ff; color: #1d4ed8; }
+  .sc-quality { background: #f0fdf4; color: #166534; }
+  .sc-new { background: #fef9c3; color: #854d0e; }
+  .sc-rm { background: #fef2f2; color: #991b1b; }
 
-  /* 第一層 Tab */
-  .tab-bar-L1 { display: flex; gap: 0; margin-bottom: 12px; }
+  /* Tab L1 */
+  .tab-bar-L1 { display: flex; gap: 0; margin-bottom: 0; }
   .tab-L1 {
-    padding: 10px 24px; font-size: .92rem; font-weight: 700; cursor: pointer;
+    padding: 10px 22px; font-size: .92rem; font-weight: 700; cursor: pointer;
     border: 2px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
   }
   .tab-L1:first-child { border-radius: 8px 0 0 8px; }
-  .tab-L1:last-child { border-radius: 0 8px 8px 0; }
-  .tab-L1:not(:first-child):not(:last-child) { border-radius: 0; }
+  .tab-L1:last-child  { border-radius: 0 8px 8px 0; }
+  .tab-L1:not(:first-child) { border-left-width: 1px; }
   .tab-L1.active { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
-
-  /* 第二層 Tab */
-  .tab-bar-L2 { display: flex; gap: 0; margin-bottom: 16px; }
-  .tab-L2 {
-    padding: 8px 16px; font-size: .85rem; font-weight: 600; cursor: pointer;
-    border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: all .15s;
+  .count-badge-L1 {
+    display: inline-block; font-size: .72rem; font-weight: 700;
+    padding: 1px 7px; border-radius: 10px; margin-left: 5px;
+    background: rgba(255,255,255,.25); color: inherit;
   }
-  .tab-L2:first-child { border-radius: 6px 0 0 6px; }
-  .tab-L2:last-child { border-radius: 0 6px 6px 0; }
-  .tab-L2:not(:first-child):not(:last-child) { border-radius: 0; }
-  .tab-L2.active { background: #2563eb; color: #fff; border-color: #2563eb; }
-  .count-badge { font-size: .75rem; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 4px; }
+  .tab-L1.active .count-badge-L1 { background: rgba(255,255,255,.25); color: #fff; }
+  .tab-L1:not(.active) .count-badge-L1 { background: #e2e8f0; color: #475569; }
 
-  /* 區塊 */
-  .section { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; }
-  .section-header { padding: 14px 20px; font-weight: 700; font-size: .95rem; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid; }
+  /* 異動區 */
+  .change-block { background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+  .change-block-header {
+    padding: 12px 18px; font-size: .9rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .change-block-header:hover { background: #f8fafc; }
+  .change-block-body { padding: 12px 18px; }
+  .change-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .change-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 16px; font-size: .8rem; font-weight: 600;
+    text-decoration: none;
+  }
+  .pill-new { background: #dcfce7; color: #166534; }
+  .pill-rm  { background: #fee2e2; color: #991b1b; opacity: .75; }
+
+  /* 主內容區 */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
 
   /* 表格 */
-  table.val-table { width: auto; border-collapse: collapse; font-size: .85rem; }
-  table.val-table th { background: #f8fafc; color: #475569; font-size: .78rem; font-weight: 700; padding: 8px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1; }
-  table.val-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
-  table.val-table tr:hover { background: #f8fafc; }
-  table.val-table tr.dim { opacity: .45; }
+  .table-wrap { overflow-x: auto; border-radius: 10px; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.07); margin-bottom: 20px; }
+  table.neff-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  table.neff-table th {
+    background: #f8fafc; color: #475569; font-size: .76rem; font-weight: 700;
+    padding: 9px 11px; text-align: left; border-bottom: 2px solid #e2e8f0;
+    position: sticky; top: 0; z-index: 1; white-space: nowrap;
+  }
+  table.neff-table th.r { text-align: right; }
+  table.neff-table th.c { text-align: center; }
+  table.neff-table td { padding: 8px 11px; border-bottom: 1px solid #f1f5f9; }
+  table.neff-table td.r { text-align: right; }
+  table.neff-table td.c { text-align: center; }
+  table.neff-table tr:hover { background: #f8fafc; }
+  table.neff-table tr.dim { opacity: .4; }
 
-  .tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: .72rem; font-weight: 700; }
-  .tag-aa { background: #fee2e2; color: #dc2626; }
-  .tag-a1 { background: #fef3c7; color: #92400e; }
-  .tag-a2 { background: #dbeafe; color: #1d4ed8; }
-  .tag-a { background: #dcfce7; color: #166534; }
-  .tag-new { background: #f0abfc; color: #7e22ce; }
-  .tag-recover { background: #e0f2fe; color: #0369a1; }
-  .tag-long { background: #f1f5f9; color: #64748b; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: .72rem; font-weight: 700; margin-left: 3px; }
+  .tag-new  { background: #ede9fe; color: #6d28d9; }
+  .tag-qual { background: #dcfce7; color: #166534; }
+
+  .chk-cell { white-space: nowrap; }
+  .chk-pass  { color: #16a34a; font-weight: 700; }
+  .chk-mid   { color: #92400e; }
+  .chk-fail  { color: #dc2626; font-weight: 700; }
+
+  /* Neff 色彩 */
+  .neff-hi  { color: #dc2626; font-weight: 800; }
+  .neff-mid { color: #ea580c; font-weight: 600; }
+  .neff-lo  { color: #94a3b8; }
+
+  /* 等級色彩 */
   .grade-a { color: #dc2626; font-weight: 700; }
   .grade-b { color: #d97706; font-weight: 600; }
   .grade-c { color: #94a3b8; }
 
-  .chg-add { background: #dcfce7; color: #166534; font-size: .72rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
-  .chg-rm { background: #fee2e2; color: #991b1b; font-size: .72rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+  /* 底部說明 */
+  .desc-section { background: #fff; border-radius: 10px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-top: 24px; }
+  .desc-section h3 { font-size: .95rem; font-weight: 700; margin-bottom: 12px; color: #1e3a5f; }
+  table.desc-table { border-collapse: collapse; width: 100%; font-size: .84rem; margin-bottom: 12px; }
+  table.desc-table th { background: #f1f5f9; padding: 8px 12px; text-align: left; font-weight: 700; color: #475569; border: 1px solid #e2e8f0; }
+  table.desc-table td { padding: 8px 12px; border: 1px solid #e2e8f0; }
+  .formula { font-size: .84rem; background: #f8fafc; border-radius: 6px; padding: 10px 14px; color: #334155; margin-top: 10px; }
+  .formula code { font-family: monospace; color: #1d4ed8; }
+
+  /* 空狀態 */
+  .empty { text-align: center; padding: 48px; color: #94a3b8; font-size: .9rem; }
 </style>
 </head>
 <body>
@@ -93,120 +131,174 @@
 </header>
 
 <div class="container">
-  <!-- 第一層 Tab -->
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
-    <div class="tab-bar-L1">
-      <button class="tab-L1 active" onclick="switchL1('shen',this)">預估/沈董評價法</button>
-      <button class="tab-L1" onclick="switchL1('xiaoyao',this)">逍遙評價系統</button>
-      <button class="tab-L1" onclick="switchL1('growth',this)">成長評價</button>
-      <button class="tab-L1" onclick="switchL1('shenCombo',this)">預估/沈董+成長</button>
-      <button class="tab-L1" onclick="switchL1('combo',this)">逍遙+成長</button>
+
+  <!-- 統計卡片 -->
+  <div class="stat-row" id="statRow">
+    <div class="stat-card sc-total">
+      <div class="label">Neff ≥ 1.0</div>
+      <div class="num" id="sc-total">—</div>
+      <div class="delta" id="sc-total-delta"></div>
     </div>
-    <label style="font-size:.85rem;color:#475569;cursor:pointer">
-      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();renderTab()" style="vertical-align:middle"> 僅體質佳
+    <div class="stat-card sc-quality">
+      <div class="label">其中體質佳</div>
+      <div class="num" id="sc-quality">—</div>
+      <div class="delta" style="opacity:0">-</div>
+    </div>
+    <div class="stat-card sc-new">
+      <div class="label">今日新增</div>
+      <div class="num" id="sc-new">—</div>
+      <div class="delta">Neff 從 &lt; 1 升 ≥ 1</div>
+    </div>
+    <div class="stat-card sc-rm">
+      <div class="label">今日剔除</div>
+      <div class="num" id="sc-rm">—</div>
+      <div class="delta">Neff 從 ≥ 1 跌 &lt; 1</div>
+    </div>
+  </div>
+
+  <!-- 異動區（可收合） -->
+  <div class="change-block" id="changeBlock" style="display:none">
+    <div class="change-block-header" onclick="_toggleChangeBlock()">
+      <span id="changeBlockTitle">Neff 今日異動</span>
+      <span id="changeBlockArrow" style="font-size:.9rem;color:#94a3b8">▼</span>
+    </div>
+    <div class="change-block-body" id="changeBlockBody"></div>
+  </div>
+
+  <!-- Tab 列 + 體質佳開關 -->
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="tab-bar-L1" id="tabBarL1">
+      <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
+      <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
+      <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_momentum">0</span></button>
+      <button class="tab-L1" onclick="switchTab('all',this)">全部<span class="count-badge-L1" id="cnt_all">0</span></button>
+    </div>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
+      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
     </label>
   </div>
 
-  <!-- 第二層 Tab -->
-  <div class="tab-bar-L2" id="tabBarL2"></div>
+  <!-- Tab 內容 -->
+  <div id="tab_selected" class="tab-content active"></div>
+  <div id="tab_value"    class="tab-content"></div>
+  <div id="tab_momentum" class="tab-content"></div>
+  <div id="tab_all"      class="tab-content"></div>
 
-  <!-- 說明區 -->
-  <div id="infoBox" style="font-size:.78rem;color:#64748b;margin-bottom:12px;padding:12px 16px;background:#f8fafc;border-radius:8px;line-height:1.8">
+  <!-- 底部說明 -->
+  <div class="desc-section">
+    <h3>分群邏輯說明</h3>
+    <table class="desc-table">
+      <thead>
+        <tr><th>群組</th><th>品質條件</th><th>動能條件</th><th>含義</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>精選</b></td><td>A+B通過率 ≥ 70%（A至少5/7，B至少7/10）</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>好公司、便宜、成長中</td></tr>
+        <tr><td><b>價值型</b></td><td>A+B通過率 ≥ 70%</td><td>動能未全正</td><td>好公司便宜但成長停滯</td></tr>
+        <tr><td><b>動能型</b></td><td>A+B通過率 &lt; 70%</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>成長中但品質有疑慮</td></tr>
+        <tr><td><b>全部</b></td><td>不限</td><td>不限</td><td>Neff ≥ 1.0 完整清單</td></tr>
+      </tbody>
+    </table>
+    <div class="formula">
+      <code>Neff 比率 = (5年營收CAGR + 殖利率) / PE</code>
+      &nbsp;｜&nbsp; Neff ≥ 1.0 表示成長性被低估
+      <br>
+      <span style="font-size:.8rem;color:#64748b;margin-top:4px;display:block">
+        品質條件：A 檢（獲利品質）至少 5/7 且 B 檢（安全體質）至少 7/10，整體通過率 ≥ 70%
+      </span>
+    </div>
   </div>
 
-  <div id="content"><div style="text-align:center;padding:60px;color:#94a3b8">載入中...</div></div>
-</div>
+</div><!-- /container -->
 
 <script>
-let _data = null;
+// ─── 全域狀態 ─────────────────────────────────────────
 let _stocks = [];
-let _L1 = 'shen';
-let _L2 = 'aa';
-let _qualityOnly = false;
+let _growthChanges = {};
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
-let _cheapList = [];
-let _changes = [];
-let _byThreshold = {};
-let _growthChanges = {};
-let _stockMap = {};
-let _shenGradeList = [];
+let _qualityOnly = false;
+let _currentTab = 'selected';
+let _changeBlockOpen = true;
+let _briefData = null;
 
-// 第二層按鈕設定
-const L2_CONFIG = {
-  shen: [
-    {id:'aa',      label:'AA',       badge:'#fecaca', badgeColor:'#dc2626'},
-    {id:'cheap',   label:'A1/A2/A',  badge:'#fef3c7', badgeColor:'#92400e'},
-  ],
-  xiaoyao: [
-    {id:'thAA',    label:'門檻AA',       badge:'#fecaca', badgeColor:'#991b1b'},
-    {id:'thOther', label:'門檻A1/A2/A',  badge:'#e0e7ff', badgeColor:'#3730a3'},
-    {id:'thLt6',   label:'門檻6%',       badge:'#d1fae5', badgeColor:'#065f46'},
-  ],
-  growth: [
-    {id:'neff', label:'約翰聶夫', badge:'#fef3c7', badgeColor:'#92400e'},
-    {id:'peg',  label:'PEG',     badge:'#dbeafe', badgeColor:'#1d4ed8'},
-  ],
-  shenCombo: [
-    {id:'scAA',    label:'AA',       badge:'#fecaca', badgeColor:'#991b1b'},
-    {id:'scOther', label:'A1/A2/A',  badge:'#fef3c7', badgeColor:'#92400e'},
-  ],
-  combo: [
-    {id:'comboAA',    label:'門檻AA',       badge:'#fecaca', badgeColor:'#991b1b'},
-    {id:'comboOther', label:'門檻A1/A2/A',  badge:'#e0e7ff', badgeColor:'#3730a3'},
-    {id:'comboLt6',   label:'門檻6%',       badge:'#d1fae5', badgeColor:'#065f46'},
-  ],
-};
+// neff_new / neff_removed（今日異動）
+let _neffNewSet = new Set();
+let _neffRemovedSet = new Set();
 
-// 說明文字
-const INFO_TEXT = {
-  shen: `<b style="color:#334155">預估/沈董評價法</b><br>
-    依據總表的<b>預估等級</b>（優先）或<b>沈董等級</b>篩選，等級由 PE × 殖利率矩陣決定：<br>
-    <span style="color:#dc2626;font-weight:700">AA</span> = PE < 最低PE(10) 且 殖利率 >= 最高殖利率(6%)　←　最嚴格<br>
-    <span style="color:#ea580c;font-weight:700">A1</span> = PE < 最低PE(10) 且 殖利率 >= 偏高殖利率(5.5%)　←　PE嚴+殖利率寬<br>
-    <span style="color:#2563eb;font-weight:700">A2</span> = PE < 偏低PE(12) 且 殖利率 >= 最高殖利率(6%)　←　PE寬+殖利率嚴<br>
-    <span style="color:#16a34a;font-weight:700">A</span> = PE < 偏低PE(12) 且 殖利率 >= 偏高殖利率(5.5%)　←　最寬鬆<br>
-    <span style="color:#94a3b8">* 預估等級：使用者在季估計表輸入的預估EPS/股利計算而來。沈董等級：從季度EPS推算的沈董EPS+配息率推算股利計算而來。個股如有自訂 PE/殖利率參數，會優先套用。</span>`,
-  xiaoyao: `<b style="color:#334155">逍遙評價系統</b><br>
-    以門檻價位為基準，追蹤股價穿越各級門檻的情況。<br>
-    <b>EPS 取用順序</b>：使用者預估 > min(沈董EPS, 綜合EPS)　｜　<b>股利取用順序</b>：跟隨EPS來源（綜合EPS→綜合股利，沈董EPS→沈董股利）<br>
-    <span style="color:#dc2626;font-weight:700">AA</span> = min(EPS×最低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　最嚴格（PE=10, 殖利率=6%）<br>
-    <span style="color:#ea580c;font-weight:700">A1</span> = min(EPS×最低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　PE嚴+殖利率寬（PE=10, 殖利率=5.5%）<br>
-    <span style="color:#2563eb;font-weight:700">A2</span> = min(EPS×偏低PE, 股利/最高殖利率, 權重股利/6%+股利)　←　PE寬+殖利率嚴（PE=12, 殖利率=6%）<br>
-    <span style="color:#16a34a;font-weight:700">A</span> = min(EPS×偏低PE, 股利/偏高殖利率, 權重股利/6%+股利)　←　最寬鬆（PE=12, 殖利率=5.5%）<br>
-    <span style="color:#94a3b8">* 個股如有自訂 PE/殖利率參數，會優先套用。股價 <= 門檻值即歸入該等級，取最深等級。</span>`,
-  growth: `<b style="color:#334155">成長評價</b><br>
-    <b>約翰聶夫比率</b> = (EPS成長率 + 殖利率) / 本益比　←　Neff Ratio >= 1 表示成長性被低估<br>
-    <b>PEG</b> = 本益比 / EPS成長率　←　PEG <= 1 表示股價相對成長性便宜<br>
-    <span style="color:#94a3b8">* 使用 neff_d（Neff比率）和 lynch_d（PEG），灰名單股票已排除</span>`,
-  shenCombo: `<b style="color:#334155">預估/沈董+成長</b><br>
-    同時符合預估/沈董等級為 A 級以上（AA/A1/A2/A）<b>且</b>成長評價通過（Neff >= 1 或 PEG <= 1）的股票。<br>
-    <span style="color:#94a3b8">* 兩個條件都滿足才會列入</span>`,
-  combo: `<b style="color:#334155">逍遙+成長</b><br>
-    同時符合門檻便宜（股價低於門檻）<b>且</b>成長評價通過（Neff >= 1 或 PEG <= 1）的股票。<br>
-    <span style="color:#94a3b8">* 兩個條件都滿足才會列入，是最嚴格的篩選</span>`,
-};
+// ─── 工具函式 ─────────────────────────────────────────
+function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '—'; }
+function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
+function _fmtNum(v, dec=2) { return v != null ? v.toFixed(dec) : '—'; }
 
-const GRADE_CLS = g => {
+function _gradeCls(g) {
   if (!g) return 'grade-c';
-  if (['AA','A1','A2','A'].includes(g)) return 'grade-a';
-  if (['B1A','B2A','B1','B2'].includes(g)) return 'grade-b';
+  if (['AA','A1','A2','A','B1A','B2A'].includes(g)) return 'grade-a';
+  if (['B1','B2'].includes(g)) return 'grade-b';
   return 'grade-c';
-};
-
-function _growthBadge(signal, rev, eps, inv) {
-  if (!signal) return '<span style="color:#cbd5e1">—</span>';
-  const colors = {green:'#16a34a', yellow:'#d97706', red:'#dc2626'};
-  const labels = {green:'成長', yellow:'持平', red:'衰退'};
-  const bgs = {green:'#dcfce7', yellow:'#fef3c7', red:'#fee2e2'};
-  const parts = [];
-  if (rev != null) parts.push(`營收動能:${rev>0?'+':''}${rev.toFixed(1)}%`);
-  if (eps != null) parts.push(`EPS同比:${eps>0?'+':''}${eps.toFixed(1)}%`);
-  if (inv) parts.push('存貨警訊');
-  const tip = parts.length ? parts.join(' / ') : '';
-  return `<span style="font-size:.72rem;padding:1px 6px;border-radius:4px;background:${bgs[signal]};color:${colors[signal]};font-weight:700;cursor:default" title="${tip}">${labels[signal]}</span>`;
 }
 
+// 通過率格式 + 顏色 class
+function _chkFmt(pass, total) {
+  if (pass == null || !total) return { html: '—', cls: '' };
+  const pct = pass / total;
+  const cls = pct >= 0.7 ? 'chk-pass' : pct < 0.5 ? 'chk-fail' : 'chk-mid';
+  return { html: `${pass}/${total}`, cls };
+}
+
+// Neff 色彩
+function _neffCls(v) {
+  if (v == null) return 'neff-lo';
+  if (v >= 1.5) return 'neff-hi';
+  if (v >= 1.0) return 'neff-mid';
+  return 'neff-lo';
+}
+
+// 品質條件：A至少5/7 且 B至少7/10，整體通過率≥70%
+function _isHighQuality(s) {
+  const ap = s._chk_profit, at = s._chk_profit_total || 7;
+  const bp = s._chk_safety, bt = s._chk_safety_total || 10;
+  if (ap == null || bp == null) return false;
+  const totalPass = (s._chk_pass || 0);
+  const totalAll  = (s._chk_total || 17);
+  return ap >= 5 && bp >= 7 && (totalPass / totalAll) >= 0.7;
+}
+
+// 動能條件：累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0
+function _isPositiveMomentum(s) {
+  const gi = s._gi || {};
+  const cum  = s.revenue_cum_yoy;
+  const m3   = gi.rev_3m_yoy;
+  const m12  = gi.rev_12m_yoy;
+  if (cum == null || m3 == null || m12 == null) return false;
+  return cum >= 0 && m3 >= 0 && m12 >= 0;
+}
+
+// ─── 篩選函式 ─────────────────────────────────────────
+function _neffPool() {
+  return _stocks.filter(s => {
+    const gi = s._gi || {};
+    return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
+  });
+}
+
+function _applyQuality(arr) {
+  return _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
+}
+
+function _tabItems(tab) {
+  let pool = _applyQuality(_neffPool());
+  if (tab === 'selected') {
+    return pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
+  } else if (tab === 'value') {
+    return pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s));
+  } else if (tab === 'momentum') {
+    return pool.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s));
+  } else {
+    return pool; // all
+  }
+}
+
+// ─── 載入 ─────────────────────────────────────────────
 async function load() {
   try {
     const [briefRes, listRes, stocksRes] = await Promise.all([
@@ -215,672 +307,228 @@ async function load() {
       fetch('/api/stocks'),
     ]);
     const lists = await listRes.json();
-    _qualitySet = new Set((lists.quality || []).map(r => r.code));
-    _focusTrackSet = new Set((lists.track || []).map(r => r.code));
-    _data = await briefRes.json();
+    _qualitySet    = new Set((lists.quality || []).map(r => r.code));
+    _focusTrackSet = new Set((lists.track   || []).map(r => r.code));
+
+    _briefData = await briefRes.json();
+    _growthChanges = _briefData.growth_changes || {};
+    _neffNewSet     = new Set(_growthChanges.neff_new     || []);
+    _neffRemovedSet = new Set(_growthChanges.neff_removed || []);
 
     const stocksJson = await stocksRes.json();
     _stocks = stocksJson.data || [];
-    // 建立 code → stock 查找表，供各頁面補齊欄位
-    _stockMap = {};
-    _stocks.forEach(s => { _stockMap[s.code] = s; });
 
-    // 預估/沈董評價法：從 stocks 表讀取 est_grade / shen_grade（DB 資料）
-    // 優先順序：有預估等級（非null/非X）用預估，否則用沈董
-    const _A_GRADES = new Set(['AA','A1','A2','A']);
-    const _usedGrade = s => {
-      const eg = s.est_grade;
-      return (eg && eg !== 'X') ? eg : s.shen_grade;
-    };
-    _shenGradeList = _stocks.filter(s => _A_GRADES.has(_usedGrade(s))).map(s => {
-      const hasEst = !!s.est_grade && s.est_grade !== 'X';
-      const usedGrade = _usedGrade(s);
-      const gi = s._gi || {};
-      return {
-        code: s.code, name: s.name,
-        grade: usedGrade,
-        price: s.close,
-        shen_pe: s.shen_pe, shen_yld: s.shen_yld,
-        blend_pe: s.blend_pe, blend_yld: s.blend_yld,
-        revenue_yoy: s.revenue_yoy,
-        revenue_cum_yoy: s.revenue_cum_yoy,
-        rev_3m_yoy: gi.rev_3m_yoy,
-        rev_12m_yoy: gi.rev_12m_yoy,
-        neff_d: gi.neff_d, neff_gray: gi.neff_gray,
-        chk_pass: s._chk_pass,
-        chk_total: s._chk_total,
-      };
-    });
-
-    // 預估/沈董等級變動（從 stock_state 快照比對）
-    const _shenGradeChanges = _data.shen_grade_changes || [];
-    const _sgChangeMap = {};
-    _shenGradeChanges.forEach(c => { _sgChangeMap[c.code] = c; });
-    // 標記新增/變動到 _shenGradeList
-    _shenGradeList.forEach(item => {
-      const chg = _sgChangeMap[item.code];
-      if (!chg) return;
-      if (chg.direction === 'new') {
-        item._chg_new = true;
-        item._chg_from = chg.from_grade;
-        item._chg_to = chg.to_grade;
-      } else if (chg.direction === 'lateral') {
-        item._chg_direction = 'lateral';
-        item._chg_from = chg.from_grade;
-        item._chg_to = chg.to_grade;
-      }
-    });
-    // 刪除的也加入（淡顯）
-    _shenGradeChanges.filter(c => c.direction === 'removed').forEach(c => {
-      if (!_shenGradeList.some(s => s.code === c.code)) {
-        const st = _stockMap[c.code] || {};
-        const gi = st._gi || {};
-        _shenGradeList.push({
-          code: c.code, name: c.name,
-          grade: c.from_grade,
-          price: st.close,
-          shen_pe: st.shen_pe, shen_yld: st.shen_yld,
-          blend_pe: st.blend_pe, blend_yld: st.blend_yld,
-          revenue_yoy: st.revenue_yoy, revenue_cum_yoy: st.revenue_cum_yoy,
-          rev_3m_yoy: gi.rev_3m_yoy, rev_12m_yoy: gi.rev_12m_yoy,
-          neff_d: gi.neff_d, neff_gray: gi.neff_gray,
-          chk_pass: st._chk_pass, chk_total: st._chk_total,
-          _removed: true,
-          _chg_from: c.from_grade, _chg_to: c.to_grade,
-        });
-      }
-    });
-
-    _cheapList = _data.val_cheap_list || [];
-    _changes = _data.val_level_changes || [];
-    _byThreshold = _data.val_by_threshold || {};
-    _growthChanges = _data.growth_changes || {};
-
-    const changeMap = {};
-    _changes.forEach(c => { changeMap[c.code] = c; });
-    _cheapList.forEach(item => {
-      const chg = changeMap[item.code];
-      if (chg) {
-        item._chg_from = chg.from;
-        item._chg_to = chg.to;
-        item._chg_direction = chg.direction;
-      }
-    });
-
-    const cheapCodes = new Set(_cheapList.map(c => c.code));
-    _changes.forEach(c => {
-      if (c.direction === 'expensive' && !cheapCodes.has(c.code)) {
-        _cheapList.push({
-          code: c.code, name: c.name, level: c.from,
-          price: c.price, discount_pct: null,
-          _removed: true, _chg_from: c.from, _chg_to: c.to,
-        });
-      }
-    });
-
-    // 把 val_level_changes 的變動資訊合入 _byThreshold（便宜清單顯示新增/刪除）
-    Object.values(_byThreshold).forEach(items => {
-      items.forEach(item => {
-        if (item.cross) return;  // 穿越項目已有標記，跳過
-        const chg = changeMap[item.code];
-        if (chg) {
-          item._chg_from = chg.from;
-          item._chg_to = chg.to;
-          item._chg_direction = chg.direction;
-        }
-      });
-    });
-    // 離開便宜區的股票加入對應門檻的 _byThreshold（淡顯刪除）
-    _changes.filter(c => c.direction === 'expensive').forEach(c => {
-      const fromTh = c.from;
-      if (fromTh && _byThreshold[fromTh]) {
-        if (!_byThreshold[fromTh].some(s => s.code === c.code)) {
-          _byThreshold[fromTh].push({
-            code: c.code, name: c.name, price: c.price,
-            discount_pct: null,
-            _removed: true, _chg_from: c.from, _chg_to: c.to || 'above',
-          });
-        }
-      }
-    });
-
-    if (_data.data_date) document.getElementById('dateLabel').textContent = `資料日期：${_data.data_date}`;
-    renderL2Tabs();
-    updateCounts();
-    renderTab();
-  } catch(e) {
-    console.error('valuation load error:', e);
-    document.getElementById('content').innerHTML = `<div style="text-align:center;padding:60px;color:#ef4444">無法載入：${e.message}</div>`;
-  }
-}
-
-
-function switchL1(l1, btn) {
-  _L1 = l1;
-  document.querySelectorAll('.tab-L1').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  // 切到該分類的第一個子 tab
-  _L2 = L2_CONFIG[l1][0].id;
-  renderL2Tabs();
-  updateCounts();
-  renderTab();
-  document.getElementById('infoBox').innerHTML = INFO_TEXT[l1] || '';
-}
-
-function renderL2Tabs() {
-  const tabs = L2_CONFIG[_L1];
-  document.getElementById('tabBarL2').innerHTML = tabs.map(t =>
-    `<button class="tab-L2 ${t.id===_L2?'active':''}" onclick="switchL2('${t.id}',this)">${t.label}<span class="count-badge" id="cnt_${t.id}" style="background:${t.badge};color:${t.badgeColor}"></span></button>`
-  ).join('');
-  document.getElementById('infoBox').innerHTML = INFO_TEXT[_L1] || '';
-}
-
-function switchL2(l2, btn) {
-  _L2 = l2;
-  document.querySelectorAll('.tab-L2').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderTab();
-}
-
-function updateCounts() {
-  const filt = arr => _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
-  const pool = filt(_cheapList).filter(s => !s._removed);
-
-  // 預估/沈董（從 stocks 表的 est_grade / shen_grade）
-  const setCnt = (id, v) => { const el = document.getElementById('cnt_'+id); if(el) el.textContent = v; };
-  const shenPool = (_qualityOnly ? _shenGradeList.filter(s => _qualitySet.has(s.code)) : _shenGradeList).filter(s => !s._removed);
-  setCnt('aa', shenPool.filter(s => s.grade === 'AA').length);
-  setCnt('cheap', shenPool.filter(s => ['A1','A2','A'].includes(s.grade)).length);
-
-  // 逍遙
-  setCnt('thAA', filt((_byThreshold['AA']||[]).filter(s => !s._removed)).length);
-  const otherThs = ['A1','A2','A'];
-  setCnt('thOther', otherThs.reduce((s,th) => s + filt((_byThreshold[th]||[]).filter(x => !x._removed)).length, 0));
-  setCnt('thLt6', filt((_byThreshold['長期6%']||[]).filter(s => !s._removed)).length);
-
-  // 成長（neff_d = Neff比率, lynch_d = PEG）
-  const neffList = _stocks.filter(s => {
-    const gi = s._gi || {};
-    return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
-  });
-  const pegList = _stocks.filter(s => {
-    const gi = s._gi || {};
-    return gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray;
-  });
-  setCnt('neff', _qualityOnly ? neffList.filter(s => _qualitySet.has(s.code)).length : neffList.length);
-  setCnt('peg', _qualityOnly ? pegList.filter(s => _qualitySet.has(s.code)).length : pegList.length);
-
-  // 成長合格 set（Neff >= 1 或 PEG <= 1）
-  const growthCodes = new Set([...neffList.map(s=>s.code), ...pegList.map(s=>s.code)]);
-
-  // 預估/沈董+成長
-  const scFilter = grade => {
-    let items = _shenGradeList.filter(s => s.grade === grade && growthCodes.has(s.code));
-    return _qualityOnly ? items.filter(s => _qualitySet.has(s.code)) : items;
-  };
-  setCnt('scAA', scFilter('AA').length);
-  setCnt('scOther', ['A1','A2','A'].reduce((s,g) => s + scFilter(g).length, 0));
-
-  // 逍遙+成長
-  const comboFilter = (thItems) => {
-    let items = thItems.filter(s => !s._removed && growthCodes.has(s.code));
-    return _qualityOnly ? items.filter(s => _qualitySet.has(s.code)) : items;
-  };
-  setCnt('comboAA', comboFilter(_byThreshold['AA']||[]).length);
-  setCnt('comboOther', ['A1','A2','A'].reduce((s,th) => s + comboFilter(_byThreshold[th]||[]).length, 0));
-  setCnt('comboLt6', comboFilter(_byThreshold['長期6%']||[]).length);
-}
-
-function renderTab() {
-  if (_L1 === 'shen') {
-    if (_L2 === 'aa') renderShenGradeList('AA');
-    else if (_L2 === 'cheap') renderShenGradeList('cheap');
-  } else if (_L1 === 'xiaoyao') {
-    if (_L2 === 'thAA') renderThresholdList(['AA']);
-    else if (_L2 === 'thOther') renderThresholdList(['A1','A2','A']);
-    else if (_L2 === 'thLt6') renderThresholdList(['長期6%']);
-  } else if (_L1 === 'growth') {
-    if (_L2 === 'neff') renderGrowthList('neff');
-    else if (_L2 === 'peg') renderGrowthList('peg');
-  } else if (_L1 === 'shenCombo') {
-    if (_L2 === 'scAA') renderShenComboList('AA');
-    else if (_L2 === 'scOther') renderShenComboList('cheap');
-  } else if (_L1 === 'combo') {
-    if (_L2 === 'comboAA') renderComboList(['AA']);
-    else if (_L2 === 'comboOther') renderComboList(['A1','A2','A']);
-    else if (_L2 === 'comboLt6') renderComboList(['長期6%']);
-  }
-}
-
-function renderShenGradeList(mode) {
-  let items = mode === 'AA'
-    ? _shenGradeList.filter(s => s.grade === 'AA')
-    : _shenGradeList.filter(s => ['A1','A2','A'].includes(s.grade));
-  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-
-  const normal = items.filter(s => !s._removed);
-  const removed = items.filter(s => s._removed);
-
-  const groups = {};
-  normal.forEach(c => { const g = c.grade; if(!groups[g]) groups[g] = []; groups[g].push(c); });
-  const removedByGrade = {};
-  removed.forEach(c => { const g = c.grade; if(!removedByGrade[g]) removedByGrade[g] = []; removedByGrade[g].push(c); });
-
-  const gradeOrder = ['AA','A1','A2','A'];
-  const allGrades = new Set([...Object.keys(groups), ...Object.keys(removedByGrade)]);
-  const sortedGrades = [...allGrades].sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
-
-  const title = mode === 'AA' ? 'AA 級' : 'A1 / A2 / A 級';
-  const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
-
-  let html = `<div class="section">
-    <div class="section-header" style="${headerColor}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${normal.length} 支</span>
-    </div>`;
-
-  sortedGrades.forEach(grade => {
-    let gItems = groups[grade] || [];
-    let gRemoved = removedByGrade[grade] || [];
-    if (!gItems.length && !gRemoved.length) return;
-    // 排序：PE 低的在前
-    gItems.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
-
-    if (mode !== 'AA') {
-      const gcls = GRADE_CLS(grade);
-      html += `<div style="padding:0 20px"><div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0"><span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span><span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span></div>`;
-    } else {
-      html += '<div style="padding:0 20px">';
+    if (_briefData.data_date) {
+      document.getElementById('dateLabel').textContent = `資料日期：${_briefData.data_date}`;
     }
 
-    html += _shenGradeTableHtml([...gItems, ...gRemoved]);
-    html += '</div>';
-  });
-
-  if (!normal.length && !removed.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">此等級目前無股票</div>';
-  html += '</div>';
-  document.getElementById('content').innerHTML = html;
+    renderStats();
+    renderChangeBlock();
+    renderAll();
+  } catch(e) {
+    console.error('valuation load error:', e);
+    document.getElementById('tab_selected').innerHTML =
+      `<div class="empty" style="color:#ef4444">無法載入：${e.message}</div>`;
+  }
 }
 
-function _shenGradeTableHtml(items) {
-  const _peColor = v => v != null ? (v <= 10 ? '#dc2626' : v <= 15 ? '#334155' : '#64748b') : '#cbd5e1';
-  const _peStr = v => v != null ? v.toFixed(1) : '-';
-  const _yldColor = v => v != null ? (v >= 6 ? '#dc2626' : v >= 4 ? '#334155' : '#64748b') : '#cbd5e1';
-  const _yldStr = v => v != null ? v.toFixed(1) + '%' : '-';
+// ─── 統計卡片 ─────────────────────────────────────────
+function renderStats() {
+  const pool    = _neffPool();
+  const qualCnt = pool.filter(s => _qualitySet.has(s.code)).length;
+  const newCnt  = _neffNewSet.size;
+  const rmCnt   = _neffRemovedSet.size;
 
-  let html = `<table class="val-table"><thead><tr>
-    <th style="width:36px;text-align:center">追蹤</th>
-    <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-    <th style="width:50px;text-align:center">檢核</th>
-    <th style="width:70px;text-align:right">股價</th>
-    <th style="width:65px;text-align:right">沈董PE</th>
-    <th style="width:70px;text-align:right">沈董殖利率</th>
-    <th style="width:65px;text-align:right">綜合PE</th>
-    <th style="width:70px;text-align:right">綜合殖利率</th>
-    <th style="width:65px;text-align:right">累計</th>
-    <th style="width:65px;text-align:right">月營收</th>
-    <th style="width:60px;text-align:right">3M</th>
-    <th style="width:60px;text-align:right">12M</th>
-    <th style="width:65px;text-align:right">Neff</th>
-    <th style="width:70px;text-align:center">新增</th>
-    <th style="width:70px;text-align:center">刪除</th>
-  </tr></thead><tbody>`;
+  document.getElementById('sc-total').textContent   = pool.length;
+  document.getElementById('sc-quality').textContent = qualCnt;
+  document.getElementById('sc-new').textContent     = newCnt;
+  document.getElementById('sc-rm').textContent      = rmCnt;
+}
 
-  items.forEach(c => {
-    const isRemoved = !!c._removed;
-    const isFocused = _focusTrackSet.has(c.code);
-    const chkHtml = c.chk_pass != null
-      ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>`
-      : '\u2014';
-    // Neff 比率：>= 1 紅色粗體、< 1 灰色
-    const nv = c.neff_d;
-    const neffStr = (nv != null && !c.neff_gray) ? nv.toFixed(2) : '-';
-    const neffColor = (nv != null && nv >= 1 && !c.neff_gray) ? '#dc2626' : '#94a3b8';
-    const neffWeight = (nv != null && nv >= 1 && !c.neff_gray) ? '700' : '400';
-    // 新增/刪除標記（支援等級變動和門檻穿越兩種情境）
-    const addHtml = c._chg_new
-      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">${c._chg_from||'—'}→${c._chg_to||'—'}</span>`
-      : (c._chg_direction === 'cheaper' && c._chg_from)
-      ? `<span style="color:#059669;font-weight:600;font-size:.75rem">突破 ${c._chg_from}→${c._chg_to}</span>`
-      : (c._chg_direction === 'lateral' && c._chg_from)
-      ? `<span style="color:#2563eb;font-weight:600;font-size:.75rem">平移 ${c._chg_from}→${c._chg_to}</span>` : '';
-    const rmHtml = isRemoved
-      ? `<span style="color:#dc2626;font-weight:600;font-size:.75rem">${c._chg_from||'—'}→${c._chg_to||'—'}</span>` : '';
-    const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
+// ─── 異動區 ─────────────────────────────────────────
+function _toggleChangeBlock() {
+  _changeBlockOpen = !_changeBlockOpen;
+  document.getElementById('changeBlockBody').style.display = _changeBlockOpen ? '' : 'none';
+  document.getElementById('changeBlockArrow').textContent  = _changeBlockOpen ? '▼' : '▶';
+}
 
-    html += `<tr${rowStyle}>
-      <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
-      <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-      <td>${c.name}</td>
-      <td style="text-align:center">${chkHtml}</td>
-      <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-      <td style="text-align:right;color:${_peColor(c.shen_pe)}">${_peStr(c.shen_pe)}</td>
-      <td style="text-align:right;color:${_yldColor(c.shen_yld)}">${_yldStr(c.shen_yld)}</td>
-      <td style="text-align:right;color:${_peColor(c.blend_pe)}">${_peStr(c.blend_pe)}</td>
-      <td style="text-align:right;color:${_yldColor(c.blend_yld)}">${_yldStr(c.blend_yld)}</td>
-      <td style="text-align:right;color:${_revColor(c.revenue_cum_yoy)}">${_revStr(c.revenue_cum_yoy)}</td>
-      <td style="text-align:right;color:${_revColor(c.revenue_yoy)}">${_revStr(c.revenue_yoy)}</td>
-      <td style="text-align:right;color:${_revColor(c.rev_3m_yoy)}">${_revStr(c.rev_3m_yoy)}</td>
-      <td style="text-align:right;color:${_revColor(c.rev_12m_yoy)}">${_revStr(c.rev_12m_yoy)}</td>
-      <td style="text-align:right;color:${neffColor};font-weight:${neffWeight}">${neffStr}</td>
-      <td style="text-align:center">${addHtml}</td>
-      <td style="text-align:center">${rmHtml}</td>
+function renderChangeBlock() {
+  const hasNew = _neffNewSet.size > 0;
+  const hasRm  = _neffRemovedSet.size > 0;
+  if (!hasNew && !hasRm) return;
+
+  const block = document.getElementById('changeBlock');
+  block.style.display = '';
+
+  const newCount = _neffNewSet.size;
+  const rmCount  = _neffRemovedSet.size;
+  document.getElementById('changeBlockTitle').textContent =
+    `Neff 今日異動（新增 ${newCount} 支 / 剔除 ${rmCount} 支）`;
+
+  // 取得 stock 名稱
+  const codeMap = {};
+  _stocks.forEach(s => { codeMap[s.code] = s.name || ''; });
+
+  let html = '';
+  if (hasNew) {
+    html += `<div style="margin-bottom:10px">
+      <span style="font-size:.78rem;font-weight:700;color:#166534;margin-right:8px">新增進榜</span>
+      <div class="change-row" style="margin-top:6px">`;
+    _neffNewSet.forEach(code => {
+      const name = codeMap[code] || '';
+      html += `<a href="/company.html?code=${code}" target="_blank" class="change-pill pill-new">${code} ${name}</a>`;
+    });
+    html += '</div></div>';
+  }
+  if (hasRm) {
+    html += `<div>
+      <span style="font-size:.78rem;font-weight:700;color:#991b1b;margin-right:8px">今日剔除</span>
+      <div class="change-row" style="margin-top:6px">`;
+    _neffRemovedSet.forEach(code => {
+      const name = codeMap[code] || '';
+      html += `<a href="/company.html?code=${code}" target="_blank" class="change-pill pill-rm">${code} ${name}</a>`;
+    });
+    html += '</div></div>';
+  }
+  document.getElementById('changeBlockBody').innerHTML = html;
+}
+
+// ─── Tab 切換 ─────────────────────────────────────────
+function switchTab(tab, btn) {
+  _currentTab = tab;
+  document.querySelectorAll('.tab-L1').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab_' + tab).classList.add('active');
+}
+
+// ─── 渲染所有 Tab ─────────────────────────────────────
+function renderAll() {
+  ['selected','value','momentum','all'].forEach(tab => {
+    const items = _tabItems(tab);
+    // badge
+    document.getElementById('cnt_' + tab).textContent = items.length;
+    // render
+    const el = document.getElementById('tab_' + tab);
+    if (!items.length) {
+      el.innerHTML = `<div class="empty">目前無符合條件的股票</div>`;
+    } else {
+      // 排序：Neff 由高到低
+      items.sort((a, b) => ((b._gi||{}).neff_d || 0) - ((a._gi||{}).neff_d || 0));
+      el.innerHTML = `<div class="table-wrap">${_buildTable(items)}</div>`;
+    }
+  });
+}
+
+// ─── 表格 HTML ─────────────────────────────────────────
+function _buildTable(items) {
+  let html = `<table class="neff-table">
+    <thead><tr>
+      <th class="c" style="width:36px">追蹤</th>
+      <th style="width:58px">代碼</th>
+      <th style="width:80px">名稱</th>
+      <th class="r" style="width:68px">Neff比率</th>
+      <th class="r" style="width:68px">營收CAGR</th>
+      <th class="r" style="width:54px">PE</th>
+      <th class="r" style="width:60px">殖利率</th>
+      <th class="c" style="width:50px">等級</th>
+      <th class="r" style="width:60px">股價</th>
+      <th class="c" style="width:56px">A通過</th>
+      <th class="c" style="width:56px">B通過</th>
+      <th class="c" style="width:56px">C通過</th>
+      <th class="c" style="width:56px">D通過</th>
+      <th class="r" style="width:65px">累積YoY</th>
+      <th class="r" style="width:55px">3M</th>
+      <th class="r" style="width:55px">12M</th>
+      <th class="c" style="width:90px">標籤</th>
+    </tr></thead><tbody>`;
+
+  items.forEach(s => {
+    const gi     = s._gi || {};
+    const nv     = gi.neff_d;
+    const neffCls = _neffCls(nv);
+    const neffStr = nv != null ? nv.toFixed(2) : '—';
+
+    // 營收CAGR（neff_c）
+    const cagrV = gi.neff_c;
+    const cagrStr = cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—';
+    const cagrColor = _revColor(cagrV);
+
+    // PE、殖利率
+    const peV  = gi.pe;
+    const yldV = gi.yield !== undefined ? gi['yield'] : gi.yld;
+    const peStr  = peV  != null ? peV.toFixed(1)  : '—';
+    const yldStr = yldV != null ? yldV.toFixed(1) + '%' : '—';
+
+    // 等級（預估優先，其次沈董）
+    const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
+    const gradeCls = _gradeCls(grade);
+
+    // 股價
+    const priceStr = s.close != null ? s.close.toFixed(2) : '—';
+
+    // 檢核欄位
+    const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
+    const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
+    const chkC = _chkFmt(s._chk_value,  s._chk_value_total  || 5);
+    const chkD = _chkFmt(s._chk_growth, s._chk_growth_total || 5);
+
+    // 累積 / 3M / 12M
+    const cumV  = s.revenue_cum_yoy;
+    const m3V   = gi.rev_3m_yoy;
+    const m12V  = gi.rev_12m_yoy;
+
+    // 標籤
+    let tagHtml = '';
+    if (_neffNewSet.has(s.code))    tagHtml += `<span class="tag tag-new">新進榜</span>`;
+    if (_qualitySet.has(s.code))    tagHtml += `<span class="tag tag-qual">體質佳</span>`;
+
+    const isFocused = _focusTrackSet.has(s.code);
+
+    html += `<tr>
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+      <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
+      <td>${s.name || ''}</td>
+      <td class="r"><span class="${neffCls}">${neffStr}</span></td>
+      <td class="r" style="color:${cagrColor}">${cagrStr}</td>
+      <td class="r" style="color:#475569">${peStr}</td>
+      <td class="r" style="color:#475569">${yldStr}</td>
+      <td class="c"><span class="${gradeCls}">${grade || '—'}</span></td>
+      <td class="r" style="font-weight:600">${priceStr}</td>
+      <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
+      <td class="c chk-cell"><span class="${chkB.cls}">${chkB.html}</span></td>
+      <td class="c chk-cell"><span class="${chkC.cls}">${chkC.html}</span></td>
+      <td class="c chk-cell"><span class="${chkD.cls}">${chkD.html}</span></td>
+      <td class="r" style="color:${_revColor(cumV)}">${_revStr(cumV)}</td>
+      <td class="r" style="color:${_revColor(m3V)}">${_revStr(m3V)}</td>
+      <td class="r" style="color:${_revColor(m12V)}">${_revStr(m12V)}</td>
+      <td class="c">${tagHtml}</td>
     </tr>`;
   });
+
   html += '</tbody></table>';
   return html;
 }
 
-function renderShenComboList(mode) {
-  // 成長合格 set
-  const growthMap = {};
-  _stocks.forEach(s => {
-    const gi = s._gi || {};
-    if (gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray) {
-      growthMap[s.code] = {val: gi.neff_d, src: 'Neff'};
-    } else if (gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray) {
-      growthMap[s.code] = {val: gi.lynch_d, src: 'PEG'};
-    }
-  });
-
-  let items = (mode === 'AA'
-    ? _shenGradeList.filter(s => s.grade === 'AA')
-    : _shenGradeList.filter(s => ['A1','A2','A'].includes(s.grade))
-  ).filter(s => growthMap[s.code]);
-
-  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-
-  const groups = {};
-  items.forEach(c => { const g = c.grade; if(!groups[g]) groups[g] = []; groups[g].push(c); });
-  const gradeOrder = ['AA','A1','A2','A'];
-  const sortedGrades = Object.keys(groups).sort((a,b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
-
-  const title = mode === 'AA' ? 'AA 級 + 成長評價' : 'A1 / A2 / A 級 + 成長評價';
-  const headerColor = mode === 'AA' ? 'background:#fef2f2;color:#991b1b;border-color:#ef4444' : 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
-
-  let html = `<div class="section">
-    <div class="section-header" style="${headerColor}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支</span>
-    </div>`;
-
-  sortedGrades.forEach(grade => {
-    let gItems = groups[grade] || [];
-    if (!gItems.length) return;
-    gItems.sort((a,b) => (a.pe || 999) - (b.pe || 999));
-
-    if (mode !== 'AA') {
-      const gcls = GRADE_CLS(grade);
-      html += `<div style="padding:0 20px"><div style="display:flex;align-items:center;gap:8px;padding:10px 0 4px;border-bottom:1px solid #e2e8f0"><span class="${gcls}" style="font-size:.9rem">等級 ${grade}</span><span style="font-size:.78rem;color:#94a3b8">${gItems.length} 支</span></div>`;
-    } else {
-      html += '<div style="padding:0 20px">';
-    }
-
-    html += _shenGradeTableHtml(gItems);
-    html += '</div>';
-  });
-
-  if (!items.length) html += '<div style="text-align:center;padding:40px;color:#94a3b8">目前無同時符合的股票</div>';
-  html += '</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
-function _revStr(v) { return v != null ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '-'; }
-function _revColor(v) { return v != null ? (v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b') : '#cbd5e1'; }
-
-function _enrichFromStockMap(c) {
-  const s = _stockMap[c.code] || {};
-  const gi = s._gi || {};
-  if (c.revenue_yoy == null) c.revenue_yoy = s.revenue_yoy;
-  if (c.revenue_cum_yoy == null) c.revenue_cum_yoy = s.revenue_cum_yoy;
-  if (c.rev_3m_yoy == null) c.rev_3m_yoy = gi.rev_3m_yoy;
-  if (c.rev_12m_yoy == null) c.rev_12m_yoy = gi.rev_12m_yoy;
-  if (c.shen_pe == null) c.shen_pe = s.shen_pe;
-  if (c.shen_yld == null) c.shen_yld = s.shen_yld;
-  if (c.blend_pe == null) c.blend_pe = s.blend_pe;
-  if (c.blend_yld == null) c.blend_yld = s.blend_yld;
-  if (c.neff_d == null) c.neff_d = gi.neff_d;
-  if (c.neff_gray == null) c.neff_gray = gi.neff_gray;
-  if (c.chk_pass == null) c.chk_pass = s._chk_pass;
-  if (c.chk_total == null) c.chk_total = s._chk_total;
-  // 門檻穿越 → 統一新增標記
-  if (c.cross === 'below' && !c._chg_new) {
-    c._chg_new = true;
-    c._chg_from = c.from_th || 'above';
-    c._chg_to = c.to_th;
-  }
-  return c;
-}
-
-function renderThresholdList(thNames) {
-  const thStyle = {
-    'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
-    'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
-    'A2':    {bg:'#eff6ff', color:'#1d4ed8', border:'#3b82f6'},
-    'A':     {bg:'#f0fdf4', color:'#166534', border:'#22c55e'},
-    '長期6%': {bg:'#ecfdf5', color:'#065f46', border:'#10b981'},
-  };
-
-  let html = '';
-  thNames.forEach(th => {
-    let items = (_byThreshold[th] || []).map(s => _enrichFromStockMap({...s}));
-    if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-    const normal = items.filter(s => !s._removed && !s.cross);
-    const removed = items.filter(s => s._removed);
-    const st = thStyle[th];
-
-    html += `<div class="section">
-      <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
-        ${th} 門檻便宜清單
-        <span style="font-weight:400;font-size:.82rem;margin-left:8px">${normal.length} 支</span>
-      </div>`;
-
-    if (!normal.length && !removed.length) {
-      html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無股票低於此門檻</div>';
-    } else {
-      normal.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
-      html += '<div style="padding:0 20px">' + _shenGradeTableHtml([...normal, ...removed]) + '</div>';
-    }
-    html += '</div>';
-  });
-
-  document.getElementById('content').innerHTML = html;
-}
-
-function renderCrosses(thNames) {
-  const thStyle = {
-    'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
-    'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
-    'A2':    {bg:'#eff6ff', color:'#1d4ed8', border:'#3b82f6'},
-    'A':     {bg:'#f0fdf4', color:'#166534', border:'#22c55e'},
-    '長期6%': {bg:'#ecfdf5', color:'#065f46', border:'#10b981'},
-  };
-
-  let html = '';
-  thNames.forEach(th => {
-    let items = _byThreshold[th] || [];
-    if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-    const normal = items.filter(s => !s._removed);
-    const removed = items.filter(s => s._removed);
-    const st = thStyle[th];
-
-    html += `<div class="section">
-      <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
-        ${th} 門檻穿越
-        <span style="font-weight:400;font-size:.82rem;margin-left:8px">${normal.length} 支</span>
-      </div>`;
-
-    if (!normal.length && !removed.length) {
-      html += '<div style="text-align:center;padding:30px;color:#94a3b8">今日無穿越此門檻的股票</div>';
-    } else {
-      html += `<div style="padding:0 20px"><table class="val-table"><thead><tr>
-        <th style="width:36px;text-align:center">追蹤</th>
-        <th style="width:60px">代碼</th><th style="width:80px">名稱</th>
-        <th style="width:50px;text-align:center">檢核</th>
-        <th style="width:50px;text-align:center">趨勢</th>
-        <th style="width:80px;text-align:right">股價</th>
-        <th style="width:80px;text-align:right">門檻價</th>
-        <th style="width:80px;text-align:right">折價幅度</th>
-        <th style="width:100px;text-align:center">狀態</th>
-      </tr></thead><tbody>`;
-
-      [...normal, ...removed].forEach(c => {
-        const isRemoved = !!c._removed;
-        const dp = c.discount_pct;
-        const dpColor = dp != null ? (dp >= 0 ? '#dc2626' : '#64748b') : '#cbd5e1';
-        const dpStr = dp != null ? (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%' : '-';
-        const rowStyle = isRemoved ? ' style="opacity:.5"' : '';
-        let statusHtml = '';
-        if (c.cross === 'below') {
-          statusHtml = `<span style="color:#059669;font-weight:700;font-size:.78rem">突破 ${c.from_th||'above'}→${c.to_th}</span>`;
-        } else if (c.cross === 'above') {
-          statusHtml = `<span style="color:#dc2626;font-weight:700;font-size:.78rem">跌破 ${c.from_th}→${c.to_th||'above'}</span>`;
-        }
-        const isFocused = _focusTrackSet.has(c.code);
-        const chkHtml = c.chk_pass != null ? `<a href="/company.html?code=${c.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap">${c.chk_pass}/${c.chk_total||12}</a>` : '—';
-        const growthHtml = _growthBadge(c.growth_signal, null, null, null);
-        html += `<tr${rowStyle}>
-          <td style="text-align:center"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${c.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
-          <td><a href="/company.html?code=${c.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${c.code}</a></td>
-          <td>${c.name}</td>
-          <td style="text-align:center">${chkHtml}</td>
-          <td style="text-align:center">${growthHtml}</td>
-          <td style="text-align:right;font-weight:600">${c.price != null ? c.price.toFixed(2) : '-'}</td>
-          <td style="text-align:right;color:${st.color}">${c.threshold_val != null ? c.threshold_val.toFixed(2) : '-'}</td>
-          <td style="text-align:right;font-weight:600;color:${dpColor}">${isRemoved ? '-' : dpStr}</td>
-          <td style="text-align:center">${statusHtml}</td>
-        </tr>`;
-      });
-      html += '</tbody></table></div>';
-    }
-    html += '</div>';
-  });
-
-  document.getElementById('content').innerHTML = html;
-}
-
-function renderComboList(thNames) {
-  // 建立成長合格 set（Neff >= 1 或 PEG <= 1）
-  const growthCodes = new Set();
-  _stocks.forEach(s => {
-    const gi = s._gi || {};
-    if ((gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray) ||
-        (gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray)) {
-      growthCodes.add(s.code);
-    }
-  });
-
-  const thStyle = {
-    'AA':    {bg:'#fef2f2', color:'#991b1b', border:'#ef4444'},
-    'A1':    {bg:'#fffbeb', color:'#92400e', border:'#f59e0b'},
-    'A2':    {bg:'#eff6ff', color:'#1d4ed8', border:'#3b82f6'},
-    'A':     {bg:'#f0fdf4', color:'#166534', border:'#22c55e'},
-    '長期6%': {bg:'#ecfdf5', color:'#065f46', border:'#10b981'},
-  };
-
-  let html = '';
-  thNames.forEach(th => {
-    let items = (_byThreshold[th] || [])
-      .filter(s => !s._removed && growthCodes.has(s.code))
-      .map(s => _enrichFromStockMap({...s}));
-    if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-    const st = thStyle[th];
-
-    html += `<div class="section">
-      <div class="section-header" style="background:${st.bg};color:${st.color};border-color:${st.border}">
-        ${th} 門檻 + 成長評價
-        <span style="font-weight:400;font-size:.82rem;margin-left:8px">${items.length} 支</span>
-      </div>`;
-
-    if (!items.length) {
-      html += '<div style="text-align:center;padding:30px;color:#94a3b8">目前無同時符合的股票</div>';
-    } else {
-      items.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
-      html += '<div style="padding:0 20px">' + _shenGradeTableHtml(items) + '</div>';
-    }
-    html += '</div>';
-  });
-
-  document.getElementById('content').innerHTML = html;
-}
-
-function renderGrowthList(type) {
-  let rawItems;
-  let title, headerStyle, sortField, sortLabel, filterLabel;
-
-  if (type === 'neff') {
-    rawItems = _stocks.filter(s => {
-      const gi = s._gi || {};
-      return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
-    });
-    title = '約翰聶夫 (Neff Ratio >= 1)';
-    headerStyle = 'background:#fffbeb;color:#92400e;border-color:#f59e0b';
-    sortField = 'neff_d';
-    sortLabel = 'Neff';
-    filterLabel = '(EPS成長率+殖利率) / PE >= 1，成長性被低估';
-  } else {
-    rawItems = _stocks.filter(s => {
-      const gi = s._gi || {};
-      return gi.lynch_d != null && gi.lynch_d > 0 && gi.lynch_d <= 1 && !gi.lynch_gray;
-    });
-    title = 'PEG (PEG <= 1)';
-    headerStyle = 'background:#eff6ff;color:#1d4ed8;border-color:#3b82f6';
-    sortField = 'lynch_d';
-    sortLabel = 'PEG';
-    filterLabel = 'PE / EPS成長率 <= 1，股價相對成長便宜';
-  }
-
-  const newSet = new Set(type === 'neff' ? (_growthChanges.neff_new||[]) : (_growthChanges.peg_new||[]));
-  let items = rawItems.map(s => {
-    const gi = s._gi || {};
-    return {
-      code: s.code, name: s.name, price: s.close,
-      chk_pass: s._chk_pass, chk_total: s._chk_total,
-      shen_pe: s.shen_pe, shen_yld: s.shen_yld,
-      blend_pe: s.blend_pe, blend_yld: s.blend_yld,
-      revenue_yoy: s.revenue_yoy, revenue_cum_yoy: s.revenue_cum_yoy,
-      rev_3m_yoy: gi.rev_3m_yoy, rev_12m_yoy: gi.rev_12m_yoy,
-      neff_d: gi.neff_d, neff_gray: gi.neff_gray,
-      _chg_new: newSet.has(s.code),
-      _chg_from: newSet.has(s.code) ? 'above' : null,
-      _chg_to: newSet.has(s.code) ? sortLabel : null,
-    };
-  });
-
-  if (_qualityOnly) items = items.filter(s => _qualitySet.has(s.code));
-
-  // 排序：沈董PE低的在前
-  items.sort((a,b) => (a.shen_pe || 999) - (b.shen_pe || 999));
-
-  let html = `<div class="section">
-    <div class="section-header" style="${headerStyle}">${title}
-      <span style="font-weight:400;font-size:.82rem;margin-left:8px">共 ${items.length} 支 — ${filterLabel}</span>
-    </div>`;
-
-  if (!items.length) {
-    html += '<div style="text-align:center;padding:40px;color:#94a3b8">目前無符合條件的股票</div>';
-  } else {
-    html += '<div style="padding:0 20px">' + _shenGradeTableHtml(items) + '</div>';
-  }
-  html += '</div>';
-  document.getElementById('content').innerHTML = html;
-}
-
+// ─── 追蹤功能 ─────────────────────────────────────────
 function _toggleFocusTrack(cb) {
   const code = cb.dataset.code;
   if (cb.checked) {
     _focusTrackSet.add(code);
     fetch('/api/user-lists/track', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action: 'add', code})
+      body: JSON.stringify({action:'add', code})
     });
   } else {
     _focusTrackSet.delete(code);
     fetch('/api/user-lists/track', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action: 'remove', code})
+      body: JSON.stringify({action:'remove', code})
     });
   }
 }
 
+// ─── 啟動 ─────────────────────────────────────────────
 load();
 </script>
 </body>
