@@ -3025,7 +3025,7 @@ function render() {
       <td class="g-growth col-div" data-col="growth_signal" style="text-align:center">${_growthBadge(r._growth_signal)}</td>
       <td class="g-growth" data-col="rev_3m" style="${r._gi?.rev_3m_yoy != null ? (r._gi.rev_3m_yoy > 0 ? 'color:#dc2626' : 'color:#16a34a') : ''}">${r._gi?.rev_3m_yoy != null ? r._gi.rev_3m_yoy.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth" data-col="rev_12m" style="${r._gi?.rev_12m_yoy != null ? (r._gi.rev_12m_yoy > 0 ? 'color:#dc2626' : 'color:#16a34a') : ''}">${r._gi?.rev_12m_yoy != null ? r._gi.rev_12m_yoy.toFixed(2) + '%' : '－'}</td>
-      <td class="g-growth${r._gi?.neff_gray ? ' text-muted' : ''}" data-col="neff_c">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(2) + '%' : '－'}</td>
+      <td class="g-growth${r._gi?.neff_gray ? ' text-muted' : ''}" data-col="neff_c" style="text-align:right">${r._gi?.neff_c != null ? r._gi.neff_c.toFixed(2) + '%' : '－'}</td>
       <td class="g-growth" data-col="neff_d" style="${r._gi?.neff_d != null ? (r._gi.neff_d >= 1 ? 'color:#dc2626;font-weight:700' : 'color:#94a3b8') : ''}">${r._gi?.neff_d != null ? r._gi.neff_d.toFixed(2) : '－'}</td>
       <td class="g-growth${r._gi?.gray ? ' text-muted' : ''}" data-col="lynch_c" style="${r._gi?.lynch_c != null ? (r._gi.lynch_c >= 0.9 ? 'color:#16a34a;font-weight:600' : r._gi.lynch_c < 0.5 ? 'color:#94a3b8' : '') : ''}">${r._gi?.lynch_c != null ? r._gi.lynch_c.toFixed(2) : '－'}</td>
       <td class="g-growth" data-col="lynch_d" style="${r._gi?.lynch_d != null ? (r._gi.lynch_d <= 1 ? 'color:#dc2626;font-weight:700' : 'color:#94a3b8') : ''}">${r._gi?.lynch_d != null ? r._gi.lynch_d.toFixed(2) : '－'}</td>
