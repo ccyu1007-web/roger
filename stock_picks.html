@@ -234,10 +234,10 @@
   <!-- 分層說明 -->
   <div style="background:#fff;border-radius:10px;padding:14px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.82rem;color:#475569;line-height:1.8">
     <b style="color:#1e3a5f">分層邏輯</b><br>
-    <span style="color:#16a34a;font-weight:700">重倉</span>：精選 + 質性研究&lt;3個月 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
-    <span style="color:#2563eb;font-weight:700">小買</span>：精選 + 質性研究&lt;3個月 + 護城河或信心其一≥中 + 無風險<br>
-    <span style="color:#d97706;font-weight:700">觀望</span>：有結構性風險、質性研究過期（>3個月）、或護城河+信心皆弱<br>
-    <span style="color:#7c3aed;font-weight:700">待研究</span>：無質性研究筆記<br>
+    <span style="color:#16a34a;font-weight:700">重倉</span>：精選 + 質性研究內容在3個月以內 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
+    <span style="color:#2563eb;font-weight:700">小買</span>：精選 + 質性研究內容在3個月以內 + 護城河或信心其一≥中 + 無風險<br>
+    <span style="color:#d97706;font-weight:700">觀望</span>：有結構性風險、質性研究內容超過3個月、或護城河+信心皆弱<br>
+    <span style="color:#7c3aed;font-weight:700">待研究</span>：無質性研究筆記（精選組標示「量化達標，優先研究」）<br>
     <span style="color:#64748b;font-weight:700">接近</span>：Neff 0.7~1.0 + A+B品質達標，再跌一些即進場<br>
     <span style="margin-top:4px;display:block;color:#94a3b8">
       信心度由質性研究判定：<b>高</b>=關鍵判斷有直接證據　<b>中</b>=部分間接證據　<b>低</b>=主要依賴推估。護城河強度：<b>強</b>=競爭者難以複製　<b>中</b>=有一定防禦力　<b>弱</b>=容易被取代
@@ -587,11 +587,13 @@ function _genReason(s, level) {
     if (n && n.moat_strength) parts.push(`護城河${n.moat_strength}`);
 
   } else if (level === 'research') {
-    parts.push(`Neff ${neffStr}`);
     const group = _isSelected(s) ? '精選' : '價值型';
-    parts.push(`${group}，需質性分析`);
-    if (!s._notes) parts.push('尚無質性研究');
-    else if (_isStale(s)) parts.push('質性研究已逾90天');
+    if (_isSelected(s)) {
+      parts.push(`<b style="color:#16a34a">量化達標，優先研究</b>`);
+    }
+    parts.push(`Neff ${neffStr}、${group}`);
+    if (!s._notes) parts.push('尚無質性研究筆記');
+    else if (_isStale(s)) parts.push('質性研究內容已逾3個月，建議更新');
 
   } else if (level === 'approach') {
     parts.push(`Neff ${neffStr}`);
@@ -661,12 +663,19 @@ function _buildCard(s, level) {
     const moatStr = [n.moat_strength, n.moat_trend].filter(Boolean).join(' ');
     const notesDate = n.notes_date ? n.notes_date.slice(0,10) : '—';
 
+    // g 顯示用5年營收CAGR
+    const gLabel = qualG != null && sysG != null
+      ? `質性g ${qualG.toFixed(0)}% vs 5年營收CAGR ${sysG.toFixed(1)}%`
+      : qualG != null ? `質性g ${qualG.toFixed(0)}%`
+      : sysG != null ? `5年營收CAGR ${sysG.toFixed(1)}%` : '—';
+    const gDiffWarn = qualG != null && sysG != null && Math.abs(qualG - sysG) >= 3;
+
     notesHtml = `
     <div class="scard-notes-v2">
-      <div class="nv2-row"><span class="nv2-lbl">護城河</span><span class="nv2-val"><b>${n.moat_strength || '—'}</b>${n.moat_trend ? '（'+n.moat_trend+'）' : ''} — 競爭者${n.moat_strength === '強' ? '極難複製此優勢' : n.moat_strength === '中' ? '有一定進入門檻但非不可突破' : '容易被取代'}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">信心度</span><span class="nv2-val"><b class="${confCls}">${n.confidence || '—'}</b> — ${n.confidence === '高' ? '關鍵判斷有直接證據（年報/法說/合約）' : n.confidence === '中' ? '部分依賴間接證據或管理層預期' : '主要依賴推估，缺乏硬數據'}</span></div>
+      <div class="nv2-row"><span class="nv2-lbl">護城河</span><span class="nv2-val"><b>${n.moat_strength || '—'}</b>（${n.moat_trend || '—'}）${n.moat_desc ? '— ' + n.moat_desc : ''}</span></div>
+      <div class="nv2-row"><span class="nv2-lbl">信心度</span><span class="nv2-val"><b class="${confCls}">${n.confidence || '—'}</b>${n.confidence_desc ? ' — ' + n.confidence_desc : ''}</span></div>
       <div class="nv2-row"><span class="nv2-lbl">成長催化劑</span><span class="nv2-val">${n.growth_catalyst || '—'}</span></div>
-      <div class="nv2-row"><span class="nv2-lbl">成長率 g</span><span class="nv2-val">${gStr}</span></div>
+      <div class="nv2-row"><span class="nv2-lbl">成長率 g</span><span class="nv2-val${gDiffWarn ? ' warn' : ''}">${gLabel}</span></div>
       <div class="nv2-row"><span class="nv2-lbl">結構性風險</span><span class="nv2-val">${riskHtml}</span></div>
       <div class="nv2-row"><span class="nv2-lbl">筆記日期</span><span class="nv2-val muted">${notesDate}</span></div>
     </div>`;

@@ -44,14 +44,14 @@ DB_PATH = "stocks.db"
 
 # ── 表結構常數（push 和 API 共用）────────────────────────────
 _USER_NOTES_COLS = ['code','content','news_archive','updated_at',
-                    'moat_strength','moat_source','moat_trend','structural_risk',
+                    'moat_strength','moat_source','moat_trend','moat_desc','structural_risk',
                     'structural_risk_desc','growth_catalyst','investment_monitor',
-                    'confidence','neff_g','lynch_override']
+                    'confidence','confidence_desc','neff_g','lynch_override']
 _USER_NOTES_CREATE = """CREATE TABLE IF NOT EXISTS user_notes (
     code TEXT PRIMARY KEY, content TEXT, news_archive TEXT, updated_at TEXT,
-    moat_strength TEXT, moat_source TEXT, moat_trend TEXT, structural_risk TEXT,
+    moat_strength TEXT, moat_source TEXT, moat_trend TEXT, moat_desc TEXT, structural_risk TEXT,
     structural_risk_desc TEXT, growth_catalyst TEXT, investment_monitor TEXT,
-    confidence TEXT, neff_g TEXT, lynch_override TEXT)"""
+    confidence TEXT, confidence_desc TEXT, neff_g TEXT, lynch_override TEXT)"""
 
 _REPORT_COLS = ['code','content','updated_at','snapshot_price','snapshot_grade','snapshot_eps','snapshot_judgment']
 _REPORT_CREATE = """CREATE TABLE IF NOT EXISTS investment_reports (
@@ -2172,16 +2172,18 @@ def get_stocks():
     notes_meta = {}
     try:
         _nm_rows = query_db(
-            "SELECT code, moat_strength, moat_trend, structural_risk, growth_catalyst, "
-            "confidence, neff_g, updated_at FROM user_notes "
+            "SELECT code, moat_strength, moat_trend, moat_desc, structural_risk, growth_catalyst, "
+            "confidence, confidence_desc, neff_g, updated_at FROM user_notes "
             "WHERE content IS NOT NULL AND content != ''")
         for nr in _nm_rows:
             notes_meta[nr['code']] = {
                 'moat_strength': nr.get('moat_strength'),
                 'moat_trend': nr.get('moat_trend'),
+                'moat_desc': nr.get('moat_desc'),
                 'structural_risk': nr.get('structural_risk'),
                 'growth_catalyst': nr.get('growth_catalyst'),
                 'confidence': nr.get('confidence'),
+                'confidence_desc': nr.get('confidence_desc'),
                 'neff_g': nr.get('neff_g'),
                 'notes_date': nr.get('updated_at'),
             }
@@ -5681,9 +5683,9 @@ def delete_daily_note(date):
 
 @app.route("/api/user-notes/<code>", methods=["GET"])
 def get_user_note(code):
-    _meta_cols = ['moat_strength','moat_source','moat_trend','structural_risk',
+    _meta_cols = ['moat_strength','moat_source','moat_trend','moat_desc','structural_risk',
                   'structural_risk_desc','growth_catalyst','investment_monitor',
-                  'confidence','neff_g','lynch_override']
+                  'confidence','confidence_desc','neff_g','lynch_override']
     try:
         rows = query_db(
             "SELECT content, news_archive, updated_at, " +
