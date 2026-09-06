@@ -33,19 +33,16 @@ CHECKLIST_PROFIT = [
 ]
 
 CHECKLIST_SAFETY = [
-    ('debt_ratio_ok', '負債比 <= 50%'),
-    ('fin_debt_ok', '長短期金融負債比 < 30%'),
+    ('debt_ratio_ok', '負債比 ≤ 50%'),
+    ('fin_debt_ok', '金融負債比 < 30%'),
     ('icr_ok', '利息保障倍數 > 5'),
-    ('icr_min5', '利息保障倍數近5年最低值 > 3'),
-    ('fcf_5y_pos', '自由現金流連續5年為正'),
-    ('fcf_latest_pos', '最近一年自由現金流 > 0'),
-    ('eq_ok', '盈餘品質率 >= 70%'),
-    ('eq_min5', '盈餘品質率近5年最低值 > 60%'),
-    ('inv_days_avg', '存貨週轉天數 <= 近5年平均'),
-    ('inv_days_high', '存貨週轉天數未創5年新高'),
-    ('ar_days_avg', '應收帳款週轉天數 <= 近5年平均'),
-    ('ar_days_high', '應收帳款週轉天數未創5年新高'),
-    ('qinv_4v20', '近四季平均存貨天數 < 近20季平均'),
+    ('fcf_freq', 'FCF近5年至少3年為正'),
+    ('fcf_no_consec', 'FCF近2年不得連續為負'),
+    ('fcf_sum_pos', 'FCF近5年加總為正'),
+    ('inv_level', '存貨水準 ≤ 近5年平均×1.2'),
+    ('inv_trend', '存貨方向：最近一季 ≤ 近4季中位數×1.15'),
+    ('ar_level', '應收水準 ≤ 近5年平均×1.2'),
+    ('ar_trend', '應收方向：最近一季 ≤ 近4季中位數×1.15'),
 ]
 
 CHECKLIST_VALUE = [

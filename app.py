@@ -770,22 +770,17 @@ CHECKLIST_ITEMS = [
     {'key': 'opm_min5',    'category': 'profit', 'label': '營益率近5年最低值', 'threshold': '≥ 5%', 'weight': '輔助', 'hint': '景氣谷底仍能維持正營益率，不至於虧損'},
     {'key': 'gm_median',   'category': 'profit', 'label': '毛利率位置：最近一年 ≥ 近5年中位數', 'threshold': '是', 'weight': '重要', 'hint': '確認毛利率在歷史水準之上，未被壓縮'},
     {'key': 'gm_q_median', 'category': 'profit', 'label': '毛利率季趨勢：最近一季 ≥ 近4季中位數', 'threshold': '是', 'weight': '重要', 'hint': '捕捉最近毛利率方向是否惡化，過濾季節性波動'},
-    # ── B 安全性檢核（15項）──
+    # ── B 安全性檢核（10項）──
     {'key': 'debt_ratio_ok',  'category': 'safety', 'label': '負債比', 'threshold': '≤ 50%', 'weight': '核心', 'hint': '負債比過高代表財務風險大，景氣反轉時容易出問題'},
     {'key': 'fin_debt_ok',    'category': 'safety', 'label': '長短期金融負債比', 'threshold': '< 30%', 'weight': '核心', 'hint': '金融負債（銀行借款）佔比過高代表依賴借貸經營'},
-    {'key': 'current_ratio',  'category': 'safety', 'label': '流動比率', 'threshold': '≥ 150%', 'weight': '重要', 'hint': '短期償債能力，流動資產能否覆蓋流動負債'},
-    {'key': 'quick_ratio',    'category': 'safety', 'label': '速動比率', 'threshold': '≥ 100%', 'weight': '重要', 'hint': '扣除存貨後的短期償債能力，比流動比率更嚴格'},
     {'key': 'icr_ok',         'category': 'safety', 'label': '利息保障倍數', 'threshold': '> 5', 'weight': '重要', 'hint': '營業利益能否輕鬆支付利息費用'},
-    {'key': 'icr_min5',       'category': 'safety', 'label': '利息保障倍數近5年最低值', 'threshold': '> 3', 'weight': '重要', 'hint': '即使在最差年度也不至於付不出利息'},
-    {'key': 'fcf_5y_pos',     'category': 'safety', 'label': '自由現金流連續5年為正', 'threshold': '是', 'weight': '核心', 'hint': '公司能持續產生現金，不需靠借貸或增資維持營運'},
-    {'key': 'fcf_latest_pos', 'category': 'safety', 'label': '最近一年自由現金流 > 0', 'threshold': '是', 'weight': '重要', 'hint': '確認目前仍有正現金流，非靠吃老本'},
-    {'key': 'eq_ok',          'category': 'safety', 'label': '盈餘品質率', 'threshold': '≥ 70%', 'weight': '重要', 'hint': '營業現金流 / 稅後淨利，確認獲利有實際現金支撐而非紙上富貴'},
-    {'key': 'eq_min5',        'category': 'safety', 'label': '盈餘品質率近5年最低值', 'threshold': '> 60%', 'weight': '重要', 'hint': '長期盈餘品質穩定，非一次性灌水'},
-    {'key': 'inv_days_avg',   'category': 'safety', 'label': '存貨週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要', 'hint': '存貨消化速度正常，沒有庫存堆積風險'},
-    {'key': 'inv_days_high',  'category': 'safety', 'label': '存貨週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助', 'hint': '存貨天數創新高可能代表產品滯銷或需求下滑'},
-    {'key': 'qinv_4v20',      'category': 'safety', 'label': '近4季存貨週轉天數 < 近20季平均', 'threshold': '是', 'weight': '輔助', 'hint': '用季度資料捕捉更即時的存貨變化趨勢'},
-    {'key': 'ar_days_avg',    'category': 'safety', 'label': '應收帳款週轉天數 ≤ 近5年平均', 'threshold': '是', 'weight': '重要', 'hint': '收款速度正常，沒有客戶賴帳風險'},
-    {'key': 'ar_days_high',   'category': 'safety', 'label': '應收帳款週轉天數未創5年新高', 'threshold': '是', 'weight': '輔助', 'hint': '應收天數創新高可能代表客戶還款能力變差'},
+    {'key': 'fcf_freq',       'category': 'safety', 'label': 'FCF近5年至少3年為正', 'threshold': '是', 'weight': '核心', 'hint': '允許擴廠年份為負，但多數年度應產生正現金流'},
+    {'key': 'fcf_no_consec',  'category': 'safety', 'label': 'FCF近2年不得連續為負', 'threshold': '是', 'weight': '重要', 'hint': '近期不能持續燒現金，連續為負代表問題不只是擴廠'},
+    {'key': 'fcf_sum_pos',    'category': 'safety', 'label': 'FCF近5年加總為正', 'threshold': '是', 'weight': '重要', 'hint': '即使有負值年度，整體仍應產生正現金流'},
+    {'key': 'inv_level',      'category': 'safety', 'label': '存貨水準：近4季中位數 ≤ 近5年平均×1.2', 'threshold': '是', 'weight': '重要', 'hint': '存貨週轉天數在歷史常態合理範圍內（容忍20%上升）'},
+    {'key': 'inv_trend',      'category': 'safety', 'label': '存貨方向：最近一季 ≤ 近4季中位數×1.15', 'threshold': '是', 'weight': '重要', 'hint': '最近一季存貨沒有急速惡化（容忍15%微升）'},
+    {'key': 'ar_level',       'category': 'safety', 'label': '應收水準：近4季中位數 ≤ 近5年平均×1.2', 'threshold': '是', 'weight': '重要', 'hint': '應收帳款週轉天數在歷史常態合理範圍內'},
+    {'key': 'ar_trend',       'category': 'safety', 'label': '應收方向：最近一季 ≤ 近4季中位數×1.15', 'threshold': '是', 'weight': '重要', 'hint': '最近一季應收沒有急速惡化'},
     # ── C 價值評估檢核（7項）──
     {'key': 'grade_a_ok',      'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '矩陣等級A以上代表PE和殖利率都在合理範圍'},
     {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年EPS中位數', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認目前獲利水準不低於中期常態，不受極端值影響'},
@@ -1002,98 +997,89 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     checks['opm_min5'] = 1 if _opm_min5 is not None and _opm_min5 > 5 else 0
     detail['opm_min5'] = f'5年最低={_opm_min5:.2f}%' if _opm_min5 is not None else '無資料'
 
-    # === 安全性檢核（12項） ===
+    # === 安全性檢核（10項） ===
     def _5y_vals(key):
         return [v for _, v in (r.get(f'_{key}_5y') or []) if v is not None]
 
-    # 負債比 <60%
+    # 負債比 ≤ 50%
     _dr_5y = _5y_vals('debt_ratio')
     _dr_latest = _dr_5y[0] if _dr_5y else None
     checks['debt_ratio_ok'] = 1 if _dr_latest is not None and _dr_latest <= 50 else 0
     detail['debt_ratio_ok'] = f'最近一年={_dr_latest:.2f}%' if _dr_latest is not None else '無資料'
 
-    # 金融負債比 <30%
+    # 金融負債比 < 30%
     _fdr_5y = _5y_vals('fin_debt_ratio')
     _fdr_latest = _fdr_5y[0] if _fdr_5y else None
     checks['fin_debt_ok'] = 1 if _fdr_latest is not None and _fdr_latest < 30 else 0
     detail['fin_debt_ok'] = f'最近一年={_fdr_latest:.2f}%' if _fdr_latest is not None else '無資料'
 
-    # 流動比率 >= 150%
-    _cr_5y = _5y_vals('current_ratio')
-    _cr_latest = _cr_5y[0] if _cr_5y else None
-    checks['current_ratio'] = 1 if _cr_latest is not None and _cr_latest >= 150 else 0
-    detail['current_ratio'] = f'最近一年={_cr_latest:.2f}%' if _cr_latest is not None else '無資料'
-
-    # 速動比率 >= 100%
-    _qr_5y = _5y_vals('quick_ratio')
-    _qr_latest = _qr_5y[0] if _qr_5y else None
-    checks['quick_ratio'] = 1 if _qr_latest is not None and _qr_latest >= 100 else 0
-    detail['quick_ratio'] = f'最近一年={_qr_latest:.2f}%' if _qr_latest is not None else '無資料'
-
-    # 利息保障倍數 >5
+    # 利息保障倍數 > 5
     _icr_5y = _5y_vals('interest_coverage')
     _icr_latest = _icr_5y[0] if _icr_5y else None
     checks['icr_ok'] = 1 if _icr_latest is not None and _icr_latest > 5 else 0
     detail['icr_ok'] = f'最近一年={_icr_latest:.2f}倍' if _icr_latest is not None else '無資料'
 
-    # 利息保障倍數近5年最低值 >3
-    _icr_min = min(_icr_5y) if _icr_5y else None
-    checks['icr_min5'] = 1 if _icr_min is not None and _icr_min > 3 else 0
-    detail['icr_min5'] = f'5年最低={_icr_min:.2f}倍' if _icr_min is not None else '無資料'
-
-    # 自由現金流連續5年為正
+    # FCF 近5年至少3年為正
     _fcf_5y = _5y_vals('fcf')
-    checks['fcf_5y_pos'] = 1 if len(_fcf_5y) >= 5 and all(v > 0 for v in _fcf_5y) else 0
-    detail['fcf_5y_pos'] = f'{len(_fcf_5y)}年資料，正值{sum(1 for v in _fcf_5y if v > 0)}年' if _fcf_5y else '無資料'
+    _fcf_pos_count = sum(1 for v in _fcf_5y if v > 0)
+    checks['fcf_freq'] = 1 if len(_fcf_5y) >= 5 and _fcf_pos_count >= 3 else 0
+    detail['fcf_freq'] = f'{len(_fcf_5y)}年資料，正值{_fcf_pos_count}年' if _fcf_5y else '無資料'
 
-    # 最近一年自由現金流 >0
-    _fcf_latest = _fcf_5y[0] if _fcf_5y else None
-    checks['fcf_latest_pos'] = 1 if _fcf_latest is not None and _fcf_latest > 0 else 0
-    detail['fcf_latest_pos'] = f'最近一年FCF={_fcf_latest / 1000000:.0f}百萬' if _fcf_latest is not None else '無資料'
-
-    # 盈餘品質率 >80%
-    _eq_5y = _5y_vals('earnings_quality')
-    _eq_latest = _eq_5y[0] if _eq_5y else None
-    checks['eq_ok'] = 1 if _eq_latest is not None and _eq_latest >= 70 else 0
-    detail['eq_ok'] = f'最近一年={_eq_latest:.2f}%' if _eq_latest is not None else '無資料'
-
-    # 盈餘品質率近5年最低值 >60%
-    _eq_min = min(_eq_5y) if _eq_5y else None
-    checks['eq_min5'] = 1 if _eq_min is not None and _eq_min > 60 else 0
-    detail['eq_min5'] = f'5年最低={_eq_min:.2f}%' if _eq_min is not None else '無資料'
-
-    # 存貨週轉天數：最近一年 <= 近5年平均
-    _invd_5y = _5y_vals('inventory_days')
-    _invd_latest = _invd_5y[0] if _invd_5y else None
-    _invd_avg = sum(_invd_5y) / len(_invd_5y) if _invd_5y else None
-    checks['inv_days_avg'] = 1 if _invd_latest is not None and _invd_avg is not None and _invd_latest <= _invd_avg else 0
-    detail['inv_days_avg'] = f'最近={_invd_latest:.1f}天 vs 5年平均={_invd_avg:.1f}天' if _invd_latest is not None and _invd_avg is not None else '無資料'
-
-    # 存貨週轉天數：未創5年新高
-    _invd_max = max(_invd_5y) if _invd_5y else None
-    checks['inv_days_high'] = 1 if _invd_latest is not None and _invd_max is not None and _invd_latest < _invd_max else 0
-    detail['inv_days_high'] = f'最近={_invd_latest:.1f}天 vs 5年最高={_invd_max:.1f}天' if _invd_latest is not None and _invd_max is not None else '無資料'
-
-    # 應收帳款週轉天數：最近一年 <= 近5年平均
-    _ard_5y = _5y_vals('ar_days')
-    _ard_latest = _ard_5y[0] if _ard_5y else None
-    _ard_avg = sum(_ard_5y) / len(_ard_5y) if _ard_5y else None
-    checks['ar_days_avg'] = 1 if _ard_latest is not None and _ard_avg is not None and _ard_latest <= _ard_avg else 0
-    detail['ar_days_avg'] = f'最近={_ard_latest:.1f}天 vs 5年平均={_ard_avg:.1f}天' if _ard_latest is not None and _ard_avg is not None else '無資料'
-
-    # 應收帳款週轉天數：未創5年新高
-    _ard_max = max(_ard_5y) if _ard_5y else None
-    checks['ar_days_high'] = 1 if _ard_latest is not None and _ard_max is not None and _ard_latest < _ard_max else 0
-    detail['ar_days_high'] = f'最近={_ard_latest:.1f}天 vs 5年最高={_ard_max:.1f}天' if _ard_latest is not None and _ard_max is not None else '無資料'
-
-    # 近四季平均存貨週轉天數 < 近5年(20季)平均
-    _qinv = r.get('_qinv')
-    if _qinv:
-        checks['qinv_4v20'] = 1 if _qinv['avg4'] < _qinv['avg20'] else 0
-        detail['qinv_4v20'] = f'近4季平均={_qinv["avg4"]}天 vs 近20季平均={_qinv["avg20"]}天'
+    # FCF 近2年不得連續為負
+    _fcf_recent2 = _fcf_5y[:2] if len(_fcf_5y) >= 2 else []
+    _fcf_consec_neg = len(_fcf_recent2) == 2 and _fcf_recent2[0] <= 0 and _fcf_recent2[1] <= 0
+    checks['fcf_no_consec'] = 0 if _fcf_consec_neg else (1 if len(_fcf_5y) >= 2 else 0)
+    if len(_fcf_recent2) >= 2:
+        detail['fcf_no_consec'] = f'近2年FCF：{_fcf_recent2[0]/1000000:.0f}百萬, {_fcf_recent2[1]/1000000:.0f}百萬'
     else:
-        checks['qinv_4v20'] = 0
-        detail['qinv_4v20'] = '季度存貨資料不足'
+        detail['fcf_no_consec'] = '資料不足'
+
+    # FCF 近5年加總為正
+    _fcf_sum = sum(_fcf_5y) if _fcf_5y else None
+    checks['fcf_sum_pos'] = 1 if _fcf_sum is not None and _fcf_sum > 0 else 0
+    detail['fcf_sum_pos'] = f'5年合計={_fcf_sum/1000000:.0f}百萬' if _fcf_sum is not None else '無資料'
+
+    # 存貨水準：近4季中位數 ≤ 近5年平均 × 1.2
+    _qinv = r.get('_qinv')
+    _invd_5y = _5y_vals('inventory_days')
+    _invd_avg5 = sum(_invd_5y) / len(_invd_5y) if _invd_5y else None
+    if _qinv and _qinv.get('median4') is not None and _invd_avg5 is not None:
+        _inv_threshold = round(_invd_avg5 * 1.2, 1)
+        checks['inv_level'] = 1 if _qinv['median4'] <= _inv_threshold else 0
+        detail['inv_level'] = f'近4季中位數={_qinv["median4"]}天 vs 5年平均={_invd_avg5:.1f}天×1.2={_inv_threshold}天'
+    else:
+        checks['inv_level'] = 0
+        detail['inv_level'] = '存貨資料不足'
+
+    # 存貨方向：最近一季 ≤ 近4季中位數 × 1.15
+    if _qinv and _qinv.get('latest') is not None and _qinv.get('median4') is not None:
+        _inv_dir_threshold = round(_qinv['median4'] * 1.15, 1)
+        checks['inv_trend'] = 1 if _qinv['latest'] <= _inv_dir_threshold else 0
+        detail['inv_trend'] = f'最近一季={_qinv["latest"]}天 vs 近4季中位數={_qinv["median4"]}天×1.15={_inv_dir_threshold}天'
+    else:
+        checks['inv_trend'] = 0
+        detail['inv_trend'] = '季度存貨資料不足'
+
+    # 應收水準：近4季中位數 ≤ 近5年平均 × 1.2
+    _qar = r.get('_qar')
+    _ard_5y = _5y_vals('ar_days')
+    _ard_avg5 = sum(_ard_5y) / len(_ard_5y) if _ard_5y else None
+    if _qar and _qar.get('median4') is not None and _ard_avg5 is not None:
+        _ar_threshold = round(_ard_avg5 * 1.2, 1)
+        checks['ar_level'] = 1 if _qar['median4'] <= _ar_threshold else 0
+        detail['ar_level'] = f'近4季中位數={_qar["median4"]}天 vs 5年平均={_ard_avg5:.1f}天×1.2={_ar_threshold}天'
+    else:
+        checks['ar_level'] = 0
+        detail['ar_level'] = '應收資料不足'
+
+    # 應收方向：最近一季 ≤ 近4季中位數 × 1.15
+    if _qar and _qar.get('latest') is not None and _qar.get('median4') is not None:
+        _ar_dir_threshold = round(_qar['median4'] * 1.15, 1)
+        checks['ar_trend'] = 1 if _qar['latest'] <= _ar_dir_threshold else 0
+        detail['ar_trend'] = f'最近一季={_qar["latest"]}天 vs 近4季中位數={_qar["median4"]}天×1.15={_ar_dir_threshold}天'
+    else:
+        checks['ar_trend'] = 0
+        detail['ar_trend'] = '季度應收資料不足'
 
     # === 價值評估檢核（5項） ===
     _shen_pe = r.get('shen_pe')
@@ -1282,12 +1268,7 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _bl('opm_min5', _opm_min5, 5)
     _bl('debt_ratio_ok', _dr_latest, 50)
     _bl('fin_debt_ok', _fdr_latest, 30)
-    _bl('current_ratio', _cr_latest, 150)
-    _bl('quick_ratio', _qr_latest, 100)
     _bl('icr_ok', _icr_latest, 5)
-    _bl('icr_min5', _icr_min, 3)
-    _bl('eq_ok', _eq_latest, 70)
-    _bl('eq_min5', _eq_min, 60)
     # grade_a_ok / price_val_ok 是等級/區間判斷，無數值壓線
     if ddm_ann_ret is not None:
         _bl('val_ddm_return', ddm_ann_ret, 10)
@@ -1599,31 +1580,46 @@ def calc_all_checklists():
         print(f"[Checklist] 毛利率查詢失敗: {e}")
 
     # 批次算季度存貨週轉天數（近4季平均 vs 近20季平均）
-    qinv_map = {}  # {code: {'avg4': x, 'avg20': y}}
+    qinv_map = {}  # {code: {'avg4': x, 'avg20': y, 'latest': x, 'median4': x}}
+    qar_map = {}   # {code: {'latest': x, 'median4': x}}
     try:
-        qinv_rows = query_db("""SELECT code, quarter, cost, inventory FROM quarterly_financial
-                                WHERE cost > 0 AND inventory IS NOT NULL
+        qinv_rows = query_db("""SELECT code, quarter, cost, revenue, inventory, accounts_receivable
+                                FROM quarterly_financial
+                                WHERE cost > 0
                                 ORDER BY code, quarter""")
         from collections import defaultdict
         _qinv_by_code = defaultdict(list)
         for qr in qinv_rows:
             _qinv_by_code[qr['code']].append(qr)
         for code, qs in _qinv_by_code.items():
-            # 數值排序（避免字串排序 99Q4 > 114Q4）
             qs.sort(key=lambda x: (int(x['quarter'].split('Q')[0]), int(x['quarter'].split('Q')[1])))
-            # 算每季存貨週轉天數 = (本季存貨+上季存貨)/2 / 當季成本 × 90
-            days_list = []
+            # 存貨週轉天數 = (本季存貨+上季存貨)/2 / 當季成本 × 90
+            inv_days_list = []
+            ar_days_list = []
             for i in range(1, len(qs)):
-                avg_inv = (qs[i]['inventory'] + qs[i-1]['inventory']) / 2
-                days = avg_inv / qs[i]['cost'] * 90
-                days_list.append(round(days, 1))
-            if len(days_list) >= 4:
-                avg4 = round(sum(days_list[-4:]) / 4, 1)
-                n20 = min(len(days_list), 20)
-                avg20 = round(sum(days_list[-n20:]) / n20, 1)
-                qinv_map[code] = {'avg4': avg4, 'avg20': avg20}
+                if qs[i].get('inventory') is not None and qs[i-1].get('inventory') is not None:
+                    avg_inv = (qs[i]['inventory'] + qs[i-1]['inventory']) / 2
+                    inv_days_list.append(round(avg_inv / qs[i]['cost'] * 90, 1))
+                if qs[i].get('accounts_receivable') is not None and qs[i-1].get('accounts_receivable') is not None and qs[i].get('revenue') and qs[i]['revenue'] > 0:
+                    avg_ar = (qs[i]['accounts_receivable'] + qs[i-1]['accounts_receivable']) / 2
+                    ar_days_list.append(round(avg_ar / qs[i]['revenue'] * 90, 1))
+            # 存貨
+            if len(inv_days_list) >= 4:
+                avg4 = round(sum(inv_days_list[-4:]) / 4, 1)
+                n20 = min(len(inv_days_list), 20)
+                avg20 = round(sum(inv_days_list[-n20:]) / n20, 1)
+                _inv_latest = inv_days_list[-1]
+                _inv_sorted4 = sorted(inv_days_list[-4:])
+                _inv_median4 = round((_inv_sorted4[1] + _inv_sorted4[2]) / 2, 1)
+                qinv_map[code] = {'avg4': avg4, 'avg20': avg20, 'latest': _inv_latest, 'median4': _inv_median4}
+            # 應收
+            if len(ar_days_list) >= 4:
+                _ar_latest = ar_days_list[-1]
+                _ar_sorted4 = sorted(ar_days_list[-4:])
+                _ar_median4 = round((_ar_sorted4[1] + _ar_sorted4[2]) / 2, 1)
+                qar_map[code] = {'latest': _ar_latest, 'median4': _ar_median4}
     except Exception as e:
-        print(f"[Checklist] 季度存貨週轉天數失敗: {e}")
+        print(f"[Checklist] 季度存貨/應收週轉天數失敗: {e}")
 
     # 批次算沈董法本業佔比（累計營業利益 / 累計稅前淨利）
     core_ratio_map = {}  # {code: {'ratio': x, 'oi_sum': y, 'pti_sum': z, 'quarters': n}}
@@ -1815,6 +1811,7 @@ def calc_all_checklists():
         for _sk in ('debt_ratio', 'fin_debt_ratio', 'interest_coverage', 'earnings_quality', 'fcf', 'inventory_days', 'ar_days', 'current_ratio', 'quick_ratio'):
             r[f'_{_sk}_5y'] = _roic_map.get(r['code'] + f'_{_sk}_5y', [])
         r['_qinv'] = qinv_map.get(r['code'])
+        r['_qar'] = qar_map.get(r['code'])
         r['_qgm'] = gm_map.get(r['code'])
         r['_common_stock'] = _roic_map.get(r['code'] + '_common_stock')
         # 沈董法本業佔比：用 eps_1q 判斷當年度已公布季度
