@@ -2168,6 +2168,25 @@ def get_stocks():
             chk_map[cr['code']] = cr
     except Exception: pass
 
+    # 批次查詢 user_notes 質性 metadata
+    notes_meta = {}
+    try:
+        _nm_rows = query_db(
+            "SELECT code, moat_strength, moat_trend, structural_risk, growth_catalyst, "
+            "confidence, neff_g, updated_at FROM user_notes "
+            "WHERE content IS NOT NULL AND content != ''")
+        for nr in _nm_rows:
+            notes_meta[nr['code']] = {
+                'moat_strength': nr.get('moat_strength'),
+                'moat_trend': nr.get('moat_trend'),
+                'structural_risk': nr.get('structural_risk'),
+                'growth_catalyst': nr.get('growth_catalyst'),
+                'confidence': nr.get('confidence'),
+                'neff_g': nr.get('neff_g'),
+                'notes_date': nr.get('updated_at'),
+            }
+    except Exception: pass
+
     from datetime import date as _date
     _cur_year = _date.today().year
     for row in rows:
@@ -2227,6 +2246,8 @@ def get_stocks():
             }
         else:
             row["_gi"] = None
+        # 質性研究 metadata
+        row["_notes"] = notes_meta.get(row["code"])
 
     result_data = {"count": len(rows), "data": rows}
     resp = jsonify(result_data)
