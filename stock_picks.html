@@ -238,10 +238,6 @@
       <div class="stat-num stat-research" id="cnt_need_research">—</div>
     </div>
     <div class="stat-item">
-      <div class="stat-label">觀望</div>
-      <div class="stat-num stat-watch" id="cnt_watch">—</div>
-    </div>
-    <div class="stat-item">
       <div class="stat-label">接近</div>
       <div class="stat-num stat-approach" id="cnt_approach">—</div>
     </div>
@@ -250,13 +246,12 @@
   <!-- 分層說明 -->
   <div style="background:#fff;border-radius:10px;padding:14px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.82rem;color:#475569;line-height:1.8">
     <b style="color:#1e3a5f">分層邏輯</b><br>
-    <b>量化決定位置，質性決定標籤：</b><br>
-    <span style="color:#16a34a;font-weight:700">重倉候選</span>：精選組（Neff≥1 + A+B品質 + 動能全正），依質性標籤排序<br>
-    &nbsp;&nbsp;→ <span style="color:#16a34a">建議</span>：質性研究在3個月內 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
-    &nbsp;&nbsp;→ <span style="color:#2563eb">參考</span>：質性部分達標（護城河或信心其一≥中）<br>
-    &nbsp;&nbsp;→ <span style="color:#7c3aed">待質性研究</span>：無研究或超過3個月，量化已達標優先研究<br>
-    &nbsp;&nbsp;→ <span style="color:#ea580c">質性疑慮</span>：有結構性風險或護城河+信心皆弱<br>
-    <span style="color:#d97706;font-weight:700">觀望</span>：非精選組（動能不足或品質不達標）<br>
+    <b>Tab 決定量化群組，質性標籤決定推薦層級：</b><br>
+    每個 Tab（精選/價值/動能/僅Neff）內的所有股票依質性標籤排序：<br>
+    &nbsp;&nbsp;→ <span style="color:#16a34a;font-weight:700">建議</span>：質性研究在3個月內 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
+    &nbsp;&nbsp;→ <span style="color:#2563eb;font-weight:700">參考</span>：質性部分達標（護城河或信心其一≥中）<br>
+    &nbsp;&nbsp;→ <span style="color:#7c3aed;font-weight:700">待質性研究</span>：無研究或超過3個月<br>
+    &nbsp;&nbsp;→ <span style="color:#ea580c;font-weight:700">質性疑慮</span>：有結構性風險或護城河+信心皆弱<br>
     <span style="color:#64748b;font-weight:700">接近</span>：Neff 0.7~1.0 + A+B品質達標，再跌一些即進場<br>
     <span style="margin-top:4px;display:block;color:#94a3b8">
       信心度由質性研究判定：<b>高</b>=關鍵判斷有直接證據　<b>中</b>=部分間接證據　<b>低</b>=主要依賴推估。護城河強度：<b>強</b>=競爭者難以複製　<b>中</b>=有一定防禦力　<b>弱</b>=容易被取代
@@ -505,16 +500,10 @@ function _classifyAll(arr) {
   const watch    = [];  // 價值型（動能不足，觀望）
   const approach = [];
 
+  // Tab 已決定量化群組，所有股票都是該群候選，用質性標籤排序
   tabPool.forEach(s => {
     s._qualTag = _qualTag(s);
-
-    if (_isHighQuality(s) && _isPositiveMomentum(s)) {
-      // 精選 = 量化重倉候選
-      heavy.push(s);
-    } else {
-      // 非精選 = 觀望
-      watch.push(s);
-    }
+    heavy.push(s);
   });
 
   // 重倉區內排序：建議 > 參考 > 待研究
@@ -766,13 +755,15 @@ function renderAll() {
   const { heavy, watch, approach } = _classifyAll(base);
 
   _renderSection('heavy',    heavy,    'heavy');
-  _renderSection('watch',    watch,    'watch');
   _renderSection('approach', approach, 'approach');
+
+  // 隱藏觀望區（已合併到主區塊）
+  const watchEl = document.getElementById('block_watch');
+  if (watchEl) watchEl.style.display = 'none';
 
   // 統計：建議數 + 待研究數
   const recommendCnt = heavy.filter(s => s._qualTag === 'recommend').length;
-  const needResearchCnt = heavy.filter(s => s._qualTag === 'research').length
-                        + watch.filter(s => s._qualTag === 'research').length;
+  const needResearchCnt = heavy.filter(s => s._qualTag === 'research').length;
   const setCnt2 = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
   setCnt2('cnt_recommend', recommendCnt);
   setCnt2('cnt_need_research', needResearchCnt);
