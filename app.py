@@ -4150,68 +4150,57 @@ def _calc_growth_indicators(_json, _dt):
             if s_start and s_start > 0:
                 shares_change = (s_end - s_start) / s_start * 100
 
-        # ── 殖利率：預估 > min(沈董, 系統預估)股利
+        # ── PE + 殖利率（同一來源：先決定EPS來源，股利跟隨）
         ue = ue_map.get(code, {})
-        div_val = None
-        yld_src = None
-        # 優先用 user_estimates 的預估股利
-        vm_div = ue.get('vmDiv')
-        if vm_div and str(vm_div).strip():
-            try:
-                div_val = float(vm_div)
-                yld_src = '預'
-            except Exception:
-                pass
-        # fallback: min(沈董股利, 系統預估股利)
-        if not div_val:
-            _s_div = st.get('shen_div')
-            _sys_div = st.get('sys_ann_div')
-            _s_d = _s_div if _s_div and _s_div > 0 else None
-            _sys_d = _sys_div if _sys_div and _sys_div > 0 else None
-            if _s_d is not None and _sys_d is not None:
-                div_val = min(_s_d, _sys_d)
-                yld_src = '沈' if _s_d <= _sys_d else '系'
-            elif _s_d is not None:
-                div_val = _s_d
-                yld_src = '沈'
-            elif _sys_d is not None:
-                div_val = _sys_d
-                yld_src = '系'
-
-        yld = (div_val / close * 100) if div_val and close > 0 else 0
-
-        # ── PE：預估 > min(沈董, 系統預估)
         pe = None
         pe_src = None
-        # 優先用 user_estimates 的預估EPS算PE
+        div_val = None
+        yld_src = None
+        _use_eps = None
+        _use_div = None
+
+        # 優先用 user_estimates 的預估EPS+股利
         vm_eps = ue.get('vmEps')
+        vm_div = ue.get('vmDiv')
         if vm_eps and str(vm_eps).strip():
             try:
                 est_eps = float(vm_eps)
                 if est_eps > 0:
-                    pe = close / est_eps
+                    _use_eps = est_eps
+                    _use_div = float(vm_div) if vm_div and str(vm_div).strip() else None
                     pe_src = '預'
             except Exception:
                 pass
-        # fallback: min(沈董, 系統預估)
-        if pe is None:
+
+        # fallback: min(沈董, 系統預估) — EPS和股利取同一來源
+        if _use_eps is None:
             _s_eps = st.get('shen_eps')
             _sys_eps = st.get('sys_ann_eps')
             _s_pos = _s_eps if _s_eps and _s_eps > 0 else None
             _sys_pos = _sys_eps if _sys_eps and _sys_eps > 0 else None
             if _s_pos is not None and _sys_pos is not None:
-                _use_eps = min(_s_pos, _sys_pos)
-                pe_src = '沈' if _s_pos <= _sys_pos else '系'
+                if _s_pos <= _sys_pos:
+                    _use_eps = _s_pos
+                    _use_div = st.get('shen_div')
+                    pe_src = '沈'
+                else:
+                    _use_eps = _sys_pos
+                    _use_div = st.get('sys_ann_div')
+                    pe_src = '系'
             elif _s_pos is not None:
                 _use_eps = _s_pos
+                _use_div = st.get('shen_div')
                 pe_src = '沈'
             elif _sys_pos is not None:
                 _use_eps = _sys_pos
+                _use_div = st.get('sys_ann_div')
                 pe_src = '系'
-            else:
-                _use_eps = None
-            if _use_eps and _use_eps > 0:
-                pe = close / _use_eps
+
+        if _use_eps and _use_eps > 0:
+            pe = close / _use_eps
+        yld_src = pe_src  # 殖利率來源跟隨PE
+        div_val = _use_div if _use_div and _use_div > 0 else None
+        yld = (div_val / close * 100) if div_val and close > 0 else 0
 
         if pe is None or pe <= 0:
             # PE 無值，但營收 CAGR 和部分指標仍輸出
