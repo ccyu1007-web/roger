@@ -197,15 +197,6 @@
     </div>
   </div>
 
-  <!-- 異動區（可收合） -->
-  <div class="change-block" id="changeBlock" style="display:none">
-    <div class="change-block-header" onclick="_toggleChangeBlock()">
-      <span id="changeBlockTitle">Neff 今日異動</span>
-      <span id="changeBlockArrow" style="font-size:.9rem;color:#94a3b8">▼</span>
-    </div>
-    <div class="change-block-body" id="changeBlockBody"></div>
-  </div>
-
   <!-- Tab 內容 -->
   <div id="tab_selected" class="tab-content active"></div>
   <div id="tab_value"    class="tab-content"></div>
@@ -329,7 +320,6 @@ async function load() {
     }
 
     renderStats();
-    renderChangeBlock();
     renderAll();
   } catch(e) {
     console.error('valuation load error:', e);
@@ -480,6 +470,7 @@ function _buildTable(items) {
       <th class="c" style="width:56px">C通過</th>
       <th class="c" style="width:56px">D通過</th>
       <th class="c" style="width:90px">標籤</th>
+      <th class="c" style="width:40px">異動</th>
     </tr></thead><tbody>`;
 
   items.forEach(s => {
@@ -521,8 +512,11 @@ function _buildTable(items) {
 
     // 標籤
     let tagHtml = '';
-    if (_neffNewSet.has(s.code))    tagHtml += `<span class="tag tag-new">新進榜</span>`;
     if (_qualitySet.has(s.code))    tagHtml += `<span class="tag tag-qual">體質佳</span>`;
+    // 增/刪
+    let chgHtml = '';
+    if (_neffNewSet.has(s.code))     chgHtml = '<span style="color:#16a34a;font-weight:700;font-size:.78rem">增</span>';
+    else if (_neffRemovedSet.has(s.code)) chgHtml = '<span style="color:#dc2626;font-weight:700;font-size:.78rem">刪</span>';
 
     const isFocused = _focusTrackSet.has(s.code);
 
@@ -544,6 +538,7 @@ function _buildTable(items) {
       <td class="c chk-cell"><span class="${chkC.cls}">${chkC.html}</span></td>
       <td class="c chk-cell"><span class="${chkD.cls}">${chkD.html}</span></td>
       <td class="c">${tagHtml}</td>
+      <td class="c">${chgHtml}</td>
     </tr>`;
   });
 
