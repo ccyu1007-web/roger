@@ -234,6 +234,10 @@
       <div class="stat-num" style="color:#16a34a" id="cnt_recommend">—</div>
     </div>
     <div class="stat-item">
+      <div class="stat-label">小買候選</div>
+      <div class="stat-num stat-small" id="cnt_small">—</div>
+    </div>
+    <div class="stat-item">
       <div class="stat-label">待質性研究</div>
       <div class="stat-num stat-research" id="cnt_need_research">—</div>
     </div>
@@ -246,12 +250,11 @@
   <!-- 分層說明 -->
   <div style="background:#fff;border-radius:10px;padding:14px 20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.82rem;color:#475569;line-height:1.8">
     <b style="color:#1e3a5f">分層邏輯</b><br>
-    <b>Tab 決定量化群組，質性標籤決定推薦層級：</b><br>
-    每個 Tab（精選/價值/動能/僅Neff）內的所有股票依質性標籤排序：<br>
-    &nbsp;&nbsp;→ <span style="color:#16a34a;font-weight:700">建議</span>：質性研究在3個月內 + 護城河≥中 + 信心度≥中 + 無結構性風險<br>
-    &nbsp;&nbsp;→ <span style="color:#2563eb;font-weight:700">參考</span>：質性部分達標（護城河或信心其一≥中）<br>
-    &nbsp;&nbsp;→ <span style="color:#7c3aed;font-weight:700">待質性研究</span>：無研究或超過3個月<br>
-    &nbsp;&nbsp;→ <span style="color:#ea580c;font-weight:700">質性疑慮</span>：有結構性風險或護城河+信心皆弱<br>
+    <b>Tab 決定量化群組，質性決定重倉或小買：</b><br>
+    <span style="color:#16a34a;font-weight:700">重倉候選</span>：質性全達標（<span style="color:#16a34a">建議</span>）或無質性研究（<span style="color:#7c3aed">待質性研究</span>）<br>
+    <span style="color:#2563eb;font-weight:700">小買候選</span>：質性部分達標（<span style="color:#2563eb">參考</span>）或有疑慮（<span style="color:#ea580c">質性疑慮</span>/<span style="color:#d97706">質性偏弱</span>）<br>
+    <br>
+    做完質性研究後自動歸類：全達標→留重倉、部分達標→降小買、有疑慮→降小買帶警示<br>
     <span style="color:#64748b;font-weight:700">接近</span>：Neff 0.7~1.0 + A+B品質達標，再跌一些即進場<br>
     <span style="margin-top:4px;display:block;color:#94a3b8">
       信心度由質性研究判定：<b>高</b>=關鍵判斷有直接證據　<b>中</b>=部分間接證據　<b>低</b>=主要依賴推估。護城河強度：<b>強</b>=競爭者難以複製　<b>中</b>=有一定防禦力　<b>弱</b>=容易被取代
@@ -496,37 +499,39 @@ function _qualTag(s) {
 // ─── 篩選分群（量化決定位置，質性決定標籤）─────────────
 function _classifyAll(arr) {
   const tabPool = _getTabPool(arr);
-  const heavy    = [];  // 精選組（量化重倉候選）
-  const watch    = [];  // 價值型（動能不足，觀望）
+  const heavy    = [];  // 重倉候選
+  const small    = [];  // 小買候選
   const approach = [];
 
-  // Tab 已決定量化群組，所有股票都是該群候選，用質性標籤排序
+  // Tab 已決定量化群組，質性標籤決定重倉或小買
   tabPool.forEach(s => {
     s._qualTag = _qualTag(s);
-    heavy.push(s);
+    if (s._qualTag === 'recommend' || s._qualTag === 'research') {
+      // 全達標或無研究 → 重倉候選
+      heavy.push(s);
+    } else {
+      // 部分達標/疑慮/弱 → 小買候選
+      small.push(s);
+    }
   });
 
-  // 重倉區內排序：建議 > 參考 > 待研究
-  const tagOrder = {recommend: 0, partial: 1, weak: 2, risk: 3, research: 4};
-  heavy.sort((a, b) => {
-    const ta = tagOrder[a._qualTag] || 9;
-    const tb = tagOrder[b._qualTag] || 9;
+  // 排序：質性標籤優先，同標籤按 Neff 高到低
+  const tagOrder = {recommend: 0, research: 1, partial: 0, weak: 1, risk: 2};
+  const _sortFn = (a, b) => {
+    const ta = tagOrder[a._qualTag] ?? 9;
+    const tb = tagOrder[b._qualTag] ?? 9;
     if (ta !== tb) return ta - tb;
     return ((b._gi || {}).neff_d || 0) - ((a._gi || {}).neff_d || 0);
-  });
-  watch.sort((a, b) => {
-    const ta = tagOrder[a._qualTag] || 9;
-    const tb = tagOrder[b._qualTag] || 9;
-    if (ta !== tb) return ta - tb;
-    return ((b._gi || {}).neff_d || 0) - ((a._gi || {}).neff_d || 0);
-  });
+  };
+  heavy.sort(_sortFn);
+  small.sort(_sortFn);
 
   // 接近名單（獨立計算，不受 Tab 影響）
   arr.forEach(s => {
     if (_isApproaching(s)) approach.push(s);
   });
 
-  return { heavy, watch, approach };
+  return { heavy, small, approach };
 }
 
 function _sortByNeff(arr) {
@@ -752,14 +757,20 @@ function _renderSection(key, items, level) {
 
 function renderAll() {
   const base = _applyQuality(_stocks);
-  const { heavy, watch, approach } = _classifyAll(base);
+  const { heavy, small, approach } = _classifyAll(base);
 
   _renderSection('heavy',    heavy,    'heavy');
+  _renderSection('small',    small,    'small');
   _renderSection('approach', approach, 'approach');
 
-  // 隱藏觀望區（已合併到主區塊）
-  const watchEl = document.getElementById('block_watch');
-  if (watchEl) watchEl.style.display = 'none';
+  // 隱藏不用的區塊
+  ['watch', 'research'].forEach(k => {
+    const el = document.getElementById('block_' + k);
+    if (el) el.style.display = 'none';
+  });
+  // 顯示小買區塊
+  const smallEl = document.getElementById('block_small');
+  if (smallEl) smallEl.style.display = '';
 
   // 統計：建議數 + 待研究數
   const recommendCnt = heavy.filter(s => s._qualTag === 'recommend').length;
