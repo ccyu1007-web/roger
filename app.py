@@ -4055,7 +4055,7 @@ def _calc_growth_indicators(_json, _dt):
             if 0 < neff_c < 7:
                 warnings.append('營收成長率<7%，聶夫法參考用')
             if neff_c > 20:
-                warnings.append('營收成長率>20%，已封頂20%計算')
+                warnings.append('營收CAGR>20%，Neff/PEG以20%封頂計算')
             # 營收成長但EPS衰退 → 利潤率可能壓縮
             if a_pct is not None and neff_c > 5 and a_pct < 0:
                 warnings.append('營收成長但EPS衰退，注意利潤率變化')
@@ -4230,18 +4230,17 @@ def _calc_growth_indicators(_json, _dt):
             if avg_payout < 1:
                 intrinsic_growth = round(avg_roe * (1 - avg_payout) * 100, 2)
 
-        # ── 保守成長率上限封頂
+        # ── 營收CAGR 處理
         if neff_c is None:
             neff_c = 0
             neff_gray = True
         else:
             neff_c = round(neff_c, 2)
-            if neff_c > 20:
-                neff_c = 20.0  # 超過20%以20%計
             neff_gray = neff_c <= 0
 
-        # total return = 成長率 + 殖利率，> 0 就算（衰退但高殖利率仍有意義）
-        total_return = neff_c + yld
+        # Neff/PEG 計算用封頂20%，neff_c 本身保留真實值
+        _neff_c_capped = min(neff_c, 20.0) if neff_c > 0 else neff_c
+        total_return = _neff_c_capped + yld
         if total_return > 0 and pe > 0:
             neff_d = total_return / pe
             lynch_d = pe / total_return
