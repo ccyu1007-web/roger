@@ -147,8 +147,8 @@ let _stocks = [];
 let _qualitySet = new Set();
 
 async function load() {
+  // 1. 載入報告（獨立 try，不影響 Tab）
   try {
-    // 載入報告
     const res = await fetch('/api/stock-picks');
     const data = await res.json();
     const area = document.getElementById('reportArea');
@@ -164,7 +164,13 @@ async function load() {
         選擇群組 → 按「複製分析指令」→ 貼給 Claude → 即可產出深度分析報告。
       </div>`;
     }
-    // 載入股票數據（供 Tab 計數和 prompt 用）
+  } catch(e) {
+    document.getElementById('reportArea').innerHTML =
+      `<div class="empty" style="color:#ef4444">報告載入失敗：${e.message}</div>`;
+  }
+
+  // 2. 載入股票數據（供 Tab 計數和 prompt 用）
+  try {
     const [stocksRes, listRes] = await Promise.all([fetch('/api/stocks'), fetch('/api/user-lists')]);
     const stocksJson = await stocksRes.json();
     _stocks = stocksJson.data || [];
@@ -172,8 +178,7 @@ async function load() {
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
     updateCounts();
   } catch(e) {
-    document.getElementById('reportArea').innerHTML =
-      `<div class="empty" style="color:#ef4444">載入失敗：${e.message}</div>`;
+    console.error('股票數據載入失敗:', e);
   }
 }
 
