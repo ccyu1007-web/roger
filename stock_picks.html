@@ -115,7 +115,7 @@
       <button class="tab-btn" onclick="switchTab('neffonly',this)">僅Neff ≥ 1.0<span class="tab-cnt" id="cnt_neffonly">0</span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
-      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
+      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
       僅體質佳
     </label>
     <button class="toolbar-btn primary" onclick="copyPrompt()">複製分析指令</button>
