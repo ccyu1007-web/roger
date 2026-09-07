@@ -236,100 +236,78 @@ async function loadReport() {
 
 function copyPrompt() {
   const today = new Date().toISOString().slice(0,10);
-  const tabs = ['selected','value','momentum','neffonly'];
-  const tabLabels = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'};
+  const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'}[_currentTab];
+  const key = _reportKey();
+  const pool = _getTabPool();
+  pool.sort((a, b) => ((b._gi||{}).neff_d||0) - ((a._gi||{}).neff_d||0));
 
-  // 組裝所有群組的股票清單
-  const allNeff = _stocks.filter(s => _isNeffPass(s));
-  const qualStocks = allNeff.filter(s => _qualitySet.has(s.code));
-
-  const _fmt = s => {
+  let stockList = '';
+  pool.forEach(s => {
     const gi = s._gi || {};
     const n = s._notes || {};
-    return `${s.code} ${s.name} | Neff=${gi.neff_d?.toFixed(2)||'—'} | PE=${gi.pe?.toFixed(1)||'—'}(${gi.pe_src||''}) | 殖利率=${gi.yield?.toFixed(1)||'—'}%(${gi.yld_src||''}) | CAGR=${gi.neff_c?.toFixed(1)||'—'}% | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}`;
-  };
-
-  const _filter = (pool, tab) => {
-    if (tab === 'selected')  return pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
-    if (tab === 'value')     return pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s));
-    if (tab === 'momentum')  return pool.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s));
-    return pool.filter(s => !_isHighQuality(s) && !_isPositiveMomentum(s));
-  };
-
-  let groupSections = '';
-  tabs.forEach(tab => {
-    const label = tabLabels[tab];
-    const stocks = _filter(allNeff, tab);
-    const qStocks = _filter(qualStocks, tab);
-    stocks.sort((a,b) => ((b._gi||{}).neff_d||0) - ((a._gi||{}).neff_d||0));
-    qStocks.sort((a,b) => ((b._gi||{}).neff_d||0) - ((a._gi||{}).neff_d||0));
-
-    groupSections += `\n【${label}（${stocks.length}支）】key=${tab}\n`;
-    stocks.forEach(s => { groupSections += `- ${_fmt(s)}\n`; });
-
-    groupSections += `\n【${label}+體質佳（${qStocks.length}支）】key=${tab}_quality\n`;
-    qStocks.forEach(s => { groupSections += `- ${_fmt(s)}\n`; });
+    stockList += `- ${s.code} ${s.name} | Neff=${gi.neff_d?.toFixed(2)||'—'} | PE=${gi.pe?.toFixed(1)||'—'}(${gi.pe_src||''}) | 殖利率=${gi.yield?.toFixed(1)||'—'}%(${gi.yld_src||''}) | CAGR=${gi.neff_c?.toFixed(1)||'—'}% | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
   });
 
-  const prompt = `請根據逍遙投資系統的每日價值評估，一次產出 8 份選股推薦報告（4 群組 × 有無體質佳）。
+  const prompt = `請根據逍遙投資系統的每日價值評估，產出「${tabLabel}${_qualityOnly?'+體質佳':''}」的選股推薦深度分析報告。
 
 報告日期：${today}
+篩選群組：${tabLabel}${_qualityOnly?'（僅體質佳）':''}（共 ${pool.length} 支）
 
-【所有群組股票清單】
-${groupSections}
+【股票清單與量化數據】
+${stockList}
 【步驟一：逐支讀取質性研究筆記】
-對所有出現的股票（去重），讀取質性研究筆記：
+對以上每支股票，讀取質性研究筆記：
 curl -s "https://tock-system.onrender.com/api/user-notes/{code}"
 
-有筆記的 → 讀取完整內容，整合量化+質化分析
-無筆記的 → 純量化分析 + 標註「待質性研究」
+有筆記的（質性=有）→ 讀取完整內容，整合量化+質化深度分析
+無筆記的（質性=無）→ 純量化分析 + 標註「待質性研究」
 
 【步驟二：深度分析與分類】
-對每支股票分析一次（結果共用於該股出現的所有群組），分類為重倉/小買/觀望/待質性研究。
 
-重倉：質性研究<3月 + 護城河≥中 + 信心≥中 + 無風險 + 無逆風
-小買：質性部分達標 或 無質性但量化很強
-觀望：有風險或重大疑慮
-待質性研究：無質性筆記 → 純量化初步判斷
+**重倉**（量化+質性全達標）：
+- 質性研究在3個月內 + 護城河≥中 + 信心度≥中 + 無結構性風險 + 無明顯逆風
+- 綜合量化數據和質性分析判斷值得重倉
 
-每支 2~3 句具體理由（帶數字）。
+**小買**：
+- 質性部分達標，或有輕微疑慮但整體正面
+- 或無質性研究但量化面很強
 
-【步驟三：產出 8 份報告】
-每份報告格式：
-## 選股推薦報告 — {群組名稱}
+**觀望**：
+- 有結構性風險、重大逆風、護城河弱或信心低
+
+**待質性研究**：
+- 無質性筆記 → 純量化初步判斷 + 標註
+
+每支股票附 2~3 句具體理由（帶數字），不要空泛描述。
+
+【步驟三：產出報告（Markdown）】
+
+## 選股推薦報告 — ${tabLabel}${_qualityOnly?'（體質佳）':''}
 **報告日期**：${today}
-### 重倉推薦（X支）
-### 小買推薦（X支）
-### 觀望（X支）
-### 待質性研究（X支）
+**篩選群組**：${tabLabel}${_qualityOnly?'（僅體質佳）':''}（${pool.length} 支）
 
-【步驟四：寫入 Render（8 次 POST）】
-每份報告用對應的 key 寫入：
+---
+### 重倉推薦（X 支）
+### 小買推薦（X 支）
+### 觀望（X 支）
+### 待質性研究（X 支）
+---
+*報告產出時間：${today}*
+
+【步驟四：寫入 Render】
+報告完成後先輸出供檢查，確認後執行：
 python3 << 'PYEOF'
 import json, urllib.request
-
-reports = {
-    "selected": """...""",
-    "selected_quality": """...""",
-    "value": """...""",
-    "value_quality": """...""",
-    "momentum": """...""",
-    "momentum_quality": """...""",
-    "neffonly": """...""",
-    "neffonly_quality": """...""",
-}
-
-for key, content in reports.items():
-    data = json.dumps({"content": content}).encode("utf-8")
-    req = urllib.request.Request(
-        f"https://tock-system.onrender.com/api/stock-picks/{key}",
-        data=data, headers={"Content-Type": "application/json"}, method="POST")
-    resp = urllib.request.urlopen(req, timeout=30).read().decode()
-    print(f"{key}: {resp}")
+content = """（完整 Markdown 報告）"""
+data = json.dumps({"content": content}).encode("utf-8")
+req = urllib.request.Request(
+    "https://tock-system.onrender.com/api/stock-picks/${key}",
+    data=data, headers={"Content-Type": "application/json"}, method="POST")
+print(urllib.request.urlopen(req, timeout=30).read().decode())
 PYEOF`;
 
   navigator.clipboard.writeText(prompt).then(() => {
-    alert(`8 份選股推薦分析指令已複製到剪貼簿（共 ${allNeff.length} 支）`);
+    alert(`${tabLabel}${_qualityOnly?'+體質佳':''}（${pool.length}支）分析指令已複製到剪貼簿`);
   });
 }
 
