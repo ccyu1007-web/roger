@@ -80,9 +80,11 @@ def _post_with_retry(url, json_data, timeout=60, max_retries=3, label=''):
     return None
 
 
-def _push_single_table(table_name):
+def _push_single_table(table_name, where=None, since=None):
     """按表名 push 單張表到 Render — 自動從本機 DB 讀取所有欄位。
     用法：_push_single_table('stock_checklist')
+    where: 可選的 WHERE 條件（如 "WHERE code IN ('1101','2330')"）
+    since: 只推 updated_at >= since 的資料（增量同步）
     """
     if _is_cloud():
         return
@@ -100,7 +102,8 @@ def _push_single_table(table_name):
         pk = [columns[0]]  # fallback: 第一個欄位
     # material_news/etf 等需要 clear_first（stock_checklist 改用 UPSERT，避免清空時前端讀到空資料）
     clear_tables = {'material_news', 'etf_holdings', 'etf_changes', 'etf_info'}
-    _push_table_to_render(table_name, columns, pk, clear_first=(table_name in clear_tables))
+    _push_table_to_render(table_name, columns, pk, clear_first=(table_name in clear_tables),
+                          where=where, since=since)
 
 
 def _push_table_to_render(table, columns, pk, create_sql=None, where=None, batch_size=500, clear_first=False, since=None):
