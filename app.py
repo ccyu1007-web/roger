@@ -5268,10 +5268,7 @@ if os.environ.get('DATABASE_URL'):
                 except Exception as e:
                     print(f"[雲端股價] 快照失敗: {e}")
 
-                try:
-                    calc_all_checklists()
-                except Exception as e:
-                    print(f"[雲端股價] checklist失敗: {e}")
+                # Render 不跑 calc_all_checklists（缺 financial_annual 部分欄位會算出 null，由本機計算後同步）
 
             except Exception as e:
                 print(f"[雲端股價] 失敗: {e}")
@@ -6019,7 +6016,9 @@ def get_checklist(code):
 
 @app.route("/api/checklist/refresh", methods=["POST"])
 def refresh_checklist():
-    """手動觸發重算所有檢核表"""
+    """手動觸發重算所有檢核表（僅本機，Render 缺欄位會算出 null）"""
+    if bool(os.environ.get('DATABASE_URL')):
+        return jsonify({"status": "skip", "msg": "Render 不獨立計算 checklist，由本機同步"})
     count = calc_all_checklists()
     return jsonify({"status": "ok", "count": count})
 
