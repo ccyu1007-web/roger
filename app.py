@@ -2407,9 +2407,10 @@ def refresh_revenue():
                 except Exception:
                     pass
 
-                # 重算 checklist + 衍生欄位
-                calc_all_checklists()
-                recalc_all_derived()
+                # 重算 checklist + 衍生欄位（僅本機，Render 缺 financial_annual 部分欄位會算出 null）
+                if not is_cloud:
+                    calc_all_checklists()
+                    recalc_all_derived()
 
                 # Push checklist（只推受影響的股票）
                 if not is_cloud:
