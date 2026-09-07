@@ -5801,28 +5801,37 @@ def save_investment_report(code):
     _bg_push_table('investment_reports', _REPORT_COLS, ['code'], create_sql=_REPORT_CREATE)
     return jsonify({"status": "ok"})
 
-# ── 選股推薦 API（複用 investment_reports 表，key=_stock_picks）──
+# ── 選股推薦 API（複用 investment_reports 表，key=_stock_picks_{group}）──
 @app.route("/api/stock-picks", methods=["GET"])
-def get_stock_picks():
+@app.route("/api/stock-picks/<group>", methods=["GET"])
+def get_stock_picks(group='selected'):
     _init_investment_reports()
-    rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code='_stock_picks'")
+    key = f'_stock_picks_{group}'
+    rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code=?", (key,))
     if rows:
         return jsonify(rows[0])
+    # fallback: 嘗試讀舊的 _stock_picks（相容）
+    if group == 'selected':
+        rows = query_db("SELECT content, updated_at FROM investment_reports WHERE code='_stock_picks'")
+        if rows:
+            return jsonify(rows[0])
     return jsonify({"content": "", "updated_at": None})
 
 @app.route("/api/stock-picks", methods=["POST"])
-def save_stock_picks():
+@app.route("/api/stock-picks/<group>", methods=["POST"])
+def save_stock_picks(group='selected'):
     _init_investment_reports()
     from datetime import datetime
     content = request.json.get('content', '')
+    key = f'_stock_picks_{group}'
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if content.strip():
         c.execute("INSERT OR REPLACE INTO investment_reports (code, content, updated_at) VALUES (?,?,?)",
-                  ('_stock_picks', content, now))
+                  (key, content, now))
     else:
-        c.execute("DELETE FROM investment_reports WHERE code='_stock_picks'")
+        c.execute("DELETE FROM investment_reports WHERE code=?", (key,))
     conn.commit()
     conn.close()
     _bg_push_table('investment_reports', _REPORT_COLS, ['code'], create_sql=_REPORT_CREATE)

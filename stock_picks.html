@@ -147,27 +147,8 @@ let _stocks = [];
 let _qualitySet = new Set();
 
 async function load() {
-  // 1. 載入報告（獨立 try，不影響 Tab）
-  try {
-    const res = await fetch('/api/stock-picks');
-    const data = await res.json();
-    const area = document.getElementById('reportArea');
-    if (data.content && data.content.trim()) {
-      area.innerHTML = marked.parse(data.content);
-      if (data.updated_at) {
-        document.getElementById('dateLabel').textContent = `報告日期：${data.updated_at.slice(0,10)}`;
-        document.getElementById('toolbarInfo').textContent = `最後更新：${data.updated_at}`;
-      }
-    } else {
-      area.innerHTML = `<div class="empty">
-        尚未產出選股推薦報告。<br><br>
-        選擇群組 → 按「複製分析指令」→ 貼給 Claude → 即可產出深度分析報告。
-      </div>`;
-    }
-  } catch(e) {
-    document.getElementById('reportArea').innerHTML =
-      `<div class="empty" style="color:#ef4444">報告載入失敗：${e.message}</div>`;
-  }
+  // 1. 載入當前 Tab 的報告
+  await loadReport();
 
   // 2. 載入股票數據（供 Tab 計數和 prompt 用）
   try {
@@ -219,6 +200,32 @@ function switchTab(tab, btn) {
   _currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  loadReport();
+}
+
+async function loadReport() {
+  const area = document.getElementById('reportArea');
+  area.innerHTML = '<div class="empty">載入中...</div>';
+  try {
+    const res = await fetch(`/api/stock-picks/${_currentTab}`);
+    const data = await res.json();
+    if (data.content && data.content.trim()) {
+      area.innerHTML = marked.parse(data.content);
+      if (data.updated_at) {
+        document.getElementById('dateLabel').textContent = `報告日期：${data.updated_at.slice(0,10)}`;
+        document.getElementById('toolbarInfo').textContent = `最後更新：${data.updated_at}`;
+      }
+    } else {
+      const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'}[_currentTab];
+      area.innerHTML = `<div class="empty">
+        「${tabLabel}」尚未產出報告。<br><br>
+        按「複製分析指令」→ 貼給 Claude → 即可產出此群組的深度分析報告。
+      </div>`;
+      document.getElementById('toolbarInfo').textContent = '';
+    }
+  } catch(e) {
+    area.innerHTML = `<div class="empty" style="color:#ef4444">載入失敗：${e.message}</div>`;
+  }
 }
 
 function copyPrompt() {
@@ -289,7 +296,7 @@ import json, urllib.request
 content = """（完整 Markdown 報告）"""
 data = json.dumps({"content": content}).encode("utf-8")
 req = urllib.request.Request(
-    "https://tock-system.onrender.com/api/stock-picks",
+    "https://tock-system.onrender.com/api/stock-picks/${_currentTab}",
     data=data, headers={"Content-Type": "application/json"}, method="POST")
 print(urllib.request.urlopen(req, timeout=30).read().decode())
 PYEOF`;
