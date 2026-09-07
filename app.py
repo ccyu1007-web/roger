@@ -2364,6 +2364,7 @@ def refresh_revenue():
         print(f"[手動季報] 失敗: {e}")
 
     # 3. 本機才 push 到 Render（Render 上已直接寫入 PostgreSQL）
+    _today_start = _get_today_start()
     if not is_cloud:
         try:
             from render_sync import _push_table_to_render, _push_annual_to_render
@@ -2371,7 +2372,7 @@ def refresh_revenue():
                 table='monthly_revenue',
                 columns=['code','year','month','revenue','updated_at'],
                 pk=['code','year','month'],
-                since=_get_today_start(),
+                since=_today_start,
             )
             _push_table_to_render(
                 table='quarterly_financial',
@@ -2379,9 +2380,9 @@ def refresh_revenue():
                          'operating_income','non_operating','pretax_income','tax','continuing_income',
                          'net_income_parent','eps','contract_liability','inventory','updated_at'],
                 pk=['code','quarter'],
-                since=_get_today_start(),
+                since=_today_start,
             )
-            _push_annual_to_render()
+            _push_annual_to_render(since=_today_start)
             print("[手動營收/季報] push Render 完成")
         except Exception as e:
             results['errors'].append(f"push: {e}")
@@ -2391,11 +2392,25 @@ def refresh_revenue():
     # 4. 重算 checklist（含 Neff）讓每日價值評估即時反映
     if total > 0:
         try:
+            # 取得今日有更新營收/季報的股票代碼，只推這些到 Render
+            _updated_codes = set()
+            try:
+                _rev_codes = query_db("SELECT DISTINCT code FROM monthly_revenue WHERE updated_at >= ?", (_today_start,))
+                _updated_codes.update(r['code'] for r in _rev_codes)
+                _q_codes = query_db("SELECT DISTINCT code FROM quarterly_financial WHERE updated_at >= ?", (_today_start,))
+                _updated_codes.update(r['code'] for r in _q_codes)
+            except Exception:
+                pass
+
             calc_all_checklists()
             recalc_all_derived()
             if not is_cloud:
                 from render_sync import _push_single_table
-                _push_single_table('stock_checklist')
+                if _updated_codes:
+                    codes_csv = "','".join(_updated_codes)
+                    _push_single_table('stock_checklist', where=f"WHERE code IN ('{codes_csv}')")
+                else:
+                    _push_single_table('stock_checklist')
         except Exception as e:
             results['errors'].append(f"checklist: {e}")
     if results['errors']:
