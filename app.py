@@ -2363,61 +2363,69 @@ def refresh_revenue():
         results['errors'].append(f"季報: {e}")
         print(f"[手動季報] 失敗: {e}")
 
-    # 3. 本機才 push 到 Render（Render 上已直接寫入 PostgreSQL）
-    _today_start = _get_today_start()
-    if not is_cloud:
-        try:
-            from render_sync import _push_table_to_render, _push_annual_to_render
-            _push_table_to_render(
-                table='monthly_revenue',
-                columns=['code','year','month','revenue','updated_at'],
-                pk=['code','year','month'],
-                since=_today_start,
-            )
-            _push_table_to_render(
-                table='quarterly_financial',
-                columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
-                         'operating_income','non_operating','pretax_income','tax','continuing_income',
-                         'net_income_parent','eps','contract_liability','inventory','updated_at'],
-                pk=['code','quarter'],
-                since=_today_start,
-            )
-            _push_annual_to_render(since=_today_start)
-            print("[手動營收/季報] push Render 完成")
-        except Exception as e:
-            results['errors'].append(f"push: {e}")
-
     total = results['mops_revenue'] + results['mops_quarterly']
 
-    # 4. 重算 checklist（含 Neff）讓每日價值評估即時反映
-    if total > 0:
-        try:
-            # 取得今日有更新營收/季報的股票代碼，只推這些到 Render
-            _updated_codes = set()
-            try:
-                _rev_codes = query_db("SELECT DISTINCT code FROM monthly_revenue WHERE updated_at >= ?", (_today_start,))
-                _updated_codes.update(r['code'] for r in _rev_codes)
-                _q_codes = query_db("SELECT DISTINCT code FROM quarterly_financial WHERE updated_at >= ?", (_today_start,))
-                _updated_codes.update(r['code'] for r in _q_codes)
-            except Exception:
-                pass
-
-            calc_all_checklists()
-            recalc_all_derived()
-            if not is_cloud:
-                from render_sync import _push_single_table
-                if _updated_codes:
-                    codes_csv = "','".join(_updated_codes)
-                    _push_single_table('stock_checklist', where=f"WHERE code IN ('{codes_csv}')")
-                else:
-                    _push_single_table('stock_checklist')
-        except Exception as e:
-            results['errors'].append(f"checklist: {e}")
+    # 先回傳結果，後續 push + 重算丟背景執行
     if results['errors']:
-        return jsonify({"status": "error", "msg": f"部分失敗: {'; '.join(results['errors'])}", "detail": results})
-    if total == 0:
-        return jsonify({"status": "ok", "msg": "MOPS 無新資料（可能尚未申報）", "detail": results})
-    return jsonify({"status": "ok", "msg": f"更新完成：營收 {results['mops_revenue']} 筆、季報 {results['mops_quarterly']} 筆", "detail": results})
+        resp = jsonify({"status": "error", "msg": f"部分失敗: {'; '.join(results['errors'])}", "detail": results})
+    elif total == 0:
+        resp = jsonify({"status": "ok", "msg": "MOPS 無新資料（可能尚未申報）", "detail": results})
+    else:
+        resp = jsonify({"status": "ok", "msg": f"更新完成：營收 {results['mops_revenue']} 筆、季報 {results['mops_quarterly']} 筆", "detail": results})
+
+    # 背景執行 push + 重算（不阻塞前端回應）
+    if total > 0:
+        _today_start = _get_today_start()
+        def _bg_revenue_post_process():
+            try:
+                # Push 營收/季報到 Render（增量）
+                if not is_cloud:
+                    from render_sync import _push_table_to_render, _push_annual_to_render
+                    _push_table_to_render(
+                        table='monthly_revenue',
+                        columns=['code','year','month','revenue','updated_at'],
+                        pk=['code','year','month'],
+                        since=_today_start,
+                    )
+                    _push_table_to_render(
+                        table='quarterly_financial',
+                        columns=['code','quarter','revenue','cost','gross_profit','operating_expense',
+                                 'operating_income','non_operating','pretax_income','tax','continuing_income',
+                                 'net_income_parent','eps','contract_liability','inventory','updated_at'],
+                        pk=['code','quarter'],
+                        since=_today_start,
+                    )
+                    _push_annual_to_render(since=_today_start)
+
+                # 取得受影響股票代碼
+                _updated_codes = set()
+                try:
+                    _rev_codes = query_db("SELECT DISTINCT code FROM monthly_revenue WHERE updated_at >= ?", (_today_start,))
+                    _updated_codes.update(r['code'] for r in _rev_codes)
+                    _q_codes = query_db("SELECT DISTINCT code FROM quarterly_financial WHERE updated_at >= ?", (_today_start,))
+                    _updated_codes.update(r['code'] for r in _q_codes)
+                except Exception:
+                    pass
+
+                # 重算 checklist + 衍生欄位
+                calc_all_checklists()
+                recalc_all_derived()
+
+                # Push checklist（只推受影響的股票）
+                if not is_cloud:
+                    from render_sync import _push_single_table
+                    if _updated_codes:
+                        codes_csv = "','".join(_updated_codes)
+                        _push_single_table('stock_checklist', where=f"WHERE code IN ('{codes_csv}')")
+                    else:
+                        _push_single_table('stock_checklist')
+                print("[手動營收/季報] 背景處理完成")
+            except Exception as e:
+                print(f"[手動營收/季報] 背景處理失敗: {e}")
+
+        threading.Thread(target=_bg_revenue_post_process, daemon=True).start()
+
+    return resp
 
 def _get_today_start():
     from datetime import date
