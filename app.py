@@ -636,15 +636,22 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
             # 有系統預估值，填滿剩餘季度
             _fwd_ann_eps = sum(_actual_qs.values()) + _sys_est * (4 - _published_count)
 
-    # (3) 前瞻PE和殖利率預設值
+    # (3) 前瞻PE和殖利率：用戶手動估值 > 系統預設 > 無值
+    # 3a. 系統預設（兜底）
     if _fwd_ann_eps and _fwd_ann_eps > 0 and close:
         _fwd_pe = round(close / _fwd_ann_eps, 2)
         _wp = r.get('weighted_payout')
         if _wp and _wp > 0:
             _fwd_div = _fwd_ann_eps * _wp / 100
             _fwd_yld = round(_fwd_div / close * 100, 2)
+    # 3b. 用戶季估計表手動值（est_pe/est_yld）覆蓋系統預設
+    if r.get('est_pe') and r['est_pe'] > 0:
+        _fwd_pe = r['est_pe']
+    if r.get('est_yld') is not None:
+        _fwd_yld = r['est_yld']
 
     # (4) 用戶覆蓋（fwdNeffGrowth 優先，向後相容 neffGrowth）
+    # 4a. 聶夫區塊直接輸入的值（最高優先）
     if user_params:
         try:
             _ug = user_params.get('fwdNeffGrowth') or user_params.get('neffGrowth')
