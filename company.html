@@ -3484,43 +3484,54 @@ function calcValuation(annEps) {
 }
 
 function calcNeff() {
-  // 讀取用戶輸入（空值時用系統預設）
+  // 讀取聶夫區塊直接輸入值
   const growthInput = document.getElementById('neffGrowth').value.trim();
   const peInput = document.getElementById('neffPEInput').value.trim();
   const yldInput = document.getElementById('neffYldInput').value.trim();
 
-  // 系統預設值（從 _stockData 讀取後端計算的結果）
+  // 季估計表的預估本益比/殖利率（用戶設 q1~q4/div 後自動算出）
+  const annPEText = document.getElementById('annPE').textContent;
+  const annYldText = document.getElementById('annYield').textContent;
+  const estPE = annPEText !== '-' ? parseFloat(annPEText) : null;
+  const estYld = annYldText !== '-' ? parseFloat(annYldText) : null;
+
+  // 系統預設值（兜底）
   const defaultG = _stockData ? _stockData.fwd_neff_g : null;
   const defaultPE = _stockData ? _stockData.fwd_neff_pe : null;
   const defaultYld = _stockData ? _stockData.fwd_neff_yld : null;
 
-  // 決定使用值：用戶輸入優先，否則用系統預設
+  // 優先順序：聶夫直接輸入 > 季估計表帶入 > 系統預設
   const growth = growthInput ? parseFloat(growthInput) : defaultG;
-  const pe = peInput ? parseFloat(peInput) : defaultPE;
-  const yld = yldInput ? parseFloat(yldInput) : defaultYld;
+  const pe = peInput ? parseFloat(peInput) : (estPE || defaultPE);
+  const yld = yldInput ? parseFloat(yldInput) : (estYld != null ? estYld : defaultYld);
 
-  // 顏色區分：手動輸入=黑色, 系統預設=藍色
+  // 判斷來源：手動（聶夫輸入或季估計表）=黑色, 系統預設=藍色
+  const gIsDefault = !growthInput;
+  const peIsDefault = !peInput && estPE == null;
+  const yldIsDefault = !yldInput && estYld == null;
+
+  // 顏色區分 + 填入顯示值
   const peEl = document.getElementById('neffPEInput');
   const yldEl = document.getElementById('neffYldInput');
   const growthEl = document.getElementById('neffGrowth');
-  // g
-  if (!growthInput && defaultG != null) {
-    growthEl.value = defaultG.toFixed(0);
+
+  if (!growthInput && growth != null) {
+    growthEl.value = growth.toFixed(0);
     growthEl.dataset.isDefault = '1';
   }
-  growthEl.style.color = growthEl.dataset.isDefault === '1' ? '#2563eb' : '#000';
-  // PE
-  if (!peInput && defaultPE != null) {
-    peEl.value = defaultPE.toFixed(2);
-    peEl.dataset.isDefault = '1';
+  growthEl.style.color = gIsDefault ? '#2563eb' : '#000';
+
+  if (!peInput && pe != null) {
+    peEl.value = pe.toFixed(2);
+    peEl.dataset.isDefault = peIsDefault ? '1' : '';
   }
-  peEl.style.color = peEl.dataset.isDefault === '1' ? '#2563eb' : '#000';
-  // 殖利率
-  if (!yldInput && defaultYld != null) {
-    yldEl.value = defaultYld.toFixed(2);
-    yldEl.dataset.isDefault = '1';
+  peEl.style.color = peIsDefault ? '#2563eb' : '#000';
+
+  if (!yldInput && yld != null) {
+    yldEl.value = yld.toFixed(2);
+    yldEl.dataset.isDefault = yldIsDefault ? '1' : '';
   }
-  yldEl.style.color = yldEl.dataset.isDefault === '1' ? '#2563eb' : '#000';
+  yldEl.style.color = yldIsDefault ? '#2563eb' : '#000';
 
   const resultEl = document.getElementById('neffResult');
   const noteEl = document.getElementById('neffNote');
@@ -3539,9 +3550,9 @@ function calcNeff() {
       const neff = totalReturn / pe;
       resultEl.textContent = neff.toFixed(2);
       resultEl.style.color = neff >= 0.7 ? '#dc2626' : '#64748b';
-      const gLabel = growthInput ? '自訂' : '預設';
-      const peLabel = peInput ? '自訂' : '預設';
-      const yldLabel = yldInput ? '自訂' : '預設';
+      const gLabel = gIsDefault ? '預設' : '自訂';
+      const peLabel = peIsDefault ? '預設' : (peInput ? '自訂' : '估值');
+      const yldLabel = yldIsDefault ? '預設' : (yldInput ? '自訂' : '估值');
       noteEl.textContent = `(${gLabel}成長率 ${growth.toFixed(2)}% + ${yldLabel}殖利率 ${yld.toFixed(2)}%) / ${peLabel}PE ${pe.toFixed(2)} = ${neff.toFixed(2)}` +
         (neff >= 1.0 ? '　極具吸引力' : neff >= 0.7 ? '　具吸引力' : '　未達門檻');
     }
