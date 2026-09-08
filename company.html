@@ -1918,9 +1918,9 @@ function buildEstimator(sharesMillion, sysQuarters, annData) {
     <div class="matrix-wrap">
       <div class="matrix-title" style="color:#b45309">聶夫總報酬率法</div>
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
-        <div class="val-inp-group"><label>自訂成長率（%）</label><input id="neffGrowth" type="text" placeholder="%" oninput="calcNeff()" style="width:70px"></div>
-        <div class="val-inp-group"><label>預估本益比</label><input id="neffPEInput" type="text" placeholder="-" oninput="calcNeff()" style="width:70px"></div>
-        <div class="val-inp-group"><label>預估殖利率（%）</label><input id="neffYldInput" type="text" placeholder="-" oninput="calcNeff()" style="width:70px"></div>
+        <div class="val-inp-group"><label>自訂成長率（%）</label><input id="neffGrowth" type="text" placeholder="%" oninput="delete this.dataset.isDefault;calcNeff()" style="width:70px"></div>
+        <div class="val-inp-group"><label>預估本益比</label><input id="neffPEInput" type="text" placeholder="-" oninput="delete this.dataset.isDefault;calcNeff()" style="width:70px"></div>
+        <div class="val-inp-group"><label>預估殖利率（%）</label><input id="neffYldInput" type="text" placeholder="-" oninput="delete this.dataset.isDefault;calcNeff()" style="width:70px"></div>
         <div class="val-inp-group"><label style="font-weight:700;color:#b45309">前瞻性 Neff 比率</label><span class="auto-val" id="neffResult" style="font-weight:800;font-size:1.05rem">-</span></div>
       </div>
       <div id="neffNote" style="font-size:.78rem;color:#94a3b8"></div>
@@ -2401,9 +2401,9 @@ async function initEstimator(sharesMillion) {
       if (d.peLow) document.getElementById('peLow').value = d.peLow;
       if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
       if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
-      if (d.neffGrowth || d.fwdNeffGrowth) document.getElementById('neffGrowth').value = d.fwdNeffGrowth || d.neffGrowth;
-      if (d.fwdNeffPE) document.getElementById('neffPEInput').value = d.fwdNeffPE;
-      if (d.fwdNeffYield) document.getElementById('neffYldInput').value = d.fwdNeffYield;
+      if (d.fwdNeffGrowth || d.neffGrowth) { document.getElementById('neffGrowth').value = d.fwdNeffGrowth || d.neffGrowth; delete document.getElementById('neffGrowth').dataset.isDefault; }
+      if (d.fwdNeffPE) { document.getElementById('neffPEInput').value = d.fwdNeffPE; delete document.getElementById('neffPEInput').dataset.isDefault; }
+      if (d.fwdNeffYield) { document.getElementById('neffYldInput').value = d.fwdNeffYield; delete document.getElementById('neffYldInput').dataset.isDefault; }
       // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
       if (d._vmManual) {
         if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
@@ -3499,13 +3499,28 @@ function calcNeff() {
   const pe = peInput ? parseFloat(peInput) : defaultPE;
   const yld = yldInput ? parseFloat(yldInput) : defaultYld;
 
-  // 設定 placeholder 顯示預設值
+  // 顏色區分：手動輸入=黑色, 系統預設=藍色
   const peEl = document.getElementById('neffPEInput');
   const yldEl = document.getElementById('neffYldInput');
   const growthEl = document.getElementById('neffGrowth');
-  if (defaultG != null) growthEl.placeholder = defaultG.toFixed(0) + '%';
-  if (defaultPE != null) peEl.placeholder = defaultPE.toFixed(2);
-  if (defaultYld != null) yldEl.placeholder = defaultYld.toFixed(2) + '%';
+  // g
+  if (!growthInput && defaultG != null) {
+    growthEl.value = defaultG.toFixed(0);
+    growthEl.dataset.isDefault = '1';
+  }
+  growthEl.style.color = growthEl.dataset.isDefault === '1' ? '#2563eb' : '#000';
+  // PE
+  if (!peInput && defaultPE != null) {
+    peEl.value = defaultPE.toFixed(2);
+    peEl.dataset.isDefault = '1';
+  }
+  peEl.style.color = peEl.dataset.isDefault === '1' ? '#2563eb' : '#000';
+  // 殖利率
+  if (!yldInput && defaultYld != null) {
+    yldEl.value = defaultYld.toFixed(2);
+    yldEl.dataset.isDefault = '1';
+  }
+  yldEl.style.color = yldEl.dataset.isDefault === '1' ? '#2563eb' : '#000';
 
   const resultEl = document.getElementById('neffResult');
   const noteEl = document.getElementById('neffNote');
@@ -4324,10 +4339,10 @@ function saveValParams() {
     peLow: document.getElementById('peLow').value,
     yldHigh: document.getElementById('yldHigh').value,
     yldMax: document.getElementById('yldMax').value,
-    neffGrowth: document.getElementById('neffGrowth').value,
-    fwdNeffGrowth: document.getElementById('neffGrowth').value,
-    fwdNeffPE: document.getElementById('neffPEInput').value,
-    fwdNeffYield: document.getElementById('neffYldInput').value,
+    neffGrowth: document.getElementById('neffGrowth').dataset.isDefault ? '' : document.getElementById('neffGrowth').value,
+    fwdNeffGrowth: document.getElementById('neffGrowth').dataset.isDefault ? '' : document.getElementById('neffGrowth').value,
+    fwdNeffPE: document.getElementById('neffPEInput').dataset.isDefault ? '' : document.getElementById('neffPEInput').value,
+    fwdNeffYield: document.getElementById('neffYldInput').dataset.isDefault ? '' : document.getElementById('neffYldInput').value,
   };
   // vmEps/vmDiv/vmLtDiv 只在使用者手動編輯過時才存（避免自動帶入的值被當成手動設定）
   if (_vmManual) {
