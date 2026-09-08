@@ -672,16 +672,20 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
         except (ValueError, TypeError):
             pass
 
-    r['fwd_neff_g'] = _fwd_g
-    r['fwd_neff_pe'] = _fwd_pe
-    r['fwd_neff_yld'] = _fwd_yld
-
     # (5) 計算前瞻Neff = (g + 殖利率) / PE
+    # 如果算不出來（缺 sys_est_eps 等），保留 DB 已有值（本機 push 過來的）
     if _fwd_g is not None and _fwd_pe and _fwd_pe > 0 and _fwd_yld is not None:
         _fwd_total = _fwd_g + _fwd_yld
-        r['fwd_neff'] = round(_fwd_total / _fwd_pe, 2) if _fwd_total > 0 else None
+        r['fwd_neff'] = round(_fwd_total / _fwd_pe, 2) if _fwd_total > 0 else r.get('fwd_neff')
+        r['fwd_neff_g'] = _fwd_g
+        r['fwd_neff_pe'] = _fwd_pe
+        r['fwd_neff_yld'] = _fwd_yld
     else:
-        r['fwd_neff'] = None
+        # 保留 DB 原值，不覆蓋為 None
+        r.setdefault('fwd_neff', None)
+        r.setdefault('fwd_neff_g', _fwd_g)
+        r.setdefault('fwd_neff_pe', _fwd_pe)
+        r.setdefault('fwd_neff_yld', _fwd_yld)
 
     # ── 系統估算等級 ──
     _sys_eps = r.get('sys_ann_eps')
@@ -734,7 +738,8 @@ def recalc_all_derived(codes=None):
         div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
         contract_1, contract_2,
         sys_ann_eps, sys_ann_div,
-        sys_est_eps, sys_est_quarter, revenue_cum_yoy, weighted_payout
+        sys_est_eps, sys_est_quarter, revenue_cum_yoy, weighted_payout,
+        fwd_neff, fwd_neff_g, fwd_neff_pe, fwd_neff_yld
     FROM stocks{where}""", params).fetchall()
 
     # 讀取 user_estimates
