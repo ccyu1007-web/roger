@@ -250,13 +250,24 @@
       <tr><td class="field">3年端點CAGR</td><td>(最新EPS/3年前EPS)^(1/3)-1</td><td><span class="src-calc">參考值</span></td></tr>
       <tr><td class="field">3年平滑CAGR</td><td>(近2年均值/遠2年均值)^(1/3)-1</td><td><span class="src-calc">參考值</span></td></tr>
       <tr><td class="field">營收CAGR</td><td>5年營收複合成長率（=保守成長率）</td><td><span class="src-calc">計算</span> <span class="formula">(最新年營收/5年前營收)^(1/5)-1</span><div class="note">顯示真實值不封頂，Neff/PEG計算時超過20%以20%計</div></td></tr>
-      <tr><td class="field">Neff比率</td><td>總報酬率 / PE</td>
+      <tr><td class="field">Neff比率</td><td>總報酬率 / PE（歷史）</td>
         <td><span class="src-calc">計算</span> <span class="formula">(營收CAGR + 殖利率) / PE</span>
         <div class="note">
         PE = 股價 / EPS（預估 > min(沈董, 系統預估)）<br>
         殖利率 = 股利（預估 > min(沈董, 系統預估)）/ 股價<br>
         <span style="color:#dc2626;font-weight:700">≥ 1.0</span> 紅色粗體（好訊號）<br>
         <span style="color:#94a3b8">< 1.0</span> 灰色
+        </div></td></tr>
+      <tr><td class="field">前瞻Neff</td><td>前瞻性總報酬率 / 前瞻PE</td>
+        <td><span class="src-calc">計算</span> <span class="formula">(g預設 + 前瞻殖利率) / 前瞻PE</span>
+        <div class="note">
+        <b>g預設</b>：累積營收YoY對照表（&lt;0%→3, 0~10%→5, 10~20%→8, 20~30%→10, &gt;30%→12）<br>
+        <b>前瞻全年EPS</b> = 已公布季EPS + 系統預估當季EPS填滿剩餘季度<br>
+        <b>前瞻PE</b> = 股價 / 前瞻全年EPS<br>
+        <b>前瞻殖利率</b> = (前瞻全年EPS × 加權配息率) / 股價<br>
+        三個值都可由用戶在個股頁覆蓋<br>
+        <span style="color:#dc2626;font-weight:700">≥ 0.7</span> 紅色粗體<br>
+        <span style="color:#94a3b8">&lt; 0.7</span> 灰色
         </div></td></tr>
     </table>
   </div>

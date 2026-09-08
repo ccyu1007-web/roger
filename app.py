@@ -325,10 +325,11 @@ DERIVED_COLS = [
     'val_pe','val_yld',
     'est_eps','est_div','est_pe','est_yld','est_grade','est_neff','est_growth','est_date',
     'sys_pe','sys_yld','sys_grade',
+    'fwd_neff','fwd_neff_g','fwd_neff_pe','fwd_neff_yld',
     'gb_roic','gb_ey','gb_roic_rank','gb_ey_rank','gb_total_rank'
 ]
 
-def _calc_derived_fields(r, global_settings=None, user_params=None):
+def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None):
     """
     根據 row dict 裡已有的基礎欄位，計算所有衍生欄位並寫回 row。
     僅由 recalc_all_derived() 呼叫，計算結果存入 DB。
@@ -588,6 +589,93 @@ def _calc_derived_fields(r, global_settings=None, user_params=None):
     else:
         r['est_date'] = None
 
+    # ── 前瞻Neff比率（自動預設值 + 用戶覆蓋）──
+    _fwd_g = None
+    _fwd_pe = None
+    _fwd_yld = None
+
+    # (1) g 預設值：累積營收YoY → 對照表
+    _cum_yoy = r.get('revenue_cum_yoy')
+    if _cum_yoy is not None:
+        if _cum_yoy < 0:
+            _fwd_g = 3.0
+        elif _cum_yoy < 10:
+            _fwd_g = 5.0
+        elif _cum_yoy < 20:
+            _fwd_g = 8.0
+        elif _cum_yoy < 30:
+            _fwd_g = 10.0
+        else:
+            _fwd_g = 12.0
+
+    # (2) 前瞻全年EPS：已公布季EPS + 系統預估EPS填滿剩餘季度
+    _fwd_ann_eps = None
+    _cur_roc = __import__('datetime').date.today().year - 1911
+    if qf_data:
+        # 找出當年度已公布的季度EPS
+        _actual_qs = {}
+        for qf in qf_data:
+            qt = qf.get('quarter', '')
+            # 解析 "114Q1" → year=114, q=1
+            if 'Q' in qt:
+                try:
+                    _qy = int(qt.split('Q')[0])
+                    _qq = int(qt.split('Q')[1])
+                    if _qy == _cur_roc and 1 <= _qq <= 4:
+                        _actual_qs[_qq] = qf['eps']
+                except (ValueError, IndexError):
+                    pass
+
+        _sys_est = r.get('sys_est_eps')
+        _published_count = len(_actual_qs)
+
+        if _published_count == 4:
+            # 四季都有實際值
+            _fwd_ann_eps = sum(_actual_qs.values())
+        elif _sys_est is not None:
+            # 有系統預估值，填滿剩餘季度
+            _fwd_ann_eps = sum(_actual_qs.values()) + _sys_est * (4 - _published_count)
+
+    # (3) 前瞻PE和殖利率預設值
+    if _fwd_ann_eps and _fwd_ann_eps > 0 and close:
+        _fwd_pe = round(close / _fwd_ann_eps, 2)
+        _wp = r.get('weighted_payout')
+        if _wp and _wp > 0:
+            _fwd_div = _fwd_ann_eps * _wp / 100
+            _fwd_yld = round(_fwd_div / close * 100, 2)
+
+    # (4) 用戶覆蓋
+    if user_params:
+        try:
+            _ug = user_params.get('fwdNeffGrowth')
+            if _ug is not None and str(_ug).strip():
+                _fwd_g = float(_ug)
+        except (ValueError, TypeError):
+            pass
+        try:
+            _up = user_params.get('fwdNeffPE')
+            if _up is not None and str(_up).strip():
+                _fwd_pe = float(_up)
+        except (ValueError, TypeError):
+            pass
+        try:
+            _uy = user_params.get('fwdNeffYield')
+            if _uy is not None and str(_uy).strip():
+                _fwd_yld = float(_uy)
+        except (ValueError, TypeError):
+            pass
+
+    r['fwd_neff_g'] = _fwd_g
+    r['fwd_neff_pe'] = _fwd_pe
+    r['fwd_neff_yld'] = _fwd_yld
+
+    # (5) 計算前瞻Neff = (g + 殖利率) / PE
+    if _fwd_g is not None and _fwd_pe and _fwd_pe > 0 and _fwd_yld is not None:
+        _fwd_total = _fwd_g + _fwd_yld
+        r['fwd_neff'] = round(_fwd_total / _fwd_pe, 2) if _fwd_total > 0 else None
+    else:
+        r['fwd_neff'] = None
+
     # ── 系統估算等級 ──
     _sys_eps = r.get('sys_ann_eps')
     _sys_div = r.get('sys_ann_div')
@@ -638,7 +726,8 @@ def recalc_all_derived(codes=None):
         div_c3, div_s3, div_3_label, div_c4, div_s4, div_4_label,
         div_c5, div_s5, div_5_label, div_c6, div_s6, div_6_label,
         contract_1, contract_2,
-        sys_ann_eps, sys_ann_div
+        sys_ann_eps, sys_ann_div,
+        sys_est_eps, sys_est_quarter, revenue_cum_yoy, weighted_payout
     FROM stocks{where}""", params).fetchall()
 
     # 讀取 user_estimates
@@ -695,7 +784,7 @@ def recalc_all_derived(codes=None):
         r = dict(row)
         _calc_shen_fields(r, cur_roc, gs, qf_data=qf_map.get(r['code']))
         up = ue_map.get(r['code'])
-        _calc_derived_fields(r, gs, up)
+        _calc_derived_fields(r, gs, up, qf_data=qf_map.get(r['code']))
 
         # 葛林布萊：計算 ROIC 和盈餘殖利率
         fa = fa_map.get(r['code'])
@@ -2088,6 +2177,7 @@ def get_stocks():
                        val_aa, val_a1, val_a2, val_a, val_lt6,
                        est_eps, est_div, est_pe, est_yld, est_grade, est_neff, est_growth, est_date,
                        sys_pe, sys_yld, sys_grade,
+                       fwd_neff, fwd_neff_g, fwd_neff_pe, fwd_neff_yld,
                        gb_roic, gb_ey, gb_roic_rank, gb_ey_rank, gb_total_rank
                 FROM stocks WHERE 1=1"""
     params = []
@@ -5147,6 +5237,7 @@ def _init_all_db():
             ('val_pe','REAL'),('val_yld','REAL'),('val_source','TEXT'),
             ('est_eps','REAL'),('est_div','REAL'),('est_pe','REAL'),('est_yld','REAL'),('est_grade','TEXT'),('est_neff','REAL'),('est_growth','REAL'),('est_date','TEXT'),
             ('sys_pe','REAL'),('sys_yld','REAL'),('sys_grade','TEXT'),
+            ('fwd_neff','REAL'),('fwd_neff_g','REAL'),('fwd_neff_pe','REAL'),('fwd_neff_yld','REAL'),
             ('gb_roic','REAL'),('gb_ey','REAL'),('gb_roic_rank','INTEGER'),('gb_ey_rank','INTEGER'),('gb_total_rank','INTEGER'),
         ]
         conn_s = sqlite3.connect()
