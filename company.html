@@ -2401,7 +2401,7 @@ async function initEstimator(sharesMillion) {
       if (d.peLow) document.getElementById('peLow').value = d.peLow;
       if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
       if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
-      if (d.fwdNeffGrowth || d.neffGrowth) { document.getElementById('neffGrowth').value = d.fwdNeffGrowth || d.neffGrowth; delete document.getElementById('neffGrowth').dataset.isDefault; }
+      if (d.fwdNeffGrowth) { document.getElementById('neffGrowth').value = d.fwdNeffGrowth; delete document.getElementById('neffGrowth').dataset.isDefault; }
       if (d.fwdNeffPE) { document.getElementById('neffPEInput').value = d.fwdNeffPE; delete document.getElementById('neffPEInput').dataset.isDefault; }
       if (d.fwdNeffYield) { document.getElementById('neffYldInput').value = d.fwdNeffYield; delete document.getElementById('neffYldInput').dataset.isDefault; }
       // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
