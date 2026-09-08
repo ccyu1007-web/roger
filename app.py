@@ -644,10 +644,10 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
             _fwd_div = _fwd_ann_eps * _wp / 100
             _fwd_yld = round(_fwd_div / close * 100, 2)
 
-    # (4) 用戶覆蓋
+    # (4) 用戶覆蓋（fwdNeffGrowth 優先，向後相容 neffGrowth）
     if user_params:
         try:
-            _ug = user_params.get('fwdNeffGrowth')
+            _ug = user_params.get('fwdNeffGrowth') or user_params.get('neffGrowth')
             if _ug is not None and str(_ug).strip():
                 _fwd_g = float(_ug)
         except (ValueError, TypeError):
