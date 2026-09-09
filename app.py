@@ -5444,6 +5444,13 @@ if os.environ.get('DATABASE_URL'):
                 except Exception as e:
                     print(f"[雲端營收] 政府API失敗: {e}")
 
+                # 營收更新後重算衍生欄位（含前瞻Neff）
+                try:
+                    recalc_all_derived()
+                    print("[雲端營收] recalc_all_derived 完成")
+                except Exception as e:
+                    print(f"[雲端營收] recalc失敗: {e}")
+
             except Exception as e:
                 print(f"[雲端營收] 整體失敗: {e}")
                 import traceback; traceback.print_exc()

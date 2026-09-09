@@ -2533,6 +2533,13 @@ def quick_update():
     # ── 3. 政府 API 批次營收（補充 MOPS 缺的，COALESCE 不覆蓋已有值）──
     _quick_gov_revenue(today_str)
 
+    # ── 3b. 營收更新後重算衍生欄位（含前瞻Neff）──
+    try:
+        from app import recalc_all_derived
+        recalc_all_derived()
+    except Exception as e:
+        print(f"[Derived] 必跑步驟 recalc 失敗: {e}")
+
     # ── 必跑步驟的 Render 同步（營收+季報，增量）──
     if not IS_CLOUD:
         try:
