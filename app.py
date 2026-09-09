@@ -598,15 +598,19 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
     _cum_yoy = r.get('revenue_cum_yoy')
     if _cum_yoy is not None:
         if _cum_yoy < 0:
+            _fwd_g = 0.0
+        elif _cum_yoy < 5:
             _fwd_g = 3.0
         elif _cum_yoy < 10:
             _fwd_g = 5.0
-        elif _cum_yoy < 20:
+        elif _cum_yoy < 15:
             _fwd_g = 8.0
-        elif _cum_yoy < 30:
+        elif _cum_yoy < 20:
             _fwd_g = 10.0
+        elif _cum_yoy < 30:
+            _fwd_g = 15.0
         else:
-            _fwd_g = 12.0
+            _fwd_g = 20.0
 
     # (2) 前瞻全年EPS：已公布季EPS + 系統預估EPS填滿剩餘季度
     _fwd_ann_eps = None
