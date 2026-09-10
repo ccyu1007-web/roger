@@ -212,11 +212,10 @@ def get_last_sync_result():
 
 
 def _pull_user_estimates_from_render():
-    """從 Render 拉回 user_estimates（前台設定的預估參數），本機有的 key 優先不覆蓋"""
+    """從 Render 拉回 user_estimates，時間戳較新的整筆覆蓋（處理清除操作）"""
     if _is_cloud():
         return
     import json
-    from datetime import datetime
     _rs = _create_session()
     resp = _rs.get(f'{RENDER_URL}/api/user-estimates-all', timeout=30)
     if resp.status_code != 200:
@@ -226,25 +225,25 @@ def _pull_user_estimates_from_render():
     if not render_ue:
         return
 
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     updated = 0
     with sqlite3.get_conn() as conn:
-        for code, params in render_ue.items():
-            if not params:
-                continue
-            params_str = json.dumps(params, ensure_ascii=False)
-            existing = conn.execute('SELECT params FROM user_estimates WHERE code=?', (code,)).fetchone()
-            if existing and existing[0]:
-                local_params = json.loads(existing[0])
-                merged = {**local_params, **params}  # Render 優先（使用者主要在 Render 操作）
-                merged_str = json.dumps(merged, ensure_ascii=False)
-                if merged_str != existing[0]:
-                    conn.execute('UPDATE user_estimates SET params=?, updated_at=? WHERE code=?',
-                               (merged_str, now_str, code))
-                    updated += 1
+        for code, item in render_ue.items():
+            # 新格式含 updated_at，舊格式直接是 params（向下相容）
+            if isinstance(item, dict) and 'params' in item:
+                render_params = item['params']
+                render_time = item.get('updated_at') or '2000-01-01'
             else:
+                render_params = item
+                render_time = '2000-01-01'
+            if not render_params:
+                continue
+            render_str = json.dumps(render_params, ensure_ascii=False)
+            existing = conn.execute('SELECT params, updated_at FROM user_estimates WHERE code=?', (code,)).fetchone()
+            local_time = existing[1] if existing and existing[1] else '2000-01-01'
+            # Render 較新 → 整筆覆蓋本機（不 merge，才能正確處理清除操作）
+            if render_time > local_time:
                 conn.execute('INSERT OR REPLACE INTO user_estimates (code, params, updated_at) VALUES (?, ?, ?)',
-                           (code, params_str, now_str))
+                           (code, render_str, render_time))
                 updated += 1
         conn.commit()
     if updated:

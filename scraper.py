@@ -1141,6 +1141,13 @@ def _run_inner(scheduled=True):
             print(f"[Checklist] 計算失敗: {e}")
 
     # 重算衍生欄位（沈董/加權/綜合/近四季 PE/殖利率/等級等）
+    # recalc 前先拉回 Render 的 user_estimates（使用者可能在前台修改/清除）
+    if not IS_CLOUD:
+        try:
+            from render_sync import _pull_user_estimates_from_render
+            _pull_user_estimates_from_render()
+        except Exception as e:
+            print(f"[Pull user_estimates] 失敗: {e}")
     try:
         from app import recalc_all_derived
         recalc_all_derived()
@@ -4398,6 +4405,13 @@ def _run_prices_inner(scheduled=True):
     # 5. EPS同步 + Checklist + 衍生欄位
     t1 = time.time()
     _sync_eps_from_quarterly()
+    # recalc 前先拉回 Render 的 user_estimates（使用者可能在前台修改/清除）
+    if not IS_CLOUD:
+        try:
+            from render_sync import _pull_user_estimates_from_render
+            _pull_user_estimates_from_render()
+        except Exception as e:
+            print(f"[Pull user_estimates] 失敗: {e}")
     try:
         from app import calc_all_checklists, recalc_all_derived
         if not IS_CLOUD:

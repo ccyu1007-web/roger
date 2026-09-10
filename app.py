@@ -6376,13 +6376,13 @@ def _valuation_history_removed():  # noqa
 
 @app.route("/api/user-estimates-all")
 def get_all_user_estimates():
-    """批次取得所有個股估值參數"""
+    """批次取得所有個股估值參數（含 updated_at 供同步比較）"""
     import json as _json
-    rows = query_db("SELECT code, params FROM user_estimates WHERE params IS NOT NULL")
+    rows = query_db("SELECT code, params, updated_at FROM user_estimates WHERE params IS NOT NULL")
     result = {}
     for r in rows:
         try:
-            result[r['code']] = _json.loads(r['params'])
+            result[r['code']] = {'params': _json.loads(r['params']), 'updated_at': r.get('updated_at') or ''}
         except Exception:
             pass
     return jsonify(result)
