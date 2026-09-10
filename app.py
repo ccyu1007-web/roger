@@ -575,6 +575,17 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
     if user_params and user_params.get('neffGrowth'):
         try: _neff_growth = float(user_params['neffGrowth'])
         except (ValueError, TypeError): pass
+    # fallback: 使用者沒手動設定時，用累積營收YoY對照表（與前瞻Neff同邏輯）
+    if _neff_growth is None:
+        _cum_yoy_for_g = r.get('revenue_cum_yoy')
+        if _cum_yoy_for_g is not None:
+            if _cum_yoy_for_g < 0: _neff_growth = 0.0
+            elif _cum_yoy_for_g < 5: _neff_growth = 3.0
+            elif _cum_yoy_for_g < 10: _neff_growth = 5.0
+            elif _cum_yoy_for_g < 15: _neff_growth = 8.0
+            elif _cum_yoy_for_g < 20: _neff_growth = 10.0
+            elif _cum_yoy_for_g < 30: _neff_growth = 15.0
+            else: _neff_growth = 20.0
     r['est_growth'] = _neff_growth
     if _neff_growth is not None and r['est_pe'] and r['est_pe'] > 0 and r['est_yld'] is not None:
         _total_return = _neff_growth + r['est_yld']
