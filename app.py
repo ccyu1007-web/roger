@@ -665,10 +665,12 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
     if r.get('est_yld') is not None:
         _fwd_yld = r['est_yld']
 
-    # (4) 用戶覆蓋（僅 fwdNeffGrowth，舊 neffGrowth 不影響 fwd_neff）
+    # (4) 用戶覆蓋（fwdNeffGrowth 優先，fallback 到 neffGrowth）
     if user_params:
         try:
             _ug = user_params.get('fwdNeffGrowth')
+            if not (_ug is not None and str(_ug).strip()):
+                _ug = user_params.get('neffGrowth')
             if _ug is not None and str(_ug).strip():
                 _fwd_g = float(_ug)
         except (ValueError, TypeError):
