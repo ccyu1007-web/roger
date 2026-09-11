@@ -464,7 +464,7 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
             r[f'payout_{i}'] = None
 
     # ── 評價門檻（統一計算，存 DB）──
-    # EPS/股利取用順序：使用者手動設定 > min(沈董EPS, 綜合EPS)，股利跟隨EPS來源
+    # EPS/股利取用順序：使用者手動設定 > Q1~Q4加總 > min(沈董EPS, 綜合EPS)，股利跟隨EPS來源
     # 沈董EPS已改用本業推估法，blend含50%沈董，min()提供極端季節性保護同時保留50%成長
     est_eps = None
     est_div = None
@@ -473,6 +473,15 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
         if user_params.get('_vmManual'):
             est_eps = user_params.get('vmEps')
             est_div = user_params.get('vmDiv')
+        # Q1~Q4 加總（使用者填入或系統估算帶入後儲存）
+        if not est_eps:
+            qs = [user_params.get(f'q{i}') for i in range(1, 5)]
+            qs_vals = [float(v) for v in qs if v]
+            if qs_vals:
+                est_eps = round(sum(qs_vals), 2)
+        # Q1~Q4 有值時，股利用 user_params 的 div
+        if est_eps and not est_div:
+            est_div = user_params.get('div')
         # 再看舊格式的 eps/div key
         if not est_eps:
             est_eps = user_params.get('eps')
