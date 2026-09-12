@@ -182,12 +182,9 @@
   .custom-cfg-popup { position:absolute; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.15); padding:12px 14px; z-index:999; min-width:180px; max-height:70vh; overflow-y:auto; }
   .custom-cfg-popup label { display:block; padding:3px 0; font-size:.82rem; cursor:pointer; }
   .custom-cfg-popup label:hover { background:#f1f5f9; }
-  /* 自訂欄位拖拉排序 */
-  .custom-cfg-group { border:1px solid transparent; border-radius:6px; padding:2px 4px; margin-bottom:2px; transition:border-color .15s,opacity .15s; }
-  .custom-cfg-group.dragging { opacity:.35; }
-  .custom-cfg-group.drag-over-top { border-top:2px solid #f59e0b; }
-  .custom-cfg-group.drag-over-bottom { border-bottom:2px solid #f59e0b; }
-  .drag-handle { cursor:grab; color:#94a3b8; margin-right:6px; font-size:1rem; vertical-align:middle; user-select:none; }
+  /* 自訂欄位序號排序 */
+  .col-order-input { width:28px; height:20px; text-align:center; border:1px solid #cbd5e1; border-radius:3px; font-size:.75rem; color:#475569; padding:0; margin-right:4px; vertical-align:middle; }
+  .col-order-input:focus { border-color:#f59e0b; outline:none; box-shadow:0 0 0 2px rgba(245,158,11,.2); }
   body.hide-g-qeps .g-qeps,
   body.hide-g-yeps .g-yeps,
   body.hide-g-divc .g-divc,
@@ -899,28 +896,34 @@ function showCustomConfig() {
   const popup = document.createElement('div');
   popup.id = 'customCfgPopup';
   popup.className = 'custom-cfg-popup';
+  // 計算已勾選欄位的序號
+  const checkedOrder = _getCheckedColumnsInOrder();
+  const orderMap = {};
+  checkedOrder.forEach((id, i) => { orderMap[id] = i + 1; });
+
   let html = '<div style="font-weight:600;margin-bottom:4px;font-size:.85rem;color:#92400e">自訂欄位設定</div>';
-  html += '<div style="font-size:.72rem;color:#94a3b8;margin-bottom:6px">拖拉 ≡ 可調整群組順序</div>';
-  // 依照已存的排序順序顯示群組
-  const orderedSecs = _getOrderedCustomCols();
-  orderedSecs.forEach(sec => {
-    html += `<div class="custom-cfg-group" draggable="true" data-group-name="${sec.group}">`;
-    html += `<div style="font-weight:600;font-size:.78rem;color:#475569;margin:4px 0 2px;border-bottom:1px solid #e2e8f0;padding-bottom:2px"><span class="drag-handle">≡</span>${sec.group}</div>`;
+  html += '<div style="font-size:.72rem;color:#94a3b8;margin-bottom:6px">勾選後修改數字可調整顯示順序</div>';
+  CUSTOM_COLS.forEach(sec => {
+    html += `<div style="font-weight:600;font-size:.78rem;color:#475569;margin:8px 0 2px;border-bottom:1px solid #e2e8f0;padding-bottom:2px">${sec.group}</div>`;
     html += '<div style="display:flex;flex-wrap:wrap;gap:2px 12px">';
     sec.cols.forEach(c => {
       const checked = _customPreset[c.id] ? 'checked' : '';
-      html += `<label style="min-width:80px"><input type="checkbox" value="${c.id}" ${checked} style="margin-right:4px;vertical-align:middle"> ${c.label}</label>`;
+      const orderNum = orderMap[c.id] || '';
+      const showInput = checked ? '' : 'display:none;';
+      html += `<label style="min-width:100px;display:flex;align-items:center;gap:2px" onclick="event.stopPropagation()">
+        <input type="checkbox" value="${c.id}" ${checked} style="margin-right:1px;vertical-align:middle" onchange="customToggleCol(this)">
+        <input type="number" class="col-order-input" data-col-id="${c.id}" value="${orderNum}" min="1" style="${showInput}" onchange="customReorder(this)" onclick="this.select()">
+        <span style="font-size:.82rem">${c.label}</span></label>`;
     });
-    html += '</div></div>';
+    html += '</div>';
   });
-  html += '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">';
+  html += '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:4px">';
   html += '<button onclick="customSelectAll(true)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">全選</button>';
   html += '<button onclick="customSelectAll(false)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">全不選</button>';
-  html += '<button onclick="customSelectAll(null)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">重設順序</button>';
+  html += '<button onclick="customResetOrder()" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">重設順序</button>';
   html += '<button onclick="saveCustomConfig()" style="padding:4px 14px;border-radius:4px;border:1px solid #f59e0b;background:#fef3c7;color:#92400e;font-weight:600;cursor:pointer;font-size:.8rem">確定</button>';
   html += '</div>';
   popup.innerHTML = html;
-  _initGroupDragDrop(popup);
   const cfgBtn = document.querySelector('.custom-cfg-btn');
   const rect = cfgBtn.getBoundingClientRect();
   popup.style.position = 'fixed';
@@ -936,16 +939,110 @@ function showCustomConfig() {
   }, 50);
 }
 
-function customSelectAll(checked) {
-  if (checked === null) {
-    // 重設順序：恢復預設群組排列
-    _customOrder = [];
-    localStorage.setItem('custom_col_order', '[]');
-    const popup = document.getElementById('customCfgPopup');
-    if (popup) { popup.remove(); showCustomConfig(); }
-    return;
+// 取得已勾選欄位的排序列表
+function _getCheckedColumnsInOrder() {
+  const checked = new Set(Object.keys(_customPreset).filter(k => _customPreset[k]));
+  if (!checked.size) return [];
+  const ordered = [];
+  const used = new Set();
+  // 先放已存的排序（只保留仍有勾選的）
+  if (_customOrder && _customOrder.length) {
+    _customOrder.forEach(id => { if (checked.has(id)) { ordered.push(id); used.add(id); } });
   }
-  document.querySelectorAll('#customCfgPopup input[type=checkbox]').forEach(cb => cb.checked = checked);
+  // 補上新勾選但不在排序裡的（按 CUSTOM_COLS 預設順序）
+  CUSTOM_COLS.forEach(sec => sec.cols.forEach(c => {
+    if (checked.has(c.id) && !used.has(c.id)) ordered.push(c.id);
+  }));
+  return ordered;
+}
+
+// 勾選/取消勾選時更新序號
+function customToggleCol(cb) {
+  const popup = document.getElementById('customCfgPopup');
+  if (!popup) return;
+  const orderInput = popup.querySelector(`.col-order-input[data-col-id="${cb.value}"]`);
+  if (cb.checked) {
+    const maxNum = _getMaxOrderNum(popup);
+    orderInput.value = maxNum + 1;
+    orderInput.style.display = '';
+  } else {
+    orderInput.value = '';
+    orderInput.style.display = 'none';
+    _renumberOrderInputs(popup);
+  }
+}
+
+// 修改序號時重排
+function customReorder(input) {
+  const popup = document.getElementById('customCfgPopup');
+  if (!popup) return;
+  _renumberOrderInputs(popup, input.dataset.colId, parseInt(input.value));
+}
+
+// 取得目前最大序號
+function _getMaxOrderNum(popup) {
+  let max = 0;
+  popup.querySelectorAll('.col-order-input').forEach(inp => {
+    if (inp.style.display !== 'none' && inp.value !== '') {
+      const n = parseInt(inp.value) || 0;
+      if (n > max) max = n;
+    }
+  });
+  return max;
+}
+
+// 重新編號（指定某欄位移到某位置，或純重排）
+function _renumberOrderInputs(popup, changedId, newPos) {
+  const items = [];
+  popup.querySelectorAll('.col-order-input').forEach(inp => {
+    if (inp.style.display !== 'none' && inp.value !== '') {
+      items.push({ id: inp.dataset.colId, num: parseInt(inp.value) || 999 });
+    }
+  });
+  if (changedId && newPos) {
+    const others = items.filter(it => it.id !== changedId);
+    others.sort((a, b) => a.num - b.num);
+    const insertIdx = Math.max(0, Math.min(newPos - 1, others.length));
+    others.splice(insertIdx, 0, { id: changedId, num: newPos });
+    others.forEach((it, i) => {
+      it.num = i + 1;
+      const inp = popup.querySelector(`.col-order-input[data-col-id="${it.id}"]`);
+      if (inp) inp.value = it.num;
+    });
+  } else {
+    items.sort((a, b) => a.num - b.num);
+    items.forEach((it, i) => {
+      it.num = i + 1;
+      const inp = popup.querySelector(`.col-order-input[data-col-id="${it.id}"]`);
+      if (inp) inp.value = it.num;
+    });
+  }
+}
+
+// 重設順序（清除自訂排序，依預設排列）
+function customResetOrder() {
+  _customOrder = [];
+  localStorage.setItem('custom_col_order', '[]');
+  const popup = document.getElementById('customCfgPopup');
+  if (popup) { popup.remove(); showCustomConfig(); }
+}
+
+function customSelectAll(checked) {
+  const popup = document.getElementById('customCfgPopup');
+  if (!popup) return;
+  popup.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.checked = checked;
+    const orderInput = popup.querySelector(`.col-order-input[data-col-id="${cb.value}"]`);
+    if (orderInput) orderInput.style.display = checked ? '' : 'none';
+  });
+  if (checked) {
+    // 全選：按 CUSTOM_COLS 預設順序重新編號
+    let num = 1;
+    CUSTOM_COLS.forEach(sec => sec.cols.forEach(c => {
+      const inp = popup.querySelector(`.col-order-input[data-col-id="${c.id}"]`);
+      if (inp) { inp.value = num++; }
+    }));
+  }
 }
 
 function saveCustomConfig() {
@@ -953,68 +1050,20 @@ function saveCustomConfig() {
   if (!popup) return;
   _customPreset = {};
   popup.querySelectorAll('input[type=checkbox]').forEach(cb => { if (cb.checked) _customPreset[cb.value] = true; });
-  // 儲存群組排序
-  const groups = popup.querySelectorAll('.custom-cfg-group');
-  _customOrder = Array.from(groups).map(g => g.getAttribute('data-group-name'));
+  // 收集序號排序
+  const orderItems = [];
+  popup.querySelectorAll('.col-order-input').forEach(inp => {
+    if (inp.style.display !== 'none' && inp.value !== '') {
+      orderItems.push({ id: inp.dataset.colId, num: parseInt(inp.value) || 999 });
+    }
+  });
+  orderItems.sort((a, b) => a.num - b.num);
+  _customOrder = orderItems.map(it => it.id);
   localStorage.setItem('custom_col_preset', JSON.stringify(_customPreset));
   localStorage.setItem('custom_col_order', JSON.stringify(_customOrder));
   syncUserSettings();
   popup.remove();
   if (_customActive) { applyCustomColumns(); reorderTableColumns(); fixFrozenColumns(); }
-}
-
-// ── 依照已存排序回傳 CUSTOM_COLS ──
-function _getOrderedCustomCols() {
-  if (!_customOrder || !_customOrder.length) return CUSTOM_COLS;
-  const byName = {};
-  CUSTOM_COLS.forEach(sec => { byName[sec.group] = sec; });
-  const ordered = [];
-  _customOrder.forEach(name => { if (byName[name]) { ordered.push(byName[name]); delete byName[name]; } });
-  Object.values(byName).forEach(sec => ordered.push(sec));
-  return ordered;
-}
-
-// ── 拖拉排序初始化 ──
-function _initGroupDragDrop(popup) {
-  let dragEl = null;
-  popup.querySelectorAll('.custom-cfg-group').forEach(el => {
-    el.addEventListener('dragstart', e => {
-      dragEl = el;
-      el.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    el.addEventListener('dragend', () => {
-      el.classList.remove('dragging');
-      popup.querySelectorAll('.custom-cfg-group').forEach(g => {
-        g.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
-      dragEl = null;
-    });
-    el.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      if (el === dragEl) return;
-      const rect = el.getBoundingClientRect();
-      const mid = rect.top + rect.height / 2;
-      el.classList.remove('drag-over-top', 'drag-over-bottom');
-      el.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
-    });
-    el.addEventListener('dragleave', () => {
-      el.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
-    el.addEventListener('drop', e => {
-      e.preventDefault();
-      if (!dragEl || el === dragEl) return;
-      const rect = el.getBoundingClientRect();
-      const mid = rect.top + rect.height / 2;
-      if (e.clientY < mid) {
-        el.parentNode.insertBefore(dragEl, el);
-      } else {
-        el.parentNode.insertBefore(dragEl, el.nextSibling);
-      }
-      el.classList.remove('drag-over-top', 'drag-over-bottom');
-    });
-  });
 }
 
 // ── 自訂欄位排序：依群組重排表格欄位 ──
@@ -1047,54 +1096,38 @@ function reorderTableColumns() {
   // 記錄原始位置（只在第一次標記）
   allThs.forEach((th, i) => { if (th.dataset.origIdx == null) th.dataset.origIdx = i; });
 
-  // 把非凍結欄位依群組分組（保留原始順序）
-  const groupCols = {};   // groupName -> [th index]
-  const ungrouped = [];   // 不屬於任何群組的（隱藏 anchor 等）
+  // 建立 colId -> [th indices] 映射
+  const colIdToIndices = {};
   for (let i = FROZEN; i < allThs.length; i++) {
     const th = allThs[i];
-    let gName = null;
-    const colId = th.getAttribute('data-col');
-    if (colId && _colToGroup[colId]) {
-      gName = _colToGroup[colId];
-    } else {
-      // 動態欄位：檢查 CSS class
+    let colId = th.getAttribute('data-col');
+    if (!colId) {
+      // 動態欄位：用 CSS class 識別
       for (const dg of _DYN_GROUPS) {
-        if (th.classList.contains(dg) || th.classList.contains('dyn-fg')) {
-          // 找到對應的 CUSTOM_COLS 群組
-          for (const sec of CUSTOM_COLS) {
-            for (const c of sec.cols) {
-              if (c.id === dg) { gName = sec.group; break; }
-            }
-            if (gName) break;
-          }
-          if (!gName && th.classList.contains('dyn-fg')) gName = '動態欄位（整組）';
-          break;
-        }
+        if (th.classList.contains(dg)) { colId = dg; break; }
       }
     }
-    if (gName) {
-      if (!groupCols[gName]) groupCols[gName] = [];
-      groupCols[gName].push(i);
-    } else {
-      ungrouped.push(i);
+    if (colId) {
+      if (!colIdToIndices[colId]) colIdToIndices[colId] = [];
+      colIdToIndices[colId].push(i);
     }
   }
 
-  // 按自訂順序排列群組索引
+  // 按自訂順序排列欄位索引
   const newOrder = [];
   for (let i = 0; i < FROZEN; i++) newOrder.push(i);
-  const used = new Set();
-  _customOrder.forEach(gn => {
-    if (groupCols[gn]) { groupCols[gn].forEach(idx => newOrder.push(idx)); used.add(gn); }
+  const usedIndices = new Set(newOrder);
+  _customOrder.forEach(id => {
+    const indices = colIdToIndices[id];
+    if (indices) indices.forEach(idx => { if (!usedIndices.has(idx)) { newOrder.push(idx); usedIndices.add(idx); } });
   });
-  Object.keys(groupCols).forEach(gn => {
-    if (!used.has(gn)) groupCols[gn].forEach(idx => newOrder.push(idx));
-  });
-  ungrouped.forEach(idx => newOrder.push(idx));
+  // 補上不在自訂順序中的欄位（保持原始順序）
+  for (let i = FROZEN; i < allThs.length; i++) {
+    if (!usedIndices.has(i)) newOrder.push(i);
+  }
 
-  // 檢查是否跟原始順序一樣，一樣就不動
-  const isIdentical = newOrder.every((v, i) => v === i);
-  if (isIdentical) return;
+  // 檢查是否跟原始順序一樣
+  if (newOrder.every((v, i) => v === i)) return;
 
   // 重排表頭
   const thRefs = newOrder.map(i => allThs[i]);
