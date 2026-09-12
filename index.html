@@ -1091,55 +1091,59 @@ function reorderTableColumns() {
   const headerRow = document.querySelector('#stockTable thead tr');
   if (!headerRow) return;
   const allThs = Array.from(headerRow.children);
-  if (allThs.length <= FROZEN) return;
+  const totalCols = allThs.length;
+  if (totalCols <= FROZEN) return;
 
-  // 記錄原始位置（只在第一次標記）
+  // 記錄原始位置（只在第一次標記，後續表頭被移動後位置會變但 origIdx 不變）
   allThs.forEach((th, i) => { if (th.dataset.origIdx == null) th.dataset.origIdx = i; });
 
-  // 建立 colId -> [th indices] 映射
-  const colIdToIndices = {};
-  for (let i = FROZEN; i < allThs.length; i++) {
-    const th = allThs[i];
+  // 用 origIdx 還原到原始順序來建立映射（表頭可能已被先前的排序移動過）
+  const thsByOrigIdx = new Array(totalCols);
+  allThs.forEach(th => { thsByOrigIdx[parseInt(th.dataset.origIdx)] = th; });
+
+  // 建立 colId -> [原始索引] 映射
+  const colIdToOrigIndices = {};
+  for (let i = FROZEN; i < totalCols; i++) {
+    const th = thsByOrigIdx[i];
+    if (!th) continue;
     let colId = th.getAttribute('data-col');
     if (!colId) {
-      // 動態欄位：用 CSS class 識別
       for (const dg of _DYN_GROUPS) {
         if (th.classList.contains(dg)) { colId = dg; break; }
       }
     }
     if (colId) {
-      if (!colIdToIndices[colId]) colIdToIndices[colId] = [];
-      colIdToIndices[colId].push(i);
+      if (!colIdToOrigIndices[colId]) colIdToOrigIndices[colId] = [];
+      colIdToOrigIndices[colId].push(i);
     }
   }
 
-  // 按自訂順序排列欄位索引
+  // 按自訂順序排列（以原始索引為基準）
   const newOrder = [];
   for (let i = 0; i < FROZEN; i++) newOrder.push(i);
   const usedIndices = new Set(newOrder);
   _customOrder.forEach(id => {
-    const indices = colIdToIndices[id];
+    const indices = colIdToOrigIndices[id];
     if (indices) indices.forEach(idx => { if (!usedIndices.has(idx)) { newOrder.push(idx); usedIndices.add(idx); } });
   });
-  // 補上不在自訂順序中的欄位（保持原始順序）
-  for (let i = FROZEN; i < allThs.length; i++) {
+  for (let i = FROZEN; i < totalCols; i++) {
     if (!usedIndices.has(i)) newOrder.push(i);
   }
 
-  // 檢查是否跟原始順序一樣
   if (newOrder.every((v, i) => v === i)) return;
 
-  // 重排表頭
-  const thRefs = newOrder.map(i => allThs[i]);
-  thRefs.forEach(th => headerRow.appendChild(th));
+  // 重排表頭（用 origIdx 映射取得正確的 th 元素）
+  newOrder.forEach(i => headerRow.appendChild(thsByOrigIdx[i]));
 
-  // 重排每一行
+  // 重排每一行（body 每次 render 都是原始順序，直接用索引）
   const tbody = document.getElementById('tbody');
   Array.from(tbody.children).forEach(tr => {
     const tds = Array.from(tr.children);
-    if (tds.length !== allThs.length) return;
+    if (tds.length !== totalCols) return;
+    // 標記原始位置供 restoreColumnOrder 用
     tds.forEach((td, i) => { if (td.dataset.origIdx == null) td.dataset.origIdx = i; });
-    newOrder.forEach(i => tr.appendChild(tds[i]));
+    const tdsCopy = [...tds];
+    newOrder.forEach(i => tr.appendChild(tdsCopy[i]));
   });
 }
 
