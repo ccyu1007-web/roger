@@ -182,6 +182,12 @@
   .custom-cfg-popup { position:absolute; background:#fff; border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.15); padding:12px 14px; z-index:999; min-width:180px; max-height:70vh; overflow-y:auto; }
   .custom-cfg-popup label { display:block; padding:3px 0; font-size:.82rem; cursor:pointer; }
   .custom-cfg-popup label:hover { background:#f1f5f9; }
+  /* 自訂欄位拖拉排序 */
+  .custom-cfg-group { border:1px solid transparent; border-radius:6px; padding:2px 4px; margin-bottom:2px; transition:border-color .15s,opacity .15s; }
+  .custom-cfg-group.dragging { opacity:.35; }
+  .custom-cfg-group.drag-over-top { border-top:2px solid #f59e0b; }
+  .custom-cfg-group.drag-over-bottom { border-bottom:2px solid #f59e0b; }
+  .drag-handle { cursor:grab; color:#94a3b8; margin-right:6px; font-size:1rem; vertical-align:middle; user-select:none; }
   body.hide-g-qeps .g-qeps,
   body.hide-g-yeps .g-yeps,
   body.hide-g-divc .g-divc,
@@ -829,7 +835,12 @@ const CUSTOM_COLS = [
 const _DYN_GROUPS = ['g-fg','g-qeps','g-yeps','g-divc','g-divs','g-po','g-revmon','g-etf'];
 
 let _customPreset = JSON.parse(localStorage.getItem('custom_col_preset') || 'null') || {};
+let _customOrder = JSON.parse(localStorage.getItem('custom_col_order') || 'null') || [];
 let _customActive = false;
+
+// 欄位→群組反查表
+const _colToGroup = {};
+CUSTOM_COLS.forEach(sec => sec.cols.forEach(c => { _colToGroup[c.id] = sec.group; }));
 
 function toggleCustomMode() {
   const btn = document.getElementById('customColBtn');
@@ -838,11 +849,14 @@ function toggleCustomMode() {
   if (_customActive) {
     // 進入自訂模式：移除所有群組隱藏 class，由 customColStyle 全權控制
     COL_GROUPS.forEach(g => document.body.classList.remove('hide-' + g.key));
+    applyCustomColumns();
+    reorderTableColumns();
   } else {
-    // 退出自訂模式：恢復群組開關
+    // 退出自訂模式：恢復原始欄位順序 + 群組開關
+    restoreColumnOrder();
+    applyCustomColumns();
     applyColVisibility();
   }
-  applyCustomColumns();
   fixFrozenColumns();
 }
 
@@ -885,22 +899,28 @@ function showCustomConfig() {
   const popup = document.createElement('div');
   popup.id = 'customCfgPopup';
   popup.className = 'custom-cfg-popup';
-  let html = '<div style="font-weight:600;margin-bottom:8px;font-size:.85rem;color:#92400e">自訂欄位設定</div>';
-  CUSTOM_COLS.forEach(sec => {
-    html += `<div style="font-weight:600;font-size:.78rem;color:#475569;margin:8px 0 2px;border-bottom:1px solid #e2e8f0;padding-bottom:2px">${sec.group}</div>`;
+  let html = '<div style="font-weight:600;margin-bottom:4px;font-size:.85rem;color:#92400e">自訂欄位設定</div>';
+  html += '<div style="font-size:.72rem;color:#94a3b8;margin-bottom:6px">拖拉 ≡ 可調整群組順序</div>';
+  // 依照已存的排序順序顯示群組
+  const orderedSecs = _getOrderedCustomCols();
+  orderedSecs.forEach(sec => {
+    html += `<div class="custom-cfg-group" draggable="true" data-group-name="${sec.group}">`;
+    html += `<div style="font-weight:600;font-size:.78rem;color:#475569;margin:4px 0 2px;border-bottom:1px solid #e2e8f0;padding-bottom:2px"><span class="drag-handle">≡</span>${sec.group}</div>`;
     html += '<div style="display:flex;flex-wrap:wrap;gap:2px 12px">';
     sec.cols.forEach(c => {
       const checked = _customPreset[c.id] ? 'checked' : '';
       html += `<label style="min-width:80px"><input type="checkbox" value="${c.id}" ${checked} style="margin-right:4px;vertical-align:middle"> ${c.label}</label>`;
     });
-    html += '</div>';
+    html += '</div></div>';
   });
   html += '<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">';
   html += '<button onclick="customSelectAll(true)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">全選</button>';
   html += '<button onclick="customSelectAll(false)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">全不選</button>';
+  html += '<button onclick="customSelectAll(null)" style="padding:3px 8px;border-radius:4px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;font-size:.78rem">重設順序</button>';
   html += '<button onclick="saveCustomConfig()" style="padding:4px 14px;border-radius:4px;border:1px solid #f59e0b;background:#fef3c7;color:#92400e;font-weight:600;cursor:pointer;font-size:.8rem">確定</button>';
   html += '</div>';
   popup.innerHTML = html;
+  _initGroupDragDrop(popup);
   const cfgBtn = document.querySelector('.custom-cfg-btn');
   const rect = cfgBtn.getBoundingClientRect();
   popup.style.position = 'fixed';
@@ -917,6 +937,14 @@ function showCustomConfig() {
 }
 
 function customSelectAll(checked) {
+  if (checked === null) {
+    // 重設順序：恢復預設群組排列
+    _customOrder = [];
+    localStorage.setItem('custom_col_order', '[]');
+    const popup = document.getElementById('customCfgPopup');
+    if (popup) { popup.remove(); showCustomConfig(); }
+    return;
+  }
   document.querySelectorAll('#customCfgPopup input[type=checkbox]').forEach(cb => cb.checked = checked);
 }
 
@@ -925,10 +953,161 @@ function saveCustomConfig() {
   if (!popup) return;
   _customPreset = {};
   popup.querySelectorAll('input[type=checkbox]').forEach(cb => { if (cb.checked) _customPreset[cb.value] = true; });
+  // 儲存群組排序
+  const groups = popup.querySelectorAll('.custom-cfg-group');
+  _customOrder = Array.from(groups).map(g => g.getAttribute('data-group-name'));
   localStorage.setItem('custom_col_preset', JSON.stringify(_customPreset));
+  localStorage.setItem('custom_col_order', JSON.stringify(_customOrder));
   syncUserSettings();
   popup.remove();
-  if (_customActive) { applyCustomColumns(); fixFrozenColumns(); }
+  if (_customActive) { applyCustomColumns(); reorderTableColumns(); fixFrozenColumns(); }
+}
+
+// ── 依照已存排序回傳 CUSTOM_COLS ──
+function _getOrderedCustomCols() {
+  if (!_customOrder || !_customOrder.length) return CUSTOM_COLS;
+  const byName = {};
+  CUSTOM_COLS.forEach(sec => { byName[sec.group] = sec; });
+  const ordered = [];
+  _customOrder.forEach(name => { if (byName[name]) { ordered.push(byName[name]); delete byName[name]; } });
+  Object.values(byName).forEach(sec => ordered.push(sec));
+  return ordered;
+}
+
+// ── 拖拉排序初始化 ──
+function _initGroupDragDrop(popup) {
+  let dragEl = null;
+  popup.querySelectorAll('.custom-cfg-group').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      dragEl = el;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      popup.querySelectorAll('.custom-cfg-group').forEach(g => {
+        g.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      dragEl = null;
+    });
+    el.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (el === dragEl) return;
+      const rect = el.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+      el.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+    });
+    el.addEventListener('dragleave', () => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!dragEl || el === dragEl) return;
+      const rect = el.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      if (e.clientY < mid) {
+        el.parentNode.insertBefore(dragEl, el);
+      } else {
+        el.parentNode.insertBefore(dragEl, el.nextSibling);
+      }
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+  });
+}
+
+// ── 自訂欄位排序：依群組重排表格欄位 ──
+function restoreColumnOrder() {
+  const headerRow = document.querySelector('#stockTable thead tr');
+  if (!headerRow) return;
+  const ths = Array.from(headerRow.children);
+  const tagged = ths.some(th => th.dataset.origIdx != null);
+  if (!tagged) return;
+  ths.sort((a, b) => (parseInt(a.dataset.origIdx) || 0) - (parseInt(b.dataset.origIdx) || 0));
+  ths.forEach(th => headerRow.appendChild(th));
+  // body 會在下次 render() 時重建，這裡也排一下
+  const tbody = document.getElementById('tbody');
+  Array.from(tbody.children).forEach(tr => {
+    const tds = Array.from(tr.children);
+    if (!tds.length) return;
+    tds.sort((a, b) => (parseInt(a.dataset.origIdx) || 0) - (parseInt(b.dataset.origIdx) || 0));
+    tds.forEach(td => tr.appendChild(td));
+  });
+}
+
+function reorderTableColumns() {
+  if (!_customActive || !_customOrder || !_customOrder.length) return;
+  const FROZEN = 7;
+  const headerRow = document.querySelector('#stockTable thead tr');
+  if (!headerRow) return;
+  const allThs = Array.from(headerRow.children);
+  if (allThs.length <= FROZEN) return;
+
+  // 記錄原始位置（只在第一次標記）
+  allThs.forEach((th, i) => { if (th.dataset.origIdx == null) th.dataset.origIdx = i; });
+
+  // 把非凍結欄位依群組分組（保留原始順序）
+  const groupCols = {};   // groupName -> [th index]
+  const ungrouped = [];   // 不屬於任何群組的（隱藏 anchor 等）
+  for (let i = FROZEN; i < allThs.length; i++) {
+    const th = allThs[i];
+    let gName = null;
+    const colId = th.getAttribute('data-col');
+    if (colId && _colToGroup[colId]) {
+      gName = _colToGroup[colId];
+    } else {
+      // 動態欄位：檢查 CSS class
+      for (const dg of _DYN_GROUPS) {
+        if (th.classList.contains(dg) || th.classList.contains('dyn-fg')) {
+          // 找到對應的 CUSTOM_COLS 群組
+          for (const sec of CUSTOM_COLS) {
+            for (const c of sec.cols) {
+              if (c.id === dg) { gName = sec.group; break; }
+            }
+            if (gName) break;
+          }
+          if (!gName && th.classList.contains('dyn-fg')) gName = '動態欄位（整組）';
+          break;
+        }
+      }
+    }
+    if (gName) {
+      if (!groupCols[gName]) groupCols[gName] = [];
+      groupCols[gName].push(i);
+    } else {
+      ungrouped.push(i);
+    }
+  }
+
+  // 按自訂順序排列群組索引
+  const newOrder = [];
+  for (let i = 0; i < FROZEN; i++) newOrder.push(i);
+  const used = new Set();
+  _customOrder.forEach(gn => {
+    if (groupCols[gn]) { groupCols[gn].forEach(idx => newOrder.push(idx)); used.add(gn); }
+  });
+  Object.keys(groupCols).forEach(gn => {
+    if (!used.has(gn)) groupCols[gn].forEach(idx => newOrder.push(idx));
+  });
+  ungrouped.forEach(idx => newOrder.push(idx));
+
+  // 檢查是否跟原始順序一樣，一樣就不動
+  const isIdentical = newOrder.every((v, i) => v === i);
+  if (isIdentical) return;
+
+  // 重排表頭
+  const thRefs = newOrder.map(i => allThs[i]);
+  thRefs.forEach(th => headerRow.appendChild(th));
+
+  // 重排每一行
+  const tbody = document.getElementById('tbody');
+  Array.from(tbody.children).forEach(tr => {
+    const tds = Array.from(tr.children);
+    if (tds.length !== allThs.length) return;
+    tds.forEach((td, i) => { if (td.dataset.origIdx == null) td.dataset.origIdx = i; });
+    newOrder.forEach(i => tr.appendChild(tds[i]));
+  });
 }
 
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
@@ -940,7 +1119,7 @@ let trackSet = new Set(JSON.parse(localStorage.getItem('trackList') || '[]'));
 // ── 使用者設定同步（DB ↔ localStorage）──────────────────
 const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings','quality_custom_conds',
   'col_visible','global_div_weights','blend_ratio','global_val_params',
-  'sort_col','sort_asc','grade_filters','custom_col_preset'];
+  'sort_col','sort_asc','grade_filters','custom_col_preset','custom_col_order'];
 
 async function loadUserSettings() {
   try {
@@ -3124,6 +3303,7 @@ function render() {
 
   renderPagination();
   applyCustomColumns();
+  reorderTableColumns();
   fixFrozenColumns();
   renderSummary();
   renderFocusPanel();
