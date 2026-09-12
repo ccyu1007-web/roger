@@ -1097,50 +1097,29 @@ function reorderTableColumns() {
   if (!_customActive || !_customOrder || !_customOrder.length) return;
   const FROZEN = 7;
 
+  // 建立排序映射：colId → 排序優先序
+  const orderMap = {};
+  _customOrder.forEach((id, i) => { orderMap[id] = i; });
+  const AFTER_CUSTOM = _customOrder.length;
+
   function reorderRow(row) {
     const cells = Array.from(row.children);
     if (cells.length <= FROZEN) return;
-    // 標記原始位置供 restoreColumnOrder 用
     cells.forEach((c, i) => { if (c.dataset.origIdx == null) c.dataset.origIdx = i; });
 
     const frozen = cells.slice(0, FROZEN);
     const movable = cells.slice(FROZEN);
 
-    // 依 colId 分組（同一 id 的欄位保持相對順序）
-    const groups = {};
-    const noId = [];
-    movable.forEach(cell => {
+    // 每個 cell 給一個排序鍵：自訂順序的在前，其他維持原始相對位置
+    const tagged = movable.map((cell, pos) => {
       const id = _getColId(cell);
-      if (id) {
-        if (!groups[id]) groups[id] = [];
-        groups[id].push(cell);
-      } else {
-        noId.push(cell);
-      }
+      const key = (id && orderMap[id] !== undefined) ? orderMap[id] : AFTER_CUSTOM + pos;
+      return { cell, key, pos };
     });
+    tagged.sort((a, b) => a.key - b.key || a.pos - b.pos);
 
-    // 組合結果
-    const result = [...frozen];
-    const used = new Set();
-    // 1. 依自訂順序排列
-    _customOrder.forEach(id => {
-      if (groups[id] && !used.has(id)) {
-        groups[id].forEach(c => result.push(c));
-        used.add(id);
-      }
-    });
-    // 2. 不在自訂順序中的欄位，保持原始排列
-    movable.forEach(cell => {
-      const id = _getColId(cell);
-      if (id && !used.has(id)) {
-        groups[id].forEach(c => result.push(c));
-        used.add(id);
-      }
-    });
-    // 3. 無識別碼的元素（隱藏錨點等）放最後
-    noId.forEach(c => result.push(c));
-
-    result.forEach(cell => row.appendChild(cell));
+    frozen.forEach(c => row.appendChild(c));
+    tagged.forEach(({ cell }) => row.appendChild(cell));
   }
 
   const headerRow = document.querySelector('#stockTable thead tr');
@@ -1206,6 +1185,8 @@ async function loadUserSettings() {
     sortCol = 'code';
     sortAsc = true;
     _gradeFilters = JSON.parse(localStorage.getItem('grade_filters') || '{}');
+    _customPreset = JSON.parse(localStorage.getItem('custom_col_preset') || 'null') || {};
+    _customOrder = JSON.parse(localStorage.getItem('custom_col_order') || 'null') || [];
     renderGradeFilters();
   } catch(e) {}
 }
@@ -3312,6 +3293,7 @@ function render() {
         if (!g) return `<td class="g-fg${divCls}">－</td>`;
         return `<td class="g-fg${divCls}">${gradeHtml(g)}</td>`;
       }).join('')}
+      <td style="display:none"></td>
       <!-- 補充 -->
       <td class="g-qeps col-div" data-col="eps_date">${epsDateHtml}</td>
       <!-- 動態欄位 -->
@@ -3320,6 +3302,7 @@ function render() {
       ${_fixedD.map((y, i) => { const d = r._div[y]; return `<td class="g-divc${i===0?' col-div':''}">${d ? d.c.toFixed(2) : '－'}</td>`; }).join('')}
       ${_fixedD.map((y, i) => { const d = r._div[y]; return `<td class="g-divs${i===0?' col-div':''}">${d ? d.s.toFixed(2) : '－'}</td>`; }).join('')}
       ${_fixedD.map((y, i) => { const p = r._po[y]; return `<td class="g-po${i===0?' col-div':''}">${p != null ? p.toFixed(2) + '%' : '－'}</td>`; }).join('')}
+      <td style="display:none"></td>
       <!-- 法人買賣 -->
       <td class="g-inst col-div" data-col="inst_foreign">${fmtInst(r.inst_foreign)}</td>
       <td class="g-inst" data-col="inst_trust">${fmtInst(r.inst_trust)}</td>
