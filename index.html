@@ -1071,80 +1071,82 @@ function restoreColumnOrder() {
   const headerRow = document.querySelector('#stockTable thead tr');
   if (!headerRow) return;
   const ths = Array.from(headerRow.children);
-  const tagged = ths.some(th => th.dataset.origIdx != null);
-  if (!tagged) return;
+  if (!ths.some(th => th.dataset.origIdx != null)) return;
   ths.sort((a, b) => (parseInt(a.dataset.origIdx) || 0) - (parseInt(b.dataset.origIdx) || 0));
   ths.forEach(th => headerRow.appendChild(th));
-  // body 會在下次 render() 時重建，這裡也排一下
   const tbody = document.getElementById('tbody');
   Array.from(tbody.children).forEach(tr => {
     const tds = Array.from(tr.children);
-    if (!tds.length) return;
+    if (!tds.length || tds[0].dataset.origIdx == null) return;
     tds.sort((a, b) => (parseInt(a.dataset.origIdx) || 0) - (parseInt(b.dataset.origIdx) || 0));
     tds.forEach(td => tr.appendChild(td));
   });
 }
 
+// 從元素的 data-col 或 CSS class 取得欄位識別碼
+function _getColId(el) {
+  const dc = el.getAttribute('data-col');
+  if (dc) return dc;
+  for (const dg of _DYN_GROUPS) {
+    if (el.classList.contains(dg)) return dg;
+  }
+  return null;
+}
+
 function reorderTableColumns() {
   if (!_customActive || !_customOrder || !_customOrder.length) return;
   const FROZEN = 7;
-  const headerRow = document.querySelector('#stockTable thead tr');
-  if (!headerRow) return;
-  const allThs = Array.from(headerRow.children);
-  const totalCols = allThs.length;
-  if (totalCols <= FROZEN) return;
 
-  // 記錄原始位置（只在第一次標記，後續表頭被移動後位置會變但 origIdx 不變）
-  allThs.forEach((th, i) => { if (th.dataset.origIdx == null) th.dataset.origIdx = i; });
-
-  // 用 origIdx 還原到原始順序來建立映射（表頭可能已被先前的排序移動過）
-  const thsByOrigIdx = new Array(totalCols);
-  allThs.forEach(th => { thsByOrigIdx[parseInt(th.dataset.origIdx)] = th; });
-
-  // 建立 colId -> [原始索引] 映射
-  const colIdToOrigIndices = {};
-  for (let i = FROZEN; i < totalCols; i++) {
-    const th = thsByOrigIdx[i];
-    if (!th) continue;
-    let colId = th.getAttribute('data-col');
-    if (!colId) {
-      for (const dg of _DYN_GROUPS) {
-        if (th.classList.contains(dg)) { colId = dg; break; }
-      }
-    }
-    if (colId) {
-      if (!colIdToOrigIndices[colId]) colIdToOrigIndices[colId] = [];
-      colIdToOrigIndices[colId].push(i);
-    }
-  }
-
-  // 按自訂順序排列（以原始索引為基準）
-  const newOrder = [];
-  for (let i = 0; i < FROZEN; i++) newOrder.push(i);
-  const usedIndices = new Set(newOrder);
-  _customOrder.forEach(id => {
-    const indices = colIdToOrigIndices[id];
-    if (indices) indices.forEach(idx => { if (!usedIndices.has(idx)) { newOrder.push(idx); usedIndices.add(idx); } });
-  });
-  for (let i = FROZEN; i < totalCols; i++) {
-    if (!usedIndices.has(i)) newOrder.push(i);
-  }
-
-  if (newOrder.every((v, i) => v === i)) return;
-
-  // 重排表頭（用 origIdx 映射取得正確的 th 元素）
-  newOrder.forEach(i => headerRow.appendChild(thsByOrigIdx[i]));
-
-  // 重排每一行（body 每次 render 都是原始順序，直接用索引）
-  const tbody = document.getElementById('tbody');
-  Array.from(tbody.children).forEach(tr => {
-    const tds = Array.from(tr.children);
-    if (tds.length !== totalCols) return;
+  function reorderRow(row) {
+    const cells = Array.from(row.children);
+    if (cells.length <= FROZEN) return;
     // 標記原始位置供 restoreColumnOrder 用
-    tds.forEach((td, i) => { if (td.dataset.origIdx == null) td.dataset.origIdx = i; });
-    const tdsCopy = [...tds];
-    newOrder.forEach(i => tr.appendChild(tdsCopy[i]));
-  });
+    cells.forEach((c, i) => { if (c.dataset.origIdx == null) c.dataset.origIdx = i; });
+
+    const frozen = cells.slice(0, FROZEN);
+    const movable = cells.slice(FROZEN);
+
+    // 依 colId 分組（同一 id 的欄位保持相對順序）
+    const groups = {};
+    const noId = [];
+    movable.forEach(cell => {
+      const id = _getColId(cell);
+      if (id) {
+        if (!groups[id]) groups[id] = [];
+        groups[id].push(cell);
+      } else {
+        noId.push(cell);
+      }
+    });
+
+    // 組合結果
+    const result = [...frozen];
+    const used = new Set();
+    // 1. 依自訂順序排列
+    _customOrder.forEach(id => {
+      if (groups[id] && !used.has(id)) {
+        groups[id].forEach(c => result.push(c));
+        used.add(id);
+      }
+    });
+    // 2. 不在自訂順序中的欄位，保持原始排列
+    movable.forEach(cell => {
+      const id = _getColId(cell);
+      if (id && !used.has(id)) {
+        groups[id].forEach(c => result.push(c));
+        used.add(id);
+      }
+    });
+    // 3. 無識別碼的元素（隱藏錨點等）放最後
+    noId.forEach(c => result.push(c));
+
+    result.forEach(cell => row.appendChild(cell));
+  }
+
+  const headerRow = document.querySelector('#stockTable thead tr');
+  if (headerRow) reorderRow(headerRow);
+  const tbody = document.getElementById('tbody');
+  Array.from(tbody.children).forEach(tr => reorderRow(tr));
 }
 
 // ── 使用者清單（DB + localStorage 雙寫）─────────────────────
