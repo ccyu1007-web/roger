@@ -4453,6 +4453,11 @@ def _run_maintenance_inner(scheduled=True):
     def _elapsed():
         return f"{time.time()-t0:.1f}s"
 
+    def _should_yield_for_prices():
+        """平日 13:50 後讓出 lock，確保 14:30 run_prices 能執行"""
+        now = datetime.now()
+        return now.weekday() < 5 and (now.hour > 13 or (now.hour == 13 and now.minute >= 50))
+
     print(f"\n{'='*50}")
     print(f"每日維護  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}")
@@ -4516,6 +4521,10 @@ def _run_maintenance_inner(scheduled=True):
     print(f"[2.股利] {len(div_map)} 支，{time.time()-t1:.1f}s")
 
     # 3. 年度 EPS 歷史（BWIBBU 反推 → financial_annual → stocks）
+    if _should_yield_for_prices():
+        print(f"[maintenance] 接近 14:30 股價更新，提前結束（完成到步驟 2）")
+        print(f"\n每日維護提前結束！總耗時 {_elapsed()}")
+        return
     t1 = time.time()
     hist = fetch_eps_annual_history()
     # 先寫入 financial_annual（COALESCE 不覆蓋已有值）
@@ -4545,23 +4554,39 @@ def _run_maintenance_inner(scheduled=True):
     print(f"[3.BWIBBU] {len(hist)} 支，{time.time()-t1:.1f}s")
 
     # 4. 產業別 + 營收官方值
+    if _should_yield_for_prices():
+        print(f"[maintenance] 接近 14:30 股價更新，提前結束（完成到步驟 3）")
+        print(f"\n每日維護提前結束！總耗時 {_elapsed()}")
+        return
     t1 = time.time()
     with sqlite3.get_conn() as conn:
         _post_process_after_save_inner(conn)
     print(f"[4.產業別+等級] {time.time()-t1:.1f}s")
 
     # 5. 合併補缺（群益 8 並發）
+    if _should_yield_for_prices():
+        print(f"[maintenance] 接近 14:30 股價更新，提前結束（完成到步驟 4）")
+        print(f"\n每日維護提前結束！總耗時 {_elapsed()}")
+        return
     t1 = time.time()
     _fill_all_gaps()
     print(f"[5.補缺] {time.time()-t1:.1f}s")
 
     # 6. 系統 EPS 估算
+    if _should_yield_for_prices():
+        print(f"[maintenance] 接近 14:30 股價更新，提前結束（完成到步驟 5）")
+        print(f"\n每日維護提前結束！總耗時 {_elapsed()}")
+        return
     t1 = time.time()
     _batch_system_estimate()
     _batch_annual_estimate()
     print(f"[6.系統估算] {time.time()-t1:.1f}s")
 
     # 7. BWIBBU 股利補充 + EPS/合約負債同步
+    if _should_yield_for_prices():
+        print(f"[maintenance] 接近 14:30 股價更新，提前結束（完成到步驟 6）")
+        print(f"\n每日維護提前結束！總耗時 {_elapsed()}")
+        return
     t1 = time.time()
     _fill_dividends_from_bwibbu()
     _sync_eps_from_quarterly()
