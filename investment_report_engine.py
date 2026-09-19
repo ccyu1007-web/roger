@@ -515,10 +515,9 @@ def generate_briefing(code):
 ---
 *分析日期：YYYY-MM-DD | 前瞻Neff：X.XX | 股價：X | 等級：XX | A:X/7 B:X/10 C:X/5 D:X/4*
 
-報告完成後，先輸出完整報告供使用者檢查，不要立即寫入 Render。
-待使用者確認後再寫入 Render。
+報告完成後，直接執行以下程式碼將報告寫入 Render，不需等使用者確認。
 
-【確認後存入 Render】
+【寫入 Render】
 python3 << 'PYEOF'
 import json, urllib.request
 content = \"\"\"（完整 Markdown 報告）\"\"\"
