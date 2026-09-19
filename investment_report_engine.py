@@ -21,28 +21,34 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stocks.db')
 RENDER_NOTES_URL = 'https://tock-system.onrender.com/api/user-notes/'
 RENDER_REPORT_URL = 'https://tock-system.onrender.com/api/investment-report/'
 
-# 檢核表項目定義（對應 export_checklist.py）
+# g 對照表：累積營收 YoY → 前瞻成長率 g
+G_LOOKUP = [
+    (-999, 0, 0), (0, 5, 3), (5, 10, 5), (10, 15, 8),
+    (15, 20, 10), (20, 30, 15), (30, 999, 20),
+]
+
+# 檢核表項目定義
 CHECKLIST_PROFIT = [
-    ('roic_avg5', 'ROIC 近5年平均 ≥ 15%'),
-    ('roic_latest', 'ROIC 最近一年 ≥ 15%'),
-    ('roic_min5', 'ROIC 近5年最低值 ≥ 10%'),
-    ('opm_avg5', '營益率近5年平均 ≥ 10%'),
-    ('opm_min5', '營益率近5年最低值 ≥ 5%'),
-    ('gm_median', '毛利率 ≥ 近5年中位數'),
-    ('gm_q_median', '最近一季毛利率 ≥ 近4季中位數'),
+    ('roic_avg5', 'ROIC 近5年平均 >= 15%'),
+    ('roic_latest', 'ROIC 最近一年 >= 15%'),
+    ('roic_min5', 'ROIC 近5年最低值 >= 10%'),
+    ('opm_avg5', '營益率近5年平均 >= 10%'),
+    ('opm_min5', '營益率近5年最低值 >= 5%'),
+    ('gm_median', '毛利率 >= 近5年中位數'),
+    ('gm_q_median', '最近一季毛利率 >= 近4季中位數'),
 ]
 
 CHECKLIST_SAFETY = [
-    ('debt_ratio_ok', '負債比 ≤ 50%'),
+    ('debt_ratio_ok', '負債比 <= 50%'),
     ('fin_debt_ok', '金融負債比 < 30%'),
     ('icr_ok', '利息保障倍數 > 5'),
     ('fcf_freq', 'FCF近5年至少3年為正'),
     ('fcf_no_consec', 'FCF近2年不得連續為負'),
     ('fcf_sum_pos', 'FCF近5年加總為正'),
-    ('inv_level', '存貨水準 ≤ 近5年平均×1.2'),
-    ('inv_trend', '存貨方向：最近一季 ≤ 近4季中位數×1.15'),
-    ('ar_level', '應收水準 ≤ 近5年平均×1.2'),
-    ('ar_trend', '應收方向：最近一季 ≤ 近4季中位數×1.15'),
+    ('inv_level', '存貨水準 <= 近5年平均x1.2'),
+    ('inv_trend', '存貨方向：最近一季 <= 近4季中位數x1.15'),
+    ('ar_level', '應收水準 <= 近5年平均x1.2'),
+    ('ar_trend', '應收方向：最近一季 <= 近4季中位數x1.15'),
 ]
 
 CHECKLIST_VALUE = [
@@ -50,17 +56,25 @@ CHECKLIST_VALUE = [
     ('eps_vs_median5', '預估(沈董)EPS >= 近5年EPS中位數'),
     ('core_ratio', '累計營業利益/累計稅前淨利 > 70%'),
     ('price_val_ok', '現價 <= A級評價；<= AA更佳'),
-    ('val_ddm_return', '股利折現現價潛在年報酬 >= 10%'),
-    ('dcf_safe_ok', '現價 <= DCF安全邊際價'),
-    ('ge_neff_ratio', 'Neff 比率 >= 1.0'),
+    ('ge_neff_ratio', '前瞻Neff比率 >= 1.0'),
 ]
 
 CHECKLIST_GROWTH = [
-    ('cum_rev_pos', '累積營收年增率 ≥ 0%'),
-    ('rev_12m_pos', '12M營收年增率 ≥ 0%'),
-    ('rev_3m_pos', '3M營收年增率 ≥ 0%'),
-    ('rev_3m_gt_12m', '短期3M ≥ 長期12M'),
+    ('cum_rev_pos', '累積營收年增率 >= 0%'),
+    ('rev_12m_pos', '12M營收年增率 >= 0%'),
+    ('rev_3m_pos', '3M營收年增率 >= 0%'),
+    ('rev_3m_gt_12m', '短期3M >= 長期12M'),
 ]
+
+
+def _cum_yoy_to_g(cum_yoy):
+    """累積營收 YoY 轉前瞻 g（對照表）"""
+    if cum_yoy is None:
+        return 0
+    for lo, hi, g in G_LOOKUP:
+        if lo <= cum_yoy < hi:
+            return g
+    return 0
 
 
 def generate_briefing(code):
@@ -81,16 +95,18 @@ def generate_briefing(code):
 
     # ── 年度財報 6 年 ──
     fa_rows = conn.execute("""
-        SELECT year, revenue, gross_profit, operating_income, net_income, eps,
-               cash_dividend, roic, debt_ratio, operating_cf, capex, earnings_quality,
-               interest_expense, total_equity, inventory, accounts_receivable
+        SELECT year, revenue, cost, gross_profit, operating_expense, operating_income,
+               net_income, eps, cash_dividend, roic, debt_ratio, fin_debt_ratio,
+               operating_cf, capex, fcf, earnings_quality, interest_expense, interest_coverage,
+               total_equity, inventory, inventory_days, accounts_receivable, ar_days
         FROM financial_annual WHERE code=? ORDER BY year DESC LIMIT 6
     """, (code,)).fetchall()
     fa = [dict(x) for x in fa_rows]
 
     # ── 季度損益 ──
     qf_rows = conn.execute("""
-        SELECT quarter, eps, revenue, operating_income, eps_core, eps_nonop
+        SELECT quarter, eps, revenue, gross_profit, operating_expense, operating_income,
+               eps_core, eps_nonop
         FROM quarterly_financial WHERE code=?
         ORDER BY CAST(REPLACE(REPLACE(quarter,'Q','.'),'q','.') AS REAL) DESC LIMIT 10
     """, (code,)).fetchall()
@@ -137,10 +153,6 @@ def generate_briefing(code):
     # ── 總覽 ──
     lines.append(f"\n【總覽】")
     lines.append(f"股價：{r.get('close')}　產業：{r.get('industry','')}　日均量：{r.get('volume',0):,.0f}")
-    lines.append(f"近4季EPS：{r.get('eps_4q_sum')}　沈董EPS：{r.get('shen_eps')}　綜合EPS：{r.get('blend_eps')}")
-    lines.append(f"沈董PE：{r.get('shen_pe')}　綜合PE：{r.get('blend_pe')}　綜合殖利率：{r.get('blend_yld')}%")
-    lines.append(f"系統估算EPS：{r.get('sys_ann_eps')}（信心{r.get('sys_ann_confidence','')}）")
-    lines.append(f"累積營收年增率：{r.get('revenue_cum_yoy')}%")
     lines.append(f"便宜天數：{r.get('val_cheap_days',0)}")
 
     # ── 選股引擎判斷 ──
@@ -160,69 +172,145 @@ def generate_briefing(code):
     lines.append(f"\n【評價門檻】")
     lines.append(f"  AA：{r.get('val_aa')}　A1：{r.get('val_a1')}　A2：{r.get('val_a2')}　A：{r.get('val_a')}")
 
-    # ── EPS 6 年 ──
-    lines.append(f"\n【EPS 6年】")
-    eps_line = "  "
-    for i in range(6, 0, -1):
-        y = r.get(f'eps_y{i}_label', '')
-        e = r.get(f'eps_y{i}', '')
-        eps_line += f"{y}:{e}　"
-    lines.append(eps_line.strip())
+    # ══════════════════════════════════════════
+    # 一、獲利面
+    # ══════════════════════════════════════════
+    lines.append(f"\n{'=' * 60}")
+    lines.append("【一、獲利面 — 數據表】")
+    lines.append("=" * 60)
 
-    # ── 股利 6 年 ──
-    lines.append(f"\n【股利 6年】")
-    div_line = "  "
-    for i in range(6, 0, -1):
-        y = r.get(f'div_{i}_label', '')
-        d = r.get(f'div_c{i}', '')
-        if d is not None:
-            d = round(float(d), 2)
-        div_line += f"{y}:{d}　"
-    lines.append(div_line.strip())
-
-    # ── 配息率 ──
-    lines.append(f"\n【配息率 5年】")
-    payouts = [r.get(f'payout_{i}') for i in range(1, 6) if r.get(f'payout_{i}') is not None]
-    if payouts:
-        lines.append(f"  {' / '.join(f'{p:.1f}%' for p in payouts)}")
-
-    # ── 年度財務數據 ──
-    lines.append(f"\n【年度財務數據（6年）】")
-    lines.append(f"  {'年度':>6} {'營收(百萬)':>10} {'毛利率':>7} {'營益率':>7} {'EPS':>7} {'股利':>6} {'ROIC':>7} {'負債比':>7} {'FCF(百萬)':>10} {'盈餘品質':>8} {'利息保障':>8}")
-    for row in reversed(fa):
-        rev = row['revenue']
+    # 獲利面表格：營收 / 毛利率 / 營業費用率 / 營益率 / ROIC / EPS
+    lines.append(f"  {'年度':>6} {'營收(百萬)':>10} {'YoY':>7} {'毛利率':>7} {'費用率':>7} {'營益率':>7} {'ROIC':>7} {'EPS':>7}")
+    fa_sorted = list(reversed(fa))  # 由舊到新
+    for i, row in enumerate(fa_sorted):
+        rev = row.get('revenue')
         gp = row.get('gross_profit')
+        oe = row.get('operating_expense')
         oi = row.get('operating_income')
         gm = f"{gp/rev*100:.1f}%" if gp and rev and rev > 0 else '—'
+        # 營業費用率 = 營業費用 / 營收
+        if oe and rev and rev > 0:
+            exp_rate = f"{oe/rev*100:.1f}%"
+        elif gp is not None and oi is not None and rev and rev > 0:
+            exp_rate = f"{(gp-oi)/rev*100:.1f}%"
+        else:
+            exp_rate = '—'
         opm = f"{oi/rev*100:.1f}%" if oi and rev and rev > 0 else '—'
-        fcf = (row.get('operating_cf') or 0) + (row.get('capex') or 0)
-        eq = f"{row['earnings_quality']:.1f}%" if row.get('earnings_quality') else '—'
-        ie = row.get('interest_expense')
-        icr = f"{oi/ie:.1f}x" if oi and ie and ie > 0 else '—'
-        div = row.get('cash_dividend')
-        div_s = f"{div:.2f}" if div is not None else '—'
         roic = f"{row['roic']:.1f}%" if row.get('roic') else '—'
-        debt = f"{row['debt_ratio']:.1f}%" if row.get('debt_ratio') else '—'
         rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
-        fcf_s = f"{fcf/1e6:>10.0f}" if fcf else '         —'
-        lines.append(f"  {row['year']:>6} {rev_s} {gm:>7} {opm:>7} {row.get('eps','—'):>7} {div_s:>6} {roic:>7} {debt:>7} {fcf_s} {eq:>8} {icr:>8}")
+        eps_s = f"{row.get('eps','—'):>7}"
+        # YoY
+        if i > 0 and rev and fa_sorted[i-1].get('revenue') and fa_sorted[i-1]['revenue'] > 0:
+            yoy = (rev - fa_sorted[i-1]['revenue']) / fa_sorted[i-1]['revenue'] * 100
+            yoy_s = f"{yoy:>+6.1f}%"
+        else:
+            yoy_s = '      —'
+        lines.append(f"  {row['year']:>6} {rev_s} {yoy_s} {gm:>7} {exp_rate:>7} {opm:>7} {roic:>7} {eps_s}")
 
-    # ── 季度 EPS ──
-    lines.append(f"\n【季度EPS（近10季）】")
-    lines.append(f"  {'季度':>8} {'EPS':>7} {'本業EPS':>8} {'業外EPS':>8} {'營收(百萬)':>10} {'營業利益(百萬)':>14}")
+    # ══════════════════════════════════════════
+    # 二、安全面
+    # ══════════════════════════════════════════
+    lines.append(f"\n{'=' * 60}")
+    lines.append("【二、安全面 — 數據表】")
+    lines.append("=" * 60)
+
+    lines.append(f"  {'年度':>6} {'負債比':>7} {'金融負債':>8} {'ICR':>7} {'FCF(百萬)':>10} {'盈餘品質':>8} {'存貨天數':>8} {'應收天數':>8}")
+    for row in fa_sorted:
+        debt = f"{row['debt_ratio']:.1f}%" if row.get('debt_ratio') else '—'
+        fin_debt = f"{row['fin_debt_ratio']:.1f}%" if row.get('fin_debt_ratio') else '—'
+        icr_val = row.get('interest_coverage')
+        icr = f"{icr_val:.1f}x" if icr_val else '—'
+        fcf_val = row.get('fcf')
+        if fcf_val is None:
+            ocf = row.get('operating_cf') or 0
+            cap = row.get('capex') or 0
+            fcf_val = ocf + cap
+        fcf_s = f"{fcf_val/1e6:>10.0f}" if fcf_val else '         —'
+        eq = f"{row['earnings_quality']:.1f}%" if row.get('earnings_quality') else '—'
+        inv_d = f"{row['inventory_days']:.0f}" if row.get('inventory_days') else '—'
+        ar_d = f"{row['ar_days']:.0f}" if row.get('ar_days') else '—'
+        lines.append(f"  {row['year']:>6} {debt:>7} {fin_debt:>8} {icr:>7} {fcf_s} {eq:>8} {inv_d:>8} {ar_d:>8}")
+
+    # ══════════════════════════════════════════
+    # 三、價值面
+    # ══════════════════════════════════════════
+    lines.append(f"\n{'=' * 60}")
+    lines.append("【三、價值面 — 預估EPS與前瞻Neff】")
+    lines.append("=" * 60)
+
+    # 預估 EPS 四季明細
+    lines.append(f"\n  --- 預估EPS來源 ---")
+    est_eps = r.get('est_eps')
+    shen_eps = r.get('shen_eps')
+    blend_eps = r.get('blend_eps')
+    sys_ann_eps = r.get('sys_ann_eps')
+    lines.append(f"  預估EPS：{est_eps}　沈董EPS：{shen_eps}　綜合EPS：{blend_eps}")
+    lines.append(f"  系統估算EPS：{sys_ann_eps}（信心{r.get('sys_ann_confidence','')}）")
+
+    # 近4季EPS明細
+    lines.append(f"\n  --- 近期季度EPS ---")
+    lines.append(f"  {'季度':>8} {'EPS':>7} {'本業EPS':>8} {'業外EPS':>8} {'營收(百萬)':>10} {'毛利率':>7} {'費用率':>7} {'營益率':>7}")
     for row in reversed(list(qf_rows)):
         rev = row['revenue']
+        gp = row['gross_profit']
+        oe = row['operating_expense']
         oi = row['operating_income']
         ec = row['eps_core']
         en = row['eps_nonop']
         rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
-        oi_s = f"{oi/1e6:>14.0f}" if oi else '             —'
         ec_s = f"{ec:>8.2f}" if ec is not None else '       —'
         en_s = f"{en:>8.2f}" if en is not None else '       —'
-        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {ec_s} {en_s} {rev_s} {oi_s}")
+        gm = f"{gp/rev*100:.1f}%" if gp and rev and rev > 0 else '     —'
+        if oe and rev and rev > 0:
+            exp_r = f"{oe/rev*100:.1f}%"
+        elif gp is not None and oi is not None and rev and rev > 0:
+            exp_r = f"{(gp-oi)/rev*100:.1f}%"
+        else:
+            exp_r = '     —'
+        opm = f"{oi/rev*100:.1f}%" if oi and rev and rev > 0 else '     —'
+        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {ec_s} {en_s} {rev_s} {gm:>7} {exp_r:>7} {opm:>7}")
 
-    # ── PE 歷史 ──
-    lines.append(f"\n【PE歷史區間】")
+    # 股利
+    lines.append(f"\n  --- 股利設定 ---")
+    lines.append(f"  近4季EPS合計：{r.get('eps_4q_sum')}")
+    div_line = "  股利（6年）："
+    for i in range(6, 0, -1):
+        y = r.get(f'div_{i}_label', '')
+        d = r.get(f'div_c{i}', '')
+        if d is not None:
+            try: d = round(float(d), 2)
+            except Exception: pass
+        div_line += f"{y}:{d}　"
+    lines.append(div_line.strip())
+    payouts = [r.get(f'payout_{i}') for i in range(1, 6) if r.get(f'payout_{i}') is not None]
+    if payouts:
+        lines.append(f"  配息率（5年）：{' / '.join(f'{p:.1f}%' for p in payouts)}")
+
+    # 前瞻 Neff
+    lines.append(f"\n  --- 前瞻Neff比率 ---")
+    fwd_neff = r.get('fwd_neff')
+    fwd_g = r.get('fwd_neff_g')
+    fwd_pe = r.get('fwd_neff_pe')
+    fwd_yld = r.get('fwd_neff_yld')
+    cum_yoy = r.get('revenue_cum_yoy')
+    lines.append(f"  累積營收YoY：{cum_yoy}%　→ 對照表 g = {fwd_g}%")
+    lines.append(f"  預估本益比：{fwd_pe}　預估殖利率：{fwd_yld}%")
+    lines.append(f"  前瞻Neff = ({fwd_g}% + {fwd_yld}%) / {fwd_pe} = {fwd_neff}")
+    lines.append(f"  g 對照表：<0%->0 | 0~5%->3 | 5~10%->5 | 10~15%->8 | 15~20%->10 | 20~30%->15 | >30%->20")
+
+    # 評價門檻 vs 股價
+    lines.append(f"\n  --- 評價門檻 vs 股價 ---")
+    close = r.get('close')
+    for level, key in [('AA','val_aa'), ('A1','val_a1'), ('A2','val_a2'), ('A','val_a')]:
+        val = r.get(key)
+        if val and close:
+            pct = (val - close) / val * 100
+            lines.append(f"  {level}：{val}　vs 股價 {close}　{'折價' if pct > 0 else '溢價'}{abs(pct):.1f}%")
+        else:
+            lines.append(f"  {level}：{val}")
+
+    # PE 歷史
+    lines.append(f"\n  --- PE歷史區間 ---")
     pe_highs, pe_lows = [], []
     for row in pe_rows:
         h = min(float(row['pe_high']), 20) if row['pe_high'] else None
@@ -236,31 +324,37 @@ def generate_briefing(code):
         mid = (avg_h + avg_l) / 2
         lines.append(f"  → 5年平均：低={avg_l:.1f} 中={mid:.1f} 高={avg_h:.1f}")
 
-    # ── 席勒指標 ──
-    lines.append(f"\n【席勒PE指標】")
-    lines.append(f"  席勒均值EPS：{sc.get('gi_shiller_avg_eps')}　席勒PE：{sc.get('gi_shiller_pe')}　Alert：{sc.get('gi_shiller_alert')}")
+    # ══════════════════════════════════════════
+    # 四、成長面
+    # ══════════════════════════════════════════
+    lines.append(f"\n{'=' * 60}")
+    lines.append("【四、成長面】")
+    lines.append("=" * 60)
 
-    # ── 成長指標 ──
-    lines.append(f"\n【成長指標】")
     lines.append(f"  營收CAGR 3年：{sc.get('gi_rev_cagr_3y')}%　5年：{sc.get('gi_rev_cagr_5y')}%")
-    lines.append(f"  3M營收年增：{sc.get('gi_rev_3m_yoy')}%　12M營收年增：{sc.get('gi_rev_12m_yoy')}%")
+    lines.append(f"  累積營收YoY：{cum_yoy}%　3M：{sc.get('gi_rev_3m_yoy')}%　12M：{sc.get('gi_rev_12m_yoy')}%")
     lines.append(f"  趨勢燈號：{sc.get('growth_signal')}　紅旗：{sc.get('red_flags')}")
-    lines.append(f"  PEG：{sc.get('gi_lynch_d')}{'（灰）' if sc.get('gi_lynch_gray') else ''}　Neff：{sc.get('gi_neff_d')}{'（灰）' if sc.get('gi_neff_gray') else ''}")
-    lines.append(f"  ROIC均：{sc.get('gi_roic_avg')}%　ROE均：{sc.get('gi_roe_avg')}%　營益率均：{sc.get('gi_opm_avg')}%　FCF/營收均：{sc.get('gi_fcf_rev_avg')}%")
+    lines.append(f"  PEG：{sc.get('gi_lynch_d')}{'（灰）' if sc.get('gi_lynch_gray') else ''}　Neff（舊）：{sc.get('gi_neff_d')}{'（灰）' if sc.get('gi_neff_gray') else ''}")
     lines.append(f"  存貨風險：{'有' if sc.get('growth_inv_risk') == 1 else '無'}　股本變動：{sc.get('gi_shares_change')}%")
 
-    # ── 檢核表 45 項（分類列出，帶實際值）──
+    # 席勒指標
+    lines.append(f"\n  --- 席勒PE ---")
+    lines.append(f"  席勒均值EPS：{sc.get('gi_shiller_avg_eps')}　席勒PE：{sc.get('gi_shiller_pe')}　Alert：{sc.get('gi_shiller_alert')}")
+
+    # ══════════════════════════════════════════
+    # 檢核表（分類列出，帶實際值）
+    # ══════════════════════════════════════════
     def _fmt_checklist(items, category_name):
         lines_out = []
         passed = sum(1 for key, _ in items if sc.get(f'chk_{key}') == 1)
         lines_out.append(f"\n【檢核表 — {category_name}（{passed}/{len(items)}）】")
         for key, label in items:
             chk = sc.get(f'chk_{key}')
-            mark = '✓' if chk == 1 else '✗' if chk == 0 else '?'
+            mark = 'V' if chk == 1 else 'X' if chk == 0 else '?'
             actual = detail.get(key, '')
             lines_out.append(f"  {mark} {label}")
             if actual:
-                lines_out.append(f"    → {actual}")
+                lines_out.append(f"    -> {actual}")
         return lines_out
 
     lines += _fmt_checklist(CHECKLIST_PROFIT, '獲利性')
@@ -277,12 +371,14 @@ def generate_briefing(code):
     else:
         lines.append("（尚未完成質性研究）")
 
-    # ── 報告格式指令 ──
+    # ══════════════════════════════════════════
+    # 報告格式指令
+    # ══════════════════════════════════════════
     lines.append(f"\n{'=' * 60}")
     lines.append("【報告格式指令】")
     lines.append("=" * 60)
     lines.append("""
-請根據以上資料簡報，撰寫投資報告書。嚴格遵守以下版面：
+請根據以上資料簡報，撰寫投資報告書。嚴格遵守以下規則：
 
 ═══════════════════════════════
 撰寫規則（最高優先級）
@@ -299,9 +395,8 @@ def generate_briefing(code):
 ═══════════════════════════════
 數字一致性規則
 ═══════════════════════════════
-- PE 必須標明來源（預估/沈董/系統），與 Neff 比率使用的 PE 來源一致。
-- Neff 比率 = (5年營收CAGR + 殖利率) / PE，是核心評價指標。
-- DDM 與 DCF 為估值輔助；Neff ≥ 1.0 為價值篩選門檻。
+- Neff 一律使用「前瞻性 Neff」= (g + 殖利率) / PE，g 由累積營收 YoY 對照表轉換。
+- PE 必須標明來源（預估/沈董/系統）。
 - 不可從 PE 單一數字直接推論「市場隱含預期」。
 - 單月營收轉正只能稱為「初步訊號」，不可稱為「觸底反彈」。
 
@@ -310,15 +405,15 @@ def generate_briefing(code):
 ═══════════════════════════════
 - 只用 ## 做大段標題，段內子項用 **粗體** 行內帶出
 - 表格一律橫式（年度為欄）
-- 一~四每類都要：趨勢表（帶6年實際數據）+ 逐項解讀檢核項（帶實際值與門檻比較）+ 小結
+- 一~四每章節：先放數據表格，再用文字逐層解讀，最後小結
 - 投資判斷帶具體數字，不要用抽象規則描述
 - 整體風格：研究報告式，數據驅動，細膩但簡潔
 
 質性調整規則：
-- 結構性風險 → 降一級（說明原因）
-- 一般性風險 → 標註不降級
-- 護城河穩固 → 維持或升一級
-- 筆記為空 → 標註「尚未完成質性研究」，量化判斷即最終判斷
+- 結構性風險 -> 降一級（說明原因）
+- 一般性風險 -> 標註不降級
+- 護城河穩固 -> 維持或升一級
+- 筆記為空 -> 標註「尚未完成質性研究」，量化判斷即最終判斷
 
 ═══════════════════════════════
 報告結構
@@ -326,39 +421,55 @@ def generate_briefing(code):
 
 ## 投資判斷：【重倉 / 小買 / 觀望】
 
-**Neff 群組：XX**（精選/價值型/動能型/僅Neff≥1.0）
-**Neff 比率：X.XX**（5年營收CAGR X.X% + 殖利率 X.X%）/ PE X.X（來源：預估/沈董/系統）
+**前瞻Neff比率：X.XX**（g X.X% + 殖利率 X.X%）/ PE X.X
 **財務等級（6年）：** 表格 +（一句話穩定性評論）
 
 判斷邏輯（一段話）：
-- 量化面：Neff 群組 + 檢核表 ABCD 通過率 + 營收動能（累積/3M/12M）
-- 質性面：護城河（具體依據）+ 信心度（具體依據）+ 結構性風險
-- 質性 g vs 5年營收CAGR 差異說明
-- 最終結論：量化→質性調整→重倉/小買/觀望
+- 量化面：前瞻Neff + 檢核表 ABCD 通過率 + 營收動能
+- 質性面：護城河 + 信心度 + 結構性風險
+- 最終結論：量化->質性調整->重倉/小買/觀望
 
 ---
 
 ## 一、獲利面（A 檢核）
 **檢核通過：X/7**
-（6年趨勢表：營收/毛利率/營益率/ROIC/EPS）
-逐項解讀：ROIC 均值/最新/底部、營益率 均值/底部、毛利率 vs 中位數/季趨勢
+
+表格（6年）：營收(含YoY) / 毛利率 / 營業費用率 / 營益率 / ROIC / EPS
+
+文字分析順序（逐層深入，每層都要連結前一層）：
+1. **營收走勢**：5年趨勢，成長/衰退/循環，量體變化
+2. **毛利率**：與營收連動判斷 — 營收驅動（量價齊揚/以價換量）還是成本驅動（原料/產品組合），速度是加速還是減速
+3. **營業費用率**：費用是否隨營收規模有效攤薄，還是膨脹吃掉毛利
+4. **營益率**：本業獲利能力的淨結果
+5. **ROIC**：資本效率水準與趨勢，是否值得持續投入資本
+
 小結
 
 ---
 
 ## 二、安全面（B 檢核）
 **檢核通過：X/10**
-（趨勢表：負債比/金融負債比/利息保障/FCF）
-逐項解讀：負債比/金融負債比/ICR、FCF三層（頻率/近期/總量）、存貨（水準/方向）、應收（水準/方向）
+
+表格（6年）：負債比 / 金融負債比 / 利息保障倍數 / FCF / 盈餘品質 / 存貨天數 / 應收天數
+
+逐項解讀
 小結
 
 ---
 
 ## 三、價值面（C 檢核）
-**檢核通過：X/7**
+**檢核通過：X/5**
+
+表格：預估EPS四季明細 / 股利 / 預估PE / 預估殖利率
+
+分析順序：
+1. **預估EPS**：四季明細與來源說明
+2. **股利設定**：配息率趨勢，採用的股利值
+3. **預估本益比與殖利率**
+4. **g 的設定**：累積營收YoY -> 對照表 -> g值，合理性說明
+5. **前瞻Neff比率**：(g + 殖利率) / PE = X.XX，價值評估結論
+
 評價門檻表（AA/A1/A2/A vs 股價，折溢價%）
-逐項解讀：等級、EPS vs 5年中位數、本業比率、股價 vs A級、Neff 比率、DDM年報酬、DCF安全邊際
-質性 g（X%）vs 5年營收CAGR（X%）：差異原因說明
 小結
 
 ---
@@ -376,28 +487,28 @@ def generate_briefing(code):
 
 （從質性筆記摘要，若筆記為空標註「尚未完成質性研究」）
 
-**護城河**：強度 + 趨勢 + 具體依據（moat_desc）
+**護城河**：強度 + 趨勢 + 具體依據
 **成長催化劑**：近期催化劑（附營收佔比）
 **注意事項**：好數字不持續的情境 + 短期風險 + 長期風險
-**信心度**：高/中/低 + 具體依據（confidence_desc）
+**信心度**：高/中/低 + 具體依據
 
 ---
 
 ## 六、風險提示與第二層思考
 
 **不對稱性：**
-- 樂觀情境：EPS X → 以PE Y計算合理價Z → 潛在上漲 W%
-- 悲觀情境：EPS X → 以PE Y計算合理價Z → 潛在下跌 W%
+- 樂觀情境：EPS X -> 以PE Y計算合理價Z -> 潛在上漲 W%
+- 悲觀情境：EPS X -> 以PE Y計算合理價Z -> 潛在下跌 W%
 - 上漲/下跌比 = X:1
 
 **升降級條件：**
-- 降級條件：帶數字門檻（如「12M營收YoY連續3月負」）
-- 升級條件：帶數字門檻（如「Neff突破1.5且3M>12M>0」）
+- 降級條件：帶數字門檻
+- 升級條件：帶數字門檻
 
-**關鍵追蹤指標：** 3–5項（每項一句話說明為什麼重要）
+**關鍵追蹤指標：** 3-5項
 
 ---
-*分析日期：YYYY-MM-DD ｜ Neff：X.XX ｜ 股價：X ｜ 等級：XX ｜ A:X/7 B:X/10 C:X/7 D:X/4*
+*分析日期：YYYY-MM-DD | 前瞻Neff：X.XX | 股價：X | 等級：XX | A:X/7 B:X/10 C:X/5 D:X/4*
 
 報告完成後，先輸出完整報告供使用者檢查，不要立即寫入 Render。
 待使用者確認後再寫入 Render。
