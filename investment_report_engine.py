@@ -207,6 +207,25 @@ def generate_briefing(code):
             yoy_s = '      —'
         lines.append(f"  {row['year']:>6} {rev_s} {yoy_s} {gm:>7} {exp_rate:>7} {opm:>7} {roic:>7} {eps_s}")
 
+    # 獲利面表格二：季度毛利率 / 營益率
+    lines.append(f"\n  --- 季度毛利率 / 營益率 ---")
+    lines.append(f"  {'季度':>8} {'營收(百萬)':>10} {'毛利率':>7} {'費用率':>7} {'營益率':>7}")
+    for row in reversed(list(qf_rows)):
+        rev = row['revenue']
+        gp = row['gross_profit']
+        oe = row['operating_expense']
+        oi = row['operating_income']
+        rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
+        gm = f"{gp/rev*100:.1f}%" if gp and rev and rev > 0 else '     —'
+        if oe and rev and rev > 0:
+            exp_r = f"{oe/rev*100:.1f}%"
+        elif gp is not None and oi is not None and rev and rev > 0:
+            exp_r = f"{(gp-oi)/rev*100:.1f}%"
+        else:
+            exp_r = '     —'
+        opm = f"{oi/rev*100:.1f}%" if oi and rev and rev > 0 else '     —'
+        lines.append(f"  {row['quarter']:>8} {rev_s} {gm:>7} {exp_r:>7} {opm:>7}")
+
     # ══════════════════════════════════════════
     # 二、安全面
     # ══════════════════════════════════════════
@@ -238,41 +257,35 @@ def generate_briefing(code):
     lines.append("【三、價值面 — 預估EPS與前瞻Neff】")
     lines.append("=" * 60)
 
-    # 預估 EPS 四季明細
-    lines.append(f"\n  --- 預估EPS來源 ---")
+    # 價值面表格一：歷年EPS（由舊到新）
+    lines.append(f"\n  --- 歷年EPS ---")
+    lines.append(f"  {'年度':>6} {'EPS':>7}")
+    for row in fa_sorted:
+        eps_s = f"{row.get('eps','—'):>7}"
+        lines.append(f"  {row['year']:>6} {eps_s}")
+
+    # 預估 EPS 設定
+    lines.append(f"\n  --- 預估EPS設定 ---")
     est_eps = r.get('est_eps')
     shen_eps = r.get('shen_eps')
     blend_eps = r.get('blend_eps')
     sys_ann_eps = r.get('sys_ann_eps')
-    lines.append(f"  預估EPS：{est_eps}　沈董EPS：{shen_eps}　綜合EPS：{blend_eps}")
-    lines.append(f"  系統估算EPS：{sys_ann_eps}（信心{r.get('sys_ann_confidence','')}）")
+    lines.append(f"  使用者設定預估EPS：{est_eps}")
+    lines.append(f"  近4季EPS合計：{r.get('eps_4q_sum')}")
+    lines.append(f"  （參考）沈董EPS：{shen_eps}　綜合EPS：{blend_eps}　系統估算：{sys_ann_eps}（信心{r.get('sys_ann_confidence','')}）")
 
-    # 近4季EPS明細
-    lines.append(f"\n  --- 近期季度EPS ---")
-    lines.append(f"  {'季度':>8} {'EPS':>7} {'本業EPS':>8} {'業外EPS':>8} {'營收(百萬)':>10} {'毛利率':>7} {'費用率':>7} {'營益率':>7}")
+    # 價值面表格二：季度EPS明細（預估EPS計算依據）
+    lines.append(f"\n  --- 季度EPS明細 ---")
+    lines.append(f"  {'季度':>8} {'EPS':>7} {'本業EPS':>8} {'業外EPS':>8}")
     for row in reversed(list(qf_rows)):
-        rev = row['revenue']
-        gp = row['gross_profit']
-        oe = row['operating_expense']
-        oi = row['operating_income']
         ec = row['eps_core']
         en = row['eps_nonop']
-        rev_s = f"{rev/1e6:>10.0f}" if rev else '         —'
         ec_s = f"{ec:>8.2f}" if ec is not None else '       —'
         en_s = f"{en:>8.2f}" if en is not None else '       —'
-        gm = f"{gp/rev*100:.1f}%" if gp and rev and rev > 0 else '     —'
-        if oe and rev and rev > 0:
-            exp_r = f"{oe/rev*100:.1f}%"
-        elif gp is not None and oi is not None and rev and rev > 0:
-            exp_r = f"{(gp-oi)/rev*100:.1f}%"
-        else:
-            exp_r = '     —'
-        opm = f"{oi/rev*100:.1f}%" if oi and rev and rev > 0 else '     —'
-        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {ec_s} {en_s} {rev_s} {gm:>7} {exp_r:>7} {opm:>7}")
+        lines.append(f"  {row['quarter']:>8} {row['eps']:>7} {ec_s} {en_s}")
 
     # 股利
     lines.append(f"\n  --- 股利設定 ---")
-    lines.append(f"  近4季EPS合計：{r.get('eps_4q_sum')}")
     div_line = "  股利（6年）："
     for i in range(6, 0, -1):
         y = r.get(f'div_{i}_label', '')
@@ -427,13 +440,14 @@ def generate_briefing(code):
 ## 一、獲利面（A 檢核）
 **檢核通過：X/7**
 
-表格（6年）：營收(含YoY) / 毛利率 / 營業費用率 / 營益率 / ROIC / EPS
+表格一（6年）：營收(含YoY) / 毛利率 / 營業費用率 / 營益率 / ROIC / EPS
+表格二（季度）：近期各季毛利率 / 營業費用率 / 營益率（觀察季度趨勢變化）
 
 文字分析順序（逐層深入，每層都要連結前一層）：
 1. **營收走勢**：5年趨勢，成長/衰退/循環，量體變化
-2. **毛利率**：與營收連動判斷 — 營收驅動（量價齊揚/以價換量）還是成本驅動（原料/產品組合），速度是加速還是減速。若質性筆記中有「毛利率驅動因素」段落，須引用其中的具體因素（原物料價格、產品組合、產能利用率、匯率等）來解釋數據變化的原因
+2. **毛利率**：年度趨勢 + 季度趨勢交叉判斷。與營收連動判斷 — 營收驅動（量價齊揚/以價換量）還是成本驅動（原料/產品組合），速度是加速還是減速。若質性筆記中有「毛利率驅動因素」段落，須引用其中的具體因素（原物料價格、產品組合、產能利用率、匯率等）來解釋數據變化的原因
 3. **營業費用率**：費用是否隨營收規模有效攤薄，還是膨脹吃掉毛利
-4. **營益率**：本業獲利能力的淨結果
+4. **營益率**：年度趨勢 + 季度趨勢，本業獲利能力的淨結果
 5. **ROIC**：資本效率水準與趨勢，是否值得持續投入資本
 
 小結
@@ -453,10 +467,11 @@ def generate_briefing(code):
 ## 三、價值面（C 檢核）
 **檢核通過：X/5**
 
-表格：預估EPS四季明細 / 股利 / 預估PE / 預估殖利率
+表格一（歷年EPS）：過去5年的年度EPS，觀察長期趨勢
+表格二（季度EPS明細）：近期各季EPS / 本業EPS / 業外EPS
 
 分析順序：
-1. **預估EPS**：四季明細與來源說明
+1. **預估EPS**：說明使用者設定值，列出採用的四季EPS如何加總得出，與歷年EPS表格比較趨勢（類似股利設定的寫法：列出數字→說明趨勢→結論）。不需要與沈董EPS或近四季合計做比較
 2. **股利設定**：配息率趨勢，採用的股利值
 3. **預估本益比與殖利率**
 4. **g 的設定**：累積營收YoY -> 對照表 -> g值，合理性說明
@@ -468,7 +483,12 @@ def generate_briefing(code):
 
 ## 四、成長面（D 檢核）
 **檢核通過：X/4**
-逐項解讀：累積營收YoY、12M、3M、3M vs 12M（加速/減速）
+
+營收成長率摘要（必須明確列出數字）：
+累積營收YoY：X.XX% | 12M營收YoY：X.XX% | 3M營收YoY：X.XX%
+3M vs 12M：加速/減速（兩個數字並列，讓讀者一眼看出關係）
+
+逐項解讀
 
 季度EPS同期比較表（今年四季 vs 去年同期四季）：
 | 季度 | 今年EPS | 去年EPS | YoY | 今年本業EPS | 今年業外EPS |
