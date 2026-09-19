@@ -78,6 +78,15 @@ def _cum_yoy_to_g(cum_yoy):
 
 
 def generate_briefing(code):
+    # ── 從 Render 拉最新 user_estimates + recalc（確保前台設定即時反映）──
+    try:
+        from render_sync import _pull_user_estimates_from_render
+        _pull_user_estimates_from_render()
+        from app import recalc_all_derived
+        recalc_all_derived(codes=[code])
+    except Exception as e:
+        print(f"[報告引擎] 同步 user_estimates 失敗（使用本機現有值）: {e}", file=sys.stderr)
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
