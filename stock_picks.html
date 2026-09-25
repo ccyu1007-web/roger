@@ -164,11 +164,10 @@ async function load() {
 }
 
 function _isNeffPass(s) {
-  const gi = s._gi || {};
-  return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
+  return s.fwd_neff != null && s.fwd_neff >= 1;
 }
 function _isHighQuality(s) {
-  return (s._chk_profit || 0) >= 5 && (s._chk_safety || 0) >= 7;
+  return _qualitySet.has(s.code);
 }
 function _isPositiveMomentum(s) {
   const gi = s._gi || {};
@@ -239,13 +238,13 @@ function copyPrompt() {
   const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'}[_currentTab];
   const key = _reportKey();
   const pool = _getTabPool();
-  pool.sort((a, b) => ((b._gi||{}).neff_d||0) - ((a._gi||{}).neff_d||0));
+  pool.sort((a, b) => (b.fwd_neff||0) - (a.fwd_neff||0));
 
   let stockList = '';
   pool.forEach(s => {
     const gi = s._gi || {};
     const n = s._notes || {};
-    stockList += `- ${s.code} ${s.name} | Neff=${gi.neff_d?.toFixed(2)||'—'} | PE=${gi.pe?.toFixed(1)||'—'}(${gi.pe_src||''}) | 殖利率=${gi.yield?.toFixed(1)||'—'}%(${gi.yld_src||''}) | CAGR=${gi.neff_c?.toFixed(1)||'—'}% | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
+    stockList += `- ${s.code} ${s.name} | 前瞻Neff=${s.fwd_neff?.toFixed(2)||'—'}(g=${s.fwd_neff_g||'—'},PE=${s.fwd_neff_pe||'—'},殖=${s.fwd_neff_yld||'—'}%) | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
   });
 
   const prompt = `請根據逍遙投資系統的每日價值評估，產出「${tabLabel}${_qualityOnly?'+體質佳':''}」的選股推薦深度分析報告。
