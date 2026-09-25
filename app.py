@@ -615,6 +615,10 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
     _fwd_yld = None
 
     # (1) g 預設值：累積營收YoY → 對照表
+    _cur_west_year = __import__('datetime').date.today().year
+    _rev_year = r.get('revenue_year')
+    _is_cross_year = (_rev_year is not None and _rev_year < _cur_west_year)
+
     _cum_yoy = r.get('revenue_cum_yoy')
     if _cum_yoy is not None:
         if _cum_yoy < 0:
@@ -632,9 +636,14 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
         else:
             _fwd_g = 20.0
 
+        # 跨年度過渡：新年度營收尚未公布時，去年的 g 打 7 折保守估計
+        # （使用者自設成長率在 section 4 會覆蓋，不受此影響）
+        if _is_cross_year and _fwd_g is not None and _fwd_g > 0:
+            _fwd_g = round(_fwd_g * 0.7, 2)
+
     # (2) 前瞻全年EPS：已公布季EPS + 系統預估EPS填滿剩餘季度
     _fwd_ann_eps = None
-    _cur_roc = __import__('datetime').date.today().year - 1911
+    _cur_roc = _cur_west_year - 1911
     if qf_data:
         # 找出當年度已公布的季度EPS
         _actual_qs = {}
@@ -656,9 +665,29 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
         if _published_count == 4:
             # 四季都有實際值
             _fwd_ann_eps = sum(_actual_qs.values())
-        elif _sys_est is not None:
-            # 有系統預估值，填滿剩餘季度
+        elif _published_count > 0 and _sys_est is not None:
+            # 有已公布季度 + 系統預估填滿剩餘
             _fwd_ann_eps = sum(_actual_qs.values()) + _sys_est * (4 - _published_count)
+        elif _published_count == 0:
+            # 跨年度過渡：Q1未公布，用去年實際EPS（3季+預估Q4 或 4季實際）
+            _last_year_qs = {}
+            for qf in qf_data:
+                qt = qf.get('quarter', '')
+                if 'Q' in qt:
+                    try:
+                        _qy = int(qt.split('Q')[0])
+                        _qq = int(qt.split('Q')[1])
+                        if _qy == _cur_roc - 1 and 1 <= _qq <= 4:
+                            _last_year_qs[_qq] = qf['eps']
+                    except (ValueError, IndexError):
+                        pass
+            _ly_count = len(_last_year_qs)
+            if _ly_count == 4:
+                _fwd_ann_eps = sum(_last_year_qs.values())
+            elif _ly_count >= 1 and _sys_est is not None:
+                _fwd_ann_eps = sum(_last_year_qs.values()) + _sys_est * (4 - _ly_count)
+            elif _sys_est is not None:
+                _fwd_ann_eps = _sys_est * 4  # 最終fallback
 
     # (3) 前瞻PE和殖利率：用戶手動估值 > 系統預設 > 無值
     # 3a. 系統預設（兜底）
