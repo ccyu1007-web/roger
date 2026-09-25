@@ -167,7 +167,7 @@ function _isNeffPass(s) {
   return s.fwd_neff != null && s.fwd_neff >= 1;
 }
 function _isHighQuality(s) {
-  return _qualitySet.has(s.code);
+  return (s._chk_profit || 0) >= 5 && (s._chk_safety || 0) >= 7;
 }
 function _isPositiveMomentum(s) {
   const gi = s._gi || {};
