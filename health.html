@@ -388,8 +388,9 @@ async function loadAll() {
   const db = dbStatus || {};
   const dbColor = db.alert ? '#ef4444' : '#22c55e';
   const dbIcon = db.alert ? '資料庫異常！' : '正常';
-  const icColor = db.icloud ? '#22c55e' : '#ef4444';
-  const icText = db.icloud ? '同步中' : '未同步！請至系統設定開啟';
+  const isRender = window.location.hostname.includes('onrender.com');
+  const icColor = isRender ? '#94a3b8' : (db.icloud ? '#22c55e' : '#ef4444');
+  const icText = isRender ? '不適用（僅本機）' : (db.icloud ? '同步中' : '未同步！請至系統設定開啟');
   dbEl.innerHTML = `
     <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
       <div style="font-size:1.2rem;font-weight:700;color:${dbColor}">${dbIcon}</div>
