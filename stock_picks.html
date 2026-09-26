@@ -123,6 +123,8 @@
     <span class="toolbar-info" id="toolbarInfo"></span>
   </div>
 
+  <div id="tabCriteria" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.82rem;color:#475569;line-height:1.6"></div>
+
   <div class="report-wrap" id="reportArea">
     <div class="empty">載入中...</div>
   </div>
@@ -147,6 +149,7 @@ let _stocks = [];
 let _qualitySet = new Set();
 
 async function load() {
+  _updateCriteria();
   // 1. 載入當前 Tab 的報告
   await loadReport();
 
@@ -166,6 +169,9 @@ async function load() {
 function _isNeffPass(s) {
   return s.fwd_neff != null && s.fwd_neff >= 1;
 }
+function _isNeffPassValue(s) {
+  return s.fwd_neff != null && s.fwd_neff >= 0.5;
+}
 function _isHighQuality(s) {
   return (s._chk_profit || 0) >= 5 && (s._chk_safety || 0) >= 7;
 }
@@ -176,29 +182,50 @@ function _isPositiveMomentum(s) {
 }
 
 function _getTabPool() {
+  if (_currentTab === 'value') {
+    let pool = _stocks.filter(s => _isNeffPassValue(s));
+    if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
+    return pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s));
+  }
   let pool = _stocks.filter(s => _isNeffPass(s));
   if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
   if (_currentTab === 'selected')  return pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
-  if (_currentTab === 'value')     return pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s));
   if (_currentTab === 'momentum')  return pool.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s));
   if (_currentTab === 'neffonly')  return pool.filter(s => !_isHighQuality(s) && !_isPositiveMomentum(s));
   return pool;
 }
 
 function updateCounts() {
-  let pool = _stocks.filter(s => _isNeffPass(s));
-  if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
   const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
-  set('cnt_selected', pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s)).length);
-  set('cnt_value',    pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s)).length);
-  set('cnt_momentum', pool.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s)).length);
-  set('cnt_neffonly', pool.filter(s => !_isHighQuality(s) && !_isPositiveMomentum(s)).length);
+  // 精選/動能型/僅Neff：門檻 >= 1.0
+  let pool1 = _stocks.filter(s => _isNeffPass(s));
+  if (_qualityOnly) pool1 = pool1.filter(s => _qualitySet.has(s.code));
+  set('cnt_selected', pool1.filter(s => _isHighQuality(s) && _isPositiveMomentum(s)).length);
+  set('cnt_momentum', pool1.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s)).length);
+  set('cnt_neffonly', pool1.filter(s => !_isHighQuality(s) && !_isPositiveMomentum(s)).length);
+  // 價值型：門檻 >= 0.5
+  let pool2 = _stocks.filter(s => _isNeffPassValue(s));
+  if (_qualityOnly) pool2 = pool2.filter(s => _qualitySet.has(s.code));
+  set('cnt_value',    pool2.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s)).length);
+}
+
+const _tabCriteriaText = {
+  selected: '<b>精選</b> — 前瞻Neff >= 1.0 + 體質佳（獲利力 >= 5/7、安全性 >= 7/10）+ 動能正向（累積營收YoY、近3月、近12月皆 >= 0）',
+  value:    '<b>價值型</b> — 前瞻Neff >= 0.5 + 體質佳（獲利力 >= 5/7、安全性 >= 7/10）+ 動能尚未轉正（累積/3M/12M 任一 < 0）。Neff 門檻較低，因價值股成長率 g 接近 0，主要靠殖利率撐 Neff',
+  momentum: '<b>動能型</b> — 前瞻Neff >= 1.0 + 體質普通（獲利力或安全性未達標）+ 動能正向（累積營收YoY、近3月、近12月皆 >= 0）',
+  neffonly: '<b>僅Neff >= 1.0</b> — 前瞻Neff >= 1.0，但體質普通且動能未轉正。僅估值面（Neff）通過門檻'
+};
+
+function _updateCriteria() {
+  const el = document.getElementById('tabCriteria');
+  if (el) el.innerHTML = _tabCriteriaText[_currentTab] || '';
 }
 
 function switchTab(tab, btn) {
   _currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  _updateCriteria();
   loadReport();
 }
 
