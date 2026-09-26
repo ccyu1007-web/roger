@@ -5577,9 +5577,9 @@ def _init_user_lists():
         try: conn.rollback()
         except: pass
     # 質性研究結構化欄位
-    for col in ['moat_strength', 'moat_source', 'moat_trend', 'structural_risk',
+    for col in ['moat_strength', 'moat_source', 'moat_trend', 'moat_desc', 'structural_risk',
                 'structural_risk_desc', 'growth_catalyst', 'investment_monitor',
-                'confidence', 'neff_g', 'lynch_override']:
+                'confidence', 'confidence_desc', 'neff_g', 'lynch_override']:
         try:
             c.execute(f"ALTER TABLE user_notes ADD COLUMN {col} TEXT")
             conn.commit()
@@ -5938,14 +5938,15 @@ def save_user_note(code):
             c.execute(
                 "INSERT OR REPLACE INTO user_notes "
                 "(code, content, news_archive, updated_at, "
-                "moat_strength, moat_source, moat_trend, structural_risk, structural_risk_desc, "
-                "growth_catalyst, investment_monitor, confidence, neff_g, lynch_override) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "moat_strength, moat_source, moat_trend, moat_desc, structural_risk, structural_risk_desc, "
+                "growth_catalyst, investment_monitor, confidence, confidence_desc, neff_g, lynch_override) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (code, content, news_archive, now,
                  meta.get('moat_strength'), meta.get('moat_source'),
-                 meta.get('moat_trend'), meta.get('structural_risk'),
-                 meta.get('structural_risk_desc'), meta.get('growth_catalyst'),
-                 meta.get('investment_monitor'), meta.get('confidence'),
+                 meta.get('moat_trend'), meta.get('moat_desc'),
+                 meta.get('structural_risk'), meta.get('structural_risk_desc'),
+                 meta.get('growth_catalyst'), meta.get('investment_monitor'),
+                 meta.get('confidence'), meta.get('confidence_desc'),
                  meta.get('neff_g'),
                  meta.get('lynch_override')))
         else:
