@@ -3461,13 +3461,14 @@ def get_financials(code):
         d['fin_debt_ratio'] = round(_fin_debt / _ta * 100, 2) if _ta and _ta > 0 and _fin_debt > 0 else (0.0 if _ta and _ta > 0 else None)
         # 自由現金流（capex 為負值）
         d['fcf'] = round(ocf + capex, 2) if ocf is not None and capex is not None else None
-        # 加權平均股數（千股，從 EPS 反算）
-        if eps_val and eps_val != 0 and nip is not None:
+        # 加權平均股數（千股）— 優先用 DB 真實值，fallback EPS 反算
+        shares_raw = None
+        db_shares = d.get('weighted_shares')
+        if db_shares and db_shares > 0:
+            shares_raw = db_shares * 1000
+        elif eps_val and eps_val != 0 and nip is not None:
             shares_raw = nip / eps_val
             d['weighted_shares'] = round(shares_raw / 1000, 0)
-        else:
-            shares_raw = None
-            d['weighted_shares'] = None
         # 每股自由現金流
         shares = cs / 10 if cs and cs > 0 else None
         d['fcf_per_share'] = round(d['fcf'] / shares, 2) if d.get('fcf') is not None and shares else None
@@ -3607,27 +3608,31 @@ def get_quarterly(code):
             ci = nip
             d['continuing_income'] = ci
 
-        # 加權平均股數（千股）— 從群益 zcqa 年度資料取得
-        d['weighted_shares'] = None
+        # 加權平均股數（千股）— 優先用 DB 的 zcq 真實季度股數
         shares_raw = None  # 原始股數（股），用於本業/業外EPS計算
-        quarter = d.get('quarter', '')
-        if quarter:
-            try:
-                roc_yr = int(quarter.split('Q')[0])
-                west_yr = roc_yr + 1911
-                ann_shares = _shares_map.get(west_yr)
-                if ann_shares:
-                    d['weighted_shares'] = round(ann_shares, 0)
-                    shares_raw = ann_shares * 1000  # 轉為股
-            except Exception: pass
-        # fallback：EPS 反算（年度股數尚未入庫時）
-        if shares_raw is None and eps_val is not None and eps_val != 0 and nip is not None:
-            shares_raw = nip / eps_val
-            d['weighted_shares'] = round(shares_raw / 1000, 0)
-        # fallback2：EPS=0 但有其他季可反算
-        if shares_raw is None and _fallback_shares:
-            shares_raw = _fallback_shares
-            d['weighted_shares'] = round(shares_raw / 1000, 0)
+        db_shares = d.get('weighted_shares')
+        if db_shares:
+            shares_raw = db_shares * 1000  # DB 存千股，轉為股
+        else:
+            # fallback1：年報股數
+            quarter = d.get('quarter', '')
+            if quarter:
+                try:
+                    roc_yr = int(quarter.split('Q')[0])
+                    west_yr = roc_yr + 1911
+                    ann_shares = _shares_map.get(west_yr)
+                    if ann_shares:
+                        d['weighted_shares'] = round(ann_shares, 0)
+                        shares_raw = ann_shares * 1000
+                except Exception: pass
+            # fallback2：EPS 反算
+            if shares_raw is None and eps_val is not None and eps_val != 0 and nip is not None:
+                shares_raw = nip / eps_val
+                d['weighted_shares'] = round(shares_raw / 1000, 0)
+            # fallback3：其他季反算
+            if shares_raw is None and _fallback_shares:
+                shares_raw = _fallback_shares
+                d['weighted_shares'] = round(shares_raw / 1000, 0)
 
         # 毛利率
         d['gross_margin'] = round(d['gross_profit'] / rev * 100, 2) if rev and d.get('gross_profit') is not None else None
