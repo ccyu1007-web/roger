@@ -2038,6 +2038,26 @@ def init_financial_db():
                 PRIMARY KEY (code, year)
             )
         """)
+        # 確保擴充欄位存在（既有 DB 可能缺）
+        _fa_extra_cols = [
+            ('cash_and_equivalents','REAL'), ('short_term_debt','REAL'),
+            ('short_term_notes','REAL'), ('current_long_term_debt','REAL'),
+            ('long_term_bank_debt','REAL'), ('other_long_term_debt','REAL'),
+            ('bonds_payable','REAL'), ('current_liabilities','REAL'),
+            ('inventory','REAL'), ('current_assets','REAL'),
+            ('accounts_receivable','REAL'), ('interest_expense','REAL'),
+            ('roic','REAL'), ('nopat','REAL'), ('invested_capital','REAL'),
+            ('fin_grade','TEXT'), ('inventory_days','REAL'), ('ar_days','REAL'),
+            ('debt_ratio','REAL'), ('fin_debt_ratio','REAL'),
+            ('interest_coverage','REAL'), ('earnings_quality','REAL'),
+            ('fcf','REAL'), ('eps_core','REAL'), ('eps_nonop','REAL'),
+            ('weighted_shares','REAL'),
+        ]
+        for col, typ in _fa_extra_cols:
+            try:
+                c.execute(f"ALTER TABLE financial_annual ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
         conn.commit()
 
 
