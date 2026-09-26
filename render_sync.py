@@ -186,22 +186,26 @@ def _merge_push_to_render(table, columns, pk, create_sql=None):
         print(f"  [{table}] UPSERT {len(local_data)} 筆" + (f"（{failed} 筆失敗）" if failed else ""))
 
     # 2. 請 Render 刪除「本機已移除但 Render 還有」的項目
-    payload = {
-        'table': table,
-        'pk': pk,
-        'local_keys': [list(k) for k in local_keys],
-    }
-    resp = _post_with_retry(
-        f'{RENDER_URL}/api/sync/table-merge-cleanup', payload,
-        label=f'{table} merge cleanup')
-    if resp:
-        try:
-            result = resp.json()
-            deleted = result.get('deleted', 0)
-            if deleted:
-                print(f"  [{table}] 清理 Render 端已移除 {deleted} 筆")
-        except Exception:
-            pass
+    #    安全防護：本機完全空時跳過清理，避免意外清空 Render（DB 重建/備份復原等情境）
+    if not local_keys:
+        print(f"  [{table}] 本機為空，跳過 Render 端清理（保護 Render 資料）")
+    else:
+        payload = {
+            'table': table,
+            'pk': pk,
+            'local_keys': [list(k) for k in local_keys],
+        }
+        resp = _post_with_retry(
+            f'{RENDER_URL}/api/sync/table-merge-cleanup', payload,
+            label=f'{table} merge cleanup')
+        if resp:
+            try:
+                result = resp.json()
+                deleted = result.get('deleted', 0)
+                if deleted:
+                    print(f"  [{table}] 清理 Render 端已移除 {deleted} 筆")
+            except Exception:
+                pass
 
     return len(local_data)
 
