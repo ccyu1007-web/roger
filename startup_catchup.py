@@ -326,7 +326,26 @@ def main():
     # 3.5 重載所有排程（清除 throttle，確保重啟後恢復）
     reload_all_schedules()
 
-    # 4. 檢查是否需要補跑
+    # 4. DB 備份（超過 24 小時沒備份就補一次）
+    try:
+        backup_dir = os.path.join(BASE_DIR, 'db_backups')
+        if os.path.isdir(backup_dir):
+            backups = sorted([f for f in os.listdir(backup_dir) if f.startswith('stocks_2') and f.endswith('.db')])
+            last_backup_age = 999
+            if backups:
+                last_file = os.path.join(backup_dir, backups[-1])
+                last_backup_age = (time.time() - os.path.getmtime(last_file)) / 3600
+            if last_backup_age > 24:
+                log(f"上次備份已超過 {last_backup_age:.0f} 小時，執行 db_guard...")
+                subprocess.run(['/bin/bash', os.path.join(BASE_DIR, 'db_guard.sh')],
+                               cwd=BASE_DIR, timeout=120, capture_output=False)
+                log("db_guard 完成")
+            else:
+                log(f"備份正常（{last_backup_age:.0f} 小時前）")
+    except Exception as e:
+        log(f"備份檢查失敗: {e}")
+
+    # 5. 檢查是否需要補跑
     if needs_catchup():
         run_catchup()
 
