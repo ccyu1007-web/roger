@@ -271,7 +271,7 @@ function copyPrompt() {
   pool.forEach(s => {
     const gi = s._gi || {};
     const n = s._notes || {};
-    stockList += `- ${s.code} ${s.name} | 前瞻Neff=${s.fwd_neff?.toFixed(2)||'—'}(g=${s.fwd_neff_g||'—'},PE=${s.fwd_neff_pe||'—'},殖=${s.fwd_neff_yld||'—'}%) | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
+    stockList += `- ${s.code} ${s.name} | 股價=${s.close||'—'} | 前瞻Neff=${s.fwd_neff?.toFixed(2)||'—'}(g=${s.fwd_neff_g||'—'},PE=${s.fwd_neff_pe||'—'},殖=${s.fwd_neff_yld||'—'}%) | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
   });
 
   const prompt = `請根據逍遙投資系統的每日價值評估，產出「${tabLabel}${_qualityOnly?'+體質佳':''}」的選股推薦深度分析報告。
@@ -308,15 +308,35 @@ curl -s "https://tock-system.onrender.com/api/user-notes/{code}"
 
 【步驟三：產出報告（Markdown）】
 
+所有群組統一使用以下表格格式（重倉/小買/觀望/待質性研究四區都用同一種表格）：
+
 ## 選股推薦報告 — ${tabLabel}${_qualityOnly?'（體質佳）':''}
 **報告日期**：${today}
 **篩選群組**：${tabLabel}${_qualityOnly?'（僅體質佳）':''}（${pool.length} 支）
 
 ---
 ### 重倉推薦（X 支）
+量化+質性全達標：護城河≥中、無結構性風險、無明顯逆風。
+
+| 代碼 | 名稱 | 股價 | Neff | g | PE | 殖利率 | 3M | 12M | 累積YoY | 判斷理由 |
+|------|------|------|------|---|-----|--------|-----|------|---------|---------|
+| 1234 | XX | 100.0 | 2.50 | 20 | 10.0 | 5.5% | +30.0% | +20.0% | +25.0% | 2~3句帶數字的具體理由（質性：YYYY-MM-DD） |
+
 ### 小買推薦（X 支）
+質性部分達標或有輕微疑慮，或無質性但量化面很強。
+
+（同樣表格格式）
+
 ### 觀望（X 支）
+有結構性風險、重大逆風、護城河弱或已大幅超漲。
+
+（同樣表格格式，判斷理由欄寫觀望原因）
+
 ### 待質性研究（X 支）
+無質性筆記，純量化初判。
+
+（同樣表格格式，判斷理由欄寫量化初判+優先研究程度）
+
 ---
 *報告產出時間：${today}*
 
