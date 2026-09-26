@@ -710,9 +710,10 @@ def fetch_capital_contract_liability(code):
 
     n_q = len(quarters)
 
-    # 找合約負債-流動 和 存貨
+    # 找合約負債-流動、存貨、應收帳款
     cl_values = {}
     inv_values = {}
+    ar_values = {}
     for i, t in enumerate(texts):
         if t == '合約負債－流動' and i + n_q < len(texts):
             vals = texts[i + 1: i + 1 + n_q]
@@ -724,25 +725,33 @@ def fetch_capital_contract_liability(code):
             for j, q in enumerate(quarters):
                 if j < len(vals):
                     inv_values[q] = _parse_num(vals[j])
+        if t == '應收帳款及票據' and i + n_q < len(texts):
+            vals = texts[i + 1: i + 1 + n_q]
+            for j, q in enumerate(quarters):
+                if j < len(vals):
+                    ar_values[q] = _parse_num(vals[j])
 
-    if not cl_values and not inv_values:
+    if not cl_values and not inv_values and not ar_values:
         return 0
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
         # 確保欄位存在
-        try: c.execute("ALTER TABLE quarterly_financial ADD COLUMN inventory REAL")
-        except Exception: pass
+        for _col in ['inventory', 'accounts_receivable']:
+            try: c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {_col} REAL")
+            except Exception: pass
         mul = 1000000  # 百萬 → 元
 
         saved = 0
-        all_quarters = set(list(cl_values.keys()) + list(inv_values.keys()))
+        all_quarters = set(list(cl_values.keys()) + list(inv_values.keys()) + list(ar_values.keys()))
         for q_label in all_quarters:
             cl = cl_values.get(q_label)
             inv = inv_values.get(q_label)
+            ar = ar_values.get(q_label)
             if cl is not None: cl *= mul
             if inv is not None: inv *= mul
+            if ar is not None: ar *= mul
 
             # 轉換季度格式：2025.4Q → 114Q4
             m = re.match(r'(\d{4})\.(\d+)Q', q_label)
@@ -762,6 +771,9 @@ def fetch_capital_contract_liability(code):
                 if inv is not None:
                     sets.append("inventory = ?")
                     vals.append(inv)
+                if ar is not None:
+                    sets.append("accounts_receivable = ?")
+                    vals.append(ar)
                 sets.append("updated_at = ?")
                 vals.append(now_str)
                 vals.extend([code, quarter_key])

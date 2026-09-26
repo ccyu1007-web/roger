@@ -549,12 +549,13 @@ def fetch_mops_quarterly_bs(roc_year=None, season=None):
 
     quarter = f'{roc_year}Q{season}'
 
-    # 找缺存貨的股票（有損益表但沒存貨，排除金融股）
+    # 找缺存貨或應收的股票（有損益表但沒存貨/應收，排除金融股）
     with sqlite3.get_conn() as conn:
         c = conn.cursor()
         c.execute("""SELECT qf.code FROM quarterly_financial qf
                      JOIN stocks s ON qf.code = s.code
-                     WHERE qf.quarter = ? AND qf.revenue IS NOT NULL AND qf.inventory IS NULL
+                     WHERE qf.quarter = ? AND qf.revenue IS NOT NULL
+                     AND (qf.inventory IS NULL OR qf.accounts_receivable IS NULL)
                      AND COALESCE(s.industry,'') NOT IN ('金融保險業','金融業','銀行業','保險業','證券業')""",
                   (quarter,))
         codes = [r[0] for r in c.fetchall()]
