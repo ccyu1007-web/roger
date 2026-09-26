@@ -1506,12 +1506,12 @@ def _check_quarterly_completeness():
 
     print(f"[季報補齊] {check_quarter} 仍缺 {len(missing_codes)} 支，群益逐支補齊...")
 
-    from capital_fetcher import fetch_capital_financials
+    from capital_fetcher import fetch_capital_quarterly_full
 
     done = 0
     for i, code in enumerate(missing_codes):
         try:
-            fetch_capital_financials(code)
+            fetch_capital_quarterly_full(code)
             done += 1
         except Exception as e:
             logger.warning(f"[季報補齊] {code} 失敗: {e}")
@@ -2341,7 +2341,7 @@ def fetch_company_quarterly(code):
             # 本機才用群益補抓（Render 跳過）
             try:
                 from capital_fetcher import fetch_capital_quarterly_full, fetch_capital_contract_liability
-                fetch_capital_quarterly_full(code)
+                fetch_capital_quarterly_full(code)  # zcq：完整季報（含所得稅/繼續營業/歸母/股數）
                 fetch_capital_contract_liability(code)
             except Exception as e:
                 logger.warning(f"[季報補抓] {code} 群益失敗: {e}")
