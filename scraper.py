@@ -4303,13 +4303,15 @@ def run_prices(scheduled=True):
     """14:30 盤後更新：股價 + 等級 + 評價 + push。目標 2~3 分鐘完成。"""
     # 若 lock 被佔用（如 quick_update），等待最多 15 分鐘（quick_update 超時 900s）
     for _i in range(30):
+        if not os.path.exists(LOCK_FILE):
+            break  # 檔案不存在 = 沒人佔用
         try:
             _f = open(LOCK_FILE)
             fcntl.flock(_f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             fcntl.flock(_f, fcntl.LOCK_UN)
             _f.close()
             break
-        except (IOError, OSError, FileNotFoundError):
+        except (IOError, OSError):
             try: _f.close()
             except Exception: pass
             if _i < 29:
