@@ -1256,11 +1256,17 @@ def _fill_missing_financials():
         # 月營收：過去兩年各需 12 筆
         today = date.today()
 
-        codes = [r[0] for r in conn.execute("""
+        # 偵測 financial_annual 是否完全空 — 若是，加大 LIMIT 加速恢復
+        fa_count = conn.execute("SELECT count(*) FROM financial_annual").fetchone()[0]
+        gap_limit = 200 if fa_count < 100 else 50
+
+        codes = [r[0] for r in conn.execute(f"""
             SELECT DISTINCT s.code FROM stocks s
             WHERE s.close IS NOT NULL AND (
+                -- 年報完全缺失（stocks 有但 financial_annual 完全沒有）
+                s.code NOT IN (SELECT DISTINCT code FROM financial_annual)
                 -- 年報缺關鍵欄位（最近一年）
-                s.code IN (
+                OR s.code IN (
                     SELECT code FROM financial_annual
                     WHERE year = ? AND (
                         total_equity IS NULL OR operating_cf IS NULL OR
@@ -1292,7 +1298,7 @@ def _fill_missing_financials():
                 ))
             )
             ORDER BY s.code
-            LIMIT 50
+            LIMIT {gap_limit}
         """, (cur_year - 1, cur_year - 6, q, cur_year - 2, cur_year - 1)).fetchall()]
 
     if not codes:
@@ -2316,11 +2322,12 @@ def init_quarterly_db():
                 PRIMARY KEY (code, quarter)
             )
         """)
-        # 新增欄位（既有 DB 可能缺 weighted_shares）
-        try:
-            c.execute("ALTER TABLE quarterly_financial ADD COLUMN weighted_shares REAL")
-        except Exception:
-            pass
+        # 新增欄位（既有 DB 可能缺）
+        for col in ['weighted_shares', 'inventory', 'eps_core', 'eps_nonop', 'accounts_receivable']:
+            try:
+                c.execute(f"ALTER TABLE quarterly_financial ADD COLUMN {col} REAL")
+            except Exception:
+                pass
         conn.commit()
 
 

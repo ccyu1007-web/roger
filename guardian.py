@@ -1329,9 +1329,17 @@ def _init_news_table():
                 matched_rule TEXT,
                 direction TEXT DEFAULT 'neutral',
                 link TEXT,
+                status TEXT,
                 created_at TEXT,
                 UNIQUE(code, date, time, subject)
             )""")
+            # 確保 status 欄位存在（舊表可能沒有）
+            try:
+                c.execute("ALTER TABLE material_news ADD COLUMN status TEXT")
+                conn.commit()
+            except Exception:
+                try: conn.rollback()
+                except: pass
             c.execute("""CREATE INDEX IF NOT EXISTS idx_news_code_date
                          ON material_news(code, created_at DESC)""")
             # 5 天前自動清理（歸檔的 status='important' 不刪）

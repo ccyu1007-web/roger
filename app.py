@@ -5340,6 +5340,13 @@ def _init_all_db():
         try: conn_s.commit()
         except Exception: pass
         conn_s.close()
+        # user_settings 表（全域設定：PE/殖利率預設值、混合比等）
+        conn_us = sqlite3.connect()
+        c_us = conn_us.cursor()
+        c_us.execute("""CREATE TABLE IF NOT EXISTS user_settings (
+            key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)""")
+        conn_us.commit()
+        conn_us.close()
         # 建立查詢索引
         conn = sqlite3.connect()
         sqlite3.ensure_indexes(conn)
