@@ -2222,6 +2222,13 @@ async function initEstimator(sharesMillion) {
     window._stockData = stock;  // 供報告保鮮指示器讀取
   } catch(e) {}
 
+  // 預載質性筆記 neff_g（供 Neff 參考區顯示）
+  try {
+    const _nr = await fetch(`/api/user-notes/${CODE}`);
+    const _nd = await _nr.json();
+    window._notesNeffG = _nd.neff_g ? parseInt(_nd.neff_g) : null;
+  } catch(e) { window._notesNeffG = null; }
+
   // 從 DB 讀取評價門檻（與總表同源，不前端重算）
   if (_stockData) {
     _dbValThresholds = {
@@ -3583,8 +3590,13 @@ function _updateNeffRef() {
     else if (cumYoy < 30) suggestG = '15';
     else suggestG = '20';
   }
+  const notesG = window._notesNeffG;
+  const notesLine = notesG != null
+    ? `<br><span style="color:#059669;font-weight:600">質性研究筆記建議 g = ${notesG}%</span>`
+    : '';
   el.innerHTML = `<span style="color:#b45309;font-weight:600">目前累積營收YoY：${cumStr}</span>` +
     `<span style="margin-left:12px">→ 建議 g = ${suggestG}%</span>` +
+    notesLine +
     `<br><span style="color:#aab">對照表：&lt;0%→0 ｜ 0~5%→3 ｜ 5~10%→5 ｜ 10~15%→8 ｜ 15~20%→10 ｜ 20~30%→15 ｜ &gt;30%→20</span>`;
 }
 
