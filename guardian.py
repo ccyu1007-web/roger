@@ -2029,7 +2029,7 @@ def snapshot_stock_states():
                                 sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld,
                                 val_aa, val_a1, val_a2, val_a, val_lt6,
                                 shen_grade, est_grade, gb_total_rank,
-                                revenue_cum_yoy
+                                revenue_cum_yoy, fwd_neff
                          FROM stocks WHERE close IS NOT NULL""")
         except Exception as e:
             print(f"[評價快照] 查詢失敗，用舊查詢: {e}")
@@ -2143,13 +2143,13 @@ def snapshot_stock_states():
                 global_settings=_gs)
 
             _gm = _growth_map.get(code, {})
+            _fwd_neff = row.get('fwd_neff')
             _neff_d = _gm.get('neff_d')
             _lynch_d = _gm.get('lynch_d')
-            _neff_gray = _gm.get('neff_gray')
 
-            # Neff 群組判定：精選/價值/動能/全部/null
+            # Neff 群組判定：用前瞻Neff（fwd_neff）
             _neff_group = None
-            if _neff_d is not None and _neff_d >= 1.0 and not _neff_gray:
+            if _fwd_neff is not None and _fwd_neff >= 1.0:
                 _pc = _gm.get('profit_count') or 0
                 _sc = _gm.get('safety_count') or 0
                 _quality_ok = _pc >= 5 and _sc >= 7  # A≥5/7 且 B≥7/10
@@ -2199,7 +2199,7 @@ def snapshot_stock_states():
                        shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
                        vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
                        vl['val_a'], vl['val_lt6'], vl['discount_pct'],
-                       _neff_d, _lynch_d, _shen_grade, _est_grade, _blend_grade,
+                       _fwd_neff, _lynch_d, _shen_grade, _est_grade, _blend_grade,
                        row.get('gb_total_rank'), _neff_group, now_str))
 
             # 更新便宜天數和歷史最深等級
@@ -2722,7 +2722,7 @@ def get_daily_briefing():
         _track_grade_changes(blend_grade_changes,
                              cur.get('blend_grade'), prev.get('blend_grade'), sid, name)
 
-        # Neff: >= 1 為合格
+        # Neff: >= 1 為合格（stock_state.neff_d 欄位現存的是 fwd_neff）
         cur_neff = cur.get('neff_d')
         prev_neff = prev.get('neff_d')
         cur_neff_ok = cur_neff is not None and cur_neff >= 1

@@ -188,7 +188,7 @@
       </tbody>
     </table>
     <div class="formula">
-      <code>Neff 比率 = (5年營收CAGR + 殖利率) / PE</code>
+      <code>前瞻 Neff = (前瞻成長率 g + 殖利率) / 前瞻 PE</code>
       &nbsp;｜&nbsp; Neff ≥ 1.0 表示成長性被低估
       <br>
       <span style="font-size:.8rem;color:#64748b;margin-top:4px;display:block">
@@ -283,8 +283,7 @@ function _isPositiveMomentum(s) {
 // ─── 篩選函式 ─────────────────────────────────────────
 function _neffPool() {
   return _stocks.filter(s => {
-    const gi = s._gi || {};
-    return gi.neff_d != null && gi.neff_d >= 1 && !gi.neff_gray;
+    return s.fwd_neff != null && s.fwd_neff >= 1;
   });
 }
 
@@ -451,20 +450,19 @@ function renderAll() {
     if (!items.length) {
       el.innerHTML = `<div class="empty">目前無符合條件的股票</div>`;
     } else {
-      items.sort((a, b) => ((b._gi||{}).neff_d || 0) - ((a._gi||{}).neff_d || 0));
+      items.sort((a, b) => (b.fwd_neff || 0) - (a.fwd_neff || 0));
       el.innerHTML = `<div class="table-wrap">${_buildTable(items)}</div>`;
     }
   });
-  // 接近名單（Neff 0.9~1.0 + A≥5/7 + B≥7/10）
+  // 接近名單（前瞻Neff 0.9~1.0 + A≥5/7 + B≥7/10）
   const pool = _qualityOnly ? _stocks.filter(s => _qualitySet.has(s.code)) : _stocks;
   const approaching = pool.filter(s => {
-    const gi = s._gi || {};
-    if (gi.neff_d == null || gi.neff_gray) return false;
-    if (gi.neff_d < 0.9 || gi.neff_d >= 1.0) return false;
+    if (s.fwd_neff == null) return false;
+    if (s.fwd_neff < 0.9 || s.fwd_neff >= 1.0) return false;
     const ap = s._chk_profit, bp = s._chk_safety;
     return ap != null && bp != null && ap >= 5 && bp >= 7;
   });
-  approaching.sort((a, b) => ((b._gi||{}).neff_d || 0) - ((a._gi||{}).neff_d || 0));
+  approaching.sort((a, b) => (b.fwd_neff || 0) - (a.fwd_neff || 0));
   document.getElementById('approachCnt').textContent = `(${approaching.length} 支)`;
   const abody = document.getElementById('approachBody');
   if (!approaching.length) {
@@ -481,7 +479,7 @@ function _buildApproachTable(items) {
     <th class="r" style="width:60px">股價</th>
     <th class="r" style="width:68px">Neff</th>
     <th class="r" style="width:80px">再跌%進場</th>
-    <th class="r" style="width:68px">營收CAGR</th>
+    <th class="r" style="width:68px">成長率g</th>
     <th class="r" style="width:54px">PE</th>
     <th class="r" style="width:60px">殖利率</th>
     <th class="c" style="width:50px">等級</th>
@@ -489,22 +487,19 @@ function _buildApproachTable(items) {
     <th class="c" style="width:56px">B通過</th>
   </tr></thead><tbody>`;
   items.forEach(s => {
-    const gi = s._gi || {};
-    const nv = gi.neff_d;
-    // 再跌多少% → Neff 到 1.0：需要 PE 下降到 (CAGR+yld)/1.0，股價 = PE_target × EPS
-    // 簡化：Neff = total_return / PE，要 Neff=1 → PE=total_return，股價需降到 PE_target×EPS
-    // 更簡化：Neff 跟股價反比，再跌% ≈ (1 - nv/1.0) × 100（近似）
+    const nv = s.fwd_neff;
+    // 再跌多少%（前瞻Neff跟股價反比）
     const dropPct = nv != null ? ((1.0 - nv) / 1.0 * 100) : null;
     const dropStr = dropPct != null ? `再跌${Math.abs(dropPct).toFixed(1)}%` : '—';
     const grade = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
     const isFocused = _focusTrackSet.has(s.code);
     const chkA = _chkFmt(s._chk_profit, s._chk_profit_total || 7);
     const chkB = _chkFmt(s._chk_safety, s._chk_safety_total || 10);
-    const cagrV = gi.neff_c;
-    const peV = gi.pe;
-    const yldV = gi.yield !== undefined ? gi['yield'] : null;
-    const peSrc = gi.pe_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.pe_src}</span>` : '';
-    const yldSrc = gi.yld_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.yld_src}</span>` : '';
+    const cagrV = s.fwd_neff_g;
+    const peV = s.fwd_neff_pe;
+    const yldV = s.fwd_neff_yld;
+    const peSrc = '';
+    const yldSrc = '';
     html += `<tr>
       <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
       <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
@@ -532,8 +527,8 @@ function _buildTable(items) {
       <th style="width:58px">代碼</th>
       <th style="width:80px">名稱</th>
       <th class="r" style="width:60px">股價</th>
-      <th class="r" style="width:68px">Neff比率</th>
-      <th class="r" style="width:68px">營收CAGR</th>
+      <th class="r" style="width:68px">前瞻Neff</th>
+      <th class="r" style="width:68px">成長率g</th>
       <th class="r" style="width:54px">PE</th>
       <th class="r" style="width:60px">殖利率</th>
       <th class="c" style="width:50px">等級</th>
@@ -550,22 +545,20 @@ function _buildTable(items) {
 
   items.forEach(s => {
     const gi     = s._gi || {};
-    const nv     = gi.neff_d;
+    const nv     = s.fwd_neff;
     const neffCls = _neffCls(nv);
     const neffStr = nv != null ? nv.toFixed(2) : '—';
 
-    // 營收CAGR（neff_c）
-    const cagrV = gi.neff_c;
+    // 前瞻成長率 g
+    const cagrV = s.fwd_neff_g;
     const cagrStr = cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—';
     const cagrColor = _revColor(cagrV);
 
-    // PE、殖利率（含來源標籤）
-    const peV  = gi.pe;
-    const yldV = gi.yield !== undefined ? gi['yield'] : gi.yld;
-    const peSrc  = gi.pe_src  ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.pe_src}</span>` : '';
-    const yldSrc = gi.yld_src ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:2px">${gi.yld_src}</span>` : '';
-    const peStr  = peV  != null ? peV.toFixed(1) + peSrc  : '—';
-    const yldStr = yldV != null ? yldV.toFixed(1) + '%' + yldSrc : '—';
+    // 前瞻PE、殖利率
+    const peV  = s.fwd_neff_pe;
+    const yldV = s.fwd_neff_yld;
+    const peStr  = peV  != null ? peV.toFixed(1) : '—';
+    const yldStr = yldV != null ? yldV.toFixed(1) + '%' : '—';
 
     // 等級（預估優先，其次沈董）
     const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
