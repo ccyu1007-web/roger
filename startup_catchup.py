@@ -246,11 +246,34 @@ def needs_catchup():
         return True
 
 
+def _stocks_table_empty():
+    """檢查 stocks 表是否為空（DB 被重建後需要 run_prices 重建清單）"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT count(*) FROM stocks")
+        count = c.fetchone()[0]
+        conn.close()
+        return count == 0
+    except Exception:
+        return True
+
+
 def run_catchup():
     """執行補跑：先 quick_update 再 run_prices"""
     python = sys.executable
     now = datetime.now()
     is_weekend = date.today().weekday() >= 5
+
+    # 防呆：stocks 表為空時，不管什麼時段都必須跑 run_prices 重建股票清單
+    if _stocks_table_empty():
+        log("stocks 表為空，強制執行 run_prices 重建股票清單...")
+        r = subprocess.run(
+            [python, '-u', os.path.join(BASE_DIR, 'scraper.py'), '--prices'],
+            cwd=BASE_DIR, timeout=600,
+            capture_output=False
+        )
+        log(f"run_prices 完成，exit code: {r.returncode}")
 
     # 判斷現在時間決定跑什麼
     # 週末或盤後（13:35 之後）：跑 run_prices（含股價+評價+push）
