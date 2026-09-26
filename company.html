@@ -2430,6 +2430,7 @@ async function initEstimator(sharesMillion) {
   calcDDM();
   initDCF();
   renderMatrix();
+  calcNeff();
 
   // 載入筆記（先 localStorage，再從 DB 覆蓋）
   const savedNotes = localStorage.getItem('notes_' + CODE);
@@ -4619,22 +4620,26 @@ function applyPE(hi, lo) {
   alert(`已套用 PE 範圍：${lo} ~ ${hi}\n\n切到「年度財報」tab 可看到估值計算器已更新`);
 }
 
-// ── 存入筆記（寫入質性研究筆記區同一個 key）──
-function saveToNotes(date, subject) {
-  const key = 'notes_' + CODE;
-  const existing = localStorage.getItem(key) || '';
+// ── 存入筆記（寫入 news_archive 欄位，不動質性研究筆記）──
+async function saveToNotes(date, subject) {
   const line = `[${date}] ${subject}`;
-  // 避免重複存
-  if (existing.includes(line)) {
-    alert('這則已經存過了');
-    return;
+  try {
+    const res = await fetch(`/api/user-notes/${CODE}/archive-news`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({line})
+    });
+    const data = await res.json();
+    if (data.status === 'duplicate') {
+      alert('這則已經存過了');
+    } else if (data.status === 'ok') {
+      alert('已歸檔到新聞報告彙整');
+    } else {
+      alert('歸檔失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch(e) {
+    alert('歸檔失敗：' + e.message);
   }
-  const updated = existing ? existing + '\n' + line : line;
-  localStorage.setItem(key, updated);
-  // 如果筆記區正在顯示，同步更新
-  const textarea = document.getElementById('notesArea');
-  if (textarea) textarea.value = updated;
-  alert('已存入筆記');
 }
 
 // ── ETF 資訊 ──
@@ -4698,7 +4703,7 @@ async function loadImportantNews() {
             <span style="font-size:.82rem;color:#92400e;background:#fef3c7;padding:1px 8px;border-radius:3px;font-weight:600;white-space:nowrap">${n.matched_rule}</span>
             <span style="font-size:.85rem;flex:1">${(n.subject||'').replace(/\\r?\\n/g,' ').substring(0, 80)}</span>
             ${n.link ? `<a href="${n.link}" target="_blank" style="font-size:.78rem;color:#2563eb;white-space:nowrap">查看</a>` : ''}
-            <button onclick="saveToNotes('${n.date || ''}','${(n.subject||'').replace(/'/g,"\\'").replace(/\r?\n/g,' ').substring(0,60)}')" style="padding:2px 8px;border:1px solid #059669;border-radius:3px;background:#dcfce7;color:#166534;cursor:pointer;font-size:.72rem;white-space:nowrap">存入筆記</button>
+            <button onclick="saveToNotes('${n.date || ''}','${(n.subject||'').replace(/'/g,"\\'").replace(/\r?\n/g,' ').substring(0,60)}')" style="padding:2px 8px;border:1px solid #059669;border-radius:3px;background:#dcfce7;color:#166534;cursor:pointer;font-size:.72rem;white-space:nowrap">歸檔</button>
           </div>`).join('')}
         </div>
       </div>`;
