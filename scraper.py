@@ -4441,9 +4441,19 @@ def _run_prices_inner(scheduled=True):
             _pull_user_estimates_from_render()
         except Exception as e:
             print(f"[Pull user_estimates] 失敗: {e}")
+    # 安全防護：financial_annual 嚴重不足時跳過 checklist（避免全 0 結果覆蓋 Render 好的資料）
+    _fa_count = 0
+    try:
+        with sqlite3.get_conn() as _fc:
+            _fa_count = _fc.execute("SELECT count(DISTINCT code) FROM financial_annual WHERE revenue IS NOT NULL").fetchone()[0]
+    except Exception:
+        pass
+    _skip_checklist = (_fa_count < 500)
+    if _skip_checklist:
+        print(f"[5.Checklist] financial_annual 僅 {_fa_count} 支有資料，跳過本機 checklist（保護 Render 資料）")
     try:
         from app import calc_all_checklists, recalc_all_derived
-        if not IS_CLOUD:
+        if not IS_CLOUD and not _skip_checklist:
             calc_all_checklists()
         recalc_all_derived()
     except Exception as e:
@@ -4451,12 +4461,16 @@ def _run_prices_inner(scheduled=True):
     print(f"[5.Checklist] {time.time()-t1:.1f}s")
 
     # 6. Push 到 Render（只推股價+等級+評價）
+    # 安全防護：financial_annual 不足時不推 annual（避免覆蓋 Render 的好 checklist 資料）
     t1 = time.time()
     if not IS_CLOUD:
         try:
             with ThreadPoolExecutor(max_workers=3) as pool:
                 pool.submit(_push_prices_to_render)
-                pool.submit(_push_annual_to_render)
+                if not _skip_checklist:
+                    pool.submit(_push_annual_to_render)
+                else:
+                    print("  [年度同步] 跳過（保護 Render checklist 資料）")
                 pool.submit(_push_estimates_to_render)
         except Exception as e:
             print(f"[Push] 失敗: {e}")
