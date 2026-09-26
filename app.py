@@ -3573,14 +3573,36 @@ def get_quarterly(code):
             nip = round(pti * 0.80, 2)
             d['net_income_parent'] = nip
 
-        # 反算稅額（群益季表無稅欄位或為0，用 稅前淨利 - 稅後淨利 推算）
-        if pti is not None and nip is not None:
-            calc_tax = round(pti - nip, 2)
-            if tax is None or (tax == 0 and abs(calc_tax) > 100):
+        # 反算稅額與繼續營業單位損益
+        # 注意：nip（歸屬母公司淨利）≠ ci（繼續營業單位損益）
+        #   繼續營業 = 稅前 - 稅 = 合併稅後淨利（含少數股權）
+        #   歸母 = 繼續營業 - 少數股權淨利
+        #   用 nip 反算稅額會把少數股權算成稅（3231 等有子公司的會嚴重失真）
+        if pti is not None:
+            if tax is not None and tax != 0:
+                # DB 有稅 → 反算繼續營業
+                if ci is None:
+                    ci = round(pti - tax, 2)
+                    d['continuing_income'] = ci
+            elif ci is not None:
+                # DB 有繼續營業 → 反算稅
+                calc_tax = round(pti - ci, 2)
                 tax = calc_tax
                 d['tax'] = tax
+            elif nip is not None:
+                # 都沒有 → fallback 用 nip，但要檢查合理性
+                # pti - nip 包含「稅 + 少數股權」，有子公司的企業會嚴重高估稅率
+                calc_tax = round(pti - nip, 2)
+                implied_rate = (calc_tax / pti * 100) if pti > 0 else 0
+                if 0 < implied_rate <= 40:
+                    # 合理範圍（台灣營所稅率 20%，含暫時性差異最多 ~35%）
+                    tax = calc_tax
+                    d['tax'] = tax
+                    ci = nip
+                    d['continuing_income'] = ci
+                # else: 稅率 > 40% 可能含少數股權，不反算（留 NULL）
 
-        # 繼續營業單位損益 = 合併稅後淨利（群益 net_income_parent 存的就是這個）
+        # 繼續營業單位損益兜底（稅和ci都沒有時）
         if ci is None and nip is not None:
             ci = nip
             d['continuing_income'] = ci
