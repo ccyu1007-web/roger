@@ -5905,6 +5905,35 @@ def archive_news_to_note(code):
     _bg_push_table('user_notes', _USER_NOTES_COLS, ['code'], create_sql=_USER_NOTES_CREATE)
     return jsonify({"status": "ok"})
 
+@app.route("/api/user-notes/<code>/quick-note", methods=["POST"])
+def quick_note(code):
+    """快速註記：從總表/評價報告寫入，同步到質性研究筆記的 news_archive"""
+    from datetime import datetime
+    data = request.json or {}
+    note = data.get('note', '').strip()
+    if not note:
+        return jsonify({"error": "缺少內容"}), 400
+    now = datetime.now()
+    date_str = f"{now.year - 1911}/{now.month:02d}/{now.day:02d}"
+    line = f"[{date_str} 觀察筆記] {note}"
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT news_archive FROM user_notes WHERE code=?", (code,))
+    existing = c.fetchone()
+    if existing:
+        old = existing[0] or ''
+        new_archive = (line + "\n\n" + old).strip() if old.strip() else line
+        c.execute("UPDATE user_notes SET news_archive=?, updated_at=? WHERE code=?",
+                  (new_archive, now_str, code))
+    else:
+        c.execute("INSERT INTO user_notes (code, content, news_archive, updated_at) VALUES (?,?,?,?)",
+                  (code, '', line, now_str))
+    conn.commit()
+    conn.close()
+    _bg_push_table('user_notes', _USER_NOTES_COLS, ['code'], create_sql=_USER_NOTES_CREATE)
+    return jsonify({"status": "ok"})
+
 # ── 投資報告書 API ──────────────────────────────────────────
 def _init_investment_reports():
     conn = sqlite3.connect(DB_PATH)

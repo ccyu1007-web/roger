@@ -624,6 +624,7 @@
           <!-- ETF 成分股 -->
           <th class="g-etf col-div" data-col="etf">ETF 成分股</th>
           <th class="g-revchg" data-col="rev_note">營收備註</th>
+          <th style="width:160px">筆記</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
@@ -853,6 +854,25 @@ function toggleCustomMode() {
     applyColVisibility();
   }
   fixFrozenColumns();
+}
+
+async function _saveQuickNote(el) {
+  const code = el.dataset.code;
+  const note = el.value.trim();
+  if (!note || el.dataset.saved === note) return;
+  el.dataset.saved = note;
+  try {
+    const r = await fetch(`/api/user-notes/${code}/quick-note`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({note})
+    });
+    if (r.ok) {
+      el.style.borderColor = '#16a34a';
+      el.value = '';
+      el.dataset.saved = '';
+      setTimeout(() => el.style.borderColor = '#e2e8f0', 1500);
+    }
+  } catch(e) { console.error('quick-note failed', e); }
 }
 
 function applyCustomColumns() {
@@ -3317,6 +3337,7 @@ function render() {
       <td class="g-gb" data-col="gb_total_rank">${r.gb_total_rank != null ? r.gb_total_rank : '－'}</td>
       <td class="g-etf col-div" data-col="etf">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
       <td class="g-revchg" data-col="rev_note" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
+      <td><input type="text" class="qnote-input" data-code="${r.code}" placeholder="寫想法..." onkeydown="if(event.key==='Enter'){_saveQuickNote(this);this.blur()}" onblur="_saveQuickNote(this)" style="width:100%;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:.78rem;outline:none"></td>
     </tr>`;
   }).join('');
 

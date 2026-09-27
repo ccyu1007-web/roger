@@ -540,6 +540,7 @@ function _buildTable(items) {
       <th class="c" style="width:56px">D通過</th>
       <th class="c" style="width:90px">標籤</th>
       <th class="c" style="width:40px">異動</th>
+      <th style="width:160px">筆記</th>
     </tr></thead><tbody>`;
 
   items.forEach(s => {
@@ -603,11 +604,31 @@ function _buildTable(items) {
       <td class="c chk-cell"><span class="${chkD.cls}">${chkD.html}</span></td>
       <td class="c">${tagHtml}</td>
       <td class="c">${chgHtml}</td>
+      <td><input type="text" class="qnote-input" data-code="${s.code}" placeholder="寫想法..." onkeydown="if(event.key==='Enter'){_saveQuickNote(this);this.blur()}" onblur="_saveQuickNote(this)" style="width:100%;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:.78rem;outline:none"></td>
     </tr>`;
   });
 
   html += '</tbody></table>';
   return html;
+}
+
+async function _saveQuickNote(el) {
+  const code = el.dataset.code;
+  const note = el.value.trim();
+  if (!note || el.dataset.saved === note) return;
+  el.dataset.saved = note;
+  try {
+    const r = await fetch(`/api/user-notes/${code}/quick-note`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({note})
+    });
+    if (r.ok) {
+      el.style.borderColor = '#16a34a';
+      el.value = '';
+      el.dataset.saved = '';
+      setTimeout(() => el.style.borderColor = '#e2e8f0', 1500);
+    }
+  } catch(e) { console.error('quick-note failed', e); }
 }
 
 // ─── 追蹤功能 ─────────────────────────────────────────
