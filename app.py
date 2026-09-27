@@ -2249,6 +2249,17 @@ def get_stocks():
             }
     except Exception: pass
 
+    # 批次查詢 quick_notes 最近一條
+    qn_map = {}
+    try:
+        _init_quick_notes()
+        _qn_rows = query_db(
+            "SELECT code, note, created_at FROM quick_notes WHERE id IN "
+            "(SELECT MAX(id) FROM quick_notes GROUP BY code)")
+        for qn in _qn_rows:
+            qn_map[qn['code']] = {'note': qn['note'], 'date': qn['created_at'][:10]}
+    except Exception: pass
+
     from datetime import date as _date
     _cur_year = _date.today().year
     for row in rows:
@@ -2310,6 +2321,7 @@ def get_stocks():
             row["_gi"] = None
         # 質性研究 metadata
         row["_notes"] = notes_meta.get(row["code"])
+        row["_qnote"] = qn_map.get(row["code"])
 
     result_data = {"count": len(rows), "data": rows}
     resp = jsonify(result_data)
@@ -2856,7 +2868,7 @@ def sync_table():
         'daily_price', 'focus_tracking', 'focus_signals',
         'daily_notes', 'industry_news',
         'portfolios', 'portfolio_holdings',
-        'investment_reports',
+        'investment_reports', 'quick_notes',
         'recipes', 'weekly_menu', 'shopping_list',
         'ai_daily_briefs',
     }
@@ -5905,33 +5917,55 @@ def archive_news_to_note(code):
     _bg_push_table('user_notes', _USER_NOTES_COLS, ['code'], create_sql=_USER_NOTES_CREATE)
     return jsonify({"status": "ok"})
 
+_QUICK_NOTES_CREATE = """CREATE TABLE IF NOT EXISTS quick_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)"""
+
+def _init_quick_notes():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(_QUICK_NOTES_CREATE)
+    conn.commit()
+    conn.close()
+
+@app.route("/api/quick-notes/<code>", methods=["GET"])
+def get_quick_notes(code):
+    """取得某支股票的所有快速筆記"""
+    _init_quick_notes()
+    rows = query_db("SELECT id, note, created_at FROM quick_notes WHERE code=? ORDER BY created_at DESC", (code,))
+    return jsonify([dict(r) for r in rows])
+
 @app.route("/api/user-notes/<code>/quick-note", methods=["POST"])
 def quick_note(code):
-    """快速註記：從總表/評價報告寫入，同步到質性研究筆記的 news_archive"""
+    """快速註記：從總表/評價報告寫入 quick_notes 表"""
     from datetime import datetime
     data = request.json or {}
     note = data.get('note', '').strip()
     if not note:
         return jsonify({"error": "缺少內容"}), 400
-    now = datetime.now()
-    date_str = f"{now.year - 1911}/{now.month:02d}/{now.day:02d}"
-    line = f"[{date_str} 觀察筆記] {note}"
-    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    _init_quick_notes()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT news_archive FROM user_notes WHERE code=?", (code,))
-    existing = c.fetchone()
-    if existing:
-        old = existing[0] or ''
-        new_archive = (line + "\n\n" + old).strip() if old.strip() else line
-        c.execute("UPDATE user_notes SET news_archive=?, updated_at=? WHERE code=?",
-                  (new_archive, now_str, code))
-    else:
-        c.execute("INSERT INTO user_notes (code, content, news_archive, updated_at) VALUES (?,?,?,?)",
-                  (code, '', line, now_str))
+    c.execute("INSERT INTO quick_notes (code, note, created_at) VALUES (?,?,?)",
+              (code, note, now_str))
+    conn.commit()
+    # 回傳最新一條供前端即時更新
+    new_id = c.lastrowid
+    conn.close()
+    _bg_push_table('quick_notes', ['id','code','note','created_at'], ['id'],
+                   create_sql=_QUICK_NOTES_CREATE)
+    return jsonify({"status": "ok", "id": new_id, "note": note, "created_at": now_str})
+
+@app.route("/api/quick-notes/<int:note_id>", methods=["DELETE"])
+def delete_quick_note(note_id):
+    """刪除單條快速筆記"""
+    _init_quick_notes()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM quick_notes WHERE id=?", (note_id,))
     conn.commit()
     conn.close()
-    _bg_push_table('user_notes', _USER_NOTES_COLS, ['code'], create_sql=_USER_NOTES_CREATE)
+    _bg_push_table('quick_notes', ['id','code','note','created_at'], ['id'],
+                   create_sql=_QUICK_NOTES_CREATE)
     return jsonify({"status": "ok"})
 
 # ── 投資報告書 API ──────────────────────────────────────────

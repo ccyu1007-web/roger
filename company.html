@@ -2939,15 +2939,50 @@ async function loadNotes() {
           placeholder="記錄公司的競爭優勢、護城河、風險因素、產業趨勢、管理層評估、追蹤重點...">${noteContent.replace(/</g,'&lt;')}</textarea>
       </div>
       ${structPanel}
+      <div style="border-top:2px solid #2563eb;background:#fff;padding:16px 28px;margin-top:12px">
+        <div style="font-size:.95rem;font-weight:700;color:#1e40af;margin-bottom:10px">觀察筆記</div>
+        <div id="quickNotesArea" style="font-size:.85rem;color:#475569">載入中...</div>
+      </div>
       <div style="border-top:2px solid #f59e0b;background:#fff;padding:16px 28px;border-radius:0 0 10px 10px;margin-top:12px">
         <div style="font-size:.95rem;font-weight:700;color:#92400e;margin-bottom:10px">新聞報告彙整</div>
         ${archiveHtml}
       </div>`;
 
     _renderNotesPreview();
+    // 載入觀察筆記
+    _loadQuickNotes();
   } catch(e) {
     panel.innerHTML = '<div class="loading" style="color:#ef4444">載入失敗: ' + e.message + '</div>';
   }
+}
+
+async function _loadQuickNotes() {
+  const area = document.getElementById('quickNotesArea');
+  if (!area) return;
+  try {
+    const res = await fetch(`/api/quick-notes/${CODE}`);
+    const notes = await res.json();
+    if (!notes.length) {
+      area.innerHTML = '<span style="color:#94a3b8">尚無觀察筆記</span>';
+      return;
+    }
+    area.innerHTML = notes.map(n => {
+      const d = n.created_at ? n.created_at.slice(0, 10) : '';
+      return `<div style="margin-bottom:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;border-left:3px solid #2563eb">
+        <span style="color:#94a3b8;font-size:.75rem">${d}</span>
+        <span style="margin-left:8px">${n.note}</span>
+        <span onclick="_delQuickNote(${n.id})" style="float:right;cursor:pointer;color:#94a3b8;font-size:.75rem" title="刪除">✕</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    area.innerHTML = '<span style="color:#ef4444">載入失敗</span>';
+  }
+}
+
+async function _delQuickNote(id) {
+  if (!confirm('確定刪除這條筆記？')) return;
+  await fetch(`/api/quick-notes/${id}`, {method:'DELETE'});
+  _loadQuickNotes();
 }
 
 // ── 投資報告書 ──

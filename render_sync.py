@@ -820,6 +820,14 @@ def _push_all_to_render():
                 ingredients TEXT DEFAULT '', steps TEXT DEFAULT '', note TEXT DEFAULT '',
                 servings TEXT DEFAULT '2-3人', created_at TEXT, updated_at TEXT)""",
         },
+        {
+            'table': 'quick_notes',
+            'columns': ['id','code','note','created_at'],
+            'pk': ['id'],
+            'create_sql': """CREATE TABLE IF NOT EXISTS quick_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)""",
+        },
         # weekly_menu, shopping_list: Render 前台操作，由 pull 備份到本機，不 push
     ]
 

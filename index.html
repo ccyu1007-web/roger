@@ -870,6 +870,20 @@ async function _saveQuickNote(el) {
       el.style.borderColor = '#16a34a';
       el.value = '';
       el.dataset.saved = '';
+      // 即時更新顯示：在輸入框上方插入/更新筆記文字
+      const td = el.closest('td');
+      let prev = td.querySelector('.qnote-display');
+      if (!prev) {
+        prev = document.createElement('div');
+        prev.className = 'qnote-display';
+        prev.style.cssText = 'font-size:.72rem;color:#64748b;margin-bottom:2px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        td.insertBefore(prev, el);
+      }
+      prev.textContent = note;
+      prev.title = note;
+      // 更新 allData
+      const row = allData.find(d => d.code === code);
+      if (row) row._qnote = {note, date: new Date().toISOString().slice(0,10)};
       setTimeout(() => el.style.borderColor = '#e2e8f0', 1500);
     }
   } catch(e) { console.error('quick-note failed', e); }
@@ -3337,7 +3351,10 @@ function render() {
       <td class="g-gb" data-col="gb_total_rank">${r.gb_total_rank != null ? r.gb_total_rank : '－'}</td>
       <td class="g-etf col-div" data-col="etf">${r.etf_tags ? r.etf_tags.split(',').map(t => { const [c,n] = t.split(':'); return `<span class="etf-tag etf-tag-${c}" title="${n}">${c}</span>`; }).join('') : ''}</td>
       <td class="g-revchg" data-col="rev_note" style="font-size:.75rem;color:#64748b;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.revenue_note || ''}">${r.revenue_note || ''}</td>
-      <td><input type="text" class="qnote-input" data-code="${r.code}" placeholder="寫想法..." onkeydown="if(event.key==='Enter'){_saveQuickNote(this);this.blur()}" onblur="_saveQuickNote(this)" style="width:100%;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:.78rem;outline:none"></td>
+      <td style="min-width:160px">
+        ${r._qnote ? `<div style="font-size:.72rem;color:#64748b;margin-bottom:2px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(r._qnote.note||'').replace(/"/g,'&quot;')}（${r._qnote.date}）">${r._qnote.note}</div>` : ''}
+        <input type="text" data-code="${r.code}" placeholder="寫想法..." onkeydown="if(event.key==='Enter'){_saveQuickNote(this);this.blur()}" onblur="_saveQuickNote(this)" style="width:100%;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:.76rem;outline:none">
+      </td>
     </tr>`;
   }).join('');
 
