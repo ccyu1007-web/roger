@@ -54,7 +54,7 @@
 #### 群益 URL 對照表
 | 資料 | URL |
 |------|-----|
-| 損益表(季) | `zce/zce_{code}.djhtm` |
+| 損益表(季) | `zcq/zcq.djhtm?a={code}` |
 | 損益表(年) | `zcq/zcqa.djhtm?a={code}` |
 | 資產負債表(年) | `zcp/zcpb/zcpb.djhtm?a={code}` |
 | 資產負債表(季) | `zcp/zcpa/zcpa.djhtm?a={code}` |
