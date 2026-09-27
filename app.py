@@ -938,14 +938,11 @@ CHECKLIST_ITEMS = [
     {'key': 'inv_trend',      'category': 'safety', 'label': '存貨方向：最近一季 ≤ 近4季中位數×1.15', 'threshold': '是', 'weight': '重要', 'hint': '最近一季存貨沒有急速惡化（容忍15%微升）'},
     {'key': 'ar_level',       'category': 'safety', 'label': '應收水準：近4季中位數 ≤ 近5年平均×1.2', 'threshold': '是', 'weight': '重要', 'hint': '應收帳款週轉天數在歷史常態合理範圍內'},
     {'key': 'ar_trend',       'category': 'safety', 'label': '應收方向：最近一季 ≤ 近4季中位數×1.15', 'threshold': '是', 'weight': '重要', 'hint': '最近一季應收沒有急速惡化'},
-    # ── C 價值評估檢核（7項）──
-    {'key': 'grade_a_ok',      'category': 'value', 'label': '預估(沈董)等級為A級以上', 'threshold': '是', 'weight': '核心', 'group': '沈董法', 'hint': '矩陣等級A以上代表PE和殖利率都在合理範圍'},
-    {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS ≥ 近5年EPS中位數', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '確認目前獲利水準不低於中期常態，不受極端值影響'},
-    {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 70%', 'weight': '重要', 'group': '沈董法', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
-    {'key': 'price_val_ok',    'category': 'value', 'label': '現價 ≤ A級評價；≤ AA更佳', 'threshold': '是', 'weight': '重要', 'group': '沈董法', 'hint': '股價低於評價門檻，有安全邊際'},
-    {'key': 'ge_neff_ratio',   'category': 'value', 'label': '聶夫 Neff 比率', 'threshold': '≥ 1.0', 'weight': '重要', 'group': '聶夫法', 'hint': '(5年營收CAGR+殖利率)/PE，>=1代表成長性相對股價被低估'},
-    {'key': 'val_ddm_return',  'category': 'value', 'label': '股利折現現價潛在年報酬', 'threshold': '≥ 10%', 'weight': '重要', 'group': 'DDM', 'hint': '以股利折現模型估算，現價買入的預期年化報酬'},
-    {'key': 'dcf_safe_ok',     'category': 'value', 'label': '現價 ≤ DCF安全邊際價', 'threshold': '是', 'weight': '重要', 'group': 'DCF', 'hint': '自由現金流折現後，現價低於內在價值打折後的安全價'},
+    # ── C 價值評估檢核（4項）──
+    {'key': 'fwd_neff_ok',     'category': 'value', 'label': '前瞻Neff比率', 'threshold': '≥ 1.0', 'weight': '核心', 'group': '前瞻', 'hint': '(成長率+殖利率)/PE，>=1代表成長性相對股價被低估'},
+    {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利', 'threshold': '> 70%', 'weight': '重要', 'group': '本業', 'hint': '獲利主要來自本業，非靠業外收入撐場'},
+    {'key': 'est_pe_ok',       'category': 'value', 'label': '預估PE', 'threshold': '≤ 20', 'weight': '重要', 'group': '估值', 'hint': '預估PE低於20倍，估值合理'},
+    {'key': 'est_yld_ok',      'category': 'value', 'label': '預估殖利率', 'threshold': '≥ 5%', 'weight': '重要', 'group': '估值', 'hint': '預估殖利率達5%以上，股利回報充足'},
     # ── D 成長性檢核（4項）──
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '今年以來累積營收是否成長，反映整體趨勢'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '長期12M營收年增率', 'threshold': '≥ 0%', 'weight': '重要', 'hint': '近12個月累計營收年增率，過濾短期波動看長期趨勢'},
@@ -1236,56 +1233,20 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['ar_trend'] = 0
         detail['ar_trend'] = '季度應收資料不足'
 
-    # === 價值評估檢核（5項） ===
-    _shen_pe = r.get('shen_pe')
-    _shen_eps = r.get('shen_eps')
-    _eps_y = [r.get(f'eps_y{i}') for i in range(1, 6)]
-    _eps_y_valid = [e for e in _eps_y if e is not None]
+    # === 價值評估檢核（4項） ===
 
-    # 預估(沈董)等級為A級以上
-    _est_pe = r.get('est_pe')
-    _used_pe = _est_pe if _est_pe is not None and _est_pe > 0 else _shen_pe
-    _pe_src = '預估' if _est_pe is not None and _est_pe > 0 else '沈董'
-    _est_grade = r.get('est_grade')
-    _used_grade = _est_grade if _est_grade else r.get('shen_grade')
-    _grade_src = '預估' if _est_grade else '沈董'
-    _used_yld = r.get('est_yld') or r.get('shen_yld')
-    checks['grade_a_ok'] = 1 if _used_grade in ('A', 'A1', 'A2', 'AA') else 0
-    _grade_parts = [f'{_grade_src}等級={_used_grade or "無"}']
-    if _used_pe is not None:
-        _grade_parts.append(f'PE={_used_pe:.2f}倍')
-    if _used_yld is not None:
-        _grade_parts.append(f'殖利率={_used_yld:.2f}%')
-    detail['grade_a_ok'] = '　'.join(_grade_parts)
-
-    # EPS 來源判斷：有預估EPS用預估，沒有用沈董
-    _est_eps_val = r.get('est_eps')
-    _used_eps = _est_eps_val if _est_eps_val is not None and _est_eps_val > 0 else _shen_eps
-    _eps_src = '預估' if _est_eps_val is not None and _est_eps_val > 0 else '沈董'
-
-    # 預估(沈董)EPS >= 近5年EPS中位數
-    if _eps_y_valid and _used_eps is not None:
-        _sorted_eps = sorted(_eps_y_valid)
-        _n = len(_sorted_eps)
-        _eps_median5 = _sorted_eps[_n // 2] if _n % 2 == 1 else (_sorted_eps[_n // 2 - 1] + _sorted_eps[_n // 2]) / 2
-        checks['eps_vs_median5'] = 1 if _used_eps >= _eps_median5 else 0
-        detail['eps_vs_median5'] = f'{_eps_src}EPS={_used_eps:.2f} vs 近{_n}年中位數={_eps_median5:.2f}'
+    # 1. 前瞻Neff比率 >= 1.0
+    _fwd_neff = r.get('fwd_neff')
+    checks['fwd_neff_ok'] = 1 if _fwd_neff is not None and _fwd_neff >= 1.0 else 0
+    if _fwd_neff is not None:
+        _fn_g = r.get('fwd_neff_g')
+        _fn_pe = r.get('fwd_neff_pe')
+        _fn_yld = r.get('fwd_neff_yld')
+        detail['fwd_neff_ok'] = f'Neff={_fwd_neff:.2f}　({_fn_g}%+{_fn_yld}%)/{_fn_pe}'
     else:
-        checks['eps_vs_median5'] = 0
-        detail['eps_vs_median5'] = '無資料'
+        detail['fwd_neff_ok'] = '無資料'
 
-    # 現價 ≤ A級評價；≤ AA更佳
-    if close and val_a:
-        _in_a = close <= val_a + 0.005
-        _below_aa = val_aa is not None and close <= val_aa + 0.005
-        checks['price_val_ok'] = 1 if _in_a else 0
-        _level = '≤ AA' if _below_aa else ('≤ A' if _in_a else '> A')
-        detail['price_val_ok'] = f'股價{close} vs AA={val_aa} / A={val_a}（{_level}）'
-    else:
-        checks['price_val_ok'] = 0
-        detail['price_val_ok'] = '無評價門檻'
-
-    # 累計營業利益 / 累計稅前淨利 > 70%
+    # 2. 累計營業利益 / 累計稅前淨利 > 70%
     _cr = r.get('_core_ratio')
     if _cr:
         checks['core_ratio'] = 1 if _cr['ratio'] > 70 else 0
@@ -1294,68 +1255,19 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['core_ratio'] = 0
         detail['core_ratio'] = '無季度資料'
 
-    # DDM 股利折現現價潛在年報酬 >= 10%
-    ddm_pe = float(user_params.get('ddmPE', 14)) if user_params and user_params.get('ddmPE') else 14
-    ddm_rate = float(user_params.get('ddmRate', 0.10)) if user_params and user_params.get('ddmRate') else 0.10
-    # EPS 取用順序：預估 > 系統 > 沈董（與 recalc_all_derived 一致）
-    ddm_eps = est_eps
-    if ddm_eps is None:
-        sys_eps_val = r.get('sys_ann_eps')
-        if sys_eps_val is not None and shen_eps is not None:
-            ddm_eps = min(sys_eps_val, shen_eps)
-        else:
-            ddm_eps = sys_eps_val or shen_eps
-    ddm_div = blend_div or shen_div
-    ddm_ann_ret = None
-    if ddm_eps and ddm_eps > 0 and close and close > 0:
-        sell_price = ddm_eps * ddm_pe
-        total_div = (ddm_div * 3) if ddm_div and ddm_div > 0 else 0
-        ddm_div_display = f'{ddm_div}×3' if ddm_div else '0'
-        if total_div > 0 or sell_price > close:
-            target_price = sell_price + total_div
-            total_ret = (target_price - close) / close
-            ddm_ann_ret = round((pow(1 + total_ret, 1/3) - 1) * 100, 2)
-    checks['val_ddm_return'] = 1 if ddm_ann_ret is not None and ddm_ann_ret >= 10 else 0
-    if ddm_ann_ret is not None:
-        detail['val_ddm_return'] = f'年報酬={ddm_ann_ret}%　EPS={ddm_eps} PE={ddm_pe} 股利={ddm_div_display} 折現率={ddm_rate}'
-    else:
-        detail['val_ddm_return'] = None
+    # 3. 預估PE <= 20（使用者設定 > 系統預設 fwd_neff_pe）
+    _v_pe = r.get('est_pe') if r.get('est_pe') is not None and r.get('est_pe') > 0 else r.get('fwd_neff_pe')
+    _v_pe_src = '自訂' if r.get('est_pe') is not None and r.get('est_pe') > 0 else '系統'
+    checks['est_pe_ok'] = 1 if _v_pe is not None and _v_pe <= 20 else 0
+    detail['est_pe_ok'] = f'{_v_pe_src}PE={_v_pe:.2f}' if _v_pe is not None else '無資料'
 
-    # DCF 現價 <= 安全邊際價
-    _dcf_fcf = r.get('_fcf_latest')
-    _dcf_cs = r.get('_common_stock')
-    _dcf_safe_price = None
-    if _dcf_fcf and _dcf_fcf > 0 and _dcf_cs and _dcf_cs > 0:
-        _up = user_params or {}
-        _dcf_rate = float(_up['dcfRate']) / 100 if _up.get('dcfRate') else 0.10
-        _ig = (r.get('_gi') or {}).get('intrinsic_growth')
-        _dcf_growth = float(_up['dcfGrowth']) / 100 if _up.get('dcfGrowth') else (
-            _ig / 100 if _ig is not None else 0.05)
-        _dcf_n = int(float(_up['dcfGrowthYears'])) if _up.get('dcfGrowthYears') else 5
-        _dcf_tg = float(_up['dcfTermGrowth']) / 100 if _up.get('dcfTermGrowth') else 0.02
-        _dcf_mg = float(_up['dcfMargin']) / 100 if _up.get('dcfMargin') else 0.80
-        if _up.get('dcfFcf'):
-            _dcf_fcf = float(_up['dcfFcf']) * 1000000
-        if _dcf_rate > _dcf_tg:
-            _pv = 0
-            _cf = _dcf_fcf
-            for _i in range(1, _dcf_n + 1):
-                _cf = (_dcf_fcf * (1 + _dcf_growth) if _i == 1 else _cf * (1 + _dcf_growth))
-                _pv += _cf / (1 + _dcf_rate) ** _i
-            _tv = _cf * (1 + _dcf_tg) / (_dcf_rate - _dcf_tg)
-            _pv_tv = _tv / (1 + _dcf_rate) ** _dcf_n
-            _total = _pv + _pv_tv
-            _shares = _dcf_cs / 10
-            _per_share = _total / _shares
-            _dcf_safe_price = round(_per_share * _dcf_mg, 2)
-    if _dcf_safe_price is not None and close:
-        checks['dcf_safe_ok'] = 1 if close <= _dcf_safe_price + 0.005 else 0
-        detail['dcf_safe_ok'] = f'股價{close} vs 安全邊際價{_dcf_safe_price}'
-    else:
-        checks['dcf_safe_ok'] = 0
-        detail['dcf_safe_ok'] = 'FCF<=0或無資料' if _dcf_fcf and _dcf_fcf <= 0 else '無資料'
+    # 4. 預估殖利率 >= 5%（使用者設定 > 系統預設 fwd_neff_yld）
+    _v_yld = r.get('est_yld') if r.get('est_yld') is not None else r.get('fwd_neff_yld')
+    _v_yld_src = '自訂' if r.get('est_yld') is not None else '系統'
+    checks['est_yld_ok'] = 1 if _v_yld is not None and _v_yld >= 5 else 0
+    detail['est_yld_ok'] = f'{_v_yld_src}殖利率={_v_yld:.2f}%' if _v_yld is not None else '無資料'
 
-    # === 成長性評估檢核（5項） ===
+    # === 成長性評估檢核（4項） ===
     _gi = r.get('_gi') or {}
 
     # 累積營收年增率 >= 0%
@@ -1382,17 +1294,6 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
         checks['rev_3m_gt_12m'] = 0
         detail['rev_3m_gt_12m'] = '無資料'
 
-    # Neff 比率 >= 1.0
-    _ge_neff_d = _gi.get('neff_d')
-    _ge_neff_c = _gi.get('neff_c')
-    _ge_yld = _gi.get('yield')
-    _ge_pe = _gi.get('pe')
-    checks['ge_neff_ratio'] = 1 if _ge_neff_d is not None and _ge_neff_d >= 1.0 else 0
-    if _ge_neff_d is not None and _ge_neff_c is not None and _ge_yld is not None and _ge_pe:
-        detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}　(營收CAGR{_ge_neff_c:.2f}% + 殖利率{_ge_yld:.2f}%) / PE{_ge_pe:.2f} = {round(_ge_neff_c + _ge_yld, 2)}/{_ge_pe:.2f}'
-    else:
-        detail['ge_neff_ratio'] = f'Neff比率={_ge_neff_d:.2f}' if _ge_neff_d is not None else '無資料'
-
     profit_count = sum(checks.get(k, 0) for k in CHECKLIST_PROFIT_KEYS)
     safety_count = sum(checks.get(k, 0) for k in CHECKLIST_SAFETY_KEYS)
     value_count = sum(checks.get(k, 0) for k in CHECKLIST_VALUE_KEYS)
@@ -1415,10 +1316,11 @@ def _calc_checklist_for_stock(r, user_params=None, global_settings=None, growth_
     _bl('debt_ratio_ok', _dr_latest, 50)
     _bl('fin_debt_ok', _fdr_latest, 30)
     _bl('icr_ok', _icr_latest, 5)
-    # grade_a_ok / price_val_ok 是等級/區間判斷，無數值壓線
-    if ddm_ann_ret is not None:
-        _bl('val_ddm_return', ddm_ann_ret, 10)
-    _bl('ge_neff_ratio', _ge_neff_d, 1.0)
+    _bl('fwd_neff_ok', _fwd_neff, 1.0)
+    if _v_pe is not None:
+        _bl('est_pe_ok', _v_pe, 20, higher_is_pass=False)
+    if _v_yld is not None:
+        _bl('est_yld_ok', _v_yld, 5)
 
     # === 紅旗偵測（核心題不過 → 標記）===
     _core_keys = [it['key'] for it in CHECKLIST_ITEMS if it.get('weight') == '核心']

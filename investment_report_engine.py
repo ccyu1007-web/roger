@@ -52,11 +52,10 @@ CHECKLIST_SAFETY = [
 ]
 
 CHECKLIST_VALUE = [
-    ('grade_a_ok', '預估(沈董)等級為A級以上'),
-    ('eps_vs_median5', '預估(沈董)EPS >= 近5年EPS中位數'),
+    ('fwd_neff_ok', '前瞻Neff比率 >= 1.0'),
     ('core_ratio', '累計營業利益/累計稅前淨利 > 70%'),
-    ('price_val_ok', '現價 <= A級評價；<= AA更佳'),
-    ('ge_neff_ratio', '前瞻Neff比率 >= 1.0'),
+    ('est_pe_ok', '預估PE <= 20'),
+    ('est_yld_ok', '預估殖利率 >= 5%'),
 ]
 
 CHECKLIST_GROWTH = [

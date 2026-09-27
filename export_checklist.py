@@ -28,17 +28,14 @@ CHECKLIST_ITEMS = [
     {'key': 'inv_trend',      'category': 'safety', 'label': '存貨方向：最近一季 ≤ 近4季中位數×1.15'},
     {'key': 'ar_level',       'category': 'safety', 'label': '應收水準 ≤ 近5年平均×1.2'},
     {'key': 'ar_trend',       'category': 'safety', 'label': '應收方向：最近一季 ≤ 近4季中位數×1.15'},
-    {'key': 'grade_a_ok',      'category': 'value', 'label': '預估(沈董)等級為A級以上'},
-    {'key': 'eps_vs_median5',  'category': 'value', 'label': '預估(沈董)EPS >= 近5年EPS中位數'},
+    {'key': 'fwd_neff_ok',     'category': 'value', 'label': '前瞻Neff比率 >= 1.0'},
     {'key': 'core_ratio',      'category': 'value', 'label': '累計營業利益 / 累計稅前淨利 > 70%'},
-    {'key': 'price_val_ok',    'category': 'value', 'label': '現價 <= A級評價；<= AA更佳'},
-    {'key': 'val_ddm_return', 'category': 'value', 'label': '股利折現現價潛在年報酬 >= 10%'},
-    {'key': 'dcf_safe_ok',    'category': 'value', 'label': '現價 <= DCF安全邊際價'},
+    {'key': 'est_pe_ok',       'category': 'value', 'label': '預估PE <= 20'},
+    {'key': 'est_yld_ok',      'category': 'value', 'label': '預估殖利率 >= 5%'},
     {'key': 'cum_rev_pos',    'category': 'growth_eval', 'label': '累積營收年增率 ≥ 0%'},
     {'key': 'rev_12m_pos',    'category': 'growth_eval', 'label': '12M營收年增率 ≥ 0%'},
     {'key': 'rev_3m_pos',     'category': 'growth_eval', 'label': '3M營收年增率 ≥ 0%'},
     {'key': 'rev_3m_gt_12m',  'category': 'growth_eval', 'label': '短期3M ≥ 長期12M'},
-    {'key': 'ge_neff_ratio',   'category': 'value', 'label': 'Neff 比率 >= 1.0'},
 ]
 
 CAT_LABELS = {
