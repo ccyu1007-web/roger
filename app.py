@@ -697,6 +697,8 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
         if _wp and _wp > 0:
             _fwd_div = _fwd_ann_eps * _wp / 100
             _fwd_yld = round(_fwd_div / close * 100, 2)
+        elif _fwd_yld is None:
+            _fwd_yld = 0.0  # 未配息公司殖利率設 0，Neff 只看 g/PE
     # 3b. 用戶季估計表手動值（est_pe/est_yld）覆蓋系統預設
     if r.get('est_pe') and r['est_pe'] > 0:
         _fwd_pe = r['est_pe']
