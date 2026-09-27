@@ -3695,8 +3695,10 @@ def _save_daily_price():
                         return
 
             for code, close, volume in rows:
-                c.execute("""INSERT OR REPLACE INTO daily_price
-                             (code, date, close_price, volume) VALUES (?,?,?,?)""",
+                c.execute("""INSERT INTO daily_price
+                             (code, date, close_price, volume) VALUES (?,?,?,?)
+                             ON CONFLICT(code, date) DO UPDATE SET
+                             close_price=excluded.close_price, volume=excluded.volume""",
                           (code, today_str, close, volume))
             conn.commit()
         print(f"[每日價量] 已存入 {len(rows)} 筆 ({today_str})")
