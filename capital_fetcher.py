@@ -1135,6 +1135,17 @@ def fetch_capital_monthly_revenue(code):
                 revenue *= 1000
 
                 try:
+                    # 交叉比對：檢查 MOPS/政府API 已有值是否與群益一致
+                    existing = c.execute(
+                        "SELECT revenue FROM monthly_revenue WHERE code=? AND year=? AND month=?",
+                        (code, west_year, month)).fetchone()
+                    if existing and existing[0] is not None:
+                        diff_pct = abs(revenue - existing[0]) / existing[0] * 100 if existing[0] != 0 else 0
+                        if diff_pct >= 1:
+                            logger.warning(
+                                f"[月營收差異] {code} {west_year}/{month}: "
+                                f"既有={existing[0]:,.0f} 群益={revenue:,.0f} 差異={diff_pct:.1f}%")
+
                     c.execute("""INSERT INTO monthly_revenue (code, year, month, revenue, updated_at)
                         VALUES (?,?,?,?,?)
                         ON CONFLICT(code, year, month) DO UPDATE SET
