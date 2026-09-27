@@ -482,7 +482,6 @@ function _buildApproachTable(items) {
     <th class="r" style="width:68px">成長率g</th>
     <th class="r" style="width:54px">PE</th>
     <th class="r" style="width:60px">殖利率</th>
-    <th class="c" style="width:50px">等級</th>
     <th class="c" style="width:56px">A通過</th>
     <th class="c" style="width:56px">B通過</th>
   </tr></thead><tbody>`;
@@ -510,7 +509,6 @@ function _buildApproachTable(items) {
       <td class="r" style="color:${_revColor(cagrV)}">${cagrV != null ? (cagrV > 0 ? '+' : '') + cagrV.toFixed(1) + '%' : '—'}</td>
       <td class="r" style="color:#475569">${peV != null ? peV.toFixed(1) + peSrc : '—'}</td>
       <td class="r" style="color:#475569">${yldV != null ? yldV.toFixed(1) + '%' + yldSrc : '—'}</td>
-      <td class="c"><span class="${_gradeCls(grade)}">${grade || '—'}</span></td>
       <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
       <td class="c chk-cell"><span class="${chkB.cls}">${chkB.html}</span></td>
     </tr>`;
@@ -531,8 +529,9 @@ function _buildTable(items) {
       <th class="r" style="width:68px">成長率g</th>
       <th class="r" style="width:54px">PE</th>
       <th class="r" style="width:60px">殖利率</th>
-      <th class="c" style="width:50px">等級</th>
       <th class="r" style="width:65px">累積YoY</th>
+      <th class="r" style="width:60px">營收年增</th>
+      <th class="r" style="width:60px">營收月增</th>
       <th class="r" style="width:55px">3M</th>
       <th class="r" style="width:55px">12M</th>
       <th class="c" style="width:56px">A通過</th>
@@ -559,10 +558,6 @@ function _buildTable(items) {
     const yldV = s.fwd_neff_yld;
     const peStr  = peV  != null ? peV.toFixed(1) : '—';
     const yldStr = yldV != null ? yldV.toFixed(1) + '%' : '—';
-
-    // 等級（預估優先，其次沈董）
-    const grade    = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
-    const gradeCls = _gradeCls(grade);
 
     // 股價
     const priceStr = s.close != null ? s.close.toFixed(2) : '—';
@@ -597,8 +592,9 @@ function _buildTable(items) {
       <td class="r" style="color:${cagrColor}">${cagrStr}</td>
       <td class="r" style="color:#475569">${peStr}</td>
       <td class="r" style="color:#475569">${yldStr}</td>
-      <td class="c"><span class="${gradeCls}">${grade || '—'}</span></td>
       <td class="r" style="color:${_revColor(cumV)}">${_revStr(cumV)}</td>
+      <td class="r" style="color:${_revColor(s.revenue_yoy)}">${_revStr(s.revenue_yoy)}</td>
+      <td class="r" style="color:${_revColor(s.revenue_mom)}">${_revStr(s.revenue_mom)}</td>
       <td class="r" style="color:${_revColor(m3V)}">${_revStr(m3V)}</td>
       <td class="r" style="color:${_revColor(m12V)}">${_revStr(m12V)}</td>
       <td class="c chk-cell"><span class="${chkA.cls}">${chkA.html}</span></td>
