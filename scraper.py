@@ -4506,6 +4506,41 @@ def _run_maintenance_inner(scheduled=True):
     print(f"{'='*50}")
     init_db()
 
+    # 0. 股價新鮮度檢查：本機關機期間 Render 可能已自行更新股價，
+    #    若本機股價過期（>20小時），先更新，確保後續計算和 push 用最新值
+    t1 = time.time()
+    try:
+        with sqlite3.get_conn() as conn:
+            row = conn.execute(
+                "SELECT MAX(updated_at) FROM stocks WHERE close IS NOT NULL"
+            ).fetchone()
+        if row and row[0]:
+            last_price = datetime.strptime(row[0][:19], '%Y-%m-%d %H:%M:%S')
+            hours_stale = (datetime.now() - last_price).total_seconds() / 3600
+            if hours_stale > 20:
+                print(f"[0.股價過期] 本機股價距今 {hours_stale:.0f} 小時未更新，先更新...")
+                twse_rows = fetch_twse()
+                tpex_rows = fetch_tpex()
+                fresh_rows = twse_rows + tpex_rows
+                if fresh_rows:
+                    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    with sqlite3.get_conn() as conn:
+                        c = conn.cursor()
+                        for r in fresh_rows:
+                            if r.get('close'):
+                                c.execute(
+                                    "UPDATE stocks SET close=?, change=?, open=?, high=?, low=?, volume=?, updated_at=? WHERE code=?",
+                                    (r['close'], r.get('change'), r.get('open'), r.get('high'),
+                                     r.get('low'), r.get('volume'), now_str, r['code']))
+                        conn.commit()
+                    print(f"[0.股價過期] 已更新 {len(fresh_rows)} 支，{time.time()-t1:.1f}s")
+                else:
+                    print(f"[0.股價過期] API 無回傳，跳過（後續 push 將保護 Render 資料）")
+            else:
+                print(f"[0.股價新鮮] 距今 {hours_stale:.0f} 小時，不需要更新")
+    except Exception as e:
+        print(f"[0.股價檢查] 失敗: {e}")
+
     # 1. 240 日歷史收盤價
     t1 = time.time()
     with ThreadPoolExecutor(max_workers=2) as pool:

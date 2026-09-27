@@ -604,10 +604,30 @@ def _push_all_to_render():
     print(f"[同步] 開始 push 到 Render...（{mode}）")
     failures = []
 
+    # 第二層防護：檢查本機股價是否夠新，過期則跳過推送股價（保護 Render 資料）
+    _skip_price_push = False
+    try:
+        from datetime import datetime, timedelta
+        with sqlite3.get_conn() as conn:
+            row = conn.execute(
+                "SELECT MAX(updated_at) FROM stocks WHERE close IS NOT NULL"
+            ).fetchone()
+        if row and row[0]:
+            last_price = datetime.strptime(row[0][:19], '%Y-%m-%d %H:%M:%S')
+            hours_stale = (datetime.now() - last_price).total_seconds() / 3600
+            if hours_stale > 20:
+                _skip_price_push = True
+                print(f"[同步] 本機股價距今 {hours_stale:.0f} 小時未更新，跳過推送股價（保護 Render 資料）")
+    except Exception:
+        pass
+
     # 既有的專用 push（stocks 表結構特殊，保留原函式）
     for name, fn in [('prices', _push_prices_to_render), ('annual', _push_annual_to_render),
                      ('institutional', _push_institutional_to_render), ('estimates', _push_estimates_to_render)]:
         try:
+            if name == 'prices' and _skip_price_push:
+                print("  [prices] 跳過（本機股價過期，保護 Render）")
+                continue
             fn()
         except Exception as e:
             print(f"  [{name}] 失敗: {e}")
