@@ -1994,9 +1994,11 @@ def fetch_company_monthly_revenue(code):
             c = conn.cursor()
             for row in rows:
                 c.execute("""
-                    INSERT OR REPLACE INTO monthly_revenue
+                    INSERT INTO monthly_revenue
                       (code, year, month, revenue, updated_at)
                     VALUES (:code, :year, :month, :revenue, :updated_at)
+                    ON CONFLICT(code, year, month) DO UPDATE SET
+                      revenue=excluded.revenue, updated_at=excluded.updated_at
                 """, row)
             # 更新 stocks 表的營收日期（取最新月份）
             latest = max(rows, key=lambda r: (r['year'], r['month']))
