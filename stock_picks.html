@@ -118,6 +118,10 @@
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();loadReport()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
       僅體質佳
     </label>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer">
+      <input type="checkbox" id="watchOnly" onchange="_watchOnly=this.checked;updateCounts();loadReport()" style="accent-color:#f59e0b;width:16px;height:16px;vertical-align:middle">
+      僅看篩選
+    </label>
     <button class="toolbar-btn primary" onclick="copyPrompt()">複製分析指令</button>
     <button class="toolbar-btn" onclick="window.print()">匯出PDF</button>
     <span class="toolbar-info" id="toolbarInfo"></span>
@@ -145,8 +149,10 @@
 <script>
 let _currentTab = 'selected';
 let _qualityOnly = false;
+let _watchOnly = false;
 let _stocks = [];
 let _qualitySet = new Set();
+let _watchSet = new Set();
 
 async function load() {
   _updateCriteria();
@@ -160,6 +166,7 @@ async function load() {
     _stocks = stocksJson.data || [];
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
+    _watchSet = new Set((lists.watch || []).map(r => r.code));
     updateCounts();
   } catch(e) {
     console.error('股票數據載入失敗:', e);
@@ -181,14 +188,18 @@ function _isPositiveMomentum(s) {
   return cum != null && cum >= 0 && m3 != null && m3 >= 0 && m12 != null && m12 >= 0;
 }
 
+function _applyFilters(pool) {
+  if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
+  if (_watchOnly) pool = pool.filter(s => _watchSet.has(s.code));
+  return pool;
+}
+
 function _getTabPool() {
   if (_currentTab === 'value') {
-    let pool = _stocks.filter(s => _isNeffPassValue(s));
-    if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
+    let pool = _applyFilters(_stocks.filter(s => _isNeffPassValue(s)));
     return pool.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s));
   }
-  let pool = _stocks.filter(s => _isNeffPass(s));
-  if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
+  let pool = _applyFilters(_stocks.filter(s => _isNeffPass(s)));
   if (_currentTab === 'selected')  return pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
   if (_currentTab === 'momentum')  return pool.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s));
   if (_currentTab === 'neffonly')  return pool.filter(s => !_isHighQuality(s) && !_isPositiveMomentum(s));
@@ -198,14 +209,12 @@ function _getTabPool() {
 function updateCounts() {
   const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
   // 精選/動能型/僅Neff：門檻 >= 1.0
-  let pool1 = _stocks.filter(s => _isNeffPass(s));
-  if (_qualityOnly) pool1 = pool1.filter(s => _qualitySet.has(s.code));
+  let pool1 = _applyFilters(_stocks.filter(s => _isNeffPass(s)));
   set('cnt_selected', pool1.filter(s => _isHighQuality(s) && _isPositiveMomentum(s)).length);
   set('cnt_momentum', pool1.filter(s => !_isHighQuality(s) && _isPositiveMomentum(s)).length);
   set('cnt_neffonly', pool1.filter(s => !_isHighQuality(s) && !_isPositiveMomentum(s)).length);
   // 價值型：門檻 >= 0.5
-  let pool2 = _stocks.filter(s => _isNeffPassValue(s));
-  if (_qualityOnly) pool2 = pool2.filter(s => _qualitySet.has(s.code));
+  let pool2 = _applyFilters(_stocks.filter(s => _isNeffPassValue(s)));
   set('cnt_value',    pool2.filter(s => _isHighQuality(s) && !_isPositiveMomentum(s)).length);
 }
 
@@ -230,7 +239,10 @@ function switchTab(tab, btn) {
 }
 
 function _reportKey() {
-  return _currentTab + (_qualityOnly ? '_quality' : '');
+  let k = _currentTab;
+  if (_qualityOnly) k += '_quality';
+  if (_watchOnly) k += '_watch';
+  return k;
 }
 
 async function loadReport() {
@@ -248,7 +260,8 @@ async function loadReport() {
       }
     } else {
       const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'}[_currentTab];
-      const ql = _qualityOnly ? '（僅體質佳）' : '';
+      const fl = [_qualityOnly?'體質佳':'', _watchOnly?'篩選':''].filter(Boolean).join('+');
+      const ql = fl ? `（僅${fl}）` : '';
       area.innerHTML = `<div class="empty">
         「${tabLabel}${ql}」尚未產出報告。<br><br>
         按「複製分析指令」→ 貼給 Claude → 一次產出所有群組報告。
@@ -274,10 +287,13 @@ function copyPrompt() {
     stockList += `- ${s.code} ${s.name} | 股價=${s.close||'—'} | 前瞻Neff=${s.fwd_neff?.toFixed(2)||'—'}(g=${s.fwd_neff_g||'—'},PE=${s.fwd_neff_pe||'—'},殖=${s.fwd_neff_yld||'—'}%) | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
   });
 
-  const prompt = `請根據逍遙投資系統的每日價值評估，產出「${tabLabel}${_qualityOnly?'+體質佳':''}」的選股推薦深度分析報告。
+  const filterLabel = [_qualityOnly?'+體質佳':'', _watchOnly?'+篩選':''].filter(Boolean).join('');
+  const filterDesc = [_qualityOnly?'僅體質佳':'', _watchOnly?'僅篩選清單':''].filter(Boolean).join('＋') || '';
+  const filterParen = filterDesc ? `（${filterDesc}）` : '';
+  const prompt = `請根據逍遙投資系統的每日價值評估，產出「${tabLabel}${filterLabel}」的選股推薦深度分析報告。
 
 報告日期：${today}
-篩選群組：${tabLabel}${_qualityOnly?'（僅體質佳）':''}（共 ${pool.length} 支）
+篩選群組：${tabLabel}${filterParen}（共 ${pool.length} 支）
 
 【股票清單與量化數據】
 ${stockList}
@@ -310,9 +326,9 @@ curl -s "https://tock-system.onrender.com/api/user-notes/{code}"
 
 所有群組統一使用以下表格格式（重倉/小買/觀望/待質性研究四區都用同一種表格）：
 
-## 選股推薦報告 — ${tabLabel}${_qualityOnly?'（體質佳）':''}
+## 選股推薦報告 — ${tabLabel}${filterLabel?'（'+filterLabel.slice(1)+'）':''}
 **報告日期**：${today}
-**篩選群組**：${tabLabel}${_qualityOnly?'（僅體質佳）':''}（${pool.length} 支）
+**篩選群組**：${tabLabel}${filterParen}（${pool.length} 支）
 
 ---
 ### 重倉推薦（X 支）
@@ -353,7 +369,7 @@ print(urllib.request.urlopen(req, timeout=30).read().decode())
 PYEOF`;
 
   navigator.clipboard.writeText(prompt).then(() => {
-    alert(`${tabLabel}${_qualityOnly?'+體質佳':''}（${pool.length}支）分析指令已複製到剪貼簿`);
+    alert(`${tabLabel}${filterLabel}（${pool.length}支）分析指令已複製到剪貼簿`);
   });
 }
 
