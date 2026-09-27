@@ -260,14 +260,10 @@ function _neffCls(v) {
   return 'neff-lo';
 }
 
-// 品質條件：A至少5/7 且 B至少7/10，整體通過率≥70%
+// 品質條件：A至少5/7 且 B至少7/10
 function _isHighQuality(s) {
-  const ap = s._chk_profit, at = s._chk_profit_total || 7;
-  const bp = s._chk_safety, bt = s._chk_safety_total || 10;
-  if (ap == null || bp == null) return false;
-  const totalPass = (s._chk_pass || 0);
-  const totalAll  = (s._chk_total || 17);
-  return ap >= 5 && bp >= 7 && (totalPass / totalAll) >= 0.7;
+  if (s._chk_profit == null || s._chk_safety == null) return false;
+  return s._chk_profit >= 5 && s._chk_safety >= 7;
 }
 
 // 動能條件：累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0
