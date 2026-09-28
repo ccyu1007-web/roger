@@ -222,6 +222,9 @@ let _stocks = [];
 let _growthChanges = {};
 let _qualitySet = new Set();
 let _focusTrackSet = new Set();
+let _skipSet = new Set();
+let _trackDates = {};
+let _skipDates = {};
 let _qualityOnly = false;
 let _currentTab = 'selected';
 let _changeBlockOpen = true;
@@ -311,6 +314,9 @@ async function load() {
     const lists = await listRes.json();
     _qualitySet    = new Set((lists.quality || []).map(r => r.code));
     _focusTrackSet = new Set((lists.track   || []).map(r => r.code));
+    _skipSet       = new Set((lists.skip    || []).map(r => r.code));
+    _trackDates = {}; (lists.track || []).forEach(r => { if(r.added_at) _trackDates[r.code] = r.added_at.slice(0,10); });
+    _skipDates  = {}; (lists.skip  || []).forEach(r => { if(r.added_at) _skipDates[r.code]  = r.added_at.slice(0,10); });
 
     _briefData = await briefRes.json();
     _growthChanges = _briefData.growth_changes || {};
@@ -470,7 +476,8 @@ function renderAll() {
 
 function _buildApproachTable(items) {
   let html = `<table class="neff-table"><thead><tr>
-    <th class="c" style="width:36px">追蹤</th>
+    <th class="c" style="width:52px">追蹤</th>
+    <th class="c" style="width:52px;color:#94a3b8">不追蹤</th>
     <th style="width:58px">代碼</th><th style="width:80px">名稱</th>
     <th class="r" style="width:60px">股價</th>
     <th class="r" style="width:68px">Neff</th>
@@ -495,8 +502,12 @@ function _buildApproachTable(items) {
     const yldV = s.fwd_neff_yld;
     const peSrc = '';
     const yldSrc = '';
+    const isSkipped = _skipSet.has(s.code);
+    const trackDate = _trackDates[s.code] || '';
+    const skipDate = _skipDates[s.code] || '';
     html += `<tr>
-      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)">${isFocused && trackDate ? `<div style="font-size:.6rem;color:#94a3b8;line-height:1">${trackDate.slice(5)}</div>` : ''}</td>
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#94a3b8" data-code="${s.code}" ${isSkipped?'checked':''} onchange="_toggleSkip(this)">${isSkipped && skipDate ? `<div style="font-size:.6rem;color:#94a3b8;line-height:1">${skipDate.slice(5)}</div>` : ''}</td>
       <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
       <td>${s.name || ''}</td>
       <td class="r" style="font-weight:600">${s.close != null ? s.close.toFixed(2) : '—'}</td>
@@ -517,7 +528,8 @@ function _buildApproachTable(items) {
 function _buildTable(items) {
   let html = `<table class="neff-table">
     <thead><tr>
-      <th class="c" style="width:36px">追蹤</th>
+      <th class="c" style="width:52px">追蹤</th>
+      <th class="c" style="width:52px;color:#94a3b8">不追蹤</th>
       <th style="width:58px">代碼</th>
       <th style="width:80px">名稱</th>
       <th class="r" style="width:60px">股價</th>
@@ -579,9 +591,13 @@ function _buildTable(items) {
     else if (_neffRemovedSet.has(s.code)) chgHtml = '<span style="color:#dc2626;font-weight:700;font-size:.78rem">刪</span>';
 
     const isFocused = _focusTrackSet.has(s.code);
+    const isSkipped2 = _skipSet.has(s.code);
+    const trackDate2 = _trackDates[s.code] || '';
+    const skipDate2 = _skipDates[s.code] || '';
 
     html += `<tr>
-      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)"></td>
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${s.code}" ${isFocused?'checked':''} onchange="_toggleFocusTrack(this)">${isFocused && trackDate2 ? `<div style="font-size:.6rem;color:#94a3b8;line-height:1">${trackDate2.slice(5)}</div>` : ''}</td>
+      <td class="c"><input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#94a3b8" data-code="${s.code}" ${isSkipped2?'checked':''} onchange="_toggleSkip(this)">${isSkipped2 && skipDate2 ? `<div style="font-size:.6rem;color:#94a3b8;line-height:1">${skipDate2.slice(5)}</div>` : ''}</td>
       <td><a href="/company.html?code=${s.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${s.code}</a></td>
       <td>${s.name || ''}</td>
       <td class="r" style="font-weight:600">${priceStr}</td>
@@ -640,22 +656,84 @@ async function _saveQuickNote(el) {
   } catch(e) { console.error('quick-note failed', e); }
 }
 
-// ─── 追蹤功能 ─────────────────────────────────────────
+// ─── 追蹤 / 不追蹤功能 ─────────────────────────────────
 function _toggleFocusTrack(cb) {
   const code = cb.dataset.code;
+  const today = new Date().toISOString().slice(0,10);
   if (cb.checked) {
     _focusTrackSet.add(code);
-    fetch('/api/user-lists/track', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action:'add', code})
-    });
+    _trackDates[code] = today;
+    // 追蹤時自動取消不追蹤
+    if (_skipSet.has(code)) {
+      _skipSet.delete(code);
+      delete _skipDates[code];
+      fetch('/api/user-lists/skip', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code}) });
+    }
+    fetch('/api/user-lists/track', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'add', code}) });
   } else {
     _focusTrackSet.delete(code);
-    fetch('/api/user-lists/track', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action:'remove', code})
-    });
+    delete _trackDates[code];
+    fetch('/api/user-lists/track', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code}) });
   }
+  // 更新該行的日期顯示
+  const td = cb.closest('td');
+  const dateDiv = td.querySelector('div');
+  if (cb.checked) {
+    if (!dateDiv) { const d = document.createElement('div'); d.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; d.textContent=today.slice(5); td.appendChild(d); }
+    else dateDiv.textContent = today.slice(5);
+  } else if (dateDiv) dateDiv.remove();
+  // 同步不追蹤 checkbox
+  _syncRowCheckboxes(code);
+}
+
+function _toggleSkip(cb) {
+  const code = cb.dataset.code;
+  const today = new Date().toISOString().slice(0,10);
+  if (cb.checked) {
+    _skipSet.add(code);
+    _skipDates[code] = today;
+    // 不追蹤時自動取消追蹤
+    if (_focusTrackSet.has(code)) {
+      _focusTrackSet.delete(code);
+      delete _trackDates[code];
+      fetch('/api/user-lists/track', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code}) });
+    }
+    fetch('/api/user-lists/skip', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'add', code}) });
+  } else {
+    _skipSet.delete(code);
+    delete _skipDates[code];
+    fetch('/api/user-lists/skip', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code}) });
+  }
+  const td = cb.closest('td');
+  const dateDiv = td.querySelector('div');
+  if (cb.checked) {
+    if (!dateDiv) { const d = document.createElement('div'); d.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; d.textContent=today.slice(5); td.appendChild(d); }
+    else dateDiv.textContent = today.slice(5);
+  } else if (dateDiv) dateDiv.remove();
+  _syncRowCheckboxes(code);
+}
+
+function _syncRowCheckboxes(code) {
+  // 同步同一行的追蹤/不追蹤 checkbox 狀態
+  document.querySelectorAll(`input[data-code="${code}"]`).forEach(inp => {
+    const fn = inp.getAttribute('onchange') || '';
+    if (fn.includes('_toggleFocusTrack')) {
+      inp.checked = _focusTrackSet.has(code);
+      const d = inp.closest('td').querySelector('div');
+      if (inp.checked && _trackDates[code]) {
+        if (!d) { const nd=document.createElement('div'); nd.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; nd.textContent=_trackDates[code].slice(5); inp.closest('td').appendChild(nd); }
+        else d.textContent = _trackDates[code].slice(5);
+      } else if (d) d.remove();
+    }
+    if (fn.includes('_toggleSkip')) {
+      inp.checked = _skipSet.has(code);
+      const d = inp.closest('td').querySelector('div');
+      if (inp.checked && _skipDates[code]) {
+        if (!d) { const nd=document.createElement('div'); nd.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; nd.textContent=_skipDates[code].slice(5); inp.closest('td').appendChild(nd); }
+        else d.textContent = _skipDates[code].slice(5);
+      } else if (d) d.remove();
+    }
+  });
 }
 
 // ─── 啟動 ─────────────────────────────────────────────
