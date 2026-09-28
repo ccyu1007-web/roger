@@ -140,6 +140,47 @@
 
 <div class="container">
 
+  <!-- Neff 異動追蹤 -->
+  <div id="neffChangeBlock" style="background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="_toggleNeffBlock()">
+      <h3 style="font-size:.95rem;font-weight:700;color:#1e3a5f;margin:0">Neff 異動追蹤</h3>
+      <span id="neffBlockArrow" style="font-size:.8rem;color:#94a3b8">▲</span>
+    </div>
+    <div id="neffBlockBody" style="margin-top:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="font-size:.82rem;color:#475569">起始日
+          <input type="date" id="neffFrom" style="margin-left:4px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem">
+        </label>
+        <label style="font-size:.82rem;color:#475569">迄止日
+          <input type="date" id="neffTo" style="margin-left:4px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem">
+        </label>
+        <button onclick="loadNeffChanges()" style="padding:4px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;font-size:.82rem;cursor:pointer;font-weight:600">查詢</button>
+        <span id="neffChangeCount" style="font-size:.78rem;color:#94a3b8"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="font-size:.82rem;color:#475569;cursor:pointer">
+          <input type="checkbox" id="neffQualOnly" style="accent-color:#2563eb;vertical-align:middle" onchange="renderNeffChanges()"> 僅體質佳
+        </label>
+        <label style="font-size:.82rem;color:#475569;cursor:pointer">
+          <input type="checkbox" id="neffWatchOnly" style="accent-color:#f59e0b;vertical-align:middle" onchange="renderNeffChanges()"> 僅看篩選
+        </label>
+        <span style="font-size:.78rem;color:#d1d5db">|</span>
+        <label style="font-size:.82rem;color:#475569;cursor:pointer">
+          <input type="radio" name="neffMode" value="all" checked onchange="renderNeffChanges()"> 全部異動
+        </label>
+        <label style="font-size:.82rem;color:#475569;cursor:pointer">
+          <input type="radio" name="neffMode" value="new" onchange="renderNeffChanges()"> 僅新進Neff≥1.0
+        </label>
+        <label style="font-size:.82rem;color:#475569;cursor:pointer">
+          <input type="radio" name="neffMode" value="big" onchange="renderNeffChanges()"> 僅變動≥0.3
+        </label>
+      </div>
+      <div id="neffChangeArea" style="font-size:.82rem;color:#94a3b8;text-align:center;padding:20px">
+        選擇日期區間後按「查詢」
+      </div>
+    </div>
+  </div>
+
   <!-- Tab 列 + 體質佳開關 -->
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
     <div class="tab-bar-L1" id="tabBarL1">
@@ -341,6 +382,7 @@ async function load() {
 
     renderStats();
     renderAll();
+    _initNeffDates();
   } catch(e) {
     console.error('valuation load error:', e);
     document.getElementById('tab_selected').innerHTML =
@@ -747,6 +789,138 @@ function _syncRowCheckboxes(code) {
 }
 
 // ─── 啟動 ─────────────────────────────────────────────
+// ─── Neff 異動追蹤 ─────────────────────────────────────
+let _neffChangeData = [];
+let _neffBlockOpen = true;
+
+function _toggleNeffBlock() {
+  _neffBlockOpen = !_neffBlockOpen;
+  document.getElementById('neffBlockBody').style.display = _neffBlockOpen ? '' : 'none';
+  document.getElementById('neffBlockArrow').textContent = _neffBlockOpen ? '▲' : '▼';
+}
+
+function _initNeffDates() {
+  const lastVisit = localStorage.getItem('neff_track_last_visit');
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('neffTo').value = today;
+  document.getElementById('neffFrom').value = lastVisit || new Date(Date.now() - 7*86400000).toISOString().slice(0, 10);
+  window.addEventListener('beforeunload', () => {
+    localStorage.setItem('neff_track_last_visit', today);
+  });
+}
+
+async function loadNeffChanges() {
+  const from = document.getElementById('neffFrom').value;
+  const to = document.getElementById('neffTo').value;
+  if (!from || !to) return;
+  document.getElementById('neffChangeArea').innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">載入中...</div>';
+  try {
+    const res = await fetch(`/api/neff-changes?from=${from}&to=${to}`);
+    _neffChangeData = await res.json();
+    if (_neffChangeData.error) {
+      document.getElementById('neffChangeArea').innerHTML = `<div style="color:#ef4444">${_neffChangeData.error}</div>`;
+      return;
+    }
+    renderNeffChanges();
+  } catch(e) {
+    document.getElementById('neffChangeArea').innerHTML = `<div style="color:#ef4444">載入失敗: ${e.message}</div>`;
+  }
+}
+
+function renderNeffChanges() {
+  let data = [..._neffChangeData];
+
+  // 篩選
+  if (document.getElementById('neffQualOnly').checked) data = data.filter(d => d.quality_ok);
+  if (document.getElementById('neffWatchOnly').checked) data = data.filter(d => d.watch_ok);
+
+  // 模式
+  const mode = document.querySelector('input[name="neffMode"]:checked')?.value || 'all';
+  if (mode === 'new') data = data.filter(d => d.status && d.status.includes('新進'));
+  if (mode === 'big') data = data.filter(d => Math.abs(d.delta_neff || 0) >= 0.3);
+
+  // 排序
+  data.sort((a, b) => Math.abs(b.delta_neff || 0) - Math.abs(a.delta_neff || 0));
+
+  document.getElementById('neffChangeCount').textContent = `${data.length} 支異動`;
+
+  if (!data.length) {
+    document.getElementById('neffChangeArea').innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">此區間無符合條件的異動</div>';
+    return;
+  }
+
+  let html = `<div style="overflow-x:auto"><table class="neff-table"><thead><tr>
+    <th style="width:58px">代碼</th>
+    <th style="width:65px">名稱</th>
+    <th style="width:65px">原因</th>
+    <th class="r" style="width:110px">Neff 變化</th>
+    <th class="r" style="width:70px">g 變化</th>
+    <th class="r" style="width:110px">EPS 變化</th>
+    <th class="r" style="width:100px">D 變化</th>
+    <th class="r" style="width:100px">PE 變化</th>
+    <th class="r" style="width:100px">殖利率變化</th>
+    <th style="width:75px">新狀態</th>
+  </tr></thead><tbody>`;
+
+  data.forEach(d => {
+    const nc = _deltaColor(d.delta_neff);
+    const ec = _deltaColor(d.delta_eps);
+    const dc = _deltaColor(d.delta_div);
+    const pc = _deltaColor(d.delta_pe, true); // PE 降=好（反轉）
+    const yc = _deltaColor(d.delta_yld);
+
+    // 原因標籤
+    const reasonColor = d.reason === '營收更新' ? '#2563eb' : d.reason === '季報更新' ? '#7c3aed' : '#94a3b8';
+
+    // 狀態標籤
+    let statusHtml = '';
+    if (d.status) {
+      const sc = d.status.includes('新進') || d.status.includes('升級') ? '#16a34a' : d.status === '移出' ? '#dc2626' : '#f59e0b';
+      statusHtml = `<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:.72rem;font-weight:600;background:${sc}15;color:${sc}">${d.status}</span>`;
+    }
+
+    html += `<tr>
+      <td><a href="/company.html?code=${d.code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${d.code}</a></td>
+      <td>${d.name || ''}</td>
+      <td><span style="font-size:.72rem;padding:1px 6px;border-radius:3px;background:${reasonColor}15;color:${reasonColor}">${d.reason}</span></td>
+      <td class="r"><span style="color:${nc};font-weight:600">${_fmtChange(d.neff_from, d.neff_to, d.delta_neff)}</span></td>
+      <td class="r">${d.g_from != null && d.g_to != null && d.g_from !== d.g_to ? `<span style="color:${_deltaColor(d.g_to - d.g_from)}">${d.g_from}→${d.g_to}</span>` : (d.g_to != null ? d.g_to : '—')}</td>
+      <td class="r"><span style="color:${ec}">${_fmtChange(d.eps_from, d.eps_to, d.delta_eps)}</span></td>
+      <td class="r"><span style="color:${dc}">${_fmtChange(d.div_from, d.div_to, d.delta_div)}</span></td>
+      <td class="r"><span style="color:${pc}">${_fmtChange(d.pe_from, d.pe_to, d.delta_pe)}</span></td>
+      <td class="r"><span style="color:${yc}">${_fmtChangePct(d.yld_from, d.yld_to, d.delta_yld)}</span></td>
+      <td>${statusHtml}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  document.getElementById('neffChangeArea').innerHTML = html;
+}
+
+function _deltaColor(v, invert) {
+  if (v == null || v === 0) return '#475569';
+  if (invert) return v < 0 ? '#dc2626' : '#16a34a'; // PE: 降=紅(好)
+  return v > 0 ? '#dc2626' : '#16a34a'; // 升=紅(好)
+}
+
+function _fmtChange(from, to, delta) {
+  if (from == null && to == null) return '—';
+  if (from == null) return `→${to}`;
+  if (to == null) return `${from}→`;
+  if (delta == null || Math.abs(delta) < 0.005) return `${to}`;
+  const sign = delta > 0 ? '+' : '';
+  return `${from}→${to} (${sign}${delta.toFixed(2)})`;
+}
+
+function _fmtChangePct(from, to, delta) {
+  if (from == null && to == null) return '—';
+  if (from == null) return `→${to}%`;
+  if (to == null) return `${from}%→`;
+  if (delta == null || Math.abs(delta) < 0.005) return `${to}%`;
+  const sign = delta > 0 ? '+' : '';
+  return `${from}→${to}% (${sign}${delta.toFixed(2)})`;
+}
+
 load();
 </script>
 </body>
