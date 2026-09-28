@@ -464,6 +464,8 @@ function _injectTrackCheckboxes() {
       if (!codeCell) return;
       const code = codeCell.textContent.trim();
       if (!/^\d{4}$/.test(code)) return;
+      // 代碼轉為個股頁連結
+      codeCell.innerHTML = `<a href="/company.html?code=${code}" target="_blank" style="font-weight:700;color:#2563eb;text-decoration:none">${code}</a>`;
 
       const isTracked = _trackSet.has(code);
       const isSkipped = _skipSet.has(code);
