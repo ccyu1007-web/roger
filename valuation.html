@@ -207,15 +207,27 @@
       <div class="stat-label">其中體質佳</div>
       <div class="stat-num sc-quality" id="sc-quality">—</div>
     </div>
-    <div class="stat-item">
-      <div class="stat-label">今日新增</div>
-      <div class="stat-num sc-new" id="sc-new">—</div>
+    <div class="stat-item" style="position:relative">
+      <div class="stat-label" id="sc-new-label">今日新增</div>
+      <div class="stat-num sc-new" id="sc-new" style="cursor:pointer" onclick="_togglePeriodNewList('added')">—</div>
     </div>
-    <div class="stat-item">
-      <div class="stat-label">今日剔除</div>
-      <div class="stat-num sc-rm" id="sc-rm">—</div>
+    <div class="stat-item" style="position:relative">
+      <div class="stat-label" id="sc-rm-label">今日剔除</div>
+      <div class="stat-num sc-rm" id="sc-rm" style="cursor:pointer" onclick="_togglePeriodNewList('removed')">—</div>
     </div>
   </div>
+  <!-- 期間比對控制列 -->
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 4px;padding:0 4px">
+    <span style="font-size:.78rem;color:#94a3b8">期間比對</span>
+    <input type="date" id="statFrom" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.78rem">
+    <span style="font-size:.78rem;color:#94a3b8">~</span>
+    <input type="date" id="statTo" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.78rem">
+    <button onclick="loadPeriodStats()" style="padding:2px 10px;background:#475569;color:#fff;border:none;border-radius:4px;font-size:.78rem;cursor:pointer">查詢</button>
+    <button onclick="resetPeriodStats()" style="padding:2px 10px;border:1px solid #d1d5db;background:#fff;border-radius:4px;font-size:.78rem;cursor:pointer;color:#94a3b8">重置</button>
+    <span id="periodLabel" style="font-size:.72rem;color:#94a3b8"></span>
+  </div>
+  <!-- 期間新增/刪除清單（點擊數字展開） -->
+  <div id="periodListArea" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:6px 0 10px;font-size:.8rem"></div>
 
   <!-- 分群說明 -->
   <div class="desc-section" style="margin-top:0;margin-bottom:16px">
@@ -799,11 +811,100 @@ function _toggleNeffBlock() {
   document.getElementById('neffBlockArrow').textContent = _neffBlockOpen ? '▲' : '▼';
 }
 
+// ─── 期間比對統計 ─────────────────────────────────────
+let _periodData = null;
+
+function _initStatDates() {
+  const today = new Date().toISOString().slice(0, 10);
+  const lastVisit = localStorage.getItem('neff_track_last_visit');
+  document.getElementById('statTo').value = today;
+  document.getElementById('statFrom').value = lastVisit || new Date(Date.now() - 7*86400000).toISOString().slice(0, 10);
+}
+
+async function loadPeriodStats() {
+  const from = document.getElementById('statFrom').value;
+  const to = document.getElementById('statTo').value;
+  if (!from || !to) return;
+  try {
+    const res = await fetch(`/api/neff-period-stats?from=${from}&to=${to}`);
+    _periodData = await res.json();
+    if (_periodData.error) { console.error(_periodData.error); return; }
+    // 更新新增/刪除數字
+    document.getElementById('sc-new').textContent = _periodData.added_count;
+    document.getElementById('sc-rm').textContent = _periodData.removed_count;
+    document.getElementById('sc-new-label').textContent = '期間新增';
+    document.getElementById('sc-rm-label').textContent = '期間剔除';
+    document.getElementById('periodLabel').textContent = `${from.slice(5)} ~ ${to.slice(5)}`;
+    // Tab 計數加 +/- 差異
+    const gf = _periodData.group_from || {};
+    const gt = _periodData.group_to || {};
+    _showGroupDelta('cnt_selected', (gt['精選']||0) - (gf['精選']||0));
+    _showGroupDelta('cnt_value',    (gt['價值']||0) - (gf['價值']||0));
+    _showGroupDelta('cnt_momentum', (gt['動能']||0) - (gf['動能']||0));
+    const allTo = (gt['精選']||0)+(gt['價值']||0)+(gt['動能']||0)+(gt['全部']||0);
+    const allFrom = (gf['精選']||0)+(gf['價值']||0)+(gf['動能']||0)+(gf['全部']||0);
+    _showGroupDelta('cnt_all', allTo - allFrom);
+    // 關閉清單
+    document.getElementById('periodListArea').style.display = 'none';
+  } catch(e) { console.error('period stats error:', e); }
+}
+
+function _showGroupDelta(elId, delta) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  // 移除舊的 delta span
+  const old = el.parentElement.querySelector('.grp-delta');
+  if (old) old.remove();
+  if (delta === 0) return;
+  const span = document.createElement('span');
+  span.className = 'grp-delta';
+  span.style.cssText = `font-size:.7rem;font-weight:600;margin-left:4px;color:${delta > 0 ? '#16a34a' : '#dc2626'}`;
+  span.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+  el.parentElement.appendChild(span);
+}
+
+function resetPeriodStats() {
+  _periodData = null;
+  document.getElementById('sc-new-label').textContent = '今日新增';
+  document.getElementById('sc-rm-label').textContent = '今日剔除';
+  document.getElementById('sc-new').textContent = _neffNewSet.size;
+  document.getElementById('sc-rm').textContent = _neffRemovedSet.size;
+  document.getElementById('periodLabel').textContent = '';
+  document.getElementById('periodListArea').style.display = 'none';
+  document.querySelectorAll('.grp-delta').forEach(el => el.remove());
+}
+
+function _togglePeriodNewList(type) {
+  if (!_periodData) return;
+  const area = document.getElementById('periodListArea');
+  const items = type === 'added' ? _periodData.added : _periodData.removed;
+  if (!items || !items.length) { area.style.display = 'none'; return; }
+  if (area.style.display !== 'none' && area.dataset.type === type) {
+    area.style.display = 'none'; return;
+  }
+  area.dataset.type = type;
+  const label = type === 'added' ? '期間新增' : '期間剔除';
+  let html = `<div style="font-weight:600;margin-bottom:6px;color:#1e3a5f">${label}（${items.length} 支）</div>`;
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  items.forEach(s => {
+    const gc = {'精選':'#1d4ed8','價值':'#854d0e','動能':'#16a34a','全部':'#94a3b8'}[s.group] || '#94a3b8';
+    html += `<a href="/company.html?code=${s.code}" target="_blank" style="text-decoration:none;padding:2px 8px;background:#fff;border:1px solid #e2e8f0;border-radius:4px;font-size:.78rem">
+      <span style="font-weight:700;color:#2563eb">${s.code}</span> ${s.name}
+      <span style="color:${gc};font-size:.7rem">${s.group||''}</span>
+      <span style="color:#94a3b8;font-size:.7rem">Neff ${s.neff}</span>
+    </a>`;
+  });
+  html += '</div>';
+  area.innerHTML = html;
+  area.style.display = '';
+}
+
 function _initNeffDates() {
   const lastVisit = localStorage.getItem('neff_track_last_visit');
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('neffTo').value = today;
   document.getElementById('neffFrom').value = lastVisit || new Date(Date.now() - 7*86400000).toISOString().slice(0, 10);
+  _initStatDates();
   window.addEventListener('beforeunload', () => {
     localStorage.setItem('neff_track_last_visit', today);
   });

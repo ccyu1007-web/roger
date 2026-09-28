@@ -2781,6 +2781,70 @@ def get_neff_change_dates():
     rows = query_db("SELECT DISTINCT date FROM stock_state ORDER BY date DESC LIMIT 60")
     return jsonify([r['date'] for r in rows])
 
+@app.route("/api/neff-period-stats")
+def get_neff_period_stats():
+    """比對兩天的 Neff 群組統計，回傳期間新增/刪除/各群組增減"""
+    from_date = request.args.get('from')
+    to_date = request.args.get('to')
+    if not from_date or not to_date:
+        return jsonify({"error": "需要 from 和 to 參數"}), 400
+
+    rows = query_db("""
+        SELECT stock_id, date, neff_d, neff_group
+        FROM stock_state WHERE date IN (?, ?)
+    """, (from_date, to_date))
+
+    from_map = {}
+    to_map = {}
+    for r in rows:
+        d = r['date']
+        code = r['stock_id']
+        neff = r['neff_d']
+        grp = r['neff_group']
+        entry = {'neff': neff, 'group': grp}
+        if d == from_date:
+            from_map[code] = entry
+        elif d == to_date:
+            to_map[code] = entry
+
+    # 取股票名稱
+    stock_info = {}
+    for r in query_db("SELECT code, name FROM stocks"):
+        stock_info[r['code']] = r['name']
+
+    # 新進/刪除 Neff >= 1.0
+    added = []
+    removed = []
+    for code, t in to_map.items():
+        f = from_map.get(code)
+        t_in = t['neff'] is not None and t['neff'] >= 1.0
+        f_in = f and f['neff'] is not None and f['neff'] >= 1.0
+        if t_in and not f_in:
+            added.append({'code': code, 'name': stock_info.get(code, ''), 'neff': round(t['neff'], 2), 'group': t['group']})
+    for code, f in from_map.items():
+        t = to_map.get(code)
+        f_in = f['neff'] is not None and f['neff'] >= 1.0
+        t_in = t and t['neff'] is not None and t['neff'] >= 1.0
+        if f_in and not t_in:
+            removed.append({'code': code, 'name': stock_info.get(code, ''), 'neff': round(f['neff'], 2), 'group': f['group']})
+
+    # 各群組計數 (to_date)
+    grp_counts_to = {'精選': 0, '價值': 0, '動能': 0, '全部': 0}
+    grp_counts_from = {'精選': 0, '價值': 0, '動能': 0, '全部': 0}
+    for code, t in to_map.items():
+        if t['group'] in grp_counts_to:
+            grp_counts_to[t['group']] += 1
+    for code, f in from_map.items():
+        if f['group'] in grp_counts_from:
+            grp_counts_from[f['group']] += 1
+
+    return jsonify({
+        'added': added, 'removed': removed,
+        'added_count': len(added), 'removed_count': len(removed),
+        'group_from': grp_counts_from, 'group_to': grp_counts_to,
+        'from_date': from_date, 'to_date': to_date,
+    })
+
 # ── 本機同步估算到 Render ────────────────────────────────────
 @app.route("/api/sync/estimates", methods=["POST"])
 def sync_estimates():
