@@ -147,6 +147,12 @@
       <span id="neffBlockArrow" style="font-size:.8rem;color:#94a3b8">▲</span>
     </div>
     <div id="neffBlockBody" style="margin-top:12px">
+      <!-- 說明區 -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:.78rem;color:#64748b;line-height:1.7">
+        <b style="color:#1e3a5f">追蹤邏輯</b>：比對起迄日期區間內，因<b style="color:#2563eb">營收公布</b>或<b style="color:#7c3aed">季報公布</b>導致前瞻性Neff 組成要素改變的股票。純股價漲跌造成的變動不顯示。<br>
+        <b style="color:#1e3a5f">觸發條件</b>：營收公布 → 累積營收YoY改變 → 建議成長率g改變；季報公布 → 實際EPS更新 → 預估年EPS/股利D改變 → 預估PE與殖利率改變。<br>
+        <b style="color:#1e3a5f">前瞻性Neff</b> = (自訂成長率g + 預估殖利率) / 預估本益比 ｜ ≥ 1.0 表示成長性被低估，進入攻擊區。
+      </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <label style="font-size:.82rem;color:#475569">起始日
           <input type="date" id="neffFrom" style="margin-left:4px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem">
