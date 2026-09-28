@@ -1168,6 +1168,8 @@ let watchSet = new Set(JSON.parse(localStorage.getItem('watchList') || '[]'));
 let holdSet  = new Set(JSON.parse(localStorage.getItem('holdList') || '[]'));
 let skipSet  = new Set(JSON.parse(localStorage.getItem('skipList') || '[]'));
 let trackSet = new Set(JSON.parse(localStorage.getItem('trackList') || '[]'));
+let trackDates = {};
+let skipDates = {};
 
 // ── 使用者設定同步（DB ↔ localStorage）──────────────────
 const SYNC_KEYS = ['watch_settings','watch_custom_conds','quality_settings','quality_custom_conds',
@@ -1316,6 +1318,8 @@ async function loadUserLists() {
         case 'track': trackSet = dbSet; break;
       }
       localStorage.setItem(localKey, JSON.stringify(dbCodes));
+      if (type === 'track') { trackDates = {}; (data.track || []).forEach(r => { if(r.added_at) trackDates[r.code] = r.added_at.slice(0,10); }); }
+      if (type === 'skip')  { skipDates  = {}; (data.skip  || []).forEach(r => { if(r.added_at) skipDates[r.code]  = r.added_at.slice(0,10); }); }
     }
     updateWatchCount(); updateHoldCount(); updateFocusCount(); updateQualityCount(); updateSkipCount(); updateTrackCount();
   } catch(e) {}
@@ -1350,14 +1354,23 @@ function updateSkipCount() {
 }
 function toggleSkip(cb) {
   const code = cb.dataset.code;
+  const today = new Date().toISOString().slice(0,10);
   if (cb.checked) {
     skipSet.add(code);
+    skipDates[code] = today;
     _syncList('skip', 'add', code);
   } else {
     skipSet.delete(code);
+    delete skipDates[code];
     _syncList('skip', 'remove', code);
   }
   saveSkip();
+  const td = cb.closest('td');
+  const dateDiv = td.querySelector('.skip-date');
+  if (cb.checked) {
+    if (!dateDiv) { const d = document.createElement('div'); d.className='skip-date'; d.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; d.textContent=today.slice(5); td.appendChild(d); }
+    else dateDiv.textContent = today.slice(5);
+  } else if (dateDiv) dateDiv.remove();
 }
 function toggleSkipFilter() {
   skipOnly = !skipOnly;
@@ -1399,14 +1412,23 @@ function updateTrackCount() {
 }
 function toggleTrack(cb) {
   const code = cb.dataset.code;
+  const today = new Date().toISOString().slice(0,10);
   if (cb.checked) {
     trackSet.add(code);
+    trackDates[code] = today;
     _syncList('track', 'add', code);
   } else {
     trackSet.delete(code);
+    delete trackDates[code];
     _syncList('track', 'remove', code);
   }
   saveTrack();
+  const td = cb.closest('td');
+  const dateDiv = td.querySelector('.track-date');
+  if (cb.checked) {
+    if (!dateDiv) { const d = document.createElement('div'); d.className='track-date'; d.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; d.textContent=today.slice(5); td.appendChild(d); }
+    else dateDiv.textContent = today.slice(5);
+  } else if (dateDiv) dateDiv.remove();
 }
 function toggleTrackFilter() {
   trackOnly = !trackOnly;
@@ -3225,8 +3247,8 @@ function render() {
         return `<div class="watch-wrap"><input type="checkbox" class="watch-cb" data-code="${r.code}" ${isWatched?'checked':''} onchange="toggleWatch(this)">${tip}</div>`;
       })()}</td>
       <td style="text-align:center"><input type="checkbox" class="quality-cb" data-code="${r.code}" ${isQuality?'checked':''} onchange="toggleQuality(this)"></td>
-      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${trackSet.has(r.code)?'checked':''} onchange="toggleTrack(this)" style="accent-color:#2563eb"></td>
-      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8"></td>
+      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${trackSet.has(r.code)?'checked':''} onchange="toggleTrack(this)" style="accent-color:#2563eb">${trackSet.has(r.code) && trackDates[r.code] ? `<div class="track-date" style="font-size:.6rem;color:#94a3b8;line-height:1">${trackDates[r.code].slice(5)}</div>` : ''}</td>
+      <td style="text-align:center"><input type="checkbox" data-code="${r.code}" ${skipSet.has(r.code)?'checked':''} onchange="toggleSkip(this)" style="accent-color:#94a3b8">${skipSet.has(r.code) && skipDates[r.code] ? `<div class="skip-date" style="font-size:.6rem;color:#94a3b8;line-height:1">${skipDates[r.code].slice(5)}</div>` : ''}</td>
       <td style="text-align:center"><a href="/company.html?code=${r.code}&tab=decision" target="_blank" style="text-decoration:none;font-size:.75rem;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#475569;white-space:nowrap" title="開啟檢核清單">${r._chk_pass != null ? r._chk_pass + '/' + r._chk_total : '—'}</a></td>
       <td><strong><a href="/company.html?code=${r.code}" target="_blank" style="color:#2563eb;text-decoration:none;cursor:pointer">${r.code}</a></strong>${_newsFlags[r.code] ? `<a href="/company.html?code=${r.code}&tab=news" target="_blank" style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-left:5px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 2px rgba(249,115,22,.3)" title="有 ${_newsFlags[r.code]} 則重要新聞，點擊查看"></a>` : ''}${(() => {
         const ns = _notesSummary[r.code];
