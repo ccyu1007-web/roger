@@ -2647,6 +2647,16 @@ def get_neff_changes():
     if not from_date or not to_date:
         return jsonify({"error": "需要 from 和 to 參數"}), 400
 
+    # 確保新欄位存在
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    for col, typ in [('fwd_neff_g','REAL'),('est_eps','REAL'),('est_div','REAL'),('fwd_neff_pe','REAL'),('fwd_neff_yld','REAL')]:
+        try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
+        except Exception: pass
+    try: conn.commit()
+    except Exception: pass
+    conn.close()
+
     # 取兩天的快照
     rows = query_db("""
         SELECT stock_id, date, price, neff_d, fwd_neff_g, est_eps, est_div, fwd_neff_pe, fwd_neff_yld, neff_group
