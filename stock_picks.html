@@ -106,42 +106,43 @@
 
 <div class="container">
 
-  <!-- Tab + 體質佳 + 按鈕 -->
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
-    <div style="display:flex;gap:0">
-      <button class="tab-btn active" onclick="switchTab('selected',this)">精選<span class="tab-cnt" id="cnt_selected">0</span></button>
-      <button class="tab-btn" onclick="switchTab('value',this)">價值型<span class="tab-cnt" id="cnt_value">0</span></button>
-      <button class="tab-btn" onclick="switchTab('momentum',this)">動能型<span class="tab-cnt" id="cnt_momentum">0</span></button>
-      <button class="tab-btn" onclick="switchTab('neffonly',this)">僅前瞻性Neff ≥ 1.0<span class="tab-cnt" id="cnt_neffonly">0</span></button>
+  <!-- 選股推薦 -->
+  <div style="background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+
+    <!-- 說明區 -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:.78rem;color:#64748b;line-height:1.7">
+      <b style="color:#1e3a5f">使用流程</b>：在每日價值評估選好 Tab + 篩選條件 → 按「複製分析指令」→ 貼給 Claude Code → 自動產出深度分析報告並存入此頁。<br>
+      <b style="color:#1e3a5f">判斷邏輯</b>：質性研究3個月內 + 護城河≥中 + 無結構性風險 → <b style="color:#dc2626">重倉</b>｜質性有輕微疑慮或量化很強 → <b style="color:#d97706">小買</b>｜有風險或護城河弱 → <b style="color:#94a3b8">觀望</b>｜無質性筆記 → <b style="color:#475569">待質性研究</b><br>
+      <b style="color:#1e3a5f">質性時效</b>：3個月內 = 有效 → 可重倉｜超過3個月 = 待更新 → 最多小買｜無筆記 = 待研究
     </div>
-    <label style="font-size:.85rem;color:#475569;cursor:pointer">
-      <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();loadReport()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
-      僅體質佳
-    </label>
-    <label style="font-size:.85rem;color:#475569;cursor:pointer">
-      <input type="checkbox" id="watchOnly" onchange="_watchOnly=this.checked;updateCounts();loadReport()" style="accent-color:#f59e0b;width:16px;height:16px;vertical-align:middle">
-      僅看篩選
-    </label>
-    <button class="toolbar-btn primary" onclick="copyPrompt()">複製分析指令</button>
-    <button class="toolbar-btn" onclick="window.print()">匯出PDF</button>
-    <span class="toolbar-info" id="toolbarInfo"></span>
-  </div>
 
-  <div id="tabCriteria" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.82rem;color:#475569;line-height:1.6"></div>
+    <!-- Tab + 篩選 -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="display:flex;gap:0">
+        <button class="tab-btn active" onclick="switchTab('selected',this)">精選<span class="tab-cnt" id="cnt_selected">0</span></button>
+        <button class="tab-btn" onclick="switchTab('value',this)">價值型<span class="tab-cnt" id="cnt_value">0</span></button>
+        <button class="tab-btn" onclick="switchTab('momentum',this)">動能型<span class="tab-cnt" id="cnt_momentum">0</span></button>
+        <button class="tab-btn" onclick="switchTab('neffonly',this)">僅前瞻性Neff ≥ 1.0<span class="tab-cnt" id="cnt_neffonly">0</span></button>
+      </div>
+      <label style="font-size:.85rem;color:#475569;cursor:pointer">
+        <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();loadReport()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
+        僅體質佳
+      </label>
+      <label style="font-size:.85rem;color:#475569;cursor:pointer">
+        <input type="checkbox" id="watchOnly" onchange="_watchOnly=this.checked;updateCounts();loadReport()" style="accent-color:#f59e0b;width:16px;height:16px;vertical-align:middle">
+        僅看篩選
+      </label>
+      <button class="toolbar-btn primary" onclick="copyPrompt()">複製分析指令</button>
+      <button class="toolbar-btn" onclick="window.print()">匯出PDF</button>
+      <span class="toolbar-info" id="toolbarInfo"></span>
+    </div>
 
-  <div class="report-wrap" id="reportArea">
-    <div class="empty">載入中...</div>
-  </div>
+    <div id="tabCriteria" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.82rem;color:#475569;line-height:1.6"></div>
 
-  <div class="desc-section">
-    <b style="color:#1e3a5f">選股推薦使用方式</b><br>
-    1. 按「複製分析指令」→ 貼給 Claude → Claude 讀取量化數據+質性研究筆記 → 產出深度分析報告<br>
-    2. 報告自動存入系統，刷新此頁即可看到最新報告<br>
-    3. 有質性研究的股票：量化+質化綜合判斷 → 重倉/小買/觀望<br>
-    4. 無質性研究的股票：純量化分析 + 標註「待質性研究」<br>
-    5. 質性研究更新後，重新複製指令跑一次即可更新報告<br>
-    <br>
-    <span style="color:#94a3b8">報告來源：每日價值評估精選/價值型/動能型 → AI 深度分析 → 重倉/小買/觀望分類</span>
+    <div class="report-wrap" id="reportArea">
+      <div class="empty">載入中...</div>
+    </div>
+
   </div>
 
 </div>
