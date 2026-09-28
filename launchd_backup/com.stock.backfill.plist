@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.stock.backfill</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Library/Frameworks/Python.framework/Versions/3.13/bin/python3</string>
+		<string>-u</string>
+		<string>/Users/roger/Documents/AI機器人/stock_system/backfill.py</string>
+	</array>
+	<key>StandardErrorPath</key>
+	<string>/Users/roger/stock_logs/backfill_err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/roger/stock_logs/backfill.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>4</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>WorkingDirectory</key>
+	<string>/Users/roger/Documents/AI機器人/stock_system</string>
+</dict>
+</plist>
