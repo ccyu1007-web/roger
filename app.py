@@ -2638,6 +2638,141 @@ def sync_snapshot():
     conn.close()
     return jsonify({"status": "ok", "updated": updated})
 
+# ── Neff 異動比對 API ────────────────────────────────────────
+@app.route("/api/neff-changes")
+def get_neff_changes():
+    """比對兩天的 stock_state 快照，回傳 Neff 異動清單"""
+    from_date = request.args.get('from')
+    to_date = request.args.get('to')
+    if not from_date or not to_date:
+        return jsonify({"error": "需要 from 和 to 參數"}), 400
+
+    # 取兩天的快照
+    rows = query_db("""
+        SELECT stock_id, date, price, neff_d, fwd_neff_g, est_eps, est_div, fwd_neff_pe, fwd_neff_yld, neff_group
+        FROM stock_state
+        WHERE date IN (?, ?)
+    """, (from_date, to_date))
+
+    # 按 stock_id 分組
+    snapshots = {}
+    for r in rows:
+        code = r['stock_id']
+        if code not in snapshots:
+            snapshots[code] = {}
+        snapshots[code][r['date']] = r
+
+    # 取股票名稱
+    stock_info = {}
+    for r in query_db("SELECT code, name FROM stocks"):
+        stock_info[r['code']] = r['name']
+
+    # 取體質清單
+    quality_codes = set()
+    for r in query_db("SELECT code FROM user_lists WHERE list_type='quality'"):
+        quality_codes.add(r['code'])
+
+    # 取觀察清單
+    watch_codes = set()
+    for r in query_db("SELECT code FROM user_lists WHERE list_type='watch'"):
+        watch_codes.add(r['code'])
+
+    results = []
+    for code, dates in snapshots.items():
+        if from_date not in dates or to_date not in dates:
+            continue
+        f = dates[from_date]
+        t = dates[to_date]
+
+        # 需要至少有一天有 neff_d 值
+        neff_f = f.get('neff_d')
+        neff_t = t.get('neff_d')
+        if neff_f is None and neff_t is None:
+            continue
+
+        # 計算差異
+        delta_neff = (neff_t or 0) - (neff_f or 0) if neff_t is not None or neff_f is not None else None
+
+        g_f = f.get('fwd_neff_g')
+        g_t = t.get('fwd_neff_g')
+        eps_f = f.get('est_eps')
+        eps_t = t.get('est_eps')
+        div_f = f.get('est_div')
+        div_t = t.get('est_div')
+        pe_f = f.get('fwd_neff_pe')
+        pe_t = t.get('fwd_neff_pe')
+        yld_f = f.get('fwd_neff_yld')
+        yld_t = t.get('fwd_neff_yld')
+
+        # 判斷原因
+        g_changed = g_f != g_t and g_f is not None and g_t is not None
+        eps_changed = eps_f != eps_t and eps_f is not None and eps_t is not None
+        if g_changed:
+            reason = '營收更新'
+        elif eps_changed:
+            reason = '季報更新'
+        elif delta_neff and abs(delta_neff) > 0.01:
+            reason = '股價變動'
+        else:
+            continue  # 沒有變化，跳過
+
+        # 判斷新狀態
+        grp_f = f.get('neff_group')
+        grp_t = t.get('neff_group')
+        status = ''
+        GROUP_RANK = {'精選': 4, '價值': 3, '動能': 2, '全部': 1}
+        if neff_f is not None and neff_f < 1.0 and neff_t is not None and neff_t >= 1.0:
+            status = '新進Neff'
+            if grp_t:
+                status = f'新進{grp_t}'
+        elif neff_f is not None and neff_f >= 1.0 and neff_t is not None and neff_t < 1.0:
+            status = '移出'
+        elif grp_f and grp_t and GROUP_RANK.get(grp_t, 0) > GROUP_RANK.get(grp_f, 0):
+            status = f'升級{grp_t}'
+        elif grp_f and grp_t and GROUP_RANK.get(grp_t, 0) < GROUP_RANK.get(grp_f, 0):
+            status = f'降級{grp_t}'
+
+        # 如果沒有明顯變化且沒有狀態變化，可以考慮跳過微小變動
+        if delta_neff is not None and abs(delta_neff) < 0.01 and not status:
+            continue
+
+        results.append({
+            'code': code,
+            'name': stock_info.get(code, ''),
+            'reason': reason,
+            'neff_from': round(neff_f, 2) if neff_f is not None else None,
+            'neff_to': round(neff_t, 2) if neff_t is not None else None,
+            'delta_neff': round(delta_neff, 2) if delta_neff is not None else None,
+            'g_from': g_f, 'g_to': g_t,
+            'eps_from': round(eps_f, 2) if eps_f is not None else None,
+            'eps_to': round(eps_t, 2) if eps_t is not None else None,
+            'delta_eps': round(eps_t - eps_f, 2) if eps_f is not None and eps_t is not None else None,
+            'div_from': round(div_f, 2) if div_f is not None else None,
+            'div_to': round(div_t, 2) if div_t is not None else None,
+            'delta_div': round(div_t - div_f, 2) if div_f is not None and div_t is not None else None,
+            'pe_from': round(pe_f, 2) if pe_f is not None else None,
+            'pe_to': round(pe_t, 2) if pe_t is not None else None,
+            'delta_pe': round(pe_t - pe_f, 2) if pe_f is not None and pe_t is not None else None,
+            'yld_from': round(yld_f, 2) if yld_f is not None else None,
+            'yld_to': round(yld_t, 2) if yld_t is not None else None,
+            'delta_yld': round(yld_t - yld_f, 2) if yld_f is not None and yld_t is not None else None,
+            'group_from': grp_f,
+            'group_to': grp_t,
+            'status': status,
+            'quality_ok': code in quality_codes,
+            'watch_ok': code in watch_codes,
+        })
+
+    # 按 Neff 變動絕對值排序
+    results.sort(key=lambda x: abs(x.get('delta_neff') or 0), reverse=True)
+    return jsonify(results)
+
+@app.route("/api/neff-changes/dates")
+def get_neff_change_dates():
+    """回傳 stock_state 有資料的日期清單（最近60天）"""
+    rows = query_db("SELECT DISTINCT date FROM stock_state ORDER BY date DESC LIMIT 60")
+    return jsonify([r['date'] for r in rows])
+
 # ── 本機同步估算到 Render ────────────────────────────────────
 @app.route("/api/sync/estimates", methods=["POST"])
 def sync_estimates():
