@@ -306,9 +306,15 @@ function copyPrompt() {
   const filterLabel = [_qualityOnly?'+體質佳':'', _watchOnly?'+篩選':''].filter(Boolean).join('');
   const filterDesc = [_qualityOnly?'僅體質佳':'', _watchOnly?'僅篩選清單':''].filter(Boolean).join('＋') || '';
   const filterParen = filterDesc ? `（${filterDesc}）` : '';
+  // 從 stocks API 的最新更新時間推斷資料日期
+  const latestUpdate = _stocks.reduce((max, s) => {
+    const d = s.updated_at || '';
+    return d > max ? d : max;
+  }, '').slice(0, 10) || today;
   const prompt = `請根據逍遙投資系統的每日價值評估，產出「${tabLabel}${filterLabel}」的選股推薦深度分析報告。
 
 報告日期：${today}
+資料日期：${latestUpdate}
 篩選群組：${tabLabel}${filterParen}（共 ${pool.length} 支）
 
 【股票清單與量化數據】
