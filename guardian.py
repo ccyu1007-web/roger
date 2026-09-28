@@ -1972,7 +1972,8 @@ def snapshot_stock_states():
                          ('val_a2','REAL'),('val_a','REAL'),('val_lt6','REAL'),
                          ('discount_pct','REAL'),('neff_d','REAL'),('lynch_d','REAL'),
                          ('shen_grade','TEXT'),('est_grade','TEXT'),('blend_grade','TEXT'),
-                         ('gb_total_rank','INTEGER'),('neff_group','TEXT')]:
+                         ('gb_total_rank','INTEGER'),('neff_group','TEXT'),
+                         ('fwd_neff_g','REAL'),('est_eps','REAL'),('est_div','REAL'),('fwd_neff_pe','REAL'),('fwd_neff_yld','REAL')]:
             try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
             except Exception: pass
         # stocks 表加欄位
@@ -2037,7 +2038,7 @@ def snapshot_stock_states():
                                 sys_ann_eps, sys_ann_div, sys_ann_pe, sys_ann_yld,
                                 val_aa, val_a1, val_a2, val_a, val_lt6,
                                 shen_grade, est_grade, gb_total_rank,
-                                revenue_cum_yoy, fwd_neff
+                                revenue_cum_yoy, fwd_neff, fwd_neff_g, fwd_neff_pe, fwd_neff_yld
                          FROM stocks WHERE close IS NOT NULL""")
         except Exception as e:
             print(f"[評價快照] 查詢失敗，用舊查詢: {e}")
@@ -2185,8 +2186,10 @@ def snapshot_stock_states():
                           shen_eps, shen_pe, shen_yld, fin_grade,
                           val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
                           neff_d, lynch_d, shen_grade, est_grade, blend_grade,
-                          gb_total_rank, neff_group, updated_at)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                          gb_total_rank, neff_group,
+                          fwd_neff_g, est_eps, est_div, fwd_neff_pe, fwd_neff_yld,
+                          updated_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                          ON CONFLICT(stock_id, date) DO UPDATE SET
                          price=excluded.price, price_pos=excluded.price_pos,
                          fair_low=excluded.fair_low, fair_mid=excluded.fair_mid,
@@ -2202,13 +2205,17 @@ def snapshot_stock_states():
                          blend_grade=excluded.blend_grade,
                          gb_total_rank=excluded.gb_total_rank,
                          neff_group=excluded.neff_group,
+                         fwd_neff_g=excluded.fwd_neff_g, est_eps=excluded.est_eps, est_div=excluded.est_div,
+                         fwd_neff_pe=excluded.fwd_neff_pe, fwd_neff_yld=excluded.fwd_neff_yld,
                          updated_at=excluded.updated_at""",
                       (code, data_date, close, price_pos, fair_low, fair_mid, fair_high,
                        shen_eps, shen_pe, shen_yld, row.get('fin_grade_1'),
                        vl['val_level'], vl['val_aa'], vl['val_a1'], vl['val_a2'],
                        vl['val_a'], vl['val_lt6'], vl['discount_pct'],
                        _fwd_neff, _lynch_d, _shen_grade, _est_grade, _blend_grade,
-                       row.get('gb_total_rank'), _neff_group, now_str))
+                       row.get('gb_total_rank'), _neff_group,
+                       row.get('fwd_neff_g'), est_eps, est_div, row.get('fwd_neff_pe'), row.get('fwd_neff_yld'),
+                       now_str))
 
             # 更新便宜天數和歷史最深等級
             cur_level = vl['val_level']
@@ -2278,7 +2285,8 @@ def _push_snapshot_to_render(data_date):
         full_rows = conn2.execute("""SELECT stock_id, date, price, price_pos, fair_low, fair_mid, fair_high,
                                            shen_eps, shen_pe, shen_yld, fin_grade,
                                            val_level, val_aa, val_a1, val_a2, val_a, val_lt6, discount_pct,
-                                           neff_d, lynch_d, shen_grade, est_grade, blend_grade
+                                           neff_d, lynch_d, shen_grade, est_grade, blend_grade,
+                                           fwd_neff_g, est_eps, est_div, fwd_neff_pe, fwd_neff_yld
                                     FROM stock_state WHERE date=?""", (data_date,)).fetchall()
 
     if not full_rows:
@@ -2294,6 +2302,7 @@ def _push_snapshot_to_render(data_date):
             'vl': r[11], 'aa': r[12], 'a1': r[13], 'a2': r[14], 'a': r[15], 'lt6': r[16], 'dp': r[17],
             'neff_d': r[18], 'lynch_d': r[19],
             'shen_grade': r[20], 'est_grade': r[21], 'blend_grade': r[22],
+            'fwd_neff_g': r[23], 'est_eps': r[24], 'est_div': r[25], 'fwd_neff_pe': r[26], 'fwd_neff_yld': r[27],
             'deepest': ex[0], 'cheap_days': ex[1],
         })
 
