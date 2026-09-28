@@ -2714,17 +2714,15 @@ def get_neff_changes():
         yld_f = f.get('fwd_neff_yld')
         yld_t = t.get('fwd_neff_yld')
 
-        # 判斷原因
+        # 判斷原因（只顯示有實際新資訊的：營收或季報更新）
         g_changed = g_f != g_t and g_f is not None and g_t is not None
         eps_changed = eps_f != eps_t and eps_f is not None and eps_t is not None
         if g_changed:
             reason = '營收更新'
         elif eps_changed:
             reason = '季報更新'
-        elif delta_neff and abs(delta_neff) > 0.01:
-            reason = '股價變動'
         else:
-            continue  # 沒有變化，跳過
+            continue  # 純股價變動或無變化，不顯示
 
         # 判斷新狀態
         grp_f = f.get('neff_group')
