@@ -151,6 +151,9 @@
     <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
     </label>
+    <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none;margin-left:10px">
+      <input type="checkbox" id="watchOnly" onchange="_watchOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px;accent-color:#f59e0b"> 僅看篩選
+    </label>
   </div>
 
   <!-- 統計列 -->
@@ -226,6 +229,8 @@ let _skipSet = new Set();
 let _trackDates = {};
 let _skipDates = {};
 let _qualityOnly = false;
+let _watchOnly = false;
+let _watchSet2 = new Set();
 let _currentTab = 'selected';
 let _changeBlockOpen = true;
 let _briefData = null;
@@ -286,12 +291,14 @@ function _neffPool() {
   });
 }
 
-function _applyQuality(arr) {
-  return _qualityOnly ? arr.filter(s => _qualitySet.has(s.code)) : arr;
+function _applyFilters(arr) {
+  if (_qualityOnly) arr = arr.filter(s => _qualitySet.has(s.code));
+  if (_watchOnly) arr = arr.filter(s => _watchSet2.has(s.code));
+  return arr;
 }
 
 function _tabItems(tab) {
-  let pool = _applyQuality(_neffPool());
+  let pool = _applyFilters(_neffPool());
   if (tab === 'selected') {
     return pool.filter(s => _isHighQuality(s) && _isPositiveMomentum(s));
   } else if (tab === 'value') {
@@ -317,6 +324,7 @@ async function load() {
     _skipSet       = new Set((lists.skip    || []).map(r => r.code));
     _trackDates = {}; (lists.track || []).forEach(r => { if(r.added_at) _trackDates[r.code] = r.added_at.slice(0,10); });
     _skipDates  = {}; (lists.skip  || []).forEach(r => { if(r.added_at) _skipDates[r.code]  = r.added_at.slice(0,10); });
+    _watchSet2  = new Set((lists.watch || []).map(r => r.code));
 
     _briefData = await briefRes.json();
     _growthChanges = _briefData.growth_changes || {};
@@ -457,7 +465,9 @@ function renderAll() {
     }
   });
   // 接近名單（前瞻Neff 0.9~1.0 + A≥5/7 + B≥7/10）
-  const pool = _qualityOnly ? _stocks.filter(s => _qualitySet.has(s.code)) : _stocks;
+  let pool = _stocks;
+  if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
+  if (_watchOnly) pool = pool.filter(s => _watchSet2.has(s.code));
   const approaching = pool.filter(s => {
     if (s.fwd_neff == null) return false;
     if (s.fwd_neff < 0.9 || s.fwd_neff >= 1.0) return false;
