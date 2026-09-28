@@ -2245,7 +2245,7 @@ def get_stocks():
                 'confidence': nr.get('confidence'),
                 'confidence_desc': nr.get('confidence_desc'),
                 'neff_g': nr.get('neff_g'),
-                'notes_date': nr.get('updated_at'),
+                'updated_at': nr.get('updated_at'),
             }
     except Exception: pass
 
