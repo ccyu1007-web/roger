@@ -733,11 +733,13 @@ async function loadDecision() {
     const stock = (sData.data || [])[0] || {};
     updateTitle({ name: stock.name });
 
-    // 預估 EPS/股利（使用者手動輸入）
+    // 預估 EPS/股利（與前瞻性Neff 同一套 fallback：使用者輸入 > 系統估算 > 沈董）
     let _estEps = null, _estDiv = null;
     const _qs = [ueData.q1, ueData.q2, ueData.q3, ueData.q4].map(v => v ? parseFloat(v) : null).filter(v => v != null);
     if (_qs.length > 0) _estEps = Math.round(_qs.reduce((a,b) => a+b, 0) * 100) / 100;
+    if (!_estEps && stock.sys_ann_eps) _estEps = parseFloat(stock.sys_ann_eps);
     if (ueData.div) _estDiv = parseFloat(ueData.div);
+    if (!_estDiv && stock.sys_ann_div) _estDiv = parseFloat(stock.sys_ann_div);
 
     const close = stock.close;
     const chg = stock.change;
