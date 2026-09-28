@@ -195,8 +195,19 @@
     </div>
     <div id="valuationBlockBody" style="margin-top:12px">
 
+  <!-- 說明區 -->
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:.78rem;color:#64748b;line-height:1.7">
+    <b style="color:#1e3a5f">分群邏輯</b>：所有前瞻性Neff ≥ 1.0 的股票，依品質（A檢+B檢）和動能（累積/3M/12M營收YoY）分為四群。<br>
+    <b style="color:#1e3a5f">精選</b> = 體質佳 + 動能正向（好公司、便宜、成長中）｜
+    <b style="color:#1e3a5f">價值型</b> = 體質佳 + 動能未轉正（等催化劑）｜
+    <b style="color:#1e3a5f">動能型</b> = 動能正向 + 體質普通（有風險）｜
+    <b style="color:#1e3a5f">僅前瞻性Neff</b> = 僅估值過關<br>
+    <b style="color:#1e3a5f">前瞻性Neff</b> = (自訂成長率g + 預估殖利率) / 預估本益比 ｜ ≥ 1.0 表示成長性被低估，進入攻擊區。<br>
+    <b style="color:#1e3a5f">體質佳</b> = A檢（獲利品質）≥ 5/7 且 B檢（安全體質）≥ 7/10
+  </div>
+
   <!-- Tab 列 + 體質佳開關 -->
-  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap">
     <div class="tab-bar-L1" id="tabBarL1">
       <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
       <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
@@ -231,45 +242,24 @@
       <div class="stat-num sc-rm" id="sc-rm" style="cursor:pointer" onclick="_togglePeriodNewList('removed')">—</div>
     </div>
   </div>
-  <!-- 期間比對控制列 -->
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 14px;margin:8px 0 4px;font-size:.78rem;color:#64748b;line-height:1.7">
+
+  <!-- 期間比對 -->
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:10px 0 6px;font-size:.78rem;color:#64748b;line-height:1.7">
     <b style="color:#1e3a5f">期間比對</b>：比對起迄日期的前瞻性Neff快照，統計哪些股票在這段期間<b>進入</b>或<b>離開</b>攻擊區（前瞻性Neff ≥ 1.0）。包含所有原因（營收/季報/股價變動）的淨結果。點擊新增/剔除數字可展開清單。
   </div>
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 4px;padding:0 4px">
-    <span style="font-size:.78rem;color:#94a3b8">期間比對</span>
-    <input type="date" id="statFrom" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.78rem">
-    <span style="font-size:.78rem;color:#94a3b8">~</span>
-    <input type="date" id="statTo" style="padding:2px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:.78rem">
-    <button onclick="loadPeriodStats()" style="padding:2px 10px;background:#475569;color:#fff;border:none;border-radius:4px;font-size:.78rem;cursor:pointer">查詢</button>
-    <button onclick="resetPeriodStats()" style="padding:2px 10px;border:1px solid #d1d5db;background:#fff;border-radius:4px;font-size:.78rem;cursor:pointer;color:#94a3b8">重置</button>
-    <span id="periodLabel" style="font-size:.72rem;color:#94a3b8"></span>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+    <label style="font-size:.82rem;color:#475569">起始日
+      <input type="date" id="statFrom" style="margin-left:4px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem">
+    </label>
+    <label style="font-size:.82rem;color:#475569">迄止日
+      <input type="date" id="statTo" style="margin-left:4px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:.82rem">
+    </label>
+    <button onclick="loadPeriodStats()" style="padding:4px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;font-size:.82rem;cursor:pointer;font-weight:600">查詢</button>
+    <button onclick="resetPeriodStats()" style="padding:4px 14px;border:1px solid #d1d5db;background:#fff;border-radius:5px;font-size:.82rem;cursor:pointer;color:#94a3b8">重置</button>
+    <span id="periodLabel" style="font-size:.78rem;color:#94a3b8"></span>
   </div>
   <!-- 期間新增/刪除清單（點擊數字展開） -->
   <div id="periodListArea" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin:6px 0 10px;font-size:.8rem"></div>
-
-  <!-- 分群說明 -->
-  <div class="desc-section" style="margin-top:0;margin-bottom:16px">
-    <h3>分群邏輯說明</h3>
-    <table class="desc-table">
-      <thead>
-        <tr><th>群組</th><th>品質條件</th><th>動能條件</th><th>含義</th></tr>
-      </thead>
-      <tbody>
-        <tr><td><b>精選</b></td><td>A+B通過率 ≥ 70%（A至少5/7，B至少7/10）</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>好公司、便宜、成長中</td></tr>
-        <tr><td><b>價值型</b></td><td>A+B通過率 ≥ 70%</td><td>動能未全正</td><td>好公司便宜但成長停滯</td></tr>
-        <tr><td><b>動能型</b></td><td>A+B通過率 &lt; 70%</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>成長中但品質有疑慮</td></tr>
-        <tr><td><b>僅前瞻性Neff ≥ 1.0</b></td><td>不限</td><td>不限</td><td>僅前瞻性Neff 過關，品質或動能未達標</td></tr>
-      </tbody>
-    </table>
-    <div class="formula">
-      <code>前瞻 Neff = (前瞻成長率 g + 殖利率) / 前瞻 PE</code>
-      &nbsp;｜&nbsp; 前瞻性Neff ≥ 1.0 表示成長性被低估
-      <br>
-      <span style="font-size:.8rem;color:#64748b;margin-top:4px;display:block">
-        品質條件：A 檢（獲利品質）至少 5/7 且 B 檢（安全體質）至少 7/10，整體通過率 ≥ 70%
-      </span>
-    </div>
-  </div>
 
   <!-- Tab 內容 -->
   <div id="tab_selected" class="tab-content active"></div>
