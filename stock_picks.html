@@ -153,6 +153,10 @@ let _watchOnly = false;
 let _stocks = [];
 let _qualitySet = new Set();
 let _watchSet = new Set();
+let _trackSet = new Set();
+let _skipSet = new Set();
+let _trackDates = {};
+let _skipDates = {};
 
 async function load() {
   _updateCriteria();
@@ -167,6 +171,10 @@ async function load() {
     const lists = await listRes.json();
     _qualitySet = new Set((lists.quality || []).map(r => r.code));
     _watchSet = new Set((lists.watch || []).map(r => r.code));
+    _trackSet = new Set((lists.track || []).map(r => r.code));
+    _skipSet = new Set((lists.skip || []).map(r => r.code));
+    _trackDates = {}; (lists.track || []).forEach(r => { if(r.added_at) _trackDates[r.code] = r.added_at.slice(0,10); });
+    _skipDates = {}; (lists.skip || []).forEach(r => { if(r.added_at) _skipDates[r.code] = r.added_at.slice(0,10); });
     updateCounts();
   } catch(e) {
     console.error('股票數據載入失敗:', e);
@@ -254,6 +262,7 @@ async function loadReport() {
     const data = await res.json();
     if (data.content && data.content.trim()) {
       area.innerHTML = marked.parse(data.content);
+      _injectTrackCheckboxes();
       if (data.updated_at) {
         document.getElementById('dateLabel').textContent = `報告日期：${data.updated_at.slice(0,10)}`;
         document.getElementById('toolbarInfo').textContent = `最後更新：${data.updated_at}`;
@@ -370,6 +379,121 @@ PYEOF`;
 
   navigator.clipboard.writeText(prompt).then(() => {
     alert(`${tabLabel}${filterLabel}（${pool.length}支）分析指令已複製到剪貼簿`);
+  });
+}
+
+function _injectTrackCheckboxes() {
+  const area = document.getElementById('reportArea');
+  const tables = area.querySelectorAll('table');
+  tables.forEach(table => {
+    const thead = table.querySelector('thead tr');
+    if (!thead) return;
+    const th1 = document.createElement('th');
+    th1.textContent = '追蹤';
+    th1.style.cssText = 'width:52px;text-align:center';
+    const th2 = document.createElement('th');
+    th2.textContent = '不追蹤';
+    th2.style.cssText = 'width:52px;text-align:center;color:#94a3b8';
+    thead.insertBefore(th2, thead.firstChild);
+    thead.insertBefore(th1, thead.firstChild);
+
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      const codeCell = row.querySelector('td');
+      if (!codeCell) return;
+      const code = codeCell.textContent.trim();
+      if (!/^\d{4}$/.test(code)) return;
+
+      const isTracked = _trackSet.has(code);
+      const isSkipped = _skipSet.has(code);
+      const trackDate = _trackDates[code] || '';
+      const skipDate = _skipDates[code] || '';
+
+      const td1 = document.createElement('td');
+      td1.style.cssText = 'text-align:center';
+      td1.innerHTML = `<input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb" data-code="${code}" ${isTracked?'checked':''} onchange="_toggleTrack(this)">${isTracked && trackDate ? `<div style="font-size:.6rem;color:#94a3b8;line-height:1">${trackDate.slice(5)}</div>` : ''}`;
+
+      const td2 = document.createElement('td');
+      td2.style.cssText = 'text-align:center';
+      td2.innerHTML = `<input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:#94a3b8" data-code="${code}" ${isSkipped?'checked':''} onchange="_toggleSkip(this)">${isSkipped && skipDate ? `<div style="font-size:.6rem;color:#94a3b8;line-height:1">${skipDate.slice(5)}</div>` : ''}`;
+
+      row.insertBefore(td2, row.firstChild);
+      row.insertBefore(td1, row.firstChild);
+    });
+  });
+}
+
+function _toggleTrack(cb) {
+  const code = cb.dataset.code;
+  const today = new Date().toISOString().slice(0,10);
+  if (cb.checked) {
+    _trackSet.add(code);
+    _trackDates[code] = today;
+    if (_skipSet.has(code)) {
+      _skipSet.delete(code);
+      delete _skipDates[code];
+      fetch('/api/user-lists/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code})});
+    }
+    fetch('/api/user-lists/track', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'add', code})});
+  } else {
+    _trackSet.delete(code);
+    delete _trackDates[code];
+    fetch('/api/user-lists/track', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code})});
+  }
+  const td = cb.closest('td');
+  const dateDiv = td.querySelector('div');
+  if (cb.checked) {
+    if (!dateDiv) { const d=document.createElement('div'); d.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; d.textContent=today.slice(5); td.appendChild(d); }
+    else dateDiv.textContent = today.slice(5);
+  } else if (dateDiv) dateDiv.remove();
+  _syncPicksCheckboxes(code);
+}
+
+function _toggleSkip(cb) {
+  const code = cb.dataset.code;
+  const today = new Date().toISOString().slice(0,10);
+  if (cb.checked) {
+    _skipSet.add(code);
+    _skipDates[code] = today;
+    if (_trackSet.has(code)) {
+      _trackSet.delete(code);
+      delete _trackDates[code];
+      fetch('/api/user-lists/track', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code})});
+    }
+    fetch('/api/user-lists/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'add', code})});
+  } else {
+    _skipSet.delete(code);
+    delete _skipDates[code];
+    fetch('/api/user-lists/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'remove', code})});
+  }
+  const td = cb.closest('td');
+  const dateDiv = td.querySelector('div');
+  if (cb.checked) {
+    if (!dateDiv) { const d=document.createElement('div'); d.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; d.textContent=today.slice(5); td.appendChild(d); }
+    else dateDiv.textContent = today.slice(5);
+  } else if (dateDiv) dateDiv.remove();
+  _syncPicksCheckboxes(code);
+}
+
+function _syncPicksCheckboxes(code) {
+  document.querySelectorAll(`input[data-code="${code}"]`).forEach(inp => {
+    const fn = inp.getAttribute('onchange') || '';
+    if (fn.includes('_toggleTrack')) {
+      inp.checked = _trackSet.has(code);
+      const d = inp.closest('td').querySelector('div');
+      if (inp.checked && _trackDates[code]) {
+        if (!d) { const nd=document.createElement('div'); nd.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; nd.textContent=_trackDates[code].slice(5); inp.closest('td').appendChild(nd); }
+        else d.textContent = _trackDates[code].slice(5);
+      } else if (d) d.remove();
+    }
+    if (fn.includes('_toggleSkip')) {
+      inp.checked = _skipSet.has(code);
+      const d = inp.closest('td').querySelector('div');
+      if (inp.checked && _skipDates[code]) {
+        if (!d) { const nd=document.createElement('div'); nd.style.cssText='font-size:.6rem;color:#94a3b8;line-height:1'; nd.textContent=_skipDates[code].slice(5); inp.closest('td').appendChild(nd); }
+        else d.textContent = _skipDates[code].slice(5);
+      } else if (d) d.remove();
+    }
   });
 }
 
