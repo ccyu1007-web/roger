@@ -112,7 +112,7 @@
       <button class="tab-btn active" onclick="switchTab('selected',this)">精選<span class="tab-cnt" id="cnt_selected">0</span></button>
       <button class="tab-btn" onclick="switchTab('value',this)">價值型<span class="tab-cnt" id="cnt_value">0</span></button>
       <button class="tab-btn" onclick="switchTab('momentum',this)">動能型<span class="tab-cnt" id="cnt_momentum">0</span></button>
-      <button class="tab-btn" onclick="switchTab('neffonly',this)">僅Neff ≥ 1.0<span class="tab-cnt" id="cnt_neffonly">0</span></button>
+      <button class="tab-btn" onclick="switchTab('neffonly',this)">僅前瞻性Neff ≥ 1.0<span class="tab-cnt" id="cnt_neffonly">0</span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;updateCounts();loadReport()" style="accent-color:#2563eb;width:16px;height:16px;vertical-align:middle">
@@ -227,10 +227,10 @@ function updateCounts() {
 }
 
 const _tabCriteriaText = {
-  selected: '<b>精選</b> — 前瞻Neff >= 1.0 + 體質佳（獲利力 >= 5/7、安全性 >= 7/10）+ 動能正向（累積營收YoY、近3月、近12月皆 >= 0）',
-  value:    '<b>價值型</b> — 前瞻Neff >= 0.5 + 體質佳（獲利力 >= 5/7、安全性 >= 7/10）+ 動能尚未轉正（累積/3M/12M 任一 < 0）。Neff 門檻較低，因價值股成長率 g 接近 0，主要靠殖利率撐 Neff',
-  momentum: '<b>動能型</b> — 前瞻Neff >= 1.0 + 體質普通（獲利力或安全性未達標）+ 動能正向（累積營收YoY、近3月、近12月皆 >= 0）',
-  neffonly: '<b>僅Neff >= 1.0</b> — 前瞻Neff >= 1.0，但體質普通且動能未轉正。僅估值面（Neff）通過門檻'
+  selected: '<b>精選</b> — 前瞻性Neff >= 1.0 + 體質佳（獲利力 >= 5/7、安全性 >= 7/10）+ 動能正向（累積營收YoY、近3月、近12月皆 >= 0）',
+  value:    '<b>價值型</b> — 前瞻性Neff >= 0.5 + 體質佳（獲利力 >= 5/7、安全性 >= 7/10）+ 動能尚未轉正（累積/3M/12M 任一 < 0）。前瞻性Neff 門檻較低，因價值股成長率 g 接近 0，主要靠殖利率撐前瞻性Neff',
+  momentum: '<b>動能型</b> — 前瞻性Neff >= 1.0 + 體質普通（獲利力或安全性未達標）+ 動能正向（累積營收YoY、近3月、近12月皆 >= 0）',
+  neffonly: '<b>僅前瞻性Neff >= 1.0</b> — 前瞻性Neff >= 1.0，但體質普通且動能未轉正。僅估值面（前瞻性Neff）通過門檻'
 };
 
 function _updateCriteria() {
@@ -268,7 +268,7 @@ async function loadReport() {
         document.getElementById('toolbarInfo').textContent = `最後更新：${data.updated_at}`;
       }
     } else {
-      const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'}[_currentTab];
+      const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅前瞻性Neff≥1.0'}[_currentTab];
       const fl = [_qualityOnly?'體質佳':'', _watchOnly?'篩選':''].filter(Boolean).join('+');
       const ql = fl ? `（僅${fl}）` : '';
       area.innerHTML = `<div class="empty">
@@ -284,7 +284,7 @@ async function loadReport() {
 
 function copyPrompt() {
   const today = new Date().toISOString().slice(0,10);
-  const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅Neff≥1.0'}[_currentTab];
+  const tabLabel = {selected:'精選',value:'價值型',momentum:'動能型',neffonly:'僅前瞻性Neff≥1.0'}[_currentTab];
   const key = _reportKey();
   const pool = _getTabPool();
   pool.sort((a, b) => (b.fwd_neff||0) - (a.fwd_neff||0));
@@ -293,7 +293,14 @@ function copyPrompt() {
   pool.forEach(s => {
     const gi = s._gi || {};
     const n = s._notes || {};
-    stockList += `- ${s.code} ${s.name} | 股價=${s.close||'—'} | 前瞻Neff=${s.fwd_neff?.toFixed(2)||'—'}(g=${s.fwd_neff_g||'—'},PE=${s.fwd_neff_pe||'—'},殖=${s.fwd_neff_yld||'—'}%) | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${n.moat_strength?'有':'無'}\n`;
+    let noteStatus = '無';
+    if (n.moat_strength && n.updated_at) {
+      const months = (Date.now() - new Date(n.updated_at).getTime()) / (1000*60*60*24*30);
+      noteStatus = months <= 3 ? '有' : '待更新';
+    } else if (n.moat_strength) {
+      noteStatus = '待更新';
+    }
+    stockList += `- ${s.code} ${s.name} | 股價=${s.close||'—'} | 前瞻性Neff=${s.fwd_neff?.toFixed(2)||'—'}(g=${s.fwd_neff_g||'—'},PE=${s.fwd_neff_pe||'—'},殖=${s.fwd_neff_yld||'—'}%) | 等級=${s.est_grade||s.shen_grade||''} | A:${s._chk_profit||0}/7 B:${s._chk_safety||0}/10 C:${s._chk_value||0}/7 D:${s._chk_growth||0}/4 | 累積=${s.revenue_cum_yoy?.toFixed(1)||'—'}% 3M=${gi.rev_3m_yoy?.toFixed(1)||'—'}% 12M=${gi.rev_12m_yoy?.toFixed(1)||'—'}% | 質性=${noteStatus}\n`;
   });
 
   const filterLabel = [_qualityOnly?'+體質佳':'', _watchOnly?'+篩選':''].filter(Boolean).join('');
@@ -311,6 +318,7 @@ ${stockList}
 curl -s "https://tock-system.onrender.com/api/user-notes/{code}"
 
 有筆記的（質性=有）→ 讀取完整內容，整合量化+質化深度分析
+待更新的（質性=待更新）→ 筆記超過3個月，讀取但標註需更新，最多小買
 無筆記的（質性=無）→ 純量化分析 + 標註「待質性研究」
 
 【步驟二：深度分析與分類】
