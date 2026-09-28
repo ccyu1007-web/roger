@@ -140,10 +140,10 @@
 
 <div class="container">
 
-  <!-- Neff 異動追蹤 -->
+  <!-- 前瞻性Neff 異動追蹤 -->
   <div id="neffChangeBlock" style="background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="_toggleNeffBlock()">
-      <h3 style="font-size:.95rem;font-weight:700;color:#1e3a5f;margin:0">Neff 異動追蹤</h3>
+      <h3 style="font-size:.95rem;font-weight:700;color:#1e3a5f;margin:0">前瞻性Neff 異動追蹤</h3>
       <span id="neffBlockArrow" style="font-size:.8rem;color:#94a3b8">▲</span>
     </div>
     <div id="neffBlockBody" style="margin-top:12px">
@@ -169,7 +169,7 @@
           <input type="radio" name="neffMode" value="all" checked onchange="renderNeffChanges()"> 全部異動
         </label>
         <label style="font-size:.82rem;color:#475569;cursor:pointer">
-          <input type="radio" name="neffMode" value="new" onchange="renderNeffChanges()"> 僅新進Neff≥1.0
+          <input type="radio" name="neffMode" value="new" onchange="renderNeffChanges()"> 僅新進前瞻性Neff≥1.0
         </label>
         <label style="font-size:.82rem;color:#475569;cursor:pointer">
           <input type="radio" name="neffMode" value="big" onchange="renderNeffChanges()"> 僅變動≥0.3
@@ -187,7 +187,7 @@
       <button class="tab-L1 active" onclick="switchTab('selected',this)">精選<span class="count-badge-L1" id="cnt_selected">0</span></button>
       <button class="tab-L1" onclick="switchTab('value',this)">價值型<span class="count-badge-L1" id="cnt_value">0</span></button>
       <button class="tab-L1" onclick="switchTab('momentum',this)">動能型<span class="count-badge-L1" id="cnt_momentum">0</span></button>
-      <button class="tab-L1" onclick="switchTab('all',this)">僅Neff ≥ 1.0<span class="count-badge-L1" id="cnt_all">0</span></button>
+      <button class="tab-L1" onclick="switchTab('all',this)">僅前瞻性Neff ≥ 1.0<span class="count-badge-L1" id="cnt_all">0</span></button>
     </div>
     <label style="font-size:.85rem;color:#475569;cursor:pointer;user-select:none">
       <input type="checkbox" id="qualityOnly" onchange="_qualityOnly=this.checked;renderAll()" style="vertical-align:middle;margin-right:4px"> 僅體質佳
@@ -200,7 +200,7 @@
   <!-- 統計列 -->
   <div class="stat-bar">
     <div class="stat-item">
-      <div class="stat-label">Neff ≥ 1.0</div>
+      <div class="stat-label">前瞻性Neff ≥ 1.0</div>
       <div class="stat-num sc-total" id="sc-total">—</div>
     </div>
     <div class="stat-item">
@@ -240,12 +240,12 @@
         <tr><td><b>精選</b></td><td>A+B通過率 ≥ 70%（A至少5/7，B至少7/10）</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>好公司、便宜、成長中</td></tr>
         <tr><td><b>價值型</b></td><td>A+B通過率 ≥ 70%</td><td>動能未全正</td><td>好公司便宜但成長停滯</td></tr>
         <tr><td><b>動能型</b></td><td>A+B通過率 &lt; 70%</td><td>累積YoY ≥ 0 且 3M ≥ 0 且 12M ≥ 0</td><td>成長中但品質有疑慮</td></tr>
-        <tr><td><b>僅Neff ≥ 1.0</b></td><td>不限</td><td>不限</td><td>僅 Neff 過關，品質或動能未達標</td></tr>
+        <tr><td><b>僅前瞻性Neff ≥ 1.0</b></td><td>不限</td><td>不限</td><td>僅前瞻性Neff 過關，品質或動能未達標</td></tr>
       </tbody>
     </table>
     <div class="formula">
       <code>前瞻 Neff = (前瞻成長率 g + 殖利率) / 前瞻 PE</code>
-      &nbsp;｜&nbsp; Neff ≥ 1.0 表示成長性被低估
+      &nbsp;｜&nbsp; 前瞻性Neff ≥ 1.0 表示成長性被低估
       <br>
       <span style="font-size:.8rem;color:#64748b;margin-top:4px;display:block">
         品質條件：A 檢（獲利品質）至少 5/7 且 B 檢（安全體質）至少 7/10，整體通過率 ≥ 70%
@@ -426,7 +426,7 @@ function renderChangeBlock() {
   // 分類群組異動
   const upgrades = [];   // 升級（往精選方向）
   const downgrades = []; // 降級（往全部/剔除方向）
-  const newEntries = []; // 新進 Neff ≥ 1.0
+  const newEntries = []; // 新進前瞻性Neff ≥ 1.0
   const removed = [];    // 剔除 Neff < 1.0
 
   const grpRank = {'精選': 4, '價值': 3, '動能': 2, '全部': 1};
@@ -518,7 +518,7 @@ function renderAll() {
       el.innerHTML = `<div class="table-wrap">${_buildTable(items)}</div>`;
     }
   });
-  // 接近名單（前瞻Neff 0.9~1.0 + A≥5/7 + B≥7/10）
+  // 接近名單（前瞻性Neff 0.9~1.0 + A≥5/7 + B≥7/10）
   let pool = _stocks;
   if (_qualityOnly) pool = pool.filter(s => _qualitySet.has(s.code));
   if (_watchOnly) pool = pool.filter(s => _watchSet2.has(s.code));
@@ -554,7 +554,7 @@ function _buildApproachTable(items) {
   </tr></thead><tbody>`;
   items.forEach(s => {
     const nv = s.fwd_neff;
-    // 再跌多少%（前瞻Neff跟股價反比）
+    // 再跌多少%（前瞻性Neff跟股價反比）
     const dropPct = nv != null ? ((1.0 - nv) / 1.0 * 100) : null;
     const dropStr = dropPct != null ? `再跌${Math.abs(dropPct).toFixed(1)}%` : '—';
     const grade = (s.est_grade && s.est_grade !== 'X') ? s.est_grade : (s.shen_grade || '');
@@ -597,7 +597,7 @@ function _buildTable(items) {
       <th style="width:58px">代碼</th>
       <th style="width:80px">名稱</th>
       <th class="r" style="width:60px">股價</th>
-      <th class="r" style="width:68px">前瞻Neff</th>
+      <th class="r" style="width:68px">前瞻性Neff</th>
       <th class="r" style="width:68px">成長率g</th>
       <th class="r" style="width:54px">PE</th>
       <th class="r" style="width:60px">殖利率</th>
@@ -801,7 +801,7 @@ function _syncRowCheckboxes(code) {
 }
 
 // ─── 啟動 ─────────────────────────────────────────────
-// ─── Neff 異動追蹤 ─────────────────────────────────────
+// ─── 前瞻性Neff 異動追蹤 ─────────────────────────────────────
 let _neffChangeData = [];
 let _neffBlockOpen = true;
 
@@ -954,7 +954,7 @@ function renderNeffChanges() {
     <th style="width:58px">代碼</th>
     <th style="width:65px">名稱</th>
     <th style="width:65px">原因</th>
-    <th class="r" style="width:110px">Neff 變化</th>
+    <th class="r" style="width:110px">前瞻性Neff 變化</th>
     <th class="r" style="width:70px">g 變化</th>
     <th class="r" style="width:110px">EPS 變化</th>
     <th class="r" style="width:100px">D 變化</th>
