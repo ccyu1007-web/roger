@@ -187,6 +187,14 @@
     </div>
   </div>
 
+  <!-- 每日價值評估 -->
+  <div style="background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="_toggleValuationBlock()">
+      <h3 style="font-size:.95rem;font-weight:700;color:#1e3a5f;margin:0">每日價值評估</h3>
+      <span id="valuationBlockArrow" style="font-size:.8rem;color:#94a3b8">▲</span>
+    </div>
+    <div id="valuationBlockBody" style="margin-top:12px">
+
   <!-- Tab 列 + 體質佳開關 -->
   <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
     <div class="tab-bar-L1" id="tabBarL1">
@@ -279,6 +287,9 @@
       <div id="approachBody"></div>
     </div>
   </div>
+
+    </div><!-- /valuationBlockBody -->
+  </div><!-- /每日價值評估 -->
 
 </div><!-- /container -->
 
@@ -808,6 +819,15 @@ function _syncRowCheckboxes(code) {
       } else if (d) d.remove();
     }
   });
+}
+
+// ─── 每日價值評估收合 ─────────────────────────────────
+function _toggleValuationBlock() {
+  const body = document.getElementById('valuationBlockBody');
+  const arrow = document.getElementById('valuationBlockArrow');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  arrow.textContent = isOpen ? '▼' : '▲';
 }
 
 // ─── 複製分析指令（產出選股推薦報告）─────────────────────
