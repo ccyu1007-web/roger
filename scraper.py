@@ -4366,6 +4366,29 @@ def _run_prices_inner(scheduled=True):
     print(f"\n{'='*50}")
     print(f"股價更新  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*50}")
+
+    # 等待網路就緒（休眠喚醒後 DNS 可能尚未恢復）
+    import socket as _sock
+    _net_ok = False
+    for _try in range(24):  # 最多等 120 秒
+        for _host in ['openapi.twse.com.tw', 'www.tpex.org.tw']:
+            try:
+                _sock.setdefaulttimeout(5)
+                _sock.getaddrinfo(_host, 443)
+                _net_ok = True
+                break
+            except (OSError, _sock.timeout):
+                pass
+        if _net_ok:
+            if _try > 0:
+                print(f"[網路] DNS 就緒，等待了 {_try * 5} 秒")
+            break
+        time.sleep(5)
+    if not _net_ok:
+        print("[股價更新] 等待網路 120 秒仍無法解析 DNS，本次中止")
+        print(f"\n股價更新中止！0 支，總耗時 {time.time()-t0:.1f}s")
+        return
+
     init_db()
 
     # 1. 平行抓取股票清單 + 股價
