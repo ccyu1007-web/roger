@@ -96,10 +96,15 @@ def _push_single_table(table_name, where=None, since=None):
         print(f"[同步] 表 {table_name} 不存在")
         return
     columns = [c[1] for c in cols_info]
-    # 取得主鍵
-    pk = [c[1] for c in cols_info if c[5] > 0]  # pk index > 0
-    if not pk:
-        pk = [columns[0]]  # fallback: 第一個欄位
+    # 取得主鍵（stocks 表用 code 而非 id，因為 PostgreSQL ON CONFLICT 需要 UNIQUE 欄位）
+    _PK_OVERRIDE = {'stocks': ['code']}
+    if table_name in _PK_OVERRIDE:
+        pk = _PK_OVERRIDE[table_name]
+        columns = [c for c in columns if c != 'id']  # 排除 AUTOINCREMENT id
+    else:
+        pk = [c[1] for c in cols_info if c[5] > 0]  # pk index > 0
+        if not pk:
+            pk = [columns[0]]  # fallback: 第一個欄位
     # material_news/etf 等需要 clear_first（stock_checklist 改用 UPSERT，避免清空時前端讀到空資料）
     clear_tables = {'material_news', 'etf_holdings', 'etf_changes', 'etf_info'}
     _push_table_to_render(table_name, columns, pk, clear_first=(table_name in clear_tables),
