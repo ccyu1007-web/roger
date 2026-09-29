@@ -689,6 +689,36 @@ def _calc_derived_fields(r, global_settings=None, user_params=None, qf_data=None
             elif _sys_est is not None:
                 _fwd_ann_eps = _sys_est * 4  # 最終fallback
 
+    # 前瞻EPS四季明細（供前端聶夫區顯示）
+    _fwd_eps_detail = {}
+    _sys_est_val = r.get('sys_est_eps')
+    if qf_data and _fwd_ann_eps is not None:
+        if _published_count > 0:
+            _fwd_eps_detail['year'] = _cur_roc
+            for q in range(1, 5):
+                if q in _actual_qs:
+                    _fwd_eps_detail[f'q{q}'] = round(_actual_qs[q], 2)
+                    _fwd_eps_detail[f'q{q}_src'] = 'actual'
+                elif _sys_est_val is not None:
+                    _fwd_eps_detail[f'q{q}'] = round(_sys_est_val, 2)
+                    _fwd_eps_detail[f'q{q}_src'] = 'est'
+        elif _published_count == 0:
+            _use_qs = _last_year_qs if '_last_year_qs' in locals() else {}
+            _fwd_eps_detail['year'] = _cur_roc - 1 if _use_qs else _cur_roc
+            for q in range(1, 5):
+                if q in _use_qs:
+                    _fwd_eps_detail[f'q{q}'] = round(_use_qs[q], 2)
+                    _fwd_eps_detail[f'q{q}_src'] = 'actual'
+                elif _sys_est_val is not None:
+                    _fwd_eps_detail[f'q{q}'] = round(_sys_est_val, 2)
+                    _fwd_eps_detail[f'q{q}_src'] = 'est'
+        _fwd_eps_detail['total'] = round(_fwd_ann_eps, 2)
+        _wp = r.get('weighted_payout')
+        if _wp and _wp > 0:
+            _fwd_eps_detail['payout'] = round(_wp, 1)
+            _fwd_eps_detail['div'] = round(_fwd_ann_eps * _wp / 100, 2)
+    r['fwd_eps_detail'] = _fwd_eps_detail if _fwd_eps_detail else None
+
     # (3) 前瞻PE和殖利率：用戶手動估值 > 系統預設 > 無值
     # 3a. 系統預設（兜底）
     if _fwd_ann_eps and _fwd_ann_eps > 0 and close:

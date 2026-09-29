@@ -3631,17 +3631,26 @@ function calcNeff() {
         }
         if (_price && _epsTotal > 0) noteHtml += `　→ PE = ${_price.toFixed(0)} / ${_epsTotal.toFixed(2)} = ${(_price / _epsTotal).toFixed(2)}`;
         if (_price && _nDiv > 0) noteHtml += `，殖利率 = ${_nDiv.toFixed(2)} / ${_price.toFixed(0)} = ${(_nDiv / _price * 100).toFixed(2)}%`;
-      } else if (_stockData && _price) {
-        // 沒填季 EPS，從系統預設反推
-        const _defPE = _stockData.fwd_neff_pe || defaultPE;
-        const _defYld = _stockData.fwd_neff_yld != null ? _stockData.fwd_neff_yld : defaultYld;
-        const _sysPR = _stockData.weighted_payout;
-        if (_defPE && _defPE > 0) {
-          const _bkEps = _price / _defPE;
-          noteHtml += `<br>EPS = 股價 ${_price.toFixed(0)} / PE ${_defPE.toFixed(2)} = ${_bkEps.toFixed(2)}（系統預設）`;
-          if (_defYld != null && _defYld > 0) {
-            const _bkDiv = _defYld * _price / 100;
-            noteHtml += `<br>D = EPS ${_bkEps.toFixed(2)} × 配息率 ${_sysPR ? _sysPR.toFixed(1) : '-'}% = ${_bkDiv.toFixed(2)}　→ 殖利率 = ${_bkDiv.toFixed(2)} / ${_price.toFixed(0)} = ${_defYld.toFixed(2)}%`;
+      } else if (_stockData) {
+        // 沒填季 EPS，顯示系統前瞻EPS四季明細
+        const det = _stockData.fwd_eps_detail;
+        if (det && det.total) {
+          const yr = det.year || '';
+          const qParts = [];
+          for (let i = 1; i <= 4; i++) {
+            const v = det['q' + i];
+            const src = det['q' + i + '_src'];
+            if (v != null) {
+              const label = src === 'est' ? `<span style="color:#94a3b8">${yr}Q${i}:${v.toFixed(2)}(估)</span>` : `${yr}Q${i}:${v.toFixed(2)}`;
+              qParts.push(label);
+            }
+          }
+          noteHtml += `<br>EPS = ${qParts.join(' + ')} = ${det.total.toFixed(2)}`;
+          if (det.div != null && det.payout != null) {
+            noteHtml += `<br>D = EPS ${det.total.toFixed(2)} × 配息率 ${det.payout}% = ${det.div.toFixed(2)}`;
+            if (_price && _price > 0) {
+              noteHtml += `　→ 殖利率 = ${det.div.toFixed(2)} / ${_price.toFixed(0)} = ${(det.div / _price * 100).toFixed(2)}%`;
+            }
           }
         }
       }
