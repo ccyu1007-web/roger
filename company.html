@@ -3555,21 +3555,22 @@ function calcNeff() {
   const defaultPE = _stockData ? _stockData.fwd_neff_pe : null;
   const defaultYld = _stockData ? _stockData.fwd_neff_yld : null;
 
-  // 優先順序：聶夫直接輸入 > 季估計表帶入 > 系統預設
-  const growth = growthInput ? parseFloat(growthInput) : defaultG;
-  const pe = peInput ? parseFloat(peInput) : (estPE || defaultPE);
-  const yld = yldInput ? parseFloat(yldInput) : (estYld != null ? estYld : defaultYld);
-
-  // 判斷來源：手動（聶夫輸入或季估計表）=黑色, 系統預設=藍色
-  const gIsDefault = !growthInput;
-  const peIsDefault = !peInput && estPE == null;
-  const yldIsDefault = !yldInput && estYld == null;
-
-  // 顏色區分 + 填入顯示值
+  // 取得元素（判斷 isDefault 需要）
+  const growthEl = document.getElementById('neffGrowth');
   const peEl = document.getElementById('neffPEInput');
   const yldEl = document.getElementById('neffYldInput');
-  const growthEl = document.getElementById('neffGrowth');
 
+  // 判斷來源：dataset.isDefault 由上次 calcNeff 填入預設值時設定，oninput 時清除
+  const gIsDefault = !growthInput || growthEl.dataset.isDefault === '1';
+  const peIsDefault = (!peInput || peEl.dataset.isDefault === '1') && estPE == null;
+  const yldIsDefault = (!yldInput || yldEl.dataset.isDefault === '1') && estYld == null;
+
+  // 優先順序：聶夫直接輸入（非預設）> 季估計表帶入 > 系統預設
+  const growth = (growthInput && !gIsDefault) ? parseFloat(growthInput) : defaultG;
+  const pe = (peInput && !peIsDefault) ? parseFloat(peInput) : (estPE || defaultPE);
+  const yld = (yldInput && !yldIsDefault) ? parseFloat(yldInput) : (estYld != null ? estYld : defaultYld);
+
+  // 顏色區分 + 填入顯示值
   if (!growthInput && growth != null) {
     growthEl.value = growth.toFixed(0);
     growthEl.dataset.isDefault = '1';
