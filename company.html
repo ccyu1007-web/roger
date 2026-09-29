@@ -3572,19 +3572,19 @@ function calcNeff() {
     growthEl.value = growth.toFixed(0);
     growthEl.dataset.isDefault = '1';
   }
-  growthEl.style.color = gIsDefault ? '#2563eb' : '#000';
+  growthEl.style.color = gIsDefault ? '#94a3b8' : '#000';
 
   if (!peInput && pe != null) {
     peEl.value = pe.toFixed(2);
     peEl.dataset.isDefault = peIsDefault ? '1' : '';
   }
-  peEl.style.color = peIsDefault ? '#2563eb' : '#000';
+  peEl.style.color = peIsDefault ? '#94a3b8' : '#000';
 
   if (!yldInput && yld != null) {
     yldEl.value = yld.toFixed(2);
     yldEl.dataset.isDefault = yldIsDefault ? '1' : '';
   }
-  yldEl.style.color = yldIsDefault ? '#2563eb' : '#000';
+  yldEl.style.color = yldIsDefault ? '#94a3b8' : '#000';
 
   const resultEl = document.getElementById('neffResult');
   const noteEl = document.getElementById('neffNote');
@@ -4542,6 +4542,7 @@ function clearValParams() {
   calcValMethod();
   calcDDM();
   calcDCF();
+  calcNeff();
   renderMatrix();
 }
 
