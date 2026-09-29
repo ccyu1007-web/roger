@@ -2373,6 +2373,10 @@ async function initEstimator(sharesMillion) {
     if (dbData && Object.keys(dbData).length > 0) {
       let local = {};
       try { local = JSON.parse(localStorage.getItem('estimate_' + CODE) || '{}'); } catch(e) {}
+      // DB 是 Neff 參數的唯一來源，清除 localStorage 殘留值
+      ['neffGrowth','fwdNeffGrowth','fwdNeffPE','fwdNeffYield'].forEach(k => {
+        if (!(k in dbData) || !dbData[k]) delete local[k];
+      });
       // DB 資料覆蓋 localStorage（DB 為準）
       Object.assign(local, dbData);
       localStorage.setItem('estimate_' + CODE, JSON.stringify(local));
@@ -2410,9 +2414,7 @@ async function initEstimator(sharesMillion) {
       if (d.peLow) document.getElementById('peLow').value = d.peLow;
       if (d.yldHigh) document.getElementById('yldHigh').value = d.yldHigh;
       if (d.yldMax) document.getElementById('yldMax').value = d.yldMax;
-      if (d.fwdNeffGrowth) { document.getElementById('neffGrowth').value = d.fwdNeffGrowth; delete document.getElementById('neffGrowth').dataset.isDefault; }
-      if (d.fwdNeffPE) { document.getElementById('neffPEInput').value = d.fwdNeffPE; delete document.getElementById('neffPEInput').dataset.isDefault; }
-      if (d.fwdNeffYield) { document.getElementById('neffYldInput').value = d.fwdNeffYield; delete document.getElementById('neffYldInput').dataset.isDefault; }
+      // Neff 值不從 localStorage 立即載入（由 DB 路徑 + calcNeff 處理，避免殘留值覆蓋系統預設）
       // vmEps/vmDiv/vmLtDiv 只有手動設定(_vmManual)才從存檔還原，否則用自動計算值
       if (d._vmManual) {
         if (d.vmEps) document.getElementById('vmEps').value = d.vmEps;
@@ -4295,6 +4297,7 @@ function _applyEstimateData(d) {
   calcYldRange();
   calcValMethod();
   calcDCF();
+  calcNeff();
 }
 
 function _syncToValMethod() {
