@@ -3594,13 +3594,13 @@ function calcNeff() {
   if (growth == null || isNaN(growth) || pe == null || isNaN(pe) || yld == null || isNaN(yld)) {
     resultEl.textContent = '-';
     resultEl.style.color = '#334155';
-    noteEl.textContent = '';
+    noteEl.innerHTML = '';
   } else {
     const totalReturn = growth + yld;
     if (totalReturn <= 0 || pe <= 0) {
       resultEl.textContent = '無意義';
       resultEl.style.color = '#94a3b8';
-      noteEl.textContent = `總報酬率 = ${growth.toFixed(2)}% + ${yld.toFixed(2)}% = ${totalReturn.toFixed(2)}%（≤ 0，無法計算）`;
+      noteEl.innerHTML = `總報酬率 = ${growth.toFixed(2)}% + ${yld.toFixed(2)}% = ${totalReturn.toFixed(2)}%（≤ 0，無法計算）`;
     } else {
       const neff = totalReturn / pe;
       resultEl.textContent = neff.toFixed(2);
@@ -3608,8 +3608,44 @@ function calcNeff() {
       const gLabel = gIsDefault ? '預設' : '自訂';
       const peLabel = peIsDefault ? '預設' : (peInput ? '自訂' : '估值');
       const yldLabel = yldIsDefault ? '預設' : (yldInput ? '自訂' : '估值');
-      noteEl.textContent = `(${gLabel}成長率 ${growth.toFixed(2)}% + ${yldLabel}殖利率 ${yld.toFixed(2)}%) / ${peLabel}PE ${pe.toFixed(2)} = ${neff.toFixed(2)}` +
+      let noteHtml = `(${gLabel}成長率 ${growth.toFixed(2)}% + ${yldLabel}殖利率 ${yld.toFixed(2)}%) / ${peLabel}PE ${pe.toFixed(2)} = ${neff.toFixed(2)}` +
         (neff >= 1.0 ? '　極具吸引力' : neff >= 0.7 ? '　具吸引力' : '　未達門檻');
+      // EPS 與 D 的來源明細
+      const _nq1 = parseNum('estQ1'), _nq2 = parseNum('estQ2'), _nq3 = parseNum('estQ3'), _nq4 = parseNum('estQ4');
+      const _nParts = [_nq1, _nq2, _nq3, _nq4];
+      const _nLabels = ['Q1','Q2','Q3','Q4'];
+      const _nUserEps = _nParts.filter(v => v != null);
+      const _nDiv = parseNum('annDiv');
+      const _nPR = parseNum('annPR');
+      const _price = _estPrice;
+      if (_nUserEps.length > 0) {
+        // 使用者有填季 EPS
+        const _epsDetail = _nParts.map((v, i) => v != null ? `${_nLabels[i]}:${v.toFixed(2)}` : `${_nLabels[i]}:-`).join(' + ');
+        const _epsTotal = _nUserEps.reduce((a, b) => a + b, 0);
+        noteHtml += `<br>EPS = ${_epsDetail} = ${_epsTotal.toFixed(2)}`;
+        if (_nDiv != null && _epsTotal > 0) {
+          const _prVal = (_nDiv / _epsTotal * 100).toFixed(1);
+          noteHtml += `<br>D = EPS ${_epsTotal.toFixed(2)} × 配息率 ${_nPR != null ? _nPR.toFixed(1) : _prVal}% = ${_nDiv.toFixed(2)}`;
+        } else if (_nDiv != null) {
+          noteHtml += `<br>D = ${_nDiv.toFixed(2)}（手動設定）`;
+        }
+        if (_price && _epsTotal > 0) noteHtml += `　→ PE = ${_price.toFixed(0)} / ${_epsTotal.toFixed(2)} = ${(_price / _epsTotal).toFixed(2)}`;
+        if (_price && _nDiv > 0) noteHtml += `，殖利率 = ${_nDiv.toFixed(2)} / ${_price.toFixed(0)} = ${(_nDiv / _price * 100).toFixed(2)}%`;
+      } else if (_stockData && _price) {
+        // 沒填季 EPS，從系統預設反推
+        const _defPE = _stockData.fwd_neff_pe || defaultPE;
+        const _defYld = _stockData.fwd_neff_yld != null ? _stockData.fwd_neff_yld : defaultYld;
+        const _sysPR = _stockData.weighted_payout;
+        if (_defPE && _defPE > 0) {
+          const _bkEps = _price / _defPE;
+          noteHtml += `<br>EPS = 股價 ${_price.toFixed(0)} / PE ${_defPE.toFixed(2)} = ${_bkEps.toFixed(2)}（系統預設）`;
+          if (_defYld != null && _defYld > 0) {
+            const _bkDiv = _defYld * _price / 100;
+            noteHtml += `<br>D = EPS ${_bkEps.toFixed(2)} × 配息率 ${_sysPR ? _sysPR.toFixed(1) : '-'}% = ${_bkDiv.toFixed(2)}　→ 殖利率 = ${_bkDiv.toFixed(2)} / ${_price.toFixed(0)} = ${_defYld.toFixed(2)}%`;
+          }
+        }
+      }
+      noteEl.innerHTML = noteHtml;
     }
   }
   _updateNeffRef();
