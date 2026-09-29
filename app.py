@@ -2353,6 +2353,43 @@ def get_stocks():
         row["_notes"] = notes_meta.get(row["code"])
         row["_qnote"] = qn_map.get(row["code"])
 
+    # 單支查詢時附加前瞻EPS四季明細（聶夫區塊用）
+    if exact and rows:
+        _row = rows[0]
+        try:
+            from datetime import date as _d
+            _cr = _d.today().year - 1911
+            _qf_rows = query_db(
+                "SELECT quarter, eps FROM quarterly_financial WHERE code=? AND eps IS NOT NULL",
+                [exact])
+            _act = {}
+            for qf in _qf_rows:
+                qt = qf['quarter']
+                if 'Q' in qt:
+                    _qy, _qq = int(qt.split('Q')[0]), int(qt.split('Q')[1])
+                    if _qy == _cr and 1 <= _qq <= 4:
+                        _act[_qq] = qf['eps']
+            _se = _row.get('sys_est_eps')
+            _pc = len(_act)
+            _det = {'year': _cr}
+            if _pc > 0:
+                _total = sum(_act.values()) + (_se or 0) * (4 - _pc)
+                for q in range(1, 5):
+                    if q in _act:
+                        _det[f'q{q}'] = round(_act[q], 2)
+                        _det[f'q{q}_src'] = 'actual'
+                    elif _se is not None:
+                        _det[f'q{q}'] = round(_se, 2)
+                        _det[f'q{q}_src'] = 'est'
+                _det['total'] = round(_total, 2)
+                _wp = _row.get('weighted_payout')
+                if _wp and _wp > 0 and _total:
+                    _det['payout'] = round(_wp, 1)
+                    _det['div'] = round(_total * _wp / 100, 2)
+                _row['fwd_eps_detail'] = _det
+        except Exception:
+            pass
+
     result_data = {"count": len(rows), "data": rows}
     resp = jsonify(result_data)
     if use_cache:

@@ -3605,12 +3605,12 @@ function calcNeff() {
     } else {
       const neff = totalReturn / pe;
       resultEl.textContent = neff.toFixed(2);
-      resultEl.style.color = neff >= 0.7 ? '#dc2626' : '#64748b';
+      resultEl.style.color = neff >= 1.0 ? '#dc2626' : '#64748b';
       const gLabel = gIsDefault ? '預設' : '自訂';
       const peLabel = peIsDefault ? '預設' : (peInput ? '自訂' : '估值');
       const yldLabel = yldIsDefault ? '預設' : (yldInput ? '自訂' : '估值');
       let noteHtml = `(${gLabel}成長率 ${growth.toFixed(2)}% + ${yldLabel}殖利率 ${yld.toFixed(2)}%) / ${peLabel}PE ${pe.toFixed(2)} = ${neff.toFixed(2)}` +
-        (neff >= 1.0 ? '　極具吸引力' : neff >= 0.7 ? '　具吸引力' : '　未達門檻');
+        (neff >= 1.5 ? '　極具吸引力' : neff >= 1.0 ? '　具吸引力' : '　未達門檻');
       // EPS 與 D 的來源明細
       const _nq1 = parseNum('estQ1'), _nq2 = parseNum('estQ2'), _nq3 = parseNum('estQ3'), _nq4 = parseNum('estQ4');
       const _nParts = [_nq1, _nq2, _nq3, _nq4];
