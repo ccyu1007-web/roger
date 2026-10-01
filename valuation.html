@@ -1114,7 +1114,7 @@ function renderNeffChanges() {
       <td>${d.name || ''}</td>
       <td><span style="font-size:.72rem;padding:1px 6px;border-radius:3px;background:${reasonColor}15;color:${reasonColor}">${d.reason}</span></td>
       <td class="r"><span style="color:${nc};font-weight:600">${_fmtChange(d.neff_from, d.neff_to, d.delta_neff)}</span></td>
-      <td class="r">${d.g_from != null && d.g_to != null && d.g_from !== d.g_to ? `<span style="color:${_deltaColor(d.g_to - d.g_from)}">${d.g_from}→${d.g_to}</span>` : (d.g_to != null ? d.g_to : '—')}</td>
+      <td class="r"><span style="color:${_deltaColor(d.g_from != null && d.g_to != null ? d.g_to - d.g_from : null)}">${_fmtChange(d.g_from, d.g_to, d.g_from != null && d.g_to != null ? d.g_to - d.g_from : null)}</span></td>
       <td class="r"><span style="color:${ec}">${_fmtChange(d.eps_from, d.eps_to, d.delta_eps)}</span></td>
       <td class="r"><span style="color:${dc}">${_fmtChange(d.div_from, d.div_to, d.delta_div)}</span></td>
       <td class="r"><span style="color:${pc}">${_fmtChange(d.pe_from, d.pe_to, d.delta_pe)}</span></td>
@@ -1135,18 +1135,18 @@ function _deltaColor(v, invert) {
 
 function _fmtChange(from, to, delta) {
   if (from == null && to == null) return '—';
-  if (from == null) return `→${to}`;
+  if (from == null) return `${to}`;
   if (to == null) return `${from}→`;
-  if (delta == null || Math.abs(delta) < 0.005) return `${to}`;
+  if (delta == null || Math.abs(delta) < 0.005) return `${from}→${to}`;
   const sign = delta > 0 ? '+' : '';
   return `${from}→${to} (${sign}${delta.toFixed(2)})`;
 }
 
 function _fmtChangePct(from, to, delta) {
   if (from == null && to == null) return '—';
-  if (from == null) return `→${to}%`;
+  if (from == null) return `${to}%`;
   if (to == null) return `${from}%→`;
-  if (delta == null || Math.abs(delta) < 0.005) return `${to}%`;
+  if (delta == null || Math.abs(delta) < 0.005) return `${from}→${to}%`;
   const sign = delta > 0 ? '+' : '';
   return `${from}→${to}% (${sign}${delta.toFixed(2)})`;
 }
