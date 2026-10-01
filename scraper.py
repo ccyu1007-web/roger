@@ -2569,7 +2569,29 @@ def quick_update():
     # ── 3. 政府 API 批次營收（補充 MOPS 缺的，COALESCE 不覆蓋已有值）──
     _quick_gov_revenue(today_str)
 
-    # ── 3b. 營收更新後重算衍生欄位（含前瞻Neff）──
+    # ── 3b. 營收更新後重算系統 EPS 估算（只跑今天有營收更新的股票）──
+    try:
+        with sqlite3.get_conn(row_factory=True) as _conn:
+            _rev_codes = [r['code'] for r in _conn.execute(
+                "SELECT code FROM stocks WHERE revenue_date = ?", (today_str,)).fetchall()]
+        if _rev_codes:
+            _est_ok = 0
+            for _code in _rev_codes:
+                try:
+                    _res = estimate_system_eps(_code)
+                    if _res.get('est_eps') is not None and 'error' not in _res:
+                        with sqlite3.get_conn() as _c2:
+                            _c2.execute(
+                                "UPDATE stocks SET sys_est_eps=?, sys_est_quarter=?, sys_est_confidence=? WHERE code=?",
+                                (_res['est_eps'], _res['quarter'], _res['confidence'], _code))
+                        _est_ok += 1
+                except Exception:
+                    pass
+            print(f"[系統估算] 營收更新 {len(_rev_codes)} 支，重估 {_est_ok} 支")
+    except Exception as e:
+        print(f"[系統估算] 失敗: {e}")
+
+    # ── 3c. 重算衍生欄位（含前瞻Neff，用更新後的 sys_est_eps）──
     try:
         from app import recalc_all_derived
         recalc_all_derived()
