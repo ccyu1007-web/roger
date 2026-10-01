@@ -2708,116 +2708,107 @@ def sync_snapshot():
 # ── Neff 異動比對 API ────────────────────────────────────────
 @app.route("/api/neff-changes")
 def get_neff_changes():
-    """比對兩天的 stock_state 快照，回傳 Neff 異動清單"""
+    """營收/季報更新日期落在區間內 + 前瞻性Neff>=1 的股票清單"""
     from_date = request.args.get('from')
     to_date = request.args.get('to')
     if not from_date or not to_date:
         return jsonify({"error": "需要 from 和 to 參數"}), 400
 
-    # 確保新欄位存在
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    for col, typ in [('fwd_neff_g','REAL'),('est_eps','REAL'),('est_div','REAL'),('fwd_neff_pe','REAL'),('fwd_neff_yld','REAL')]:
-        try: c.execute(f"ALTER TABLE stock_state ADD COLUMN {col} {typ}")
-        except Exception: pass
-    try: conn.commit()
-    except Exception: pass
-    conn.close()
+    # 1. 找出區間內有營收更新或季報更新的股票
+    rev_codes = set()
+    for r in query_db("SELECT code FROM stocks WHERE revenue_date >= ? AND revenue_date <= ?", (from_date, to_date)):
+        rev_codes.add(r['code'])
+    eps_codes = set()
+    for r in query_db("SELECT code FROM stocks WHERE eps_date >= ? AND eps_date <= ?", (from_date, to_date)):
+        eps_codes.add(r['code'])
+    changed_codes = rev_codes | eps_codes
+    if not changed_codes:
+        return jsonify([])
 
-    # 取兩天的快照
+    # 2. 取 to_date 快照（篩選 Neff >= 1.0）+ from_date 快照（顯示 before/after）
     rows = query_db("""
         SELECT stock_id, date, price, neff_d, fwd_neff_g, est_eps, est_div, fwd_neff_pe, fwd_neff_yld, neff_group
         FROM stock_state
         WHERE date IN (?, ?)
     """, (from_date, to_date))
 
-    # 按 stock_id 分組
     snapshots = {}
     for r in rows:
         code = r['stock_id']
+        if code not in changed_codes:
+            continue
         if code not in snapshots:
             snapshots[code] = {}
         snapshots[code][r['date']] = r
 
-    # 取股票名稱
+    # 3. 取股票名稱
     stock_info = {}
     for r in query_db("SELECT code, name FROM stocks"):
         stock_info[r['code']] = r['name']
 
-    # 取體質清單
+    # 4. 取體質清單 + 觀察清單
     quality_codes = set()
     for r in query_db("SELECT code FROM user_lists WHERE list_type='quality'"):
         quality_codes.add(r['code'])
-
-    # 取觀察清單
     watch_codes = set()
     for r in query_db("SELECT code FROM user_lists WHERE list_type='watch'"):
         watch_codes.add(r['code'])
 
     results = []
-    for code, dates in snapshots.items():
-        if from_date not in dates or to_date not in dates:
-            continue
-        f = dates[from_date]
-        t = dates[to_date]
+    for code in changed_codes:
+        dates = snapshots.get(code, {})
+        t = dates.get(to_date)
+        f = dates.get(from_date)
 
-        # 需要至少有一天有 neff_d 值
-        neff_f = f.get('neff_d')
+        # to_date 快照必須存在且 Neff >= 1.0
+        if not t:
+            continue
         neff_t = t.get('neff_d')
-        if neff_f is None and neff_t is None:
+        if neff_t is None or neff_t < 1.0:
             continue
 
-        # 計算差異
-        delta_neff = (neff_t or 0) - (neff_f or 0) if neff_t is not None or neff_f is not None else None
+        # 判斷原因
+        reasons = []
+        if code in rev_codes:
+            reasons.append('營收更新')
+        if code in eps_codes:
+            reasons.append('季報更新')
+        reason = '／'.join(reasons)
 
-        g_f = f.get('fwd_neff_g')
+        # before/after 數值
+        neff_f = f.get('neff_d') if f else None
+        g_f = f.get('fwd_neff_g') if f else None
         g_t = t.get('fwd_neff_g')
-        eps_f = f.get('est_eps')
+        eps_f = f.get('est_eps') if f else None
         eps_t = t.get('est_eps')
-        div_f = f.get('est_div')
+        div_f = f.get('est_div') if f else None
         div_t = t.get('est_div')
-        pe_f = f.get('fwd_neff_pe')
+        pe_f = f.get('fwd_neff_pe') if f else None
         pe_t = t.get('fwd_neff_pe')
-        yld_f = f.get('fwd_neff_yld')
+        yld_f = f.get('fwd_neff_yld') if f else None
         yld_t = t.get('fwd_neff_yld')
 
-        # 判斷原因（只顯示有實際新資訊的：營收或季報更新）
-        g_changed = g_f != g_t and g_f is not None and g_t is not None
-        eps_changed = eps_f != eps_t and eps_f is not None and eps_t is not None
-        if g_changed:
-            reason = '營收更新'
-        elif eps_changed:
-            reason = '季報更新'
-        else:
-            continue  # 純股價變動或無變化，不顯示
+        delta_neff = round(neff_t - neff_f, 2) if neff_f is not None else None
 
-        # 判斷新狀態
-        grp_f = f.get('neff_group')
+        # 判斷狀態
         grp_t = t.get('neff_group')
+        grp_f = f.get('neff_group') if f else None
         status = ''
         GROUP_RANK = {'精選': 4, '價值': 3, '動能': 2, '全部': 1}
-        if neff_f is not None and neff_f < 1.0 and neff_t is not None and neff_t >= 1.0:
-            status = '新進Neff'
-            if grp_t:
-                status = f'新進{grp_t}'
-        elif neff_f is not None and neff_f >= 1.0 and neff_t is not None and neff_t < 1.0:
-            status = '移出'
+        if neff_f is not None and neff_f < 1.0:
+            status = f'新進{grp_t}' if grp_t else '新進Neff'
         elif grp_f and grp_t and GROUP_RANK.get(grp_t, 0) > GROUP_RANK.get(grp_f, 0):
             status = f'升級{grp_t}'
         elif grp_f and grp_t and GROUP_RANK.get(grp_t, 0) < GROUP_RANK.get(grp_f, 0):
             status = f'降級{grp_t}'
-
-        # 如果沒有明顯變化且沒有狀態變化，可以考慮跳過微小變動
-        if delta_neff is not None and abs(delta_neff) < 0.01 and not status:
-            continue
 
         results.append({
             'code': code,
             'name': stock_info.get(code, ''),
             'reason': reason,
             'neff_from': round(neff_f, 2) if neff_f is not None else None,
-            'neff_to': round(neff_t, 2) if neff_t is not None else None,
-            'delta_neff': round(delta_neff, 2) if delta_neff is not None else None,
+            'neff_to': round(neff_t, 2),
+            'delta_neff': delta_neff,
             'g_from': g_f, 'g_to': g_t,
             'eps_from': round(eps_f, 2) if eps_f is not None else None,
             'eps_to': round(eps_t, 2) if eps_t is not None else None,
@@ -2838,8 +2829,8 @@ def get_neff_changes():
             'watch_ok': code in watch_codes,
         })
 
-    # 按 Neff 變動絕對值排序
-    results.sort(key=lambda x: abs(x.get('delta_neff') or 0), reverse=True)
+    # 按 Neff 值排序（高→低）
+    results.sort(key=lambda x: x.get('neff_to') or 0, reverse=True)
     return jsonify(results)
 
 @app.route("/api/neff-changes/dates")

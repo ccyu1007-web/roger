@@ -149,8 +149,7 @@
     <div id="neffBlockBody" style="margin-top:12px">
       <!-- 說明區 -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:.78rem;color:#64748b;line-height:1.7">
-        <b style="color:#1e3a5f">追蹤邏輯</b>：比對起迄日期區間內，因<b style="color:#2563eb">營收公布</b>或<b style="color:#7c3aed">季報公布</b>導致前瞻性Neff 組成要素改變的股票。純股價漲跌造成的變動不顯示。<br>
-        <b style="color:#1e3a5f">觸發條件</b>：營收公布 → 累積營收YoY改變 → 建議成長率g改變；季報公布 → 實際EPS更新 → 預估年EPS/股利D改變 → 預估PE與殖利率改變。<br>
+        <b style="color:#1e3a5f">追蹤邏輯</b>：列出<b style="color:#2563eb">營收更新日期</b>或<b style="color:#7c3aed">季報更新日期</b>落在起迄區間內，且前瞻性Neff ≥ 1.0 的股票。<br>
         <b style="color:#1e3a5f">前瞻性Neff</b> = (自訂成長率g + 預估殖利率) / 預估本益比 ｜ ≥ 1.0 表示成長性被低估，進入攻擊區。
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
@@ -165,20 +164,16 @@
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
         <label style="font-size:.82rem;color:#475569;cursor:pointer">
-          <input type="checkbox" id="neffQualOnly" style="accent-color:#2563eb;vertical-align:middle" onchange="renderNeffChanges()"> 僅體質佳
+          <input type="radio" name="neffMode" value="all" checked onchange="renderNeffChanges()"> 全部
         </label>
         <label style="font-size:.82rem;color:#475569;cursor:pointer">
-          <input type="checkbox" id="neffWatchOnly" style="accent-color:#f59e0b;vertical-align:middle" onchange="renderNeffChanges()"> 僅看篩選
-        </label>
-        <span style="font-size:.78rem;color:#d1d5db">|</span>
-        <label style="font-size:.82rem;color:#475569;cursor:pointer">
-          <input type="radio" name="neffMode" value="all" checked onchange="renderNeffChanges()"> 全部異動
+          <input type="radio" name="neffMode" value="quality" onchange="renderNeffChanges()"> 僅體質佳
         </label>
         <label style="font-size:.82rem;color:#475569;cursor:pointer">
-          <input type="radio" name="neffMode" value="new" onchange="renderNeffChanges()"> 僅新進前瞻性Neff≥1.0
+          <input type="radio" name="neffMode" value="watch" onchange="renderNeffChanges()"> 僅看篩選
         </label>
         <label style="font-size:.82rem;color:#475569;cursor:pointer">
-          <input type="radio" name="neffMode" value="big" onchange="renderNeffChanges()"> 僅變動≥0.3
+          <input type="radio" name="neffMode" value="other" onchange="renderNeffChanges()"> 僅前瞻性Neff≥1
         </label>
       </div>
       <div id="neffChangeArea" style="font-size:.82rem;color:#94a3b8;text-align:center;padding:20px">
@@ -1068,17 +1063,14 @@ async function loadNeffChanges() {
 function renderNeffChanges() {
   let data = [..._neffChangeData];
 
-  // 篩選
-  if (document.getElementById('neffQualOnly').checked) data = data.filter(d => d.quality_ok);
-  if (document.getElementById('neffWatchOnly').checked) data = data.filter(d => d.watch_ok);
-
-  // 模式
+  // 篩選模式
   const mode = document.querySelector('input[name="neffMode"]:checked')?.value || 'all';
-  if (mode === 'new') data = data.filter(d => d.status && d.status.includes('新進'));
-  if (mode === 'big') data = data.filter(d => Math.abs(d.delta_neff || 0) >= 0.3);
+  if (mode === 'quality') data = data.filter(d => d.quality_ok);
+  else if (mode === 'watch') data = data.filter(d => d.watch_ok);
+  else if (mode === 'other') data = data.filter(d => !d.quality_ok && !d.watch_ok);
 
-  // 排序
-  data.sort((a, b) => Math.abs(b.delta_neff || 0) - Math.abs(a.delta_neff || 0));
+  // 排序：Neff 高→低
+  data.sort((a, b) => (b.neff_to || 0) - (a.neff_to || 0));
 
   document.getElementById('neffChangeCount').textContent = `${data.length} 支異動`;
 
