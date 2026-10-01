@@ -2111,6 +2111,12 @@ def snapshot_stock_states():
             est_eps = ue.get('eps') or row.get('sys_ann_eps')
             est_div = ue.get('div') or row.get('sys_ann_div')
 
+            # 前瞻 Neff 用的 EPS/Div（從 fwd_neff_pe/yld 反算，供 Neff 追蹤用）
+            _fnpe = row.get('fwd_neff_pe')
+            _fnyld = row.get('fwd_neff_yld')
+            _fwd_est_eps = round(close / _fnpe, 2) if _fnpe and _fnpe > 0 and close else est_eps
+            _fwd_est_div = round(close * _fnyld / 100, 2) if _fnyld is not None and close else est_div
+
             # 個股自訂估值參數（優先於預設值）
             uvp = user_val_params.get(code, {})
 
@@ -2214,7 +2220,7 @@ def snapshot_stock_states():
                        vl['val_a'], vl['val_lt6'], vl['discount_pct'],
                        _fwd_neff, _lynch_d, _shen_grade, _est_grade, _blend_grade,
                        row.get('gb_total_rank'), _neff_group,
-                       row.get('fwd_neff_g'), est_eps, est_div, row.get('fwd_neff_pe'), row.get('fwd_neff_yld'),
+                       row.get('fwd_neff_g'), _fwd_est_eps, _fwd_est_div, row.get('fwd_neff_pe'), row.get('fwd_neff_yld'),
                        now_str))
 
             # 更新便宜天數和歷史最深等級

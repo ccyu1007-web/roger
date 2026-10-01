@@ -2584,6 +2584,7 @@ def quick_update():
                             _c2.execute(
                                 "UPDATE stocks SET sys_est_eps=?, sys_est_quarter=?, sys_est_confidence=? WHERE code=?",
                                 (_res['est_eps'], _res['quarter'], _res['confidence'], _code))
+                            _c2.commit()
                         _est_ok += 1
                 except Exception:
                     pass
