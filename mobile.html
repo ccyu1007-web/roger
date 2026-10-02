@@ -188,8 +188,8 @@ body {
 
 .valuation {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
   margin-top: 8px;
 }
 .val-item {
@@ -477,8 +477,10 @@ function renderCards() {
         ${metricBox('月增率', s.revenue_mom, '%')}
       </div>
       <div class="valuation">
-        ${valBox('沈董本益比', s.shen_pe, '倍')}
-        ${valBox('沈董殖利率', s.shen_yld, '%')}
+        ${neffBox(s.fwd_neff)}
+        ${valBox('g', s.fwd_neff_g, '%')}
+        ${valBox('PE', s.fwd_neff_pe, '倍')}
+        ${valBox('殖利率', s.fwd_neff_yld, '%')}
       </div>
     </div>`;
   }).join('');
@@ -494,6 +496,12 @@ function metricBox(label, val, unit) {
 function valBox(label, val, unit) {
   if (val == null) return `<div class="val-item"><div class="metric-label">${label}</div><div class="metric-value na">--</div></div>`;
   return `<div class="val-item"><div class="metric-label">${label}</div><div class="metric-value">${val.toFixed(2)}${unit}</div></div>`;
+}
+
+function neffBox(val) {
+  if (val == null) return `<div class="val-item"><div class="metric-label">前瞻Neff</div><div class="metric-value na">--</div></div>`;
+  const cls = val >= 1.0 ? 'positive' : '';
+  return `<div class="val-item"><div class="metric-label">前瞻Neff</div><div class="metric-value ${cls}" style="${val >= 1.0 ? 'color:#dc2626;font-weight:700' : ''}">${val.toFixed(2)}</div></div>`;
 }
 
 function filterCards() { renderCards(); }
