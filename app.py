@@ -2725,19 +2725,31 @@ def get_neff_changes():
     if not changed_codes:
         return jsonify([])
 
-    # 2. 決定 before 快照日期：若起迄相同，自動找前一個可用快照日
+    # 2. 決定實際快照日期：找最接近 from/to 的可用快照
+    #    to_date 快照不存在時回退到最近的；from 自動找前一個
+    snap_to = to_date
+    chk = query_db("SELECT date FROM stock_state WHERE date <= ? ORDER BY date DESC LIMIT 1", (to_date,))
+    if chk:
+        snap_to = chk[0]['date']
+
     compare_from = from_date
-    if from_date == to_date:
-        prev = query_db("SELECT date FROM stock_state WHERE date < ? ORDER BY date DESC LIMIT 1", (from_date,))
+    # 若起迄相同或 from >= snap_to，自動找 snap_to 前一個快照
+    if from_date >= snap_to:
+        prev = query_db("SELECT date FROM stock_state WHERE date < ? ORDER BY date DESC LIMIT 1", (snap_to,))
         if prev:
             compare_from = prev[0]['date']
+    else:
+        # from_date 快照不存在時也回退
+        chk2 = query_db("SELECT date FROM stock_state WHERE date <= ? ORDER BY date DESC LIMIT 1", (from_date,))
+        if chk2:
+            compare_from = chk2[0]['date']
 
-    # 取 to_date 快照（篩選 Neff >= 1.0）+ compare_from 快照（顯示 before/after）
+    # 取 snap_to 快照（篩選 Neff >= 1.0）+ compare_from 快照（顯示 before/after）
     rows = query_db("""
         SELECT stock_id, date, price, neff_d, fwd_neff_g, est_eps, est_div, fwd_neff_pe, fwd_neff_yld, neff_group
         FROM stock_state
         WHERE date IN (?, ?)
-    """, (compare_from, to_date))
+    """, (compare_from, snap_to))
 
     snapshots = {}
     for r in rows:
@@ -2764,10 +2776,10 @@ def get_neff_changes():
     results = []
     for code in changed_codes:
         dates = snapshots.get(code, {})
-        t = dates.get(to_date)
+        t = dates.get(snap_to)
         f = dates.get(compare_from)
 
-        # to_date 快照必須存在且 Neff >= 1.0
+        # snap_to 快照必須存在且 Neff >= 1.0
         if not t:
             continue
         neff_t = t.get('neff_d')
