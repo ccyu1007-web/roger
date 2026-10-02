@@ -2413,7 +2413,8 @@ def api_revenue_today():
     rows = query_db("""
         SELECT code, name, market, close, change,
                revenue_yoy, revenue_mom, revenue_cum_yoy,
-               shen_pe, shen_yld, revenue_date
+               shen_pe, shen_yld, revenue_date,
+               fwd_neff, fwd_neff_g, fwd_neff_pe, fwd_neff_yld
         FROM stocks
         WHERE revenue_date = ?
         ORDER BY code ASC
