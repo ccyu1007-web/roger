@@ -1115,8 +1115,8 @@ function renderNeffChanges() {
       <td><span style="font-size:.72rem;padding:1px 6px;border-radius:3px;background:${reasonColor}15;color:${reasonColor}">${d.reason}</span></td>
       <td class="r"><span style="color:${nc};font-weight:600">${_fmtChange(d.neff_from, d.neff_to, d.delta_neff)}</span></td>
       <td class="r"><span style="color:${_deltaColor(d.g_from != null && d.g_to != null ? d.g_to - d.g_from : null)}">${_fmtChange(d.g_from, d.g_to, d.g_from != null && d.g_to != null ? d.g_to - d.g_from : null)}</span></td>
-      <td class="r"><span style="color:${ec}">${_fmtChange(d.eps_from, d.eps_to, d.delta_eps)}</span></td>
-      <td class="r"><span style="color:${dc}">${_fmtChange(d.div_from, d.div_to, d.delta_div)}</span></td>
+      <td class="r"><span style="color:${ec}">${_fmtChange(d.eps_from, d.eps_to, null)}</span></td>
+      <td class="r"><span style="color:${dc}">${_fmtChange(d.div_from, d.div_to, null)}</span></td>
       <td class="r"><span style="color:${pc}">${_fmtChange(d.pe_from, d.pe_to, d.delta_pe)}</span></td>
       <td class="r"><span style="color:${yc}">${_fmtChangePct(d.yld_from, d.yld_to, d.delta_yld)}</span></td>
       <td>${statusHtml}</td>
