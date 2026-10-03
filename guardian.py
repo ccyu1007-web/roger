@@ -2361,12 +2361,18 @@ def get_daily_briefing():
             continue
 
     # 按 stock_id 分組，取最近 6 筆（去抖動需要看 5 日歷史）
+    # 去重：跳過與前一筆價格完全相同的快照（週末/假日複製品）
     grouped = {}
     for row in all_rows:
         sid = row['stock_id']
         if sid not in grouped:
             grouped[sid] = []
         if len(grouped[sid]) < 6:
+            # 跳過與前一筆價格/等級完全相同的快照（週末/假日複製品）
+            if grouped[sid]:
+                prev = grouped[sid][-1]
+                if prev.get('price') == row['price'] and prev.get('val_level') == (row['val_level'] if 'val_level' in row.keys() else None):
+                    continue
             grouped[sid].append(dict(row))
 
     alerts = []       # 紅色警示（等級下降）
