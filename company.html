@@ -4446,6 +4446,20 @@ function calcValMethod() {
   el.innerHTML = html;
 }
 
+// 判斷 Neff 欄位是否為系統預設值（isDefault flag 或值等於系統預設）
+function _isNeffDefault(id) {
+  const el = document.getElementById(id);
+  if (!el) return true;
+  if (el.dataset.isDefault === '1') return true;
+  const v = parseFloat(el.value);
+  if (isNaN(v)) return true;
+  // 值等於系統預設 → 視為未手動修改，不存入 user_estimates
+  const defaults = {neffGrowth: _stockData?.fwd_neff_g, neffPEInput: _stockData?.fwd_neff_pe, neffYldInput: _stockData?.fwd_neff_yld};
+  const sysDefault = defaults[id];
+  if (sysDefault != null && Math.abs(v - sysDefault) < 0.01) return true;
+  return false;
+}
+
 function saveValParams() {
   const now = new Date().toLocaleString('zh-TW');
   const params = {
@@ -4459,10 +4473,10 @@ function saveValParams() {
     peLow: document.getElementById('peLow').value,
     yldHigh: document.getElementById('yldHigh').value,
     yldMax: document.getElementById('yldMax').value,
-    neffGrowth: document.getElementById('neffGrowth').dataset.isDefault ? '' : document.getElementById('neffGrowth').value,
-    fwdNeffGrowth: document.getElementById('neffGrowth').dataset.isDefault ? '' : document.getElementById('neffGrowth').value,
-    fwdNeffPE: document.getElementById('neffPEInput').dataset.isDefault ? '' : document.getElementById('neffPEInput').value,
-    fwdNeffYield: document.getElementById('neffYldInput').dataset.isDefault ? '' : document.getElementById('neffYldInput').value,
+    neffGrowth: _isNeffDefault('neffGrowth') ? '' : document.getElementById('neffGrowth').value,
+    fwdNeffGrowth: _isNeffDefault('neffGrowth') ? '' : document.getElementById('neffGrowth').value,
+    fwdNeffPE: _isNeffDefault('neffPEInput') ? '' : document.getElementById('neffPEInput').value,
+    fwdNeffYield: _isNeffDefault('neffYldInput') ? '' : document.getElementById('neffYldInput').value,
   };
   // vmEps/vmDiv/vmLtDiv 只在使用者手動編輯過時才存（避免自動帶入的值被當成手動設定）
   if (_vmManual) {
